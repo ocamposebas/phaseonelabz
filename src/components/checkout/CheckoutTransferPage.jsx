@@ -339,6 +339,85 @@ function isRewardGiftItem(item = {}) {
   );
 }
 
+function decodePossibleGlobalId(value = "") {
+  const raw = String(value || "").trim();
+
+  if (!raw) return "";
+
+  if (/^gid:\/\//i.test(raw)) return raw;
+
+  try {
+    if (typeof atob !== "undefined") {
+      const decoded = atob(raw);
+
+      if (decoded && decoded !== raw) return decoded;
+    }
+  } catch {
+    // Not a base64/global id.
+  }
+
+  return raw;
+}
+
+function resolveNumericId(...values) {
+  for (const value of values) {
+    if (value === undefined || value === null || value === "") continue;
+
+    if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+      return value;
+    }
+
+    const raw = String(value).trim();
+
+    if (/^\d+$/.test(raw)) {
+      const number = Number(raw);
+      if (number > 0) return number;
+    }
+
+    const decoded = decodePossibleGlobalId(raw);
+    const match = decoded.match(/(?:Product|product|Variation|variation|product_variation|post)[:\/](\d+)$/);
+
+    if (match?.[1]) {
+      const number = Number(match[1]);
+      if (number > 0) return number;
+    }
+  }
+
+  return 0;
+}
+
+function getOfficialProductId(item = {}) {
+  return resolveNumericId(
+    item.product_id,
+    item.productId,
+    item.productID,
+    item.wc_product_id,
+    item.wcProductId,
+    item.woo_product_id,
+    item.wooProductId,
+    item.databaseId,
+    item.database_id,
+    item.wp_id,
+    item.wordpress_id,
+    item.parent_id,
+    item.parentId,
+    item.id
+  );
+}
+
+function getOfficialVariationId(item = {}) {
+  return resolveNumericId(
+    item.variation_id,
+    item.variationId,
+    item.selectedVariationId,
+    item.selected_variation_id,
+    item.variant_id,
+    item.variantId,
+    item.databaseVariationId,
+    item.variationDatabaseId
+  );
+}
+
 function getCartItemPrice(item = {}) {
   if (isRewardGiftItem(item)) {
     return 0;
@@ -391,108 +470,29 @@ function getItemOptions(item = {}) {
     .join(" / ");
 }
 
-function decodeCheckoutPayload(value = "") {
-  try {
-    if (!value) return [];
-
-    const json = decodeURIComponent(escape(atob(String(value))));
-    const parsed = JSON.parse(json);
-
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
-function normalizeCheckoutItemForPayment(item = {}) {
-  const productId = Number(
-    item.product_id ||
-      item.productId ||
-      item.parent_id ||
-      item.parentId ||
-      item.id ||
-      0
-  );
-
-  const variationId = Number(
-    item.variation_id ||
-      item.variationId ||
-      item.selectedVariationId ||
-      item.selected_variation_id ||
-      0
-  );
-
-  return {
-    product_id: productId,
-    variation_id: variationId,
-    quantity: Number(item.quantity || item.qty || 1),
-    price: getCartItemPrice(item),
-    regular_price: Number(item.regular_price || item.regularPrice || item.price || 0),
-    sale_price: Number(item.sale_price || item.salePrice || item.price || 0),
-    variation:
-      item.variation ||
-      item.variation_attributes ||
-      item.selectedAttributes ||
-      item.selectedOptions ||
-      {},
-  };
-}
-
 function buildCheckoutItems(cartItems = []) {
-  /*
-    Reward gifts are visual-only.
-    They stay visible in the checkout summary as FREE, but they are never sent
-    to WooCommerce, Tagada, Venmo, Zelle, or ACH/eDebit payment payloads.
-  */
-  return cartItems
+  /* Used for coupon validation and eDebit/ACH. Rewards remain visual only. */
+  const officialItems = cartItems
     .filter((item) => !isRewardGiftItem(item))
-    .map((item) => normalizeCheckoutItemForPayment(item))
-    .filter((item) => item.product_id && item.quantity > 0);
-}
+    .map((item) => ({
+      product_id: getOfficialProductId(item),
+      variation_id: getOfficialVariationId(item),
+      quantity: Number(item.quantity || 1),
+      price: getCartItemPrice(item),
+      regular_price: Number(item.regular_price || item.price || 0),
+      sale_price: Number(item.sale_price || item.price || 0),
+      variation:
+        item.variation ||
+        item.variation_attributes ||
+        item.selectedAttributes ||
+        item.selectedOptions ||
+        {},
+    }))
+    .filter((item) => item.product_id > 0 && item.quantity > 0);
 
-function getSessionCheckoutItems(session = {}) {
-  const directItems =
-    session?.checkout_items ||
-    session?.checkoutItems ||
-    session?.items ||
-    [];
+  console.log("PHASE ONE official checkout items:", officialItems);
 
-  if (Array.isArray(directItems) && directItems.length > 0) {
-    return buildCheckoutItems(directItems);
-  }
-
-  const decodedPayload = decodeCheckoutPayload(
-    session?.lab_checkout_payload || session?.encoded_payload || ""
-  );
-
-  if (decodedPayload.length > 0) {
-    return buildCheckoutItems(decodedPayload);
-  }
-
-  return [];
-}
-
-function getPaymentCheckoutItems({ session = {}, cartItems = [] } = {}) {
-  const sessionItems = getSessionCheckoutItems(session || {});
-
-  if (sessionItems.length > 0) {
-    return sessionItems;
-  }
-
-  return buildCheckoutItems(cartItems);
-}
-
-function buildLegacyCheckoutItems(checkoutItems = []) {
-  return checkoutItems
-    .map((item) => {
-      const productId = Number(item.product_id || 0);
-      const variationId = Number(item.variation_id || 0);
-      const idForLegacy = variationId || productId;
-
-      return idForLegacy ? `${idForLegacy}:${Number(item.quantity || 1)}` : "";
-    })
-    .filter(Boolean)
-    .join(",");
+  return officialItems;
 }
 
 function encodeCheckoutPayload(payload) {
@@ -779,19 +779,33 @@ function buildWooCheckoutUrl({
 
     if (!cleanUrl) return null;
 
+    const checkoutItems =
+      session?.checkout_items ||
+      session?.checkoutItems ||
+      buildCheckoutItems(cartItems);
+
+    const encodedPayload =
+      session?.lab_checkout_payload ||
+      session?.encoded_payload ||
+      encodeCheckoutPayload(checkoutItems);
+
+    const legacyItems =
+      session?.lab_checkout ||
+      checkoutItems
+        .map((item) => {
+          const productId = Number(item.product_id);
+          const variationId = Number(item.variation_id || 0);
+          const idForLegacy = variationId || productId;
+
+          return `${idForLegacy}:${Number(item.quantity || 1)}`;
+        })
+        .join(",");
+
     url = new URL(`${cleanUrl}/checkout/`);
+    url.searchParams.set("phaseone_cart_sync", "1");
+    url.searchParams.set("lab_checkout_payload", encodedPayload);
+    url.searchParams.set("lab_checkout", legacyItems);
   }
-
-  const checkoutItems = getPaymentCheckoutItems({ session, cartItems });
-  const encodedPayload = encodeCheckoutPayload(checkoutItems);
-  const legacyItems = buildLegacyCheckoutItems(checkoutItems);
-
-  // Always rebuild the checkout payload from sanitized payment items.
-  // This preserves the real WooCommerce product IDs from the session when available,
-  // while removing visual reward gifts from Tagada/WooCommerce payment links.
-  url.searchParams.set("phaseone_cart_sync", "1");
-  url.searchParams.set("lab_checkout_payload", encodedPayload);
-  url.searchParams.set("lab_checkout", legacyItems);
 
   const cleanCoupon = normalizeCoupon(coupon);
   const token =
@@ -1197,12 +1211,7 @@ export default function CheckoutTransferPage() {
       setDiscountToken("");
 
       const token = getAccountToken();
-      const checkoutItems = getPaymentCheckoutItems({ session, cartItems });
-
-      if (!checkoutItems.length) {
-        throw new Error("Add at least one official product before applying a coupon.");
-      }
-
+      const checkoutItems = buildCheckoutItems(cartItems);
       const customerEmail = accountUser?.email || session?.customer?.email || "";
 
       console.log("PHASE ONE COUPON REQUEST:", {
@@ -1340,13 +1349,6 @@ export default function CheckoutTransferPage() {
       return false;
     }
 
-    if (!getPaymentCheckoutItems({ session, cartItems }).length) {
-      setError(
-        "Add at least one official product before continuing. Free rewards are visual-only and are not sent to payment."
-      );
-      return false;
-    }
-
     const typedCoupon = normalizeCoupon(couponInput);
 
     if (typedCoupon && couponStatus !== "valid") {
@@ -1401,7 +1403,7 @@ export default function CheckoutTransferPage() {
   const createBankTransferOrder = async () => {
     if (!validateBeforePayment()) return;
 
-    const checkoutItems = getPaymentCheckoutItems({ session, cartItems });
+    const checkoutItems = buildCheckoutItems(cartItems);
 
     if (!checkoutItems.length) {
       setError("No valid cart items were found for bank transfer checkout.");
@@ -1577,7 +1579,7 @@ export default function CheckoutTransferPage() {
   };
 
 
-  if (!hasItems) {
+    if (!hasItems) {
     return (
       <main className="checkout-page checkout-empty-page">
         <section className="checkout-empty">
@@ -1606,47 +1608,39 @@ export default function CheckoutTransferPage() {
           </div>
         </div>
 
-        <div className="checkout-heading">
-          <div>
+        <div className="checkout-hero">
+          <div className="checkout-hero-copy">
             <p>Phase One Labs</p>
-            <h1>Checkout</h1>
+            <h1>Review your order</h1>
+            <span>
+              Apply savings, choose payment, confirm research-use terms, and continue securely.
+            </span>
           </div>
 
           {isLoggedIn ? (
-            <div className="account-rewards-card">
-              <div className="account-rewards-main">
-                <span>
-                  <UserRound size={15} />
-                </span>
+            <div className="account-chip">
+              <span>
+                <UserRound size={15} />
+              </span>
 
-                <div>
-                  <strong>{accountDisplayName}</strong>
-                  <small>
-                    {formatMoney(storeCredit)} cashback ·{" "}
-                    {pointsBalance.toLocaleString("en-US")} points
-                  </small>
-                </div>
+              <div>
+                <strong>{accountDisplayName}</strong>
+                <small>
+                  {formatMoney(storeCredit)} cashback · {pointsBalance.toLocaleString("en-US")} points
+                </small>
               </div>
 
-              <a href="/account#rewards" className="redeem-button">
-                Rewards
-              </a>
+              <a href="/account#rewards">Rewards</a>
             </div>
           ) : (
-            <a href="/account" className="rewards-badge">
+            <a href="/account" className="account-chip account-chip-link">
               <span>
                 <Gift size={15} />
               </span>
 
               <div>
-                <strong>
-                  {accountLoading
-                    ? "Checking account..."
-                    : "Sign in to earn points"}
-                </strong>
-                <small>
-                  Earn approx. {estimatedPoints} points with this order.
-                </small>
+                <strong>{accountLoading ? "Checking account..." : "Sign in to earn points"}</strong>
+                <small>Earn approx. {estimatedPoints} points with this order.</small>
               </div>
             </a>
           )}
@@ -1654,179 +1648,152 @@ export default function CheckoutTransferPage() {
 
         <div className="checkout-grid">
           <div className="checkout-main">
-            <div className="checkout-card hero-card">
-              <div className="hero-glow" />
-
-              <div className="checkout-card-head">
-                <span>
+            <section className="checkout-panel savings-panel">
+              <div className="panel-title-row">
+                <div className="panel-title-icon">
                   <Sparkles size={16} />
-                </span>
+                </div>
 
                 <div>
-                  <p>Before payment</p>
-                  <h2>Apply discounts and account benefits</h2>
+                  <p>Savings & benefits</p>
+                  <h2>Promo, cashback, and rewards</h2>
                 </div>
               </div>
 
-              <p className="checkout-copy">
-                Add a promo or affiliate code, apply available cashback, then
-                choose your payment method. Venmo, Zelle, and ACH Bank Transfer
-                receive an automatic 5% payment discount. ACH shows the discount instantly before payment.
-              </p>
-            </div>
+              <div className="savings-stack">
+                <div className="savings-row savings-row-prominent">
+                  <div className="savings-row-head">
+                    <span>
+                      <Tag size={15} />
+                    </span>
 
-            <div className="checkout-card compact-card">
-              <div className="checkout-card-head compact-head">
-                <span>
-                  <Tag size={15} />
-                </span>
+                    <div>
+                      <strong>Coupon or affiliate code</strong>
+                      <small>Apply a valid promo before continuing.</small>
+                    </div>
+                  </div>
 
-                <div>
-                  <p>Promo code</p>
-                  <h2>Coupon or affiliate code</h2>
-                </div>
-              </div>
-
-              <div className="coupon-box">
-                <input
-                  value={couponInput}
-                  onChange={handleCouponInput}
-                  placeholder="Enter code"
-                  inputMode="text"
-                  autoCapitalize="characters"
-                />
-
-                {couponStatus === "valid" ? (
-                  <button type="button" className="remove-code" onClick={removeCoupon}>
-                    <X size={14} />
-                    Remove
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={applyCoupon}
-                    disabled={couponStatus === "loading"}
-                  >
-                    {couponStatus === "loading" ? "Checking" : "Apply"}
-                  </button>
-                )}
-              </div>
-
-              {couponStatus === "valid" && coupon && (
-                <div className="applied-code">
-                  <BadgeCheck size={15} />
-                  <p>
-                    <strong>{coupon}</strong> applied. Estimated discount: {" "}
-                    <strong>-{formatMoney(validatedCouponDiscount)}</strong>
-                    {couponData?.discount_type ? ` (${couponData.discount_type})` : ""}.
-                  </p>
-                </div>
-              )}
-
-              {couponMessage && couponStatus !== "valid" && (
-                <p
-                  className={
-                    couponStatus === "error"
-                      ? "checkout-soft-message error-message"
-                      : "checkout-soft-message"
-                  }
-                >
-                  {couponMessage}
-                </p>
-              )}
-            </div>
-
-            <div className="checkout-card compact-card">
-              <div className="checkout-card-head compact-head">
-                <span>
-                  <Wallet size={15} />
-                </span>
-
-                <div>
-                  <p>Cashback</p>
-                  <h2>Store credit balance</h2>
-                </div>
-              </div>
-
-              {isLoggedIn ? (
-                canApplyCashback ? (
-                  <label className="cashback-check">
+                  <div className="coupon-box">
                     <input
-                      type="checkbox"
-                      checked={applyCashback}
-                      onChange={(event) =>
-                        setApplyCashback(event.target.checked)
-                      }
+                      value={couponInput}
+                      onChange={handleCouponInput}
+                      placeholder="Enter code"
+                      inputMode="text"
+                      autoCapitalize="characters"
                     />
 
-                    <span>
-                      <strong>Apply cashback</strong>
-                      <small>
-                        Use up to{" "}
-                        {formatMoney(Math.min(cashbackAvailable, cartTotal))}{" "}
-                        from your available {formatMoney(cashbackAvailable)}{" "}
-                        balance.
-                      </small>
-                    </span>
-                  </label>
-                ) : (
-                  <div className="benefit-empty">
-                    <Wallet size={16} />
-                    <p>
-                      No cashback balance is available on this account yet.
-                    </p>
+                    {couponStatus === "valid" ? (
+                      <button type="button" className="remove-code" onClick={removeCoupon}>
+                        <X size={14} />
+                        Remove
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={applyCoupon}
+                        disabled={couponStatus === "loading"}
+                      >
+                        {couponStatus === "loading" ? "Checking" : "Apply"}
+                      </button>
+                    )}
                   </div>
-                )
-              ) : (
-                <div className="benefit-empty">
-                  <UserRound size={16} />
-                  <p>
-                    Sign in before checkout to use cashback and earn rewards.
-                  </p>
+
+                  {couponStatus === "valid" && coupon && (
+                    <div className="inline-message success-message">
+                      <BadgeCheck size={15} />
+                      <p>
+                        <strong>{coupon}</strong> applied · -{formatMoney(validatedCouponDiscount)}
+                        {couponData?.discount_type ? ` · ${couponData.discount_type}` : ""}
+                      </p>
+                    </div>
+                  )}
+
+                  {couponMessage && couponStatus !== "valid" && (
+                    <p
+                      className={
+                        couponStatus === "error"
+                          ? "checkout-soft-message error-message"
+                          : "checkout-soft-message"
+                      }
+                    >
+                      {couponMessage}
+                    </p>
+                  )}
                 </div>
-              )}
-            </div>
 
-            <div className="checkout-card compact-card">
-              <div className="checkout-card-head compact-head">
-                <span>
-                  <Gift size={15} />
-                </span>
+                <div className="savings-row-grid">
+                  <div className="savings-row compact-benefit-row">
+                    <div className="savings-row-head">
+                      <span>
+                        <Wallet size={15} />
+                      </span>
 
-                <div>
-                  <p>Rewards</p>
-                  <h2>Points and free gifts</h2>
+                      <div>
+                        <strong>Cashback</strong>
+                        <small>{isLoggedIn ? `${formatMoney(cashbackAvailable)} available` : "Sign in required"}</small>
+                      </div>
+                    </div>
+
+                    {isLoggedIn ? (
+                      canApplyCashback ? (
+                        <label className="simple-check">
+                          <input
+                            type="checkbox"
+                            checked={applyCashback}
+                            onChange={(event) => setApplyCashback(event.target.checked)}
+                          />
+                          <span>Apply up to {formatMoney(Math.min(cashbackAvailable, cartTotal))}</span>
+                        </label>
+                      ) : (
+                        <p className="muted-line">No cashback balance available yet.</p>
+                      )
+                    ) : (
+                      <p className="muted-line">Sign in to use cashback.</p>
+                    )}
+                  </div>
+
+                  <div className="savings-row compact-benefit-row">
+                    <div className="savings-row-head">
+                      <span>
+                        <Gift size={15} />
+                      </span>
+
+                      <div>
+                        <strong>Rewards</strong>
+                        <small>Points and free gifts</small>
+                      </div>
+                    </div>
+
+                    <div className="mini-stats">
+                      <div>
+                        <span>Points</span>
+                        <strong>{estimatedPoints.toLocaleString("en-US")}</strong>
+                      </div>
+
+                      <div>
+                        <span>Gifts</span>
+                        <strong>{rewardGifts?.length || 0}</strong>
+                      </div>
+                    </div>
+
+                    {rewardProgress?.nextTier && (
+                      <p className="muted-line">
+                        {formatMoney(rewardProgress.remaining)} away from {rewardProgress.nextTier.shortTitle || "next reward"}.
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
+            </section>
 
-              <div className="reward-grid">
-                <div>
-                  <span>Estimated points</span>
-                  <strong>{estimatedPoints.toLocaleString("en-US")}</strong>
+            <section className="checkout-panel payment-panel">
+              <div className="panel-title-row">
+                <div className="panel-title-icon">
+                  <CreditCard size={16} />
                 </div>
 
                 <div>
-                  <span>Free rewards</span>
-                  <strong>{rewardGifts?.length || 0}</strong>
-                </div>
-              </div>
-
-              {rewardProgress?.nextTier && (
-                <p className="checkout-soft-message">
-                  You are {formatMoney(rewardProgress.remaining)} away from the{" "}
-                  {rewardProgress.nextTier.shortTitle || "next"} reward.
-                </p>
-              )}
-            </div>
-
-            <div className="checkout-card compact-card payment-card">
-              <div className="checkout-card-head compact-head">
-                <span>
-                  <CreditCard size={15} />
-                </span>
-
-                <div>
-                  <p>Payment method</p>
+                  <p>Payment</p>
                   <h2>Choose how you want to pay</h2>
                 </div>
               </div>
@@ -1866,24 +1833,23 @@ export default function CheckoutTransferPage() {
                 })}
               </div>
 
-              <div className="payment-selected-note">
+              <div className="inline-message payment-note">
                 <ShieldCheck size={15} />
                 <p>
-                  Selected: <strong>{selectedPaymentMethod.title}</strong>.{" "}
+                  Selected: <strong>{selectedPaymentMethod.title}</strong>. {" "}
                   {paymentMethodDiscount > 0
                     ? `${paymentDiscountLabel} is applied to your estimated total.`
                     : selectedPaymentMethod.id === "bank"
-                      ? "You will continue directly to the verified bank transfer portal in this tab."
-                      : "You will continue through the same secure checkout flow."}
+                      ? "You will continue directly to the verified bank transfer portal."
+                      : "You will continue through the secure checkout flow."}
                 </p>
               </div>
 
               {["venmo", "zelle"].includes(selectedPaymentMethod.id) && (
-                <div className="payment-red-warning">
+                <div className="inline-message warning-message">
                   <AlertTriangle size={15} />
                   <p>
-                    Include your order number only. Do not include peptide or
-                    product names in the payment note.
+                    Include your order number only. Do not include peptide or product names in the payment note.
                   </p>
                 </div>
               )}
@@ -1891,12 +1857,10 @@ export default function CheckoutTransferPage() {
               {selectedPaymentMethod.id === "bank" && (
                 <div className="bank-checkout-panel">
                   <div className="bank-checkout-intro">
-                    <div>
-                      <strong>Secure bank transfer details</strong>
-                      <p>
-                        Complete your contact, delivery address, and shipping option. Your ACH 5% discount is already applied in the order summary.
-                      </p>
-                    </div>
+                    <strong>ACH checkout details</strong>
+                    <p>
+                      Complete contact, delivery, and shipping. Your ACH 5% discount is already reflected in the order summary.
+                    </p>
                   </div>
 
                   <div className="bank-form-section">
@@ -1920,9 +1884,7 @@ export default function CheckoutTransferPage() {
                       <input
                         type="checkbox"
                         checked={checkoutForm.acceptsMarketing}
-                        onChange={(event) =>
-                          updateCheckoutField("acceptsMarketing", event.target.checked)
-                        }
+                        onChange={(event) => updateCheckoutField("acceptsMarketing", event.target.checked)}
                       />
                       <span>Email me with news and offers</span>
                     </label>
@@ -2082,18 +2044,12 @@ export default function CheckoutTransferPage() {
                   </div>
                 </div>
               )}
-            </div>
+            </section>
 
-            {error && <p className="checkout-error">{error}</p>}
-            {paymentNotice && !error && (
-              <p className="checkout-success-message">{paymentNotice}</p>
-            )}
+            {error && <p className="checkout-alert error-alert">{error}</p>}
+            {paymentNotice && !error && <p className="checkout-alert success-alert">{paymentNotice}</p>}
 
-            <label
-              className={`compliance-check ${
-                !policyAcknowledged && error ? "has-error" : ""
-              }`}
-            >
+            <label className={`compliance-check ${!policyAcknowledged && error ? "has-error" : ""}`}>
               <input
                 type="checkbox"
                 checked={policyAcknowledged}
@@ -2104,10 +2060,9 @@ export default function CheckoutTransferPage() {
               />
 
               <span className="compliance-copy">
-                I confirm I am 21 or older, I am acquiring these compounds for
-                in-vitro research or laboratory use only, and I agree to the{" "}
-                <a href={POLICY_LINKS.terms}>Terms & Conditions</a>,{" "}
-                <a href={POLICY_LINKS.refund}>Refund Policy</a>, and{" "}
+                I confirm I am 21 or older, I am acquiring these compounds for in-vitro research or laboratory use only, and I agree to the {" "}
+                <a href={POLICY_LINKS.terms}>Terms & Conditions</a>, {" "}
+                <a href={POLICY_LINKS.refund}>Refund Policy</a>, and {" "}
                 <a href={POLICY_LINKS.researchUse}>Research Use Only policy</a>.
               </span>
             </label>
@@ -2140,7 +2095,7 @@ export default function CheckoutTransferPage() {
             <div className="security-note">
               <ShieldCheck size={17} />
               <p>
-                Venmo, Zelle, and ACH Bank Transfer receive a 5% payment discount. ACH is applied immediately in this checkout before continuing to the bank portal.
+                Venmo, Zelle, and ACH Bank Transfer receive a 5% payment discount. ACH is applied immediately before continuing to the bank portal.
               </p>
             </div>
           </div>
@@ -2148,8 +2103,12 @@ export default function CheckoutTransferPage() {
           <aside className="checkout-summary">
             <div className="summary-card">
               <div className="summary-head">
-                <h2>Order summary</h2>
-                <PackageCheck size={17} />
+                <div>
+                  <p>Order summary</p>
+                  <h2>{cartItems.length} item{cartItems.length === 1 ? "" : "s"}</h2>
+                </div>
+
+                <PackageCheck size={18} />
               </div>
 
               <div className="summary-items">
@@ -2157,27 +2116,36 @@ export default function CheckoutTransferPage() {
                   const image = getItemImage(item);
                   const options = getItemOptions(item);
                   const isRewardGift = isRewardGiftItem(item);
-                  const lineTotal =
-                    getCartItemPrice(item) * Number(item.quantity || 1);
+                  const quantity = Number(item.quantity || 1);
+                  const unitPrice = getCartItemPrice(item);
+                  const lineTotal = unitPrice * quantity;
+                  const bundleApplied = Boolean(item.bundleApplied || item.bundle_applied || item.bundleDiscountPercent);
+                  const originalUnitPrice = Number(item.originalPrice || item.original_price || item.regular_price || 0);
+                  const originalLineTotal = originalUnitPrice > unitPrice ? originalUnitPrice * quantity : 0;
 
                   return (
-                    <div
-                      key={item.cartKey || `${item.id}-${options}-${index}`}
-                      className="summary-item"
-                    >
+                    <div key={item.cartKey || `${item.id}-${options}-${index}`} className="summary-item">
                       <div className="summary-image">
                         <img src={image} alt={item.name} />
-                        <span>{item.quantity}</span>
+                        <span>{quantity}</span>
                       </div>
 
-                      <div>
+                      <div className="summary-item-copy">
                         <h3>{item.name}</h3>
                         {options && <p>{options}</p>}
                         {isRewardGift && <p className="gift-label">Free reward</p>}
+                        {bundleApplied && !isRewardGift && <p className="bundle-label">Bundle discount applied</p>}
                       </div>
 
                       <strong>
-                        {isRewardGift ? "FREE" : formatMoney(lineTotal)}
+                        {isRewardGift ? (
+                          "FREE"
+                        ) : (
+                          <>
+                            {originalLineTotal > 0 && <small>{formatMoney(originalLineTotal)}</small>}
+                            {formatMoney(lineTotal)}
+                          </>
+                        )}
                       </strong>
                     </div>
                   );
@@ -2191,28 +2159,28 @@ export default function CheckoutTransferPage() {
                 </div>
 
                 {couponStatus === "valid" && coupon && (
-                  <div className="coupon-line">
+                  <div className="saving-line">
                     <span>Coupon {coupon}</span>
                     <strong>-{formatMoney(validatedCouponDiscount)}</strong>
                   </div>
                 )}
 
                 {cashbackToApply > 0 && (
-                  <div className="cashback-line">
+                  <div className="saving-line">
                     <span>Cashback selected</span>
                     <strong>-{formatMoney(cashbackToApply)}</strong>
                   </div>
                 )}
 
                 {paymentMethodDiscount > 0 && (
-                  <div className="payment-discount-line">
+                  <div className="saving-line amber-line">
                     <span>{paymentDiscountLabel}</span>
                     <strong>-{formatMoney(paymentMethodDiscount)}</strong>
                   </div>
                 )}
 
                 {selectedPaymentMethod?.id === "bank" && (
-                  <div className="shipping-line">
+                  <div>
                     <span>{selectedShippingMethod?.title || "Shipping"}</span>
                     <strong>{formatMoney(bankShippingCost)}</strong>
                   </div>
@@ -2222,23 +2190,6 @@ export default function CheckoutTransferPage() {
                   <span>Estimated due</span>
                   <strong>{formatMoney(paymentPreviewTotal)}</strong>
                 </div>
-              </div>
-
-              <div className="summary-rewards">
-                <Gift size={15} />
-
-                {isLoggedIn ? (
-                  <p>
-                    Logged in reward estimate:{" "}
-                    <strong>{estimatedPoints} points</strong>. Cashback
-                    available: <strong>{formatMoney(storeCredit)}</strong>.
-                  </p>
-                ) : (
-                  <p>
-                    Sign in before ordering to earn{" "}
-                    <strong>{estimatedPoints} points</strong>.
-                  </p>
-                )}
               </div>
 
               <div className="summary-note">
@@ -2262,7 +2213,7 @@ const styles = `
 
   .checkout-page {
     min-height: 100vh;
-    padding: 78px 20px 72px;
+    padding: 68px 18px 70px;
     color: #ffffff;
     background: transparent;
   }
@@ -2273,7 +2224,7 @@ const styles = `
   }
 
   .checkout-shell {
-    width: min(1180px, 100%);
+    width: min(1160px, 100%);
     margin: 0 auto;
   }
 
@@ -2281,20 +2232,20 @@ const styles = `
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 14px;
-    margin-bottom: 20px;
+    gap: 12px;
+    margin-bottom: 18px;
   }
 
   .checkout-back,
   .checkout-secure {
     display: inline-flex;
-    min-height: 40px;
+    min-height: 38px;
     align-items: center;
     justify-content: center;
     gap: 9px;
-    border: 1px solid rgba(148, 163, 184, 0.16);
+    border: 1px solid rgba(148, 163, 184, 0.14);
     border-radius: 999px;
-    background: rgba(2, 6, 23, 0.48);
+    background: rgba(2, 6, 23, 0.42);
     padding: 0 14px;
     color: rgba(207, 250, 254, 0.86);
     font-size: 10px;
@@ -2305,82 +2256,80 @@ const styles = `
   }
 
   .checkout-secure {
-    color: rgba(226, 232, 240, 0.78);
+    color: rgba(226, 232, 240, 0.72);
   }
 
-  .checkout-heading {
+  .checkout-hero {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
-    gap: 22px;
+    gap: 18px;
     align-items: end;
-    margin-bottom: 24px;
+    margin-bottom: 22px;
   }
 
-  .checkout-heading p,
-  .checkout-card-head p,
-  .summary-kicker,
-  .bank-section-title span,
-  .payment-method span.payment-eyebrow {
+  .checkout-hero-copy p,
+  .panel-title-row p,
+  .summary-head p,
+  .bank-section-title span {
     margin: 0;
-    color: rgba(103, 232, 249, 0.7);
+    color: rgba(103, 232, 249, 0.72);
     font-size: 9px;
     font-weight: 950;
     letter-spacing: 0.22em;
     text-transform: uppercase;
   }
 
-  .checkout-heading h1 {
-    margin: 7px 0 0;
-    max-width: 780px;
+  .checkout-hero-copy h1 {
+    margin: 6px 0 0;
     color: #ffffff;
-    font-size: clamp(38px, 5vw, 64px);
-    font-weight: 720;
-    letter-spacing: -0.07em;
+    font-size: clamp(40px, 5vw, 62px);
+    font-weight: 740;
+    letter-spacing: -0.075em;
     line-height: 0.92;
   }
 
-  .rewards-badge,
-  .account-rewards-card {
-    display: flex;
-    width: min(410px, 100%);
+  .checkout-hero-copy span {
+    display: block;
+    max-width: 620px;
+    margin-top: 12px;
+    color: rgba(203, 213, 225, 0.65);
+    font-size: 13.5px;
+    line-height: 1.65;
+  }
+
+  .account-chip {
+    display: grid;
+    grid-template-columns: 42px minmax(0, 1fr) auto;
+    gap: 12px;
     align-items: center;
-    justify-content: space-between;
-    gap: 14px;
+    width: min(420px, 100%);
     border: 1px solid rgba(103, 232, 249, 0.14);
     border-radius: 22px;
-    background: rgba(8, 20, 34, 0.72);
-    padding: 14px;
+    background: rgba(8, 20, 34, 0.68);
+    padding: 12px;
+    color: inherit;
     text-decoration: none;
   }
 
-  .account-rewards-main,
-  .rewards-badge {
-    min-width: 0;
-  }
-
-  .account-rewards-main {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-
-  .rewards-badge > span,
-  .account-rewards-main > span {
+  .account-chip > span,
+  .panel-title-icon,
+  .savings-row-head > span,
+  .payment-icon {
     display: grid;
-    width: 42px;
-    height: 42px;
-    flex: 0 0 auto;
     place-items: center;
     border: 1px solid rgba(103, 232, 249, 0.14);
-    border-radius: 15px;
-    background: rgba(103, 232, 249, 0.08);
+    background: rgba(103, 232, 249, 0.075);
     color: rgb(165, 243, 252);
   }
 
-  .rewards-badge strong,
-  .account-rewards-main strong {
+  .account-chip > span {
+    width: 42px;
+    height: 42px;
+    border-radius: 15px;
+  }
+
+  .account-chip strong {
     display: block;
-    max-width: 230px;
     overflow: hidden;
     color: #ffffff;
     font-size: 13px;
@@ -2390,8 +2339,7 @@ const styles = `
     white-space: nowrap;
   }
 
-  .rewards-badge small,
-  .account-rewards-main small {
+  .account-chip small {
     display: block;
     margin-top: 4px;
     color: rgba(203, 213, 225, 0.62);
@@ -2399,8 +2347,7 @@ const styles = `
     line-height: 1.45;
   }
 
-  .redeem-button {
-    flex: 0 0 auto;
+  .account-chip a {
     border: 1px solid rgba(103, 232, 249, 0.2);
     border-radius: 999px;
     background: rgba(103, 232, 249, 0.08);
@@ -2416,7 +2363,7 @@ const styles = `
   .checkout-grid {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 390px;
-    gap: 22px;
+    gap: 20px;
     align-items: start;
   }
 
@@ -2426,60 +2373,33 @@ const styles = `
     min-width: 0;
   }
 
-  .checkout-card,
+  .checkout-panel,
   .summary-card {
-    border: 1px solid rgba(148, 163, 184, 0.14);
+    border: 1px solid rgba(148, 163, 184, 0.13);
     border-radius: 26px;
-    background: rgba(7, 16, 30, 0.78);
-    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.18);
+    background: rgba(7, 16, 30, 0.74);
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.16);
   }
 
-  .checkout-card {
-    padding: 20px;
-  }
-
-  .compact-card {
+  .checkout-panel {
     padding: 18px;
   }
 
-  .hero-card,
-  .payment-card {
-    overflow: hidden;
-  }
-
-  .hero-glow,
-  .payment-card::before,
-  .checkout-submit-aura,
-  .bt-orb,
-  .floating-orb,
-  .form-orb {
-    display: none !important;
-  }
-
-  .checkout-card-head {
+  .panel-title-row {
     display: flex;
     align-items: center;
-    gap: 13px;
-    margin-bottom: 14px;
+    gap: 12px;
+    margin-bottom: 16px;
   }
 
-  .compact-head {
-    margin-bottom: 14px;
-  }
-
-  .checkout-card-head > span {
-    display: grid;
+  .panel-title-icon {
     width: 42px;
     height: 42px;
     flex: 0 0 auto;
-    place-items: center;
-    border: 1px solid rgba(103, 232, 249, 0.14);
     border-radius: 15px;
-    background: rgba(103, 232, 249, 0.075);
-    color: rgb(165, 243, 252);
   }
 
-  .checkout-card-head h2,
+  .panel-title-row h2,
   .summary-head h2 {
     margin: 4px 0 0;
     color: #ffffff;
@@ -2489,12 +2409,67 @@ const styles = `
     line-height: 1.05;
   }
 
-  .checkout-copy {
-    max-width: 720px;
+  .savings-stack {
+    display: grid;
+    gap: 12px;
+  }
+
+  .savings-row,
+  .inline-message,
+  .security-note,
+  .summary-note {
+    border: 1px solid rgba(103, 232, 249, 0.11);
+    border-radius: 18px;
+    background: rgba(103, 232, 249, 0.035);
+  }
+
+  .savings-row {
+    padding: 14px;
+  }
+
+  .savings-row-prominent {
+    background: rgba(2, 6, 23, 0.32);
+  }
+
+  .savings-row-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .savings-row-head {
+    display: flex;
+    gap: 11px;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+
+  .savings-row-head > span {
+    width: 38px;
+    height: 38px;
+    flex: 0 0 auto;
+    border-radius: 14px;
+  }
+
+  .savings-row-head strong {
+    display: block;
+    color: #ffffff;
+    font-size: 13px;
+    font-weight: 860;
+    letter-spacing: -0.025em;
+  }
+
+  .savings-row-head small,
+  .muted-line {
+    display: block;
+    margin-top: 3px;
+    color: rgba(203, 213, 225, 0.58);
+    font-size: 11.5px;
+    line-height: 1.45;
+  }
+
+  .muted-line {
     margin: 0;
-    color: rgba(203, 213, 225, 0.68);
-    font-size: 13.5px;
-    line-height: 1.72;
   }
 
   .coupon-box {
@@ -2506,10 +2481,10 @@ const styles = `
   input,
   select {
     width: 100%;
-    min-height: 52px;
-    border: 1px solid rgba(148, 163, 184, 0.18);
+    min-height: 50px;
+    border: 1px solid rgba(148, 163, 184, 0.17);
     border-radius: 15px;
-    background: rgba(2, 6, 23, 0.56);
+    background: rgba(2, 6, 23, 0.54);
     padding: 0 14px;
     color: #ffffff;
     outline: none;
@@ -2537,7 +2512,7 @@ const styles = `
   .coupon-box button,
   .remove-code {
     display: inline-flex;
-    min-height: 52px;
+    min-height: 50px;
     align-items: center;
     justify-content: center;
     gap: 8px;
@@ -2559,138 +2534,46 @@ const styles = `
     color: rgb(254, 202, 202);
   }
 
-  .applied-code,
-  .benefit-empty,
-  .security-note,
-  .summary-note,
-  .summary-rewards,
-  .payment-selected-note {
+  .inline-message {
     display: flex;
-    gap: 11px;
-    margin-top: 13px;
-    border: 1px solid rgba(103, 232, 249, 0.12);
-    border-radius: 17px;
-    background: rgba(103, 232, 249, 0.045);
-    padding: 13px;
+    gap: 10px;
+    align-items: flex-start;
+    margin-top: 12px;
+    padding: 12px;
     color: rgba(226, 232, 240, 0.72);
     font-size: 12px;
     line-height: 1.55;
   }
 
-  .payment-selected-note {
-    margin-top: 12px;
-  }
-
-  .payment-red-warning {
-    display: flex;
-    gap: 11px;
-    margin-top: 10px;
-    border: 1px solid rgba(248, 113, 113, 0.24);
-    border-radius: 17px;
-    background: rgba(248, 113, 113, 0.075);
-    padding: 13px;
-    color: rgba(254, 202, 202, 0.94);
-    font-size: 12px;
-    font-weight: 800;
-    line-height: 1.55;
-  }
-
-  .payment-red-warning p {
-    margin: 0;
-  }
-
-  .payment-red-warning svg {
-    flex: 0 0 auto;
-    margin-top: 2px;
-    color: rgb(252, 165, 165);
-  }
-
-  .applied-code p,
-  .benefit-empty p,
+  .inline-message p,
   .security-note p,
-  .summary-note p,
-  .summary-rewards p,
-  .payment-selected-note p {
+  .summary-note p {
     margin: 0;
   }
 
-  .applied-code strong,
-  .summary-rewards strong,
-  .payment-selected-note strong {
+  .inline-message strong {
     color: rgb(165, 243, 252);
   }
 
-  .cashback-check {
-    display: flex;
-    align-items: flex-start;
-    gap: 12px;
-    border: 1px solid rgba(103, 232, 249, 0.14);
-    border-radius: 17px;
-    background: rgba(103, 232, 249, 0.045);
-    padding: 14px;
-    cursor: pointer;
+  .success-message {
+    border-color: rgba(103, 232, 249, 0.16);
+    background: rgba(103, 232, 249, 0.055);
   }
 
-  .cashback-check input,
-  .bank-marketing-check input {
-    width: 18px;
-    height: 18px;
-    min-height: 18px;
-    padding: 0;
-    accent-color: rgb(103, 232, 249);
+  .warning-message {
+    border-color: rgba(248, 113, 113, 0.24);
+    background: rgba(248, 113, 113, 0.075);
+    color: rgba(254, 202, 202, 0.94);
+    font-weight: 800;
   }
 
-  .cashback-check span {
-    display: grid;
-    gap: 4px;
-  }
-
-  .cashback-check strong {
-    color: #ffffff;
-    font-size: 13px;
-    font-weight: 850;
-  }
-
-  .cashback-check small {
-    color: rgba(203, 213, 225, 0.62);
-    font-size: 11.5px;
-    line-height: 1.45;
-  }
-
-  .reward-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-  }
-
-  .reward-grid div {
-    border: 1px solid rgba(148, 163, 184, 0.12);
-    border-radius: 18px;
-    background: rgba(2, 6, 23, 0.42);
-    padding: 15px;
-  }
-
-  .reward-grid span {
-    display: block;
-    color: rgba(203, 213, 225, 0.58);
-    font-size: 10px;
-    font-weight: 900;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-  }
-
-  .reward-grid strong {
-    display: block;
-    margin-top: 7px;
-    color: #ffffff;
-    font-size: 25px;
-    font-weight: 850;
-    letter-spacing: -0.05em;
+  .warning-message svg {
+    color: rgb(252, 165, 165);
   }
 
   .checkout-soft-message,
   .error-message {
-    margin: 12px 0 0;
+    margin: 11px 0 0;
     color: rgba(203, 213, 225, 0.66);
     font-size: 12px;
     line-height: 1.55;
@@ -2698,6 +2581,59 @@ const styles = `
 
   .error-message {
     color: rgba(254, 202, 202, 0.9);
+  }
+
+  .simple-check {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: rgba(226, 232, 240, 0.78);
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 1.45;
+  }
+
+  .simple-check input,
+  .bank-marketing-check input,
+  .compliance-check input {
+    width: 18px;
+    height: 18px;
+    min-height: 18px;
+    flex: 0 0 auto;
+    padding: 0;
+    accent-color: rgb(103, 232, 249);
+  }
+
+  .mini-stats {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .mini-stats div {
+    border: 1px solid rgba(148, 163, 184, 0.11);
+    border-radius: 14px;
+    background: rgba(2, 6, 23, 0.32);
+    padding: 10px;
+  }
+
+  .mini-stats span {
+    display: block;
+    color: rgba(203, 213, 225, 0.58);
+    font-size: 9px;
+    font-weight: 900;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .mini-stats strong {
+    display: block;
+    margin-top: 5px;
+    color: #ffffff;
+    font-size: 19px;
+    font-weight: 850;
+    letter-spacing: -0.045em;
   }
 
   .payment-method-grid {
@@ -2709,15 +2645,15 @@ const styles = `
   .payment-method {
     position: relative;
     display: grid;
-    grid-template-columns: 44px minmax(0, 1fr) auto;
-    gap: 12px;
+    grid-template-columns: 42px minmax(0, 1fr) auto;
+    gap: 11px;
     align-items: center;
-    min-height: 92px;
+    min-height: 86px;
     width: 100%;
-    border: 1px solid rgba(148, 163, 184, 0.14);
-    border-radius: 20px;
-    background: rgba(2, 6, 23, 0.45);
-    padding: 14px;
+    border: 1px solid rgba(148, 163, 184, 0.13);
+    border-radius: 19px;
+    background: rgba(2, 6, 23, 0.42);
+    padding: 13px;
     color: #ffffff;
     cursor: pointer;
     text-align: left;
@@ -2727,23 +2663,18 @@ const styles = `
   .payment-method:hover {
     transform: translateY(-1px);
     border-color: rgba(103, 232, 249, 0.28);
-    background: rgba(8, 24, 46, 0.72);
+    background: rgba(8, 24, 46, 0.7);
   }
 
   .payment-method.is-active {
-    border-color: rgba(103, 232, 249, 0.68);
-    background: rgba(8, 29, 45, 0.82);
+    border-color: rgba(103, 232, 249, 0.62);
+    background: rgba(8, 29, 45, 0.78);
   }
 
   .payment-icon {
-    display: grid;
-    width: 44px;
-    height: 44px;
-    place-items: center;
-    border: 1px solid rgba(103, 232, 249, 0.14);
+    width: 42px;
+    height: 42px;
     border-radius: 15px;
-    background: rgba(103, 232, 249, 0.07);
-    color: rgb(165, 243, 252);
   }
 
   .payment-copy {
@@ -2789,39 +2720,24 @@ const styles = `
 
   .payment-method em.payment-discount-badge {
     border-color: rgba(245, 158, 11, 0.55);
-    background:
-      linear-gradient(135deg, rgba(251, 191, 36, 0.98), rgba(245, 158, 11, 0.92)),
-      rgb(245, 158, 11);
+    background: linear-gradient(135deg, rgb(253, 224, 71), rgb(245, 158, 11));
     color: rgb(20, 12, 3);
-    box-shadow:
-      0 0 0 1px rgba(255, 255, 255, 0.08) inset,
-      0 10px 24px rgba(245, 158, 11, 0.22);
+    box-shadow: 0 10px 24px rgba(245, 158, 11, 0.18);
   }
-
-  .payment-method.is-active em.payment-discount-badge {
-    border-color: rgba(253, 230, 138, 0.8);
-    background:
-      linear-gradient(135deg, rgb(253, 224, 71), rgb(245, 158, 11));
-    color: rgb(20, 12, 3);
-    box-shadow:
-      0 0 0 1px rgba(255, 255, 255, 0.16) inset,
-      0 12px 30px rgba(245, 158, 11, 0.34);
-  }
-
 
   .bank-checkout-panel {
     display: grid;
     gap: 14px;
-    margin-top: 16px;
-    border: 1px solid rgba(103, 232, 249, 0.12);
-    border-radius: 22px;
-    background: rgba(2, 6, 23, 0.34);
-    padding: 16px;
+    margin-top: 14px;
+    border: 1px solid rgba(103, 232, 249, 0.11);
+    border-radius: 20px;
+    background: rgba(2, 6, 23, 0.3);
+    padding: 15px;
   }
 
   .bank-checkout-intro {
     border-bottom: 1px solid rgba(148, 163, 184, 0.12);
-    padding-bottom: 14px;
+    padding-bottom: 13px;
   }
 
   .bank-checkout-intro strong {
@@ -2832,28 +2748,23 @@ const styles = `
     letter-spacing: -0.03em;
   }
 
-  .bank-checkout-intro p {
+  .bank-checkout-intro p,
+  .bank-section-title small {
     max-width: 620px;
     margin: 6px 0 0;
-    color: rgba(203, 213, 225, 0.64);
+    color: rgba(203, 213, 225, 0.58);
     font-size: 12px;
-    line-height: 1.6;
+    line-height: 1.55;
   }
 
   .bank-form-section {
     display: grid;
-    gap: 12px;
+    gap: 11px;
   }
 
   .bank-section-title {
     display: grid;
     gap: 4px;
-  }
-
-  .bank-section-title small {
-    color: rgba(203, 213, 225, 0.56);
-    font-size: 12px;
-    line-height: 1.45;
   }
 
   .bank-form-grid {
@@ -2908,17 +2819,17 @@ const styles = `
     gap: 11px;
     align-items: center;
     border: 1px solid rgba(148, 163, 184, 0.14);
-    border-radius: 18px;
-    background: rgba(2, 6, 23, 0.45);
-    padding: 13px;
+    border-radius: 17px;
+    background: rgba(2, 6, 23, 0.42);
+    padding: 12px;
     color: white;
     cursor: pointer;
     text-align: left;
   }
 
   .bank-shipping-method.is-active {
-    border-color: rgba(103, 232, 249, 0.58);
-    background: rgba(8, 29, 45, 0.78);
+    border-color: rgba(103, 232, 249, 0.56);
+    background: rgba(8, 29, 45, 0.74);
   }
 
   .bank-shipping-method > span {
@@ -2953,21 +2864,23 @@ const styles = `
     white-space: nowrap;
   }
 
-  .checkout-error,
-  .checkout-success-message {
+  .checkout-alert {
     margin: 0;
-    border: 1px solid rgba(248, 113, 113, 0.22);
     border-radius: 16px;
-    background: rgba(248, 113, 113, 0.08);
     padding: 13px 15px;
-    color: rgb(254, 202, 202);
     font-size: 12px;
     font-weight: 800;
     line-height: 1.55;
   }
 
-  .checkout-success-message {
-    border-color: rgba(103, 232, 249, 0.2);
+  .error-alert {
+    border: 1px solid rgba(248, 113, 113, 0.22);
+    background: rgba(248, 113, 113, 0.08);
+    color: rgb(254, 202, 202);
+  }
+
+  .success-alert {
+    border: 1px solid rgba(103, 232, 249, 0.2);
     background: rgba(103, 232, 249, 0.06);
     color: rgba(207, 250, 254, 0.92);
   }
@@ -2976,10 +2889,10 @@ const styles = `
     display: flex;
     align-items: flex-start;
     gap: 12px;
-    border: 1px solid rgba(103, 232, 249, 0.16);
+    border: 1px solid rgba(103, 232, 249, 0.14);
     border-radius: 18px;
-    background: rgba(103, 232, 249, 0.055);
-    padding: 15px;
+    background: rgba(103, 232, 249, 0.045);
+    padding: 14px;
     color: rgba(226, 232, 240, 0.78);
     cursor: pointer;
     font-size: 12px;
@@ -2993,18 +2906,7 @@ const styles = `
   }
 
   .compliance-check input {
-    width: 18px;
-    height: 18px;
-    min-height: 18px;
-    flex: 0 0 auto;
     margin-top: 2px;
-    padding: 0;
-    accent-color: rgb(103, 232, 249);
-  }
-
-  .compliance-copy {
-    display: block;
-    color: rgba(226, 232, 240, 0.78);
   }
 
   .compliance-copy a {
@@ -3015,7 +2917,6 @@ const styles = `
   }
 
   .checkout-submit {
-    position: relative;
     display: grid;
     grid-template-columns: 1fr auto;
     align-items: center;
@@ -3024,28 +2925,19 @@ const styles = `
     width: 100%;
     border: 1px solid rgba(165, 243, 252, 0.22);
     border-radius: 18px;
-    background:
-      linear-gradient(135deg, rgba(103, 232, 249, 0.12), rgba(255, 255, 255, 0.025)),
-      rgba(2, 6, 23, 0.78);
+    background: linear-gradient(135deg, rgba(103, 232, 249, 0.13), rgba(255, 255, 255, 0.025)), rgba(2, 6, 23, 0.78);
     color: white;
     cursor: pointer;
-    padding: 0 14px 0 22px;
+    padding: 0 14px 0 20px;
     text-align: left;
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.045),
-      0 18px 45px rgba(0, 0, 0, 0.18);
-    transition:
-      transform 180ms ease,
-      border-color 180ms ease,
-      background 180ms ease;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.045), 0 18px 45px rgba(0, 0, 0, 0.18);
+    transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
   }
 
   .checkout-submit:hover {
     transform: translateY(-2px);
     border-color: rgba(103, 232, 249, 0.48);
-    background:
-      linear-gradient(135deg, rgba(103, 232, 249, 0.18), rgba(255, 255, 255, 0.035)),
-      rgba(4, 16, 30, 0.88);
+    background: linear-gradient(135deg, rgba(103, 232, 249, 0.18), rgba(255, 255, 255, 0.035)), rgba(4, 16, 30, 0.88);
   }
 
   .checkout-submit:disabled {
@@ -3061,23 +2953,19 @@ const styles = `
   }
 
   .checkout-submit-main strong {
-    display: block;
     color: white;
     font-size: 12px;
     font-weight: 950;
-    letter-spacing: 0.18em;
+    letter-spacing: 0.17em;
     line-height: 1.2;
     text-transform: uppercase;
   }
 
   .checkout-submit-main span {
-    display: block;
     color: rgba(203, 213, 225, 0.62);
     font-size: 12px;
     font-weight: 700;
     line-height: 1.35;
-    letter-spacing: 0;
-    text-transform: none;
   }
 
   .checkout-submit-icon {
@@ -3091,28 +2979,27 @@ const styles = `
     color: rgb(2, 6, 23);
     font-size: 18px;
     font-weight: 950;
-    transition:
-      transform 180ms ease,
-      background 180ms ease;
   }
 
-  .checkout-submit:hover .checkout-submit-icon {
-    transform: translateX(2px);
-    background: white;
-  }
-
-  .security-note {
-    margin-top: 0;
+  .security-note,
+  .summary-note {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    padding: 12px;
+    color: rgba(226, 232, 240, 0.7);
+    font-size: 12px;
+    line-height: 1.55;
   }
 
   .checkout-summary {
     position: sticky;
-    top: 92px;
+    top: 88px;
   }
 
   .summary-card {
     overflow: hidden;
-    padding: 22px;
+    padding: 20px;
   }
 
   .summary-head {
@@ -3120,21 +3007,21 @@ const styles = `
     align-items: center;
     justify-content: space-between;
     gap: 14px;
-    margin-bottom: 16px;
+    margin-bottom: 15px;
     color: rgb(165, 243, 252);
   }
 
   .summary-items {
     display: grid;
-    gap: 14px;
-    max-height: 360px;
+    gap: 13px;
+    max-height: 362px;
     overflow: auto;
     padding-right: 2px;
   }
 
   .summary-item {
     display: grid;
-    grid-template-columns: 60px minmax(0, 1fr) auto;
+    grid-template-columns: 58px minmax(0, 1fr) auto;
     gap: 12px;
     align-items: center;
   }
@@ -3142,17 +3029,17 @@ const styles = `
   .summary-image {
     position: relative;
     display: grid;
-    width: 60px;
-    height: 60px;
+    width: 58px;
+    height: 58px;
     place-items: center;
     border: 1px solid rgba(148, 163, 184, 0.12);
-    border-radius: 17px;
-    background: rgba(2, 6, 23, 0.48);
+    border-radius: 16px;
+    background: rgba(2, 6, 23, 0.46);
   }
 
   .summary-image img {
-    max-width: 47px;
-    max-height: 47px;
+    max-width: 46px;
+    max-height: 46px;
     object-fit: contain;
   }
 
@@ -3170,7 +3057,10 @@ const styles = `
     color: rgb(2, 6, 23);
     font-size: 10px;
     font-weight: 950;
-    z-index: 2;
+  }
+
+  .summary-item-copy {
+    min-width: 0;
   }
 
   .summary-item h3 {
@@ -3188,26 +3078,40 @@ const styles = `
     line-height: 1.35;
   }
 
-  .summary-item .gift-label {
+  .summary-item .gift-label,
+  .summary-item .bundle-label {
     color: rgb(165, 243, 252);
     font-weight: 900;
     letter-spacing: 0.08em;
     text-transform: uppercase;
   }
 
+  .summary-item .bundle-label {
+    color: rgb(253, 224, 71);
+  }
+
   .summary-item strong {
+    display: grid;
+    justify-items: end;
     color: #ffffff;
     font-size: 12.5px;
     font-weight: 900;
     white-space: nowrap;
   }
 
+  .summary-item strong small {
+    color: rgba(148, 163, 184, 0.7);
+    font-size: 10px;
+    font-weight: 800;
+    text-decoration: line-through;
+  }
+
   .summary-lines {
     display: grid;
     gap: 11px;
-    margin-top: 18px;
+    margin-top: 17px;
     border-top: 1px solid rgba(148, 163, 184, 0.14);
-    padding-top: 16px;
+    padding-top: 15px;
   }
 
   .summary-lines div {
@@ -3224,15 +3128,15 @@ const styles = `
     font-weight: 850;
   }
 
-  .summary-lines .coupon-line strong,
-  .summary-lines .cashback-line strong,
-  .summary-lines .payment-discount-line strong,
-  .summary-lines .shipping-line strong {
+  .summary-lines .saving-line strong {
     color: rgb(165, 243, 252);
   }
 
-  .summary-lines .total,
-  .due-total {
+  .summary-lines .amber-line strong {
+    color: rgb(253, 224, 71);
+  }
+
+  .summary-lines .total {
     margin-top: 4px;
     border-top: 1px solid rgba(148, 163, 184, 0.14);
     padding-top: 13px;
@@ -3241,7 +3145,6 @@ const styles = `
     font-weight: 900;
   }
 
-  .summary-rewards,
   .summary-note {
     margin-top: 14px;
   }
@@ -3297,20 +3200,19 @@ const styles = `
       order: -1;
     }
 
-    .checkout-heading {
+    .checkout-hero {
       grid-template-columns: 1fr;
       align-items: start;
     }
 
-    .rewards-badge,
-    .account-rewards-card {
+    .account-chip {
       width: 100%;
     }
   }
 
   @media (max-width: 820px) {
     .checkout-page {
-      padding: 58px 14px 56px;
+      padding: 56px 14px 54px;
     }
 
     .checkout-topbar {
@@ -3323,19 +3225,19 @@ const styles = `
       width: 100%;
     }
 
-    .checkout-heading h1 {
+    .checkout-hero-copy h1 {
       font-size: 42px;
     }
 
-    .checkout-card,
+    .checkout-panel,
     .summary-card {
       border-radius: 22px;
       padding: 15px;
     }
 
+    .savings-row-grid,
     .payment-method-grid,
     .bank-shipping-options,
-    .reward-grid,
     .bank-form-grid.two,
     .bank-form-grid.three {
       grid-template-columns: 1fr;
@@ -3385,12 +3287,22 @@ const styles = `
 
     .summary-item strong {
       grid-column: 2;
+      justify-items: start;
     }
   }
 
   @media (max-width: 460px) {
-    .checkout-heading h1 {
+    .checkout-hero-copy h1 {
       font-size: 38px;
+    }
+
+    .account-chip {
+      grid-template-columns: 40px minmax(0, 1fr);
+    }
+
+    .account-chip a {
+      grid-column: 2;
+      width: fit-content;
     }
 
     .bank-checkout-panel {

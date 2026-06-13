@@ -3,18 +3,26 @@ import { createContext, useContext, useState, useEffect } from "react";
 /*
   REWARD STRATEGY
 
-  Temporary reward product:
-  - Bac Water 3ML
-  - WooCommerce ID: 667
+  Rewards now keep their real WooCommerce product IDs so the cart,
+  checkout session, and order summary can identify each gift correctly.
 
-  For now ALL rewards use product_id 667 so checkout does not fail.
-  Later we replace each reward with its real WooCommerce product ID.
+  Images are loaded dynamically from WordPress/WooCommerce Store API by ID.
+  If the API cannot be reached, the cart keeps a safe fallback image.
 */
 
-const TEMP_REWARD_PRODUCT = {
-  product_id: 667,
-  image: "/tarro.png",
+const REWARD_FALLBACK_IMAGE = "/tarro.png";
+
+const REWARD_PRODUCT_IDS = {
+  capsPack: 591,
+  bacWater3ml: 667,
+  vialCase4Count: 646,
+  bacWater30ml: 647,
+  slideCase10Count: 643,
 };
+
+const REWARD_PRODUCT_ID_LIST = Array.from(
+  new Set(Object.values(REWARD_PRODUCT_IDS).filter(Boolean))
+);
 
 // Public URL used only for Omnisend abandoned-cart recovery links.
 // IMPORTANT:
@@ -32,12 +40,14 @@ export const REWARD_TIERS = [
     gifts: [
       {
         giftKey: "tier_150_caps_5_pack",
+        product_id: REWARD_PRODUCT_IDS.capsPack,
         name: "FREE 5 Caps Pack",
         sku: "FREE-5-CAPS",
         rewardLabel: "$150 Reward",
       },
       {
         giftKey: "tier_150_bac_water_3ml",
+        product_id: REWARD_PRODUCT_IDS.bacWater3ml,
         name: "FREE Bac Water 3ML",
         sku: "FREE-BACW-3ML",
         rewardLabel: "$150 Reward",
@@ -53,12 +63,14 @@ export const REWARD_TIERS = [
     gifts: [
       {
         giftKey: "tier_250_caps_10_pack",
+        product_id: REWARD_PRODUCT_IDS.capsPack,
         name: "FREE 10 Caps Pack",
         sku: "FREE-10-CAPS",
         rewardLabel: "$250 Reward",
       },
       {
         giftKey: "tier_250_4_vial_case",
+        product_id: REWARD_PRODUCT_IDS.vialCase4Count,
         name: "FREE 4-Vial Storage Case 3ML — Random Color",
         sku: "FREE-4-VIAL-CASE",
         rewardLabel: "$250 Reward",
@@ -74,12 +86,14 @@ export const REWARD_TIERS = [
     gifts: [
       {
         giftKey: "tier_500_bac_water_30ml",
+        product_id: REWARD_PRODUCT_IDS.bacWater30ml,
         name: "FREE Bac Water 30ML Tested",
         sku: "FREE-BACW-30ML",
         rewardLabel: "$500 Reward",
       },
       {
         giftKey: "tier_500_slide_case_10_count",
+        product_id: REWARD_PRODUCT_IDS.slideCase10Count,
         name: "FREE 3ML Vial Storage Slide Case — 10 Count / Random Color",
         sku: "FREE-SLIDE-CASE-10",
         rewardLabel: "$500 Reward",
@@ -104,6 +118,7 @@ const emptyCartContext = {
   paidSubtotal: 0,
   rewardProgress: null,
   rewardGifts: [],
+  rewardProducts: {},
   getCartItemKey: () => "",
   buildCheckoutUrl: () => null,
   checkoutCoupon: "",
@@ -125,6 +140,91 @@ function safeJsonParse(value, fallback = []) {
 
 function cleanWooUrl(value = "") {
   return String(value || "").replace(/\/$/, "");
+}
+
+function getWooBaseUrl() {
+  return cleanWooUrl(
+    import.meta.env.PUBLIC_WOOCOMMERCE_URL ||
+      import.meta.env.PUBLIC_WP_SITE_URL ||
+      PHASEONE_PUBLIC_SITE_URL
+  );
+}
+
+function getWooStoreProductEndpoint(productId = 0) {
+  const cleanUrl = getWooBaseUrl();
+
+  if (!cleanUrl || !productId) return "";
+
+  return `${cleanUrl}/wp-json/wc/store/v1/products/${productId}`;
+}
+
+function getWooStoreProductImage(product = {}) {
+  return (
+    product?.images?.[0]?.src ||
+    product?.images?.[0]?.thumbnail ||
+    product?.images?.[0]?.url ||
+    product?.image ||
+    product?.featuredImage ||
+    ""
+  );
+}
+
+async function fetchRewardProductMap() {
+  const entries = await Promise.all(
+    REWARD_PRODUCT_ID_LIST.map(async (productId) => {
+      const endpoint = getWooStoreProductEndpoint(productId);
+
+      if (!endpoint) return null;
+
+      try {
+        const response = await fetch(endpoint, {
+          method: "GET",
+          cache: "no-store",
+          headers: {
+            Accept: "application/json",
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error(`Reward product ${productId} returned ${response.status}`);
+        }
+
+        const product = await response.json();
+        const image = getWooStoreProductImage(product);
+
+        return [
+          String(productId),
+          {
+            id: productId,
+            product_id: productId,
+            name: product?.name || "",
+            sku: product?.sku || "",
+            image: image || REWARD_FALLBACK_IMAGE,
+            permalink: product?.permalink || product?.url || "",
+          },
+        ];
+      } catch (error) {
+        console.warn("[Phase One] Reward product image could not be loaded:", {
+          productId,
+          error,
+        });
+
+        return [
+          String(productId),
+          {
+            id: productId,
+            product_id: productId,
+            image: REWARD_FALLBACK_IMAGE,
+          },
+        ];
+      }
+    })
+  );
+
+  return entries.filter(Boolean).reduce((acc, [key, value]) => {
+    acc[key] = value;
+    return acc;
+  }, {});
 }
 
 function normalizeCheckoutCoupon(value = "") {
@@ -198,16 +298,82 @@ function normalizeCartVariation(item = {}) {
   );
 }
 
+function decodePossibleGlobalId(value = "") {
+  const raw = String(value || "").trim();
+
+  if (!raw) return "";
+
+  if (/^gid:\/\//i.test(raw)) return raw;
+
+  try {
+    if (typeof atob !== "undefined") {
+      const decoded = atob(raw);
+
+      if (decoded && decoded !== raw) return decoded;
+    }
+  } catch {
+    // Not a base64/global id.
+  }
+
+  return raw;
+}
+
+function resolveNumericId(...values) {
+  for (const value of values) {
+    if (value === undefined || value === null || value === "") continue;
+
+    if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+      return value;
+    }
+
+    const raw = String(value).trim();
+
+    if (/^\d+$/.test(raw)) {
+      const number = Number(raw);
+      if (number > 0) return number;
+    }
+
+    const decoded = decodePossibleGlobalId(raw);
+    const match = decoded.match(/(?:Product|product|Variation|variation|product_variation|post)[:\/](\d+)$/);
+
+    if (match?.[1]) {
+      const number = Number(match[1]);
+      if (number > 0) return number;
+    }
+  }
+
+  return 0;
+}
+
 function getProductId(item = {}) {
-  return Number(item.product_id || item.parent_id || item.id || 0);
+  return resolveNumericId(
+    item.product_id,
+    item.productId,
+    item.productID,
+    item.wc_product_id,
+    item.wcProductId,
+    item.woo_product_id,
+    item.wooProductId,
+    item.databaseId,
+    item.database_id,
+    item.wp_id,
+    item.wordpress_id,
+    item.parent_id,
+    item.parentId,
+    item.id
+  );
 }
 
 function getVariationId(item = {}) {
-  return Number(
-    item.variation_id ||
-      item.variationId ||
-      item.selectedVariationId ||
-      0
+  return resolveNumericId(
+    item.variation_id,
+    item.variationId,
+    item.selectedVariationId,
+    item.selected_variation_id,
+    item.variant_id,
+    item.variantId,
+    item.databaseVariationId,
+    item.variationDatabaseId
   );
 }
 
@@ -272,54 +438,80 @@ function getPaidSubtotal(items = []) {
   }, 0);
 }
 
-function getUnlockedRewardGifts(paidSubtotal = 0) {
-  const gifts = [];
+function getActiveRewardTier(paidSubtotal = 0) {
+  const unlockedTiers = REWARD_TIERS.filter(
+    (tier) => paidSubtotal >= tier.threshold
+  );
 
-  REWARD_TIERS.forEach((tier) => {
-    if (paidSubtotal >= tier.threshold) {
-      tier.gifts.forEach((gift) => {
-        gifts.push({
-          ...gift,
-          tierThreshold: tier.threshold,
-        });
-      });
-    }
-  });
-
-  return gifts;
+  return unlockedTiers[unlockedTiers.length - 1] || null;
 }
 
-function buildRewardGiftItem(gift = {}) {
+function getUnlockedRewardGifts(paidSubtotal = 0) {
+  /*
+    IMPORTANT:
+    Reward tiers are NOT cumulative.
+
+    Example:
+    - $150 subtotal => only $150 gifts
+    - $250 subtotal => only $250 gifts, $150 gifts are removed
+    - $500 subtotal => only $500 gifts, lower-tier gifts are removed
+  */
+  const activeTier = getActiveRewardTier(paidSubtotal);
+
+  if (!activeTier) return [];
+
+  return activeTier.gifts.map((gift) => ({
+    ...gift,
+    tierThreshold: activeTier.threshold,
+    activeTierThreshold: activeTier.threshold,
+    activeTierTitle: activeTier.title,
+    activeTierShortTitle: activeTier.shortTitle,
+  }));
+}
+
+function buildRewardGiftItem(gift = {}, rewardProductMap = {}) {
   if (!gift.giftKey) return null;
 
+  const rewardProductId = Number(gift.product_id || gift.productId || gift.id || 0);
+
+  if (!rewardProductId) return null;
+
+  const rewardProduct =
+    rewardProductMap[String(rewardProductId)] || rewardProductMap[rewardProductId] || {};
+
   return normalizeCartItem({
-    id: TEMP_REWARD_PRODUCT.product_id,
-    product_id: TEMP_REWARD_PRODUCT.product_id,
-    parent_id: TEMP_REWARD_PRODUCT.product_id,
+    id: rewardProductId,
+    product_id: rewardProductId,
+    parent_id: rewardProductId,
     variation_id: 0,
     quantity: 1,
     price: 0,
     regular_price: 0,
     sale_price: 0,
-    image: TEMP_REWARD_PRODUCT.image,
-    name: gift.name,
-    sku: gift.sku,
+    image: rewardProduct.image || gift.image || REWARD_FALLBACK_IMAGE,
+    name: gift.name || rewardProduct.name || "FREE Reward",
+    sku: gift.sku || rewardProduct.sku || "",
+    permalink: rewardProduct.permalink || gift.permalink || "",
+    rewardWooName: rewardProduct.name || "",
     giftKey: gift.giftKey,
     rewardLabel: gift.rewardLabel,
     tierThreshold: gift.tierThreshold,
+    activeTierThreshold: gift.activeTierThreshold,
+    activeTierTitle: gift.activeTierTitle,
+    activeTierShortTitle: gift.activeTierShortTitle,
     isRewardGift: true,
     lockedGift: true,
     cartKey: `reward:${gift.giftKey}`,
   });
 }
 
-function syncRewardGifts(items = []) {
+function syncRewardGifts(items = [], rewardProductMap = {}) {
   const normalizedItems = items.map(normalizeCartItem);
   const paidItems = normalizedItems.filter((item) => !isRewardGift(item));
   const paidSubtotal = getPaidSubtotal(paidItems);
 
   const giftItems = getUnlockedRewardGifts(paidSubtotal)
-    .map(buildRewardGiftItem)
+    .map((gift) => buildRewardGiftItem(gift, rewardProductMap))
     .filter(Boolean);
 
   return [...paidItems, ...giftItems];
@@ -329,12 +521,17 @@ function getRewardProgress(items = []) {
   const paidSubtotal = getPaidSubtotal(items);
   const finalTier = REWARD_TIERS[REWARD_TIERS.length - 1];
 
-  const unlockedTiers = REWARD_TIERS.filter(
+  const allUnlockedTiers = REWARD_TIERS.filter(
     (tier) => paidSubtotal >= tier.threshold
   );
 
   const nextTier = REWARD_TIERS.find((tier) => paidSubtotal < tier.threshold);
-  const highestTier = unlockedTiers[unlockedTiers.length - 1] || null;
+  const highestTier = getActiveRewardTier(paidSubtotal);
+  const activeTier = highestTier;
+
+  // Public-facing unlocked rewards should only represent the current highest tier.
+  // This prevents older tier rewards from showing as still valid after the customer moves up.
+  const unlockedTiers = activeTier ? [activeTier] : [];
 
   /*
     Correct visual progress:
@@ -354,7 +551,7 @@ function getRewardProgress(items = []) {
     ? Math.max(0, nextTier.threshold - paidSubtotal)
     : 0;
 
-  const freeShippingUnlocked = unlockedTiers.some((tier) => tier.freeShipping);
+  const freeShippingUnlocked = Boolean(activeTier?.freeShipping);
 
   const markers = [
     {
@@ -374,7 +571,9 @@ function getRewardProgress(items = []) {
   return {
     paidSubtotal,
     unlockedTiers,
+    allUnlockedTiers,
     highestTier,
+    activeTier,
     nextTier,
     finalTier,
     progressPercent,
@@ -386,22 +585,34 @@ function getRewardProgress(items = []) {
 }
 
 function buildCheckoutPayload(cartItems = []) {
-  return cartItems
+  /*
+    IMPORTANT:
+    Rewards/free gifts are visual only.
+    Checkout payloads must contain ONLY official paid products.
+
+    This also preserves the real WooCommerce numeric IDs by resolving them from
+    product_id, databaseId, Woo/WP ID aliases, or GraphQL global IDs.
+  */
+  const payload = cartItems
+    .map(normalizeCartItem)
+    .filter((item) => !isRewardGift(item))
     .map((item) => {
-      const normalized = normalizeCartItem(item);
-      const productId = Number(normalized.product_id);
+      const productId = getProductId(item);
+      const variationId = getVariationId(item);
 
       return {
         product_id: productId,
         id: productId,
-        variation_id: Number(normalized.variation_id || 0),
-        quantity: Number(normalized.quantity || 1),
-        variation: normalizeCartVariation(normalized),
-        is_reward_gift: Boolean(normalized.isRewardGift),
-        reward_label: normalized.rewardLabel || "",
+        variation_id: variationId,
+        quantity: Number(item.quantity || 1),
+        variation: normalizeCartVariation(item),
       };
     })
-    .filter((item) => item.product_id && item.quantity > 0);
+    .filter((item) => item.product_id > 0 && item.quantity > 0);
+
+  console.log("[Phase One] Checkout payload official products only:", payload);
+
+  return payload;
 }
 
 function findIndexByCartKey(items = [], cartKey) {
@@ -810,6 +1021,7 @@ export function CartProvider({ children }) {
     getSavedCheckoutCoupon()
   );
   const [account, setAccount] = useState(null);
+  const [rewardProducts, setRewardProducts] = useState({});
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -898,6 +1110,34 @@ export function CartProvider({ children }) {
     };
   }, []);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    let active = true;
+
+    async function loadRewardProducts() {
+      const productMap = await fetchRewardProductMap();
+
+      if (!active) return;
+
+      setRewardProducts(productMap);
+    }
+
+    loadRewardProducts();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!Object.keys(rewardProducts).length) return;
+
+    setCartItems((prevItems) =>
+      syncRewardGifts(prevItems.map(normalizeCartItem), rewardProducts)
+    );
+  }, [rewardProducts]);
+
   const setCheckoutCoupon = (value = "") => {
     const cleanCoupon = normalizeCheckoutCoupon(value);
     setCheckoutCouponState(cleanCoupon);
@@ -949,7 +1189,7 @@ export function CartProvider({ children }) {
       trackingItems = [...currentPaidItems, normalizedProduct];
     }
 
-    const trackingSyncedItems = syncRewardGifts(trackingItems);
+    const trackingSyncedItems = syncRewardGifts(trackingItems, rewardProducts);
     const trackingCheckoutUrl = buildOmnisendCheckoutUrl(trackingSyncedItems, {
       checkoutCoupon,
       account,
@@ -983,7 +1223,7 @@ export function CartProvider({ children }) {
         nextItems = [...paidPrev, normalizedProduct];
       }
 
-      return syncRewardGifts(nextItems);
+      return syncRewardGifts(nextItems, rewardProducts);
     });
 
     setIsCartOpen(true);
@@ -994,7 +1234,7 @@ export function CartProvider({ children }) {
       const normalizedPrev = prevItems.map(normalizeCartItem);
       const nextItems = normalizedPrev.filter((item) => item.cartKey !== cartKey);
 
-      return syncRewardGifts(nextItems);
+      return syncRewardGifts(nextItems, rewardProducts);
     });
   };
 
@@ -1017,7 +1257,7 @@ export function CartProvider({ children }) {
         })
         .filter(Boolean);
 
-      return syncRewardGifts(nextItems);
+      return syncRewardGifts(nextItems, rewardProducts);
     });
   };
 
@@ -1040,7 +1280,7 @@ export function CartProvider({ children }) {
         })
         .filter(Boolean);
 
-      return syncRewardGifts(nextItems);
+      return syncRewardGifts(nextItems, rewardProducts);
     });
   };
 
@@ -1059,7 +1299,7 @@ export function CartProvider({ children }) {
     }
 
     return createCheckoutRecoveryUrl(
-      syncRewardGifts(cartItems.map(normalizeCartItem)),
+      syncRewardGifts(cartItems.map(normalizeCartItem), rewardProducts),
       {
         checkoutCoupon,
         account,
@@ -1087,7 +1327,7 @@ export function CartProvider({ children }) {
 
     pushOmnisendEvent(
       "started checkout",
-      syncRewardGifts(cartItems.map(normalizeCartItem)),
+      syncRewardGifts(cartItems.map(normalizeCartItem), rewardProducts),
       null,
       checkoutUrl,
       { checkoutCoupon, account }
@@ -1100,7 +1340,7 @@ export function CartProvider({ children }) {
     window.location.href = checkoutUrl;
   };
 
-  const syncedCartItems = syncRewardGifts(cartItems.map(normalizeCartItem));
+  const syncedCartItems = syncRewardGifts(cartItems.map(normalizeCartItem), rewardProducts);
   const paidSubtotal = getPaidSubtotal(syncedCartItems);
   const rewardProgress = getRewardProgress(syncedCartItems);
   const rewardGifts = syncedCartItems.filter(isRewardGift);
@@ -1134,6 +1374,7 @@ export function CartProvider({ children }) {
         paidSubtotal,
         rewardProgress,
         rewardGifts,
+        rewardProducts,
         checkoutCoupon,
         setCheckoutCoupon,
         applyCheckoutCoupon,

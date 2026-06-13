@@ -9,13 +9,18 @@ import {
   FileSearch,
   FileText,
   History,
+  Loader2,
+  RefreshCcw,
   Search,
   ShieldCheck,
   X,
 } from "lucide-react";
-import { coaRecords } from "./coaRecords.js";
 
 const ITEMS_PER_PAGE = 6;
+
+const DEFAULT_COA_API_URL =
+  import.meta.env.PUBLIC_WP_COA_API_URL ||
+  "https://phaseonelabz.com/wp-json/phaseone/v1/coas";
 
 const quickSearches = [
   "BPC",
@@ -34,6 +39,201 @@ function normalizeText(value) {
     .replace(/[^a-z0-9.%\s-/+]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function toArray(value) {
+  if (Array.isArray(value)) return value;
+
+  if (typeof value === "string") {
+    return value
+      .split(/[\n,]/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  if (value === null || value === undefined || value === "") return [];
+
+  return [value];
+}
+
+function toIdArray(value) {
+  return toArray(value)
+    .map((item) => {
+      const numeric = Number(item);
+      return Number.isNaN(numeric) ? String(item).trim() : numeric;
+    })
+    .filter((item) => item !== "");
+}
+
+function toBoolean(value) {
+  return value === true || value === 1 || value === "1" || value === "true";
+}
+
+function normalizeHistory(history) {
+  if (!Array.isArray(history)) return [];
+
+  return history.map((item, index) => ({
+    ...item,
+    version: item.version || `v${index + 1}`,
+    label: item.label || item.document_label || "Archived COA",
+    date: item.date || item.coa_date || "",
+    purity: item.purity || "",
+    method: item.method || item.tested || "",
+    tested: item.tested || item.method || "",
+    verifyUrl: item.verifyUrl || item.verify_url || "",
+    coaUrl: item.coaUrl || item.coa_url || "",
+    url: item.url || item.verifyUrl || item.verify_url || item.coaUrl || item.coa_url || "",
+    fileUrl: item.fileUrl || item.file_url || "",
+    currentShippingLot: toBoolean(
+      item.currentShippingLot || item.current_shipping_lot
+    ),
+  }));
+}
+
+function normalizeCurrentCoa(record) {
+  const currentCoa =
+    record.currentCoa && typeof record.currentCoa === "object"
+      ? record.currentCoa
+      : record.current_coa && typeof record.current_coa === "object"
+        ? record.current_coa
+        : null;
+
+  if (!currentCoa) return null;
+
+  return {
+    ...currentCoa,
+    version: currentCoa.version || "v1",
+    label: currentCoa.label || currentCoa.document_label || "Current COA",
+    date: currentCoa.date || currentCoa.coa_date || record.date || "",
+    purity: currentCoa.purity || record.purity || "",
+    method: currentCoa.method || currentCoa.tested || record.method || record.tested || "",
+    tested: currentCoa.tested || currentCoa.method || record.tested || record.method || "",
+    verifyUrl:
+      currentCoa.verifyUrl ||
+      currentCoa.verify_url ||
+      record.verifyUrl ||
+      record.verify_url ||
+      "",
+    coaUrl:
+      currentCoa.coaUrl ||
+      currentCoa.coa_url ||
+      record.coaUrl ||
+      record.coa_url ||
+      "",
+    url:
+      currentCoa.url ||
+      currentCoa.verifyUrl ||
+      currentCoa.verify_url ||
+      currentCoa.coaUrl ||
+      currentCoa.coa_url ||
+      record.url ||
+      "",
+    fileUrl:
+      currentCoa.fileUrl ||
+      currentCoa.file_url ||
+      record.fileUrl ||
+      record.file_url ||
+      "",
+    currentShippingLot: toBoolean(
+      currentCoa.currentShippingLot ||
+        currentCoa.current_shipping_lot ||
+        currentCoa.currentLot ||
+        record.currentShippingLot ||
+        record.current_shipping_lot
+    ),
+  };
+}
+
+function normalizeCoaPayload(payload) {
+  const records = Array.isArray(payload)
+    ? payload
+    : Array.isArray(payload?.records)
+      ? payload.records
+      : Array.isArray(payload?.coas)
+        ? payload.coas
+        : Array.isArray(payload?.data)
+          ? payload.data
+          : [];
+
+  return records.map((record, index) => {
+    const normalized = {
+      ...record,
+      id: String(
+        record.id ||
+          record.coaNumber ||
+          record.coa_number ||
+          record.batch ||
+          record.lot ||
+          `coa-${index + 1}`
+      ),
+      coaNumber: record.coaNumber || record.coa_number || "",
+      productName:
+        record.productName ||
+        record.product_name ||
+        record.product ||
+        record.title ||
+        "",
+      compound:
+        record.compound ||
+        record.productName ||
+        record.product_name ||
+        record.product ||
+        record.title ||
+        "",
+      wooIds: toIdArray(record.wooIds || record.woo_ids),
+      productIds: toIdArray(record.productIds || record.product_ids),
+      parentProductIds: toIdArray(
+        record.parentProductIds || record.parent_product_ids
+      ),
+      variationIds: toIdArray(record.variationIds || record.variation_ids),
+      skus: toArray(record.skus || record.sku),
+      aliases: toArray(record.aliases || record.alias),
+      keywords: toArray(record.keywords || record.search_keywords),
+      strength: record.strength || "",
+      batch: record.batch || record.lot || "",
+      lot: record.lot || record.batch || "",
+      order: record.order || record.order_number || "",
+      date: record.date || record.coaDate || record.coa_date || "",
+      status: record.status || "Available",
+      purity: record.purity || "",
+      tested: record.tested || "",
+      method: record.method || "",
+      coaUrl: record.coaUrl || record.coa_url || "",
+      verifyUrl: record.verifyUrl || record.verify_url || "",
+      url:
+        record.url ||
+        record.verifyUrl ||
+        record.verify_url ||
+        record.coaUrl ||
+        record.coa_url ||
+        "",
+      fileUrl: record.fileUrl || record.file_url || "",
+      currentShippingLot: toBoolean(
+        record.currentShippingLot || record.current_shipping_lot
+      ),
+      activeShippingLot: toBoolean(
+        record.activeShippingLot || record.active_shipping_lot
+      ),
+      history: normalizeHistory(record.history),
+    };
+
+    normalized.currentCoa =
+      normalizeCurrentCoa({ ...record, ...normalized }) || {
+        version: "v1",
+        label: "Current COA",
+        date: normalized.date,
+        purity: normalized.purity,
+        method: normalized.tested || normalized.method,
+        tested: normalized.tested || normalized.method,
+        verifyUrl: normalized.verifyUrl,
+        coaUrl: normalized.coaUrl,
+        url: normalized.url,
+        fileUrl: normalized.fileUrl,
+        currentShippingLot: normalized.currentShippingLot,
+      };
+
+    return normalized;
+  });
 }
 
 function formatDate(date) {
@@ -58,7 +258,10 @@ function getCurrentCoa(record) {
       date: record.date,
       purity: record.purity,
       method: record.tested || record.method,
-      verifyUrl: record.verifyUrl || record.fileUrl,
+      tested: record.tested || record.method,
+      verifyUrl: record.verifyUrl || record.coaUrl || record.url || record.fileUrl,
+      coaUrl: record.coaUrl,
+      url: record.url,
       fileUrl: record.fileUrl,
       currentShippingLot: record.currentShippingLot || false,
     }
@@ -66,7 +269,7 @@ function getCurrentCoa(record) {
 }
 
 function getCertificateUrl(coa) {
-  return coa?.verifyUrl || coa?.fileUrl || "";
+  return coa?.verifyUrl || coa?.coaUrl || coa?.url || coa?.fileUrl || "";
 }
 
 function isCurrentShippingLot(record, currentCoa) {
@@ -85,7 +288,7 @@ function scoreRecord(record, query) {
   if (!cleanQuery) return 1;
 
   const currentCoa = getCurrentCoa(record);
-  const history = record.history || [];
+  const history = Array.isArray(record.history) ? record.history : [];
 
   const aliases = Array.isArray(record.aliases) ? record.aliases : [];
   const skus = Array.isArray(record.skus) ? record.skus : [];
@@ -126,6 +329,8 @@ function scoreRecord(record, query) {
       currentCoa.purity,
       currentCoa.method,
       currentCoa.verifyUrl,
+      currentCoa.coaUrl,
+      currentCoa.url,
       currentCoa.fileUrl,
       currentCoa.currentShippingLot
         ? "current shipping lot currently shipping batch active shipping lot"
@@ -145,6 +350,8 @@ function scoreRecord(record, query) {
         item.method,
         item.tested,
         item.verifyUrl,
+        item.coaUrl,
+        item.url,
         item.fileUrl,
       ]),
     ].join(" ")
@@ -190,6 +397,7 @@ function scoreRecord(record, query) {
 
   return score;
 }
+
 function TinyStat({ label, value, accent = false }) {
   return (
     <div className="rounded-[1.1rem] border border-cyan-200/10 bg-white/[0.018] p-3 text-center sm:rounded-2xl sm:text-left">
@@ -331,12 +539,76 @@ function Pagination({
   );
 }
 
+function LoadingState() {
+  return (
+    <div className="flex min-h-[280px] flex-col items-center justify-center rounded-[1.35rem] border border-cyan-200/10 bg-[#020617]/45 p-8 text-center sm:min-h-[320px] sm:rounded-[1.5rem]">
+      <div className="grid h-16 w-16 place-items-center rounded-2xl border border-cyan-200/10 bg-cyan-300/[0.055] text-cyan-200">
+        <Loader2 size={24} className="animate-spin" />
+      </div>
+
+      <h4 className="mt-5 text-xl font-semibold tracking-[-0.04em] text-white">
+        Loading COA records
+      </h4>
+
+      <p className="mt-2 max-w-sm text-sm leading-6 text-slate-400">
+        Pulling the latest certificates from WordPress.
+      </p>
+    </div>
+  );
+}
+
+function ErrorState({ message, onRetry }) {
+  return (
+    <div className="flex min-h-[280px] flex-col items-center justify-center rounded-[1.35rem] border border-red-400/15 bg-red-500/[0.045] p-8 text-center sm:min-h-[320px] sm:rounded-[1.5rem]">
+      <div className="grid h-16 w-16 place-items-center rounded-2xl border border-red-300/15 bg-red-500/[0.08] text-red-200">
+        <AlertTriangle size={24} />
+      </div>
+
+      <h4 className="mt-5 text-xl font-semibold tracking-[-0.04em] text-white">
+        COA records unavailable
+      </h4>
+
+      <p className="mt-2 max-w-sm text-sm leading-6 text-red-100/70">
+        {message}
+      </p>
+
+      <button
+        type="button"
+        onClick={onRetry}
+        className="mt-5 inline-flex min-h-[40px] items-center justify-center gap-2 rounded-xl border border-red-200/15 bg-red-300/[0.07] px-4 text-[9px] font-black uppercase tracking-[0.14em] text-red-100 transition hover:border-red-200/30 hover:bg-red-300/[0.12]"
+      >
+        <RefreshCcw size={13} />
+        Try again
+      </button>
+    </div>
+  );
+}
+
+function EmptyState() {
+  return (
+    <div className="flex min-h-[280px] flex-col items-center justify-center rounded-[1.35rem] border border-cyan-200/10 bg-[#020617]/45 p-8 text-center sm:min-h-[320px] sm:rounded-[1.5rem]">
+      <div className="grid h-16 w-16 place-items-center rounded-2xl border border-cyan-200/10 bg-cyan-300/[0.055] text-cyan-200">
+        <Search size={24} />
+      </div>
+
+      <h4 className="mt-5 text-xl font-semibold tracking-[-0.04em] text-white">
+        No records found
+      </h4>
+
+      <p className="mt-2 max-w-sm text-sm leading-6 text-slate-400">
+        Try searching by product name, COA number, batch number, or compound
+        name.
+      </p>
+    </div>
+  );
+}
+
 function ResultCard({ record, openHistoryId, setOpenHistoryId }) {
   const currentCoa = getCurrentCoa(record);
-  const history = record.history || [];
+  const history = Array.isArray(record.history) ? record.history : [];
   const hasHistory = history.length > 0;
   const isOpen = openHistoryId === record.id;
-  const certificateUrl = getCertificateUrl(currentCoa);
+  const certificateUrl = getCertificateUrl(currentCoa) || getCertificateUrl(record);
   const isShippingLot = isCurrentShippingLot(record, currentCoa);
 
   return (
@@ -471,22 +743,22 @@ function ResultCard({ record, openHistoryId, setOpenHistoryId }) {
               </div>
 
               <div className="space-y-2">
-                {history.map((version) => {
+                {history.map((version, index) => {
                   const historyUrl = getCertificateUrl(version);
 
                   return (
                     <div
-                      key={`${record.id}-${version.version}`}
+                      key={`${record.id}-${version.version || index}`}
                       className="flex flex-col gap-2 rounded-xl border border-white/10 bg-white/[0.014] px-3 py-2.5 transition hover:border-cyan-200/15 hover:bg-cyan-300/[0.025] sm:flex-row sm:items-center sm:justify-between"
                     >
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="rounded-full bg-cyan-300/[0.07] px-2 py-0.5 text-[8px] font-black uppercase tracking-[0.14em] text-cyan-100">
-                            {version.version}
+                            {version.version || `v${index + 1}`}
                           </span>
 
                           <span className="text-xs font-semibold text-white/85">
-                            {version.label}
+                            {version.label || "Archived COA"}
                           </span>
                         </div>
 
@@ -524,11 +796,67 @@ function ResultCard({ record, openHistoryId, setOpenHistoryId }) {
   );
 }
 
-export default function COALookupSection() {
+export default function COALookupSection({
+  apiUrl = DEFAULT_COA_API_URL,
+} = {}) {
   const [query, setQuery] = useState("");
   const [openHistoryId, setOpenHistoryId] = useState(null);
   const [activeHistory, setActiveHistory] = useState("All");
   const [currentPage, setCurrentPage] = useState(1);
+  const [coaRecords, setCoaRecords] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [reloadKey, setReloadKey] = useState(0);
+
+  useEffect(() => {
+    if (!apiUrl) {
+      setCoaRecords([]);
+      setLoadError("COA API URL is missing.");
+      setIsLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+
+    async function loadCoas() {
+      try {
+        setIsLoading(true);
+        setLoadError("");
+
+        const response = await fetch(apiUrl, {
+          method: "GET",
+          headers: {
+            Accept: "application/json",
+          },
+          cache: "no-store",
+          signal: controller.signal,
+        });
+
+        if (!response.ok) {
+          throw new Error(`COA API returned ${response.status}`);
+        }
+
+        const payload = await response.json();
+        setCoaRecords(normalizeCoaPayload(payload));
+      } catch (error) {
+        if (error.name === "AbortError") return;
+
+        console.error("COA lookup API error:", error);
+        setCoaRecords([]);
+        setLoadError(
+          "COA records could not be loaded right now. Please confirm the WordPress plugin is active and the REST API endpoint is public."
+        );
+      } finally {
+        if (!controller.signal.aborted) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    loadCoas();
+
+    return () => controller.abort();
+  }, [apiUrl, reloadKey]);
 
   const filteredRecords = useMemo(() => {
     let results = coaRecords.map((record) => ({
@@ -555,7 +883,7 @@ export default function COALookupSection() {
     return results
       .sort((a, b) => b.score - a.score)
       .map((item) => item.record);
-  }, [query, activeHistory]);
+  }, [coaRecords, query, activeHistory]);
 
   const totalPages = Math.max(
     1,
@@ -590,12 +918,22 @@ export default function COALookupSection() {
     setCurrentPage(1);
   };
 
+  const retryLoad = () => {
+    setReloadKey((current) => current + 1);
+  };
+
   const currentShippingLots = coaRecords.filter((record) =>
     isCurrentShippingLot(record, getCurrentCoa(record))
   ).length;
 
+  const statusLabel = isLoading
+    ? "Loading"
+    : loadError
+      ? "API Error"
+      : "Live API";
+
   return (
-<section className="coa-section relative overflow-hidden px-5 py-10 text-white sm:px-6 sm:py-14 lg:px-6 lg:py-16">
+    <section className="coa-section relative overflow-hidden px-5 py-10 text-white sm:px-6 sm:py-14 lg:px-6 lg:py-16">
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute left-1/2 top-10 h-[300px] w-[300px] -translate-x-1/2 rounded-full bg-cyan-300/7 blur-[120px] lg:left-[8%] lg:top-16 lg:h-72 lg:w-72 lg:translate-x-0 lg:blur-[130px]" />
         <div className="absolute bottom-0 right-[-30%] h-80 w-80 rounded-full bg-blue-500/8 blur-[130px] lg:right-[-10%] lg:h-80 lg:w-80" />
@@ -651,6 +989,10 @@ export default function COALookupSection() {
                 <h3 className="mt-2 max-w-2xl text-[24px] font-semibold leading-[1.03] tracking-[-0.055em] text-white sm:text-[32px]">
                   Find the right certificate faster.
                 </h3>
+
+                <p className="mt-2 text-[11px] leading-5 text-slate-500">
+                  Source: <span className="text-cyan-100/75">{statusLabel}</span>
+                </p>
               </div>
             </div>
 
@@ -665,7 +1007,8 @@ export default function COALookupSection() {
                 onChange={(event) => setQuery(event.target.value)}
                 type="search"
                 placeholder="Search product, COA number, batch..."
-                className="min-h-[52px] w-full rounded-2xl border border-cyan-200/10 bg-[#020617]/65 py-3.5 pl-12 pr-12 text-sm font-medium text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-200/35 focus:bg-[#020617]/85 sm:py-4"
+                disabled={isLoading && coaRecords.length === 0}
+                className="min-h-[52px] w-full rounded-2xl border border-cyan-200/10 bg-[#020617]/65 py-3.5 pl-12 pr-12 text-sm font-medium text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-200/35 focus:bg-[#020617]/85 disabled:cursor-not-allowed disabled:opacity-60 sm:py-4"
               />
 
               {query && (
@@ -688,7 +1031,8 @@ export default function COALookupSection() {
                       key={item}
                       type="button"
                       onClick={() => setQuery(item)}
-                      className="shrink-0 rounded-full border border-cyan-200/10 bg-white/[0.025] px-3 py-2 text-[9px] font-black uppercase tracking-[0.14em] text-slate-400 transition hover:border-cyan-200/25 hover:bg-cyan-300/[0.06] hover:text-cyan-100 sm:text-[10px] sm:tracking-[0.16em]"
+                      disabled={isLoading && coaRecords.length === 0}
+                      className="shrink-0 rounded-full border border-cyan-200/10 bg-white/[0.025] px-3 py-2 text-[9px] font-black uppercase tracking-[0.14em] text-slate-400 transition hover:border-cyan-200/25 hover:bg-cyan-300/[0.06] hover:text-cyan-100 disabled:pointer-events-none disabled:opacity-40 sm:text-[10px] sm:tracking-[0.16em]"
                     >
                       {item}
                     </button>
@@ -773,21 +1117,12 @@ export default function COALookupSection() {
               </div>
             </div>
 
-            {filteredRecords.length === 0 ? (
-              <div className="flex min-h-[280px] flex-col items-center justify-center rounded-[1.35rem] border border-cyan-200/10 bg-[#020617]/45 p-8 text-center sm:min-h-[320px] sm:rounded-[1.5rem]">
-                <div className="grid h-16 w-16 place-items-center rounded-2xl border border-cyan-200/10 bg-cyan-300/[0.055] text-cyan-200">
-                  <Search size={24} />
-                </div>
-
-                <h4 className="mt-5 text-xl font-semibold tracking-[-0.04em] text-white">
-                  No records found
-                </h4>
-
-                <p className="mt-2 max-w-sm text-sm leading-6 text-slate-400">
-                  Try searching by product name, COA number, batch number, or
-                  compound name.
-                </p>
-              </div>
+            {isLoading && coaRecords.length === 0 ? (
+              <LoadingState />
+            ) : loadError && coaRecords.length === 0 ? (
+              <ErrorState message={loadError} onRetry={retryLoad} />
+            ) : filteredRecords.length === 0 ? (
+              <EmptyState />
             ) : (
               <>
                 <div className="space-y-3">
@@ -843,4 +1178,3 @@ export default function COALookupSection() {
     </section>
   );
 }
-

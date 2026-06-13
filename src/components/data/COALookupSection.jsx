@@ -1,23 +1,27 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ArrowRight,
   BadgeCheck,
   ChevronDown,
   FileSearch,
   FileText,
-  FlaskConical,
   History,
   Search,
   ShieldCheck,
   X,
 } from "lucide-react";
-import { coaRecords } from "./coaRecords.js";
+
+const DEFAULT_COA_API_URL =
+  import.meta.env.PUBLIC_WP_COA_API_URL ||
+  "https://phaseonelabz.com/wp-json/phaseone/v1/coas";
+
+const EMPTY_FALLBACK_RECORDS = [];
 
 const quickSearches = [
   "BPC",
-  "Tirzepatide",
-  "Retatrutide",
-  "Lipo-C",
+  "PL-Sm",
+  "PL-Rt",
+  "PL-MIC",
   "GHK",
   "NAD",
   "Current Lot",
@@ -51,6 +55,155 @@ function formatDate(date) {
   });
 }
 
+function toArray(value) {
+  if (Array.isArray(value)) return value;
+  if (value === undefined || value === null || value === "") return [];
+
+  if (typeof value === "string") {
+    return value
+      .split(/[\n,|]+/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  return [value];
+}
+
+function toBoolean(value) {
+  return value === true || value === 1 || value === "1" || value === "true";
+}
+
+function normalizeCoaVersion(version = {}) {
+  const verifyUrl =
+    version.verifyUrl ||
+    version.verify_url ||
+    version.coaUrl ||
+    version.coa_url ||
+    version.url ||
+    "";
+
+  const fileUrl =
+    version.fileUrl ||
+    version.file_url ||
+    version.pdfUrl ||
+    version.pdf_url ||
+    "";
+
+  return {
+    ...version,
+    version: version.version || "v1",
+    label: version.label || "Current COA",
+    date: version.date || "",
+    purity: version.purity || "",
+    tested: version.tested || "",
+    method: version.method || version.tested || "",
+    verifyUrl,
+    verify_url: verifyUrl,
+    fileUrl,
+    file_url: fileUrl,
+    currentShippingLot: toBoolean(
+      version.currentShippingLot ||
+        version.current_shipping_lot ||
+        version.activeShippingLot ||
+        version.active_shipping_lot ||
+        version.currentLot ||
+        version.current_lot
+    ),
+  };
+}
+
+function normalizeCoaRecord(record = {}) {
+  const currentShippingLot = toBoolean(
+    record.currentShippingLot ||
+      record.current_shipping_lot ||
+      record.activeShippingLot ||
+      record.active_shipping_lot ||
+      record.currentLot ||
+      record.current_lot
+  );
+
+  const verifyUrl =
+    record.verifyUrl ||
+    record.verify_url ||
+    record.coaUrl ||
+    record.coa_url ||
+    record.url ||
+    "";
+
+  const fileUrl =
+    record.fileUrl ||
+    record.file_url ||
+    record.pdfUrl ||
+    record.pdf_url ||
+    "";
+
+  const normalized = {
+    ...record,
+    id:
+      record.id ||
+      record.slug ||
+      record.coaNumber ||
+      record.coa_number ||
+      globalThis.crypto?.randomUUID?.() ||
+      `${Date.now()}-${Math.random()}`,
+    coaNumber: record.coaNumber || record.coa_number || "",
+    productName: record.productName || record.product_name || record.title || "",
+    compound: record.compound || record.productName || record.product_name || "",
+    wooIds: toArray(record.wooIds || record.woo_ids).map(String),
+    productIds: toArray(record.productIds || record.product_ids).map(String),
+    parentProductIds: toArray(
+      record.parentProductIds || record.parent_product_ids
+    ).map(String),
+    variationIds: toArray(record.variationIds || record.variation_ids).map(
+      String
+    ),
+    skus: toArray(record.skus || record.sku),
+    aliases: toArray(record.aliases || record.alias),
+    keywords: toArray(record.keywords || record.search_keywords),
+    strength: record.strength || "",
+    batch: record.batch || record.lot || "",
+    lot: record.lot || record.batch || "",
+    order: record.order || record.order_number || "",
+    date: record.date || "",
+    status: record.status || "Available",
+    purity: record.purity || "",
+    tested: record.tested || "",
+    method: record.method || record.tested || "",
+    coaUrl: record.coaUrl || record.coa_url || verifyUrl,
+    verifyUrl,
+    url: record.url || verifyUrl || fileUrl,
+    fileUrl,
+    currentShippingLot,
+    activeShippingLot: currentShippingLot,
+    history: toArray(record.history).map(normalizeCoaVersion),
+  };
+
+  normalized.currentCoa = normalizeCoaVersion({
+    ...(record.currentCoa || record.current_coa || {}),
+    date: record.currentCoa?.date || record.current_coa?.date || normalized.date,
+    purity:
+      record.currentCoa?.purity || record.current_coa?.purity || normalized.purity,
+    tested:
+      record.currentCoa?.tested || record.current_coa?.tested || normalized.tested,
+    method:
+      record.currentCoa?.method || record.current_coa?.method || normalized.method,
+    verifyUrl:
+      record.currentCoa?.verifyUrl ||
+      record.current_coa?.verify_url ||
+      normalized.verifyUrl,
+    fileUrl:
+      record.currentCoa?.fileUrl ||
+      record.current_coa?.file_url ||
+      normalized.fileUrl,
+    currentShippingLot:
+      record.currentCoa?.currentShippingLot ||
+      record.current_coa?.current_shipping_lot ||
+      normalized.currentShippingLot,
+  });
+
+  return normalized;
+}
+
 function getCurrentCoa(record) {
   return (
     record.currentCoa || {
@@ -68,7 +221,7 @@ function getCurrentCoa(record) {
 }
 
 function getCertificateUrl(coa) {
-  return coa?.verifyUrl || coa?.fileUrl || "";
+  return coa?.verifyUrl || coa?.fileUrl || coa?.url || "";
 }
 
 function isCurrentShippingLot(record, currentCoa) {
@@ -89,6 +242,18 @@ function scoreRecord(record, query) {
   const currentCoa = getCurrentCoa(record);
   const history = record.history || [];
   const isShippingLot = isCurrentShippingLot(record, currentCoa);
+  const aliases = Array.isArray(record.aliases) ? record.aliases : [];
+  const skus = Array.isArray(record.skus) ? record.skus : [];
+  const wooIds = Array.isArray(record.wooIds) ? record.wooIds.map(String) : [];
+  const productIds = Array.isArray(record.productIds)
+    ? record.productIds.map(String)
+    : [];
+  const parentProductIds = Array.isArray(record.parentProductIds)
+    ? record.parentProductIds.map(String)
+    : [];
+  const variationIds = Array.isArray(record.variationIds)
+    ? record.variationIds.map(String)
+    : [];
 
   const searchable = normalizeText(
     [
@@ -103,6 +268,11 @@ function scoreRecord(record, query) {
       record.tested,
       record.method,
       record.date,
+      record.strength,
+      record.coaUrl,
+      record.verifyUrl,
+      record.url,
+      record.fileUrl,
       isShippingLot
         ? "current shipping lot currently shipping batch active shipping lot current lot"
         : "",
@@ -112,6 +282,14 @@ function scoreRecord(record, query) {
       currentCoa.purity,
       currentCoa.tested,
       currentCoa.method,
+      currentCoa.verifyUrl,
+      currentCoa.fileUrl,
+      ...aliases,
+      ...skus,
+      ...wooIds,
+      ...productIds,
+      ...parentProductIds,
+      ...variationIds,
       ...(record.keywords || []),
       ...history.flatMap((version) => [
         version.version,
@@ -120,46 +298,141 @@ function scoreRecord(record, query) {
         version.purity,
         version.tested,
         version.method,
+        version.verifyUrl,
+        version.fileUrl,
       ]),
     ].join(" ")
   );
 
   const name = normalizeText(record.productName || record.compound);
+  const compound = normalizeText(record.compound);
+  const aliasText = normalizeText(aliases.join(" "));
+  const skuText = normalizeText(skus.join(" "));
   const batch = normalizeText(record.batch || record.lot);
   const coaNumber = normalizeText(record.coaNumber);
+  const strength = normalizeText(record.strength);
   const terms = cleanQuery.split(" ").filter(Boolean);
 
   let score = 0;
 
-  if (name === cleanQuery) score += 120;
-  if (batch === cleanQuery) score += 120;
-  if (coaNumber === cleanQuery) score += 120;
+  if (name === cleanQuery) score += 160;
+  if (compound === cleanQuery) score += 150;
+  if (batch === cleanQuery) score += 150;
+  if (coaNumber === cleanQuery) score += 150;
+  if (skuText === cleanQuery) score += 150;
+  if (aliases.some((alias) => normalizeText(alias) === cleanQuery)) score += 145;
 
-  if (name.includes(cleanQuery)) score += 80;
-  if (batch.includes(cleanQuery)) score += 80;
-  if (coaNumber.includes(cleanQuery)) score += 80;
-  if (searchable.includes(cleanQuery)) score += 35;
+  if (name.includes(cleanQuery)) score += 100;
+  if (compound.includes(cleanQuery)) score += 95;
+  if (aliasText.includes(cleanQuery)) score += 92;
+  if (skuText.includes(cleanQuery)) score += 90;
+  if (batch.includes(cleanQuery)) score += 90;
+  if (coaNumber.includes(cleanQuery)) score += 90;
+  if (strength.includes(cleanQuery)) score += 50;
+  if (searchable.includes(cleanQuery)) score += 45;
 
   terms.forEach((term) => {
-    if (name.includes(term)) score += 14;
-    if (batch.includes(term)) score += 16;
-    if (coaNumber.includes(term)) score += 16;
-    if (searchable.includes(term)) score += 7;
+    if (name.includes(term)) score += 22;
+    if (compound.includes(term)) score += 20;
+    if (aliasText.includes(term)) score += 20;
+    if (skuText.includes(term)) score += 20;
+    if (batch.includes(term)) score += 20;
+    if (coaNumber.includes(term)) score += 20;
+    if (strength.includes(term)) score += 12;
+    if (searchable.includes(term)) score += 8;
   });
 
   return score;
 }
 
-export default function COALookupSection() {
+export default function COALookupSection({
+  apiUrl = DEFAULT_COA_API_URL,
+  fallbackRecords = EMPTY_FALLBACK_RECORDS,
+} = {}) {
+  const safeFallbackRecords = Array.isArray(fallbackRecords)
+    ? fallbackRecords
+    : EMPTY_FALLBACK_RECORDS;
+
+  const normalizedFallbackRecords = useMemo(
+    () => safeFallbackRecords.map(normalizeCoaRecord),
+    [safeFallbackRecords]
+  );
+
   const [query, setQuery] = useState("");
   const [openHistoryId, setOpenHistoryId] = useState(null);
   const [activeFilter, setActiveFilter] = useState("all");
+  const [coaRecords, setCoaRecords] = useState(() =>
+    normalizedFallbackRecords
+  );
+  const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  useEffect(() => {
+    if (!apiUrl) {
+      setCoaRecords(normalizedFallbackRecords);
+      setErrorMessage("COA API URL is missing.");
+      setIsLoading(false);
+      return undefined;
+    }
+
+    const controller = new AbortController();
+
+    async function loadCoas() {
+      setIsLoading(true);
+      setErrorMessage("");
+
+      try {
+        const response = await fetch(apiUrl, {
+          method: "GET",
+          cache: "no-store",
+          signal: controller.signal,
+          headers: {
+            Accept: "application/json",
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error(`COA API responded with ${response.status}`);
+        }
+
+        const payload = await response.json();
+        const records = Array.isArray(payload)
+          ? payload
+          : Array.isArray(payload?.records)
+            ? payload.records
+            : Array.isArray(payload?.coas)
+              ? payload.coas
+              : Array.isArray(payload?.data)
+                ? payload.data
+                : [];
+
+        setCoaRecords(records.map(normalizeCoaRecord));
+      } catch (error) {
+        if (error.name === "AbortError") return;
+
+        console.error("COA lookup API error:", error);
+        setErrorMessage(
+          "COA records could not be loaded from WordPress right now."
+        );
+        setCoaRecords(normalizedFallbackRecords);
+      } finally {
+        if (!controller.signal.aborted) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    loadCoas();
+
+    return () => controller.abort();
+  }, [apiUrl, refreshKey, normalizedFallbackRecords]);
 
   const currentShippingLots = useMemo(() => {
     return coaRecords.filter((record) =>
       isCurrentShippingLot(record, getCurrentCoa(record))
     ).length;
-  }, []);
+  }, [coaRecords]);
 
   const filteredRecords = useMemo(() => {
     let results = coaRecords.map((record) => ({
@@ -184,7 +457,7 @@ export default function COALookupSection() {
     return results
       .sort((a, b) => b.score - a.score)
       .map((item) => item.record);
-  }, [query, activeFilter]);
+  }, [coaRecords, query, activeFilter]);
 
   const hasActiveFilters = query.trim().length > 0 || activeFilter !== "all";
 
@@ -192,6 +465,11 @@ export default function COALookupSection() {
     setQuery("");
     setActiveFilter("all");
     setOpenHistoryId(null);
+  };
+
+  const reloadCoas = () => {
+    setOpenHistoryId(null);
+    setRefreshKey((value) => value + 1);
   };
 
   return (
@@ -346,7 +624,7 @@ export default function COALookupSection() {
                       Records
                     </p>
                     <p className="mt-1 text-xl font-semibold text-white">
-                      {coaRecords.length}
+                      {isLoading ? "…" : coaRecords.length}
                     </p>
                   </div>
 
@@ -355,7 +633,7 @@ export default function COALookupSection() {
                       Found
                     </p>
                     <p className="mt-1 text-xl font-semibold text-white">
-                      {filteredRecords.length}
+                      {isLoading ? "…" : filteredRecords.length}
                     </p>
                   </div>
 
@@ -364,7 +642,7 @@ export default function COALookupSection() {
                       Shipping
                     </p>
                     <p className="mt-1 text-xl font-semibold text-amber-100">
-                      {currentShippingLots}
+                      {isLoading ? "…" : currentShippingLots}
                     </p>
                   </div>
                 </div>
@@ -387,11 +665,17 @@ export default function COALookupSection() {
                   </h3>
 
                   <p className="mt-1 text-xs text-slate-500">
-                    Showing{" "}
-                    <span className="font-semibold text-white">
-                      {filteredRecords.length}
-                    </span>{" "}
-                    certificate{filteredRecords.length === 1 ? "" : "s"}.
+                    {isLoading ? (
+                      "Loading certificates from WordPress..."
+                    ) : (
+                      <>
+                        Showing{" "}
+                        <span className="font-semibold text-white">
+                          {filteredRecords.length}
+                        </span>{" "}
+                        certificate{filteredRecords.length === 1 ? "" : "s"}.
+                      </>
+                    )}
                   </p>
                 </div>
 
@@ -401,7 +685,37 @@ export default function COALookupSection() {
                 </div>
               </div>
 
-              {filteredRecords.length === 0 ? (
+              {errorMessage && (
+                <div className="mb-4 rounded-2xl border border-rose-300/15 bg-rose-400/[0.055] p-4">
+                  <p className="text-xs leading-5 text-rose-100/80">
+                    {errorMessage}
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={reloadCoas}
+                    className="mt-3 inline-flex items-center justify-center rounded-xl border border-rose-200/15 bg-rose-300/[0.08] px-4 py-2 text-[9px] font-black uppercase tracking-[0.14em] text-rose-100 transition hover:border-rose-200/30 hover:bg-rose-300/[0.14]"
+                  >
+                    Try Again
+                  </button>
+                </div>
+              )}
+
+              {isLoading ? (
+                <div className="flex min-h-[320px] flex-col items-center justify-center rounded-[1.5rem] border border-cyan-200/10 bg-[#020617]/45 p-8 text-center">
+                  <div className="grid h-16 w-16 place-items-center rounded-2xl border border-cyan-200/10 bg-cyan-300/[0.055] text-cyan-200">
+                    <FileSearch size={24} />
+                  </div>
+
+                  <h4 className="mt-5 text-xl font-semibold tracking-[-0.04em] text-white">
+                    Loading COA records
+                  </h4>
+
+                  <p className="mt-2 max-w-sm text-sm leading-6 text-slate-400">
+                    Pulling the latest batch records from WordPress.
+                  </p>
+                </div>
+              ) : filteredRecords.length === 0 ? (
                 <div className="flex min-h-[320px] flex-col items-center justify-center rounded-[1.5rem] border border-cyan-200/10 bg-[#020617]/45 p-8 text-center">
                   <div className="grid h-16 w-16 place-items-center rounded-2xl border border-cyan-200/10 bg-cyan-300/[0.055] text-cyan-200">
                     <Search size={24} />
@@ -583,8 +897,7 @@ export default function COALookupSection() {
 
                                 <div className="space-y-2">
                                   {history.map((version) => {
-                                    const versionUrl =
-                                      version.verifyUrl || version.fileUrl || "";
+                                    const versionUrl = getCertificateUrl(version);
 
                                     return (
                                       <div
