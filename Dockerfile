@@ -1,4 +1,4 @@
-FROM node:22-alpine AS build
+FROM node:22-alpine AS runtime
 
 WORKDIR /app
 
@@ -8,25 +8,9 @@ RUN npm install
 COPY . .
 RUN npm run build
 
+ENV HOST=0.0.0.0
+ENV PORT=4321
 
-FROM nginx:alpine
+EXPOSE 4321
 
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-
-RUN rm -rf /usr/share/nginx/html/*
-
-COPY --from=build /app/dist /tmp/dist
-
-RUN if [ -f /tmp/dist/index.html ]; then \
-      cp -r /tmp/dist/* /usr/share/nginx/html/; \
-    elif [ -f /tmp/dist/client/index.html ]; then \
-      cp -r /tmp/dist/client/* /usr/share/nginx/html/; \
-    else \
-      echo "ERROR: No index.html found in /app/dist or /app/dist/client" && \
-      find /tmp/dist -maxdepth 3 -type f && \
-      exit 1; \
-    fi
-
-EXPOSE 80
-
-CMD ["nginx", "-g", "daemon off;"]
+CMD ["node", "./dist/server/entry.mjs"]
