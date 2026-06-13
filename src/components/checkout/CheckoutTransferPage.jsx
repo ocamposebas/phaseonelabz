@@ -331,11 +331,11 @@ function saveCoupon(value = "") {
 
 function isRewardGiftItem(item = {}) {
   return Boolean(
-    item.isRewardGift ||
-      item.is_reward_gift ||
-      item.rewardLabel ||
-      item.reward_label ||
-      String(item.cartKey || "").startsWith("reward:")
+    item?.isRewardGift ||
+      item?.is_reward_gift ||
+      item?.rewardLabel ||
+      item?.reward_label ||
+      String(item?.cartKey || "").startsWith("reward:")
   );
 }
 
@@ -391,32 +391,108 @@ function getItemOptions(item = {}) {
     .join(" / ");
 }
 
+function decodeCheckoutPayload(value = "") {
+  try {
+    if (!value) return [];
+
+    const json = decodeURIComponent(escape(atob(String(value))));
+    const parsed = JSON.parse(json);
+
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function normalizeCheckoutItemForPayment(item = {}) {
+  const productId = Number(
+    item.product_id ||
+      item.productId ||
+      item.parent_id ||
+      item.parentId ||
+      item.id ||
+      0
+  );
+
+  const variationId = Number(
+    item.variation_id ||
+      item.variationId ||
+      item.selectedVariationId ||
+      item.selected_variation_id ||
+      0
+  );
+
+  return {
+    product_id: productId,
+    variation_id: variationId,
+    quantity: Number(item.quantity || item.qty || 1),
+    price: getCartItemPrice(item),
+    regular_price: Number(item.regular_price || item.regularPrice || item.price || 0),
+    sale_price: Number(item.sale_price || item.salePrice || item.price || 0),
+    variation:
+      item.variation ||
+      item.variation_attributes ||
+      item.selectedAttributes ||
+      item.selectedOptions ||
+      {},
+  };
+}
+
 function buildCheckoutItems(cartItems = []) {
   /*
     Reward gifts are visual-only.
-    They stay visible in the checkout/order summary as FREE,
-    but they are never sent to WooCommerce, Tagada, Venmo, Zelle,
-    or ACH/Bank Transfer payloads.
+    They stay visible in the checkout summary as FREE, but they are never sent
+    to WooCommerce, Tagada, Venmo, Zelle, or ACH/eDebit payment payloads.
   */
   return cartItems
     .filter((item) => !isRewardGiftItem(item))
-    .map((item) => ({
-      product_id: Number(item.product_id || item.parent_id || item.id || 0),
-      variation_id: Number(
-        item.variation_id || item.variationId || item.selectedVariationId || 0
-      ),
-      quantity: Number(item.quantity || 1),
-      price: getCartItemPrice(item),
-      regular_price: Number(item.regular_price || item.price || 0),
-      sale_price: Number(item.sale_price || item.price || 0),
-      variation:
-        item.variation ||
-        item.variation_attributes ||
-        item.selectedAttributes ||
-        item.selectedOptions ||
-        {},
-    }))
+    .map((item) => normalizeCheckoutItemForPayment(item))
     .filter((item) => item.product_id && item.quantity > 0);
+}
+
+function getSessionCheckoutItems(session = {}) {
+  const directItems =
+    session?.checkout_items ||
+    session?.checkoutItems ||
+    session?.items ||
+    [];
+
+  if (Array.isArray(directItems) && directItems.length > 0) {
+    return buildCheckoutItems(directItems);
+  }
+
+  const decodedPayload = decodeCheckoutPayload(
+    session?.lab_checkout_payload || session?.encoded_payload || ""
+  );
+
+  if (decodedPayload.length > 0) {
+    return buildCheckoutItems(decodedPayload);
+  }
+
+  return [];
+}
+
+function getPaymentCheckoutItems({ session = {}, cartItems = [] } = {}) {
+  const sessionItems = getSessionCheckoutItems(session || {});
+
+  if (sessionItems.length > 0) {
+    return sessionItems;
+  }
+
+  return buildCheckoutItems(cartItems);
+}
+
+function buildLegacyCheckoutItems(checkoutItems = []) {
+  return checkoutItems
+    .map((item) => {
+      const productId = Number(item.product_id || 0);
+      const variationId = Number(item.variation_id || 0);
+      const idForLegacy = variationId || productId;
+
+      return idForLegacy ? `${idForLegacy}:${Number(item.quantity || 1)}` : "";
+    })
+    .filter(Boolean)
+    .join(",");
 }
 
 function encodeCheckoutPayload(payload) {
@@ -706,23 +782,13 @@ function buildWooCheckoutUrl({
     url = new URL(`${cleanUrl}/checkout/`);
   }
 
-  /*
-    Always rebuild the checkout payload from the current cart and exclude
-    reward gifts. This prevents old sessions or saved checkout URLs from
-    sending free rewards to WooCommerce/Tagada/Venmo/Zelle.
-  */
-  const checkoutItems = buildCheckoutItems(cartItems);
+  const checkoutItems = getPaymentCheckoutItems({ session, cartItems });
   const encodedPayload = encodeCheckoutPayload(checkoutItems);
-  const legacyItems = checkoutItems
-    .map((item) => {
-      const productId = Number(item.product_id);
-      const variationId = Number(item.variation_id || 0);
-      const idForLegacy = variationId || productId;
+  const legacyItems = buildLegacyCheckoutItems(checkoutItems);
 
-      return `${idForLegacy}:${Number(item.quantity || 1)}`;
-    })
-    .join(",");
-
+  // Always rebuild the checkout payload from sanitized payment items.
+  // This preserves the real WooCommerce product IDs from the session when available,
+  // while removing visual reward gifts from Tagada/WooCommerce payment links.
   url.searchParams.set("phaseone_cart_sync", "1");
   url.searchParams.set("lab_checkout_payload", encodedPayload);
   url.searchParams.set("lab_checkout", legacyItems);
@@ -754,11 +820,6 @@ function buildWooCheckoutUrl({
     url.searchParams.set("phaseone_discount_token", discountToken);
     url.searchParams.set("phaseone_discount_amount", String(Number(discountAmount || 0)));
     url.searchParams.set("phaseone_preview_total", String(Number(previewTotal || 0)));
-  } else {
-    url.searchParams.delete("phaseone_coupon");
-    url.searchParams.delete("phaseone_discount_token");
-    url.searchParams.delete("phaseone_discount_amount");
-    url.searchParams.delete("phaseone_preview_total");
   }
 
   if (token) {
@@ -786,10 +847,6 @@ function buildWooCheckoutUrl({
     url.searchParams.set("phaseone_cashback_apply", "1");
     url.searchParams.set("phaseone_cashback_amount", String(cashbackToApply));
     url.searchParams.set("store_credit_amount", String(cashbackToApply));
-  } else {
-    url.searchParams.delete("phaseone_cashback_apply");
-    url.searchParams.delete("phaseone_cashback_amount");
-    url.searchParams.delete("store_credit_amount");
   }
 
   if (paymentMethod?.id) {
@@ -812,11 +869,6 @@ function buildWooCheckoutUrl({
       "phaseone_payment_discount_label",
       getPaymentDiscountLabel(paymentMethod)
     );
-  } else {
-    url.searchParams.delete("phaseone_payment_discount");
-    url.searchParams.delete("phaseone_payment_discount_amount");
-    url.searchParams.delete("phaseone_payment_discount_rate");
-    url.searchParams.delete("phaseone_payment_discount_label");
   }
 
   if (policyAcknowledged) {
@@ -835,10 +887,6 @@ function buildWooCheckoutUrl({
     url.searchParams.set("payment_method", paymentMethod.gatewayId);
     url.searchParams.set("phaseone_payment_method", paymentMethod.gatewayId);
     url.searchParams.set("phaseone_gateway_id", paymentMethod.gatewayId);
-  } else {
-    url.searchParams.delete("payment_method");
-    url.searchParams.delete("phaseone_payment_method");
-    url.searchParams.delete("phaseone_gateway_id");
   }
 
   return url.toString();
@@ -1149,7 +1197,7 @@ export default function CheckoutTransferPage() {
       setDiscountToken("");
 
       const token = getAccountToken();
-      const checkoutItems = buildCheckoutItems(cartItems);
+      const checkoutItems = getPaymentCheckoutItems({ session, cartItems });
 
       if (!checkoutItems.length) {
         throw new Error("Add at least one official product before applying a coupon.");
@@ -1292,7 +1340,7 @@ export default function CheckoutTransferPage() {
       return false;
     }
 
-    if (!buildCheckoutItems(cartItems).length) {
+    if (!getPaymentCheckoutItems({ session, cartItems }).length) {
       setError(
         "Add at least one official product before continuing. Free rewards are visual-only and are not sent to payment."
       );
@@ -1353,7 +1401,7 @@ export default function CheckoutTransferPage() {
   const createBankTransferOrder = async () => {
     if (!validateBeforePayment()) return;
 
-    const checkoutItems = buildCheckoutItems(cartItems);
+    const checkoutItems = getPaymentCheckoutItems({ session, cartItems });
 
     if (!checkoutItems.length) {
       setError("No valid cart items were found for bank transfer checkout.");
