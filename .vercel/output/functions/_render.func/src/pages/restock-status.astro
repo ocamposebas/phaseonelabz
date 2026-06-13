@@ -1,0 +1,15 @@
+---
+export const prerender = false;
+
+import MainLayout from "../layouts/MainLayout.astro";
+import RestockStatusExperience from "../components/restock/RestockStatusExperience.jsx";
+
+import "../styles/global.css";
+---
+
+<MainLayout
+  title="Restock Status // Phase One Labs"
+  description="Track upcoming product availability, estimated restock windows, and restock notifications."
+>
+  <RestockStatusExperience client:load />
+</MainLayout>

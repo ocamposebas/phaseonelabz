@@ -1,0 +1,15 @@
+---
+export const prerender = false;
+
+import MainLayout from "../layouts/MainLayout.astro";
+import TrackOrderPageExperience from "../components/order/TrackOrderPageExperience.jsx";
+
+import "../styles/global.css";
+---
+
+<MainLayout
+  title="Track Order // Phase One Labs"
+  description="Track your Phase One Labs order using your order number and checkout email."
+>
+  <TrackOrderPageExperience client:load />
+</MainLayout>

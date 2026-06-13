@@ -1,0 +1,176 @@
+---
+import "../styles/global.css";
+
+import GlobalPreloader from "../components/loading/GlobalPreloader.jsx";
+import AgeGate from "../components/age-gate/AgeGate.jsx";
+
+interface Props {
+  title?: string;
+  description?: string;
+  image?: string;
+  noindex?: boolean;
+}
+
+const siteName = "Phase One Labz";
+const siteUrl = "https://phaseonelabz.com";
+
+const {
+  title = "Phase One Labz | Premium Research Peptides",
+  description = "Phase One Labz provides premium research-use-only peptides and laboratory-focused products for qualified research, educational, and laboratory applications.",
+  image = "/TRANSPARENCIA-03.webp",
+  noindex = false,
+} = Astro.props;
+
+const pathname = Astro.url.pathname.replace(/\/$/, "");
+const isHome = pathname === "";
+
+const canonicalUrl = new URL(Astro.url.pathname, siteUrl).toString();
+const ogImageUrl = new URL(image, siteUrl).toString();
+
+const fullTitle = title.includes(siteName) ? title : `${title} | ${siteName}`;
+
+const organizationSchema = {
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  name: siteName,
+  url: siteUrl,
+  logo: `${siteUrl}/TRANSPARENCIA-03.webp`,
+  sameAs: [],
+};
+
+const websiteSchema = {
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  name: siteName,
+  url: siteUrl,
+  description,
+};
+---
+
+<!doctype html>
+<html lang="en" class={isHome ? "is-home-page" : ""}>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <title>{fullTitle}</title>
+    <meta name="description" content={description} />
+    <meta
+      name="robots"
+      content={noindex ? "noindex, nofollow" : "index, follow, max-image-preview:large"}
+    />
+
+    <link rel="canonical" href={canonicalUrl} />
+
+    <!-- Favicons PNG -->
+    <link rel="icon" type="image/png" href="/favicon.png?v=6" />
+    <link rel="shortcut icon" type="image/png" href="/favicon.png?v=6" />
+    <link rel="apple-touch-icon" href="/favicon.png?v=6" />
+
+    <!-- Theme / Browser UI -->
+    <meta name="theme-color" content="#020617" />
+    <meta name="color-scheme" content="dark light" />
+
+    <!-- Open Graph -->
+    <meta property="og:site_name" content={siteName} />
+    <meta property="og:title" content={fullTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content={isHome ? "website" : "article"} />
+    <meta property="og:url" content={canonicalUrl} />
+    <meta property="og:image" content={ogImageUrl} />
+    <meta property="og:image:alt" content={`${siteName} research catalog`} />
+    <meta property="og:locale" content="en_US" />
+
+    <!-- Twitter / X -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={fullTitle} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImageUrl} />
+
+    <!-- Research-use disclaimer signals -->
+    <meta
+      name="classification"
+      content="Research-use-only laboratory catalog"
+    />
+    <meta
+      name="keywords"
+      content="research peptides, laboratory peptides, research compounds, Phase One Labz, lab use only peptides, educational research peptides"
+    />
+
+    <!-- Performance: preconnect external scripts -->
+    <link rel="preconnect" href="https://omnisnippet1.com" crossorigin />
+    <link rel="preconnect" href="https://embed.tawk.to" crossorigin />
+
+    <!-- Structured Data -->
+    <script
+      type="application/ld+json"
+      set:html={JSON.stringify(organizationSchema)}
+    />
+
+    <script
+      type="application/ld+json"
+      set:html={JSON.stringify(websiteSchema)}
+    />
+  </head>
+
+  <body class={isHome ? "is-home-page" : ""}>
+    <AgeGate
+      client:load
+      logoSrc="/TRANSPARENCIA-03.webp"
+      underAgeRedirectUrl="https://www.google.com"
+    />
+
+    <GlobalPreloader client:load logoSrc="/TRANSPARENCIA-03.webp" />
+
+    <!-- Omnisend delayed load -->
+    <script is:inline type="text/javascript">
+      window.omnisend = window.omnisend || [];
+      window.omnisend.push(["brandID", "6a20666d078df331c0cd01d7"]);
+      window.omnisend.push(["track", "$pageViewed"]);
+
+      function loadOmnisend() {
+        if (window.__phaseOmnisendLoaded) return;
+        window.__phaseOmnisendLoaded = true;
+
+        var e = document.createElement("script");
+        e.type = "text/javascript";
+        e.async = true;
+        e.defer = true;
+        e.src = "https://omnisnippet1.com/inshop/launcher-v2.js";
+
+        var t = document.getElementsByTagName("script")[0];
+        t.parentNode.insertBefore(e, t);
+      }
+
+      if ("requestIdleCallback" in window) {
+        requestIdleCallback(loadOmnisend, { timeout: 3500 });
+      } else {
+        window.addEventListener("load", function () {
+          setTimeout(loadOmnisend, 1800);
+        });
+      }
+    </script>
+
+    <!-- Tawk.to -->
+    <script is:inline type="text/javascript">
+      var Tawk_API = Tawk_API || {};
+      var Tawk_LoadStart = new Date();
+
+      (function () {
+        var s1 = document.createElement("script");
+        var s0 = document.getElementsByTagName("script")[0];
+
+        s1.async = true;
+        s1.src = "https://embed.tawk.to/6a139f5b3d88a21c35cf1e3e/1jpeght5d";
+        s1.charset = "UTF-8";
+        s1.setAttribute("crossorigin", "*");
+
+        s0.parentNode.insertBefore(s1, s0);
+      })();
+    </script>
+
+    <main class="site-main">
+      <slot />
+    </main>
+  </body>
+</html>

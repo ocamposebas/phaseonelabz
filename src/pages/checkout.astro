@@ -1,0 +1,15 @@
+---
+export const prerender = false;
+
+import MainLayout from "../layouts/MainLayout.astro";
+import CheckoutExperience from "../components/checkout/CheckoutTransferApp";
+
+import "../styles/global.css";
+---
+
+<MainLayout
+  title="Checkout // Phase One Labs"
+  description="Complete your Phase One Labs research catalog order securely."
+>
+  <CheckoutExperience client:load />
+</MainLayout>

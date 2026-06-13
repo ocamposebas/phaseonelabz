@@ -1,0 +1,235 @@
+---
+export const prerender = false;
+
+import BaseLayout from "../../layouts/MainLayout.astro";
+import ProductDetailExperience from "../../components/product/ProductDetailExperience.jsx";
+import "../../styles/global.css";
+
+const { slug } = Astro.params;
+
+const WOO_URL = import.meta.env.WOOCOMMERCE_URL;
+const KEY = import.meta.env.WOOCOMMERCE_CONSUMER_KEY;
+const SECRET = import.meta.env.WOOCOMMERCE_CONSUMER_SECRET;
+
+let product = null;
+let recommendedProducts = [];
+let error = "";
+
+function cleanWooUrl(value = "") {
+  return String(value || "").replace(/\/$/, "");
+}
+
+function hasWooConfig() {
+  return Boolean(WOO_URL && KEY && SECRET);
+}
+
+function getCleanUrl() {
+  return cleanWooUrl(WOO_URL);
+}
+
+async function fetchWooProducts(params = {}) {
+  if (!hasWooConfig()) {
+    throw new Error("Missing WooCommerce environment variables.");
+  }
+
+  const cleanUrl = getCleanUrl();
+  const url = new URL(`${cleanUrl}/wp-json/wc/v3/products`);
+
+  url.searchParams.set("consumer_key", KEY);
+  url.searchParams.set("consumer_secret", SECRET);
+
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") {
+      url.searchParams.set(key, String(value));
+    }
+  });
+
+  const response = await fetch(url.toString(), {
+    headers: {
+      Accept: "application/json",
+      "User-Agent": "Phase One Product Page",
+    },
+  });
+
+  let data = null;
+
+  try {
+    data = await response.json();
+  } catch {
+    data = null;
+  }
+
+  if (!response.ok) {
+    throw new Error(data?.message || `WooCommerce error: ${response.status}`);
+  }
+
+  return Array.isArray(data) ? data : [];
+}
+
+async function fetchWooProductVariations(productId) {
+  if (!hasWooConfig()) {
+    throw new Error("Missing WooCommerce environment variables.");
+  }
+
+  if (!productId) {
+    return [];
+  }
+
+  const cleanUrl = getCleanUrl();
+  const url = new URL(
+    `${cleanUrl}/wp-json/wc/v3/products/${productId}/variations`
+  );
+
+  url.searchParams.set("consumer_key", KEY);
+  url.searchParams.set("consumer_secret", SECRET);
+  url.searchParams.set("per_page", "100");
+  url.searchParams.set("status", "publish");
+
+  const response = await fetch(url.toString(), {
+    headers: {
+      Accept: "application/json",
+      "User-Agent": "Phase One Product Variations",
+    },
+  });
+
+  let data = null;
+
+  try {
+    data = await response.json();
+  } catch {
+    data = null;
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      data?.message || `WooCommerce variations error: ${response.status}`
+    );
+  }
+
+  return Array.isArray(data) ? data : [];
+}
+
+async function hydrateProductWithVariations(currentProduct) {
+  if (!currentProduct?.id) {
+    return currentProduct;
+  }
+
+  const productType = String(currentProduct?.type || "").toLowerCase();
+
+  const hasVariationIds =
+    Array.isArray(currentProduct?.variations) &&
+    currentProduct.variations.length > 0;
+
+  const alreadyHasVariationObjects =
+    hasVariationIds &&
+    currentProduct.variations.some(
+      (variation) => variation && typeof variation === "object"
+    );
+
+  if (productType !== "variable" && !hasVariationIds) {
+    return currentProduct;
+  }
+
+  if (alreadyHasVariationObjects) {
+    return currentProduct;
+  }
+
+  try {
+    const variations = await fetchWooProductVariations(currentProduct.id);
+
+    return {
+      ...currentProduct,
+      variations,
+    };
+  } catch (variationError) {
+    console.error("Could not load product variations:", variationError);
+
+    return {
+      ...currentProduct,
+      variations: [],
+      variation_load_error:
+        variationError?.message || "Could not load product variations.",
+    };
+  }
+}
+
+try {
+  if (!hasWooConfig()) {
+    error = "Missing WooCommerce environment variables.";
+  } else {
+    const foundProducts = await fetchWooProducts({
+      slug,
+      status: "publish",
+      per_page: 1,
+    });
+
+    product = foundProducts[0] || null;
+
+    if (product) {
+      product = await hydrateProductWithVariations(product);
+
+      const allProducts = await fetchWooProducts({
+        status: "publish",
+        per_page: 40,
+        orderby: "date",
+        order: "desc",
+      });
+
+      recommendedProducts = allProducts.filter((item) => {
+        return String(item?.id || "") !== String(product?.id || "");
+      });
+    }
+  }
+} catch (err) {
+  error = err.message || "Failed to load product.";
+}
+
+if (!product && !error) {
+  error = "Product not found.";
+}
+
+const pageTitle = product
+  ? `${product.name} // Phase One Labz`
+  : "Product Not Found";
+
+const pageDescription =
+  product?.short_description
+    ?.replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim() || "Research product detail page.";
+---
+
+<BaseLayout title={pageTitle} description={pageDescription}>
+  {
+    product ? (
+      <ProductDetailExperience
+        product={product}
+        recommendedProducts={recommendedProducts}
+        client:load
+      />
+    ) : (
+      <section class="min-h-[70vh] px-5 py-32 text-white">
+        <div class="mx-auto max-w-3xl rounded-[2rem] border border-red-400/15 bg-red-400/10 p-8 text-center">
+          <p class="text-[10px] font-black uppercase tracking-[0.22em] text-red-200">
+            Product Error
+          </p>
+
+          <h1 class="mt-3 text-3xl font-semibold tracking-[-0.04em]">
+            Product not found
+          </h1>
+
+          <p class="mt-3 text-sm leading-7 text-red-100/70">
+            {error}
+          </p>
+
+          <a
+            href="/shop"
+            class="mt-6 inline-flex rounded-full bg-cyan-300 px-5 py-3 text-[10px] font-black uppercase tracking-[0.18em] text-slate-950"
+          >
+            Back to shop
+          </a>
+        </div>
+      </section>
+    )
+  }
+</BaseLayout>

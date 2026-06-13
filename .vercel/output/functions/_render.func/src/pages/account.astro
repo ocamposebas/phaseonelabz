@@ -1,0 +1,14 @@
+---
+export const prerender = false;
+
+import MainLayout from "../layouts/MainLayout.astro";
+import AccountExperience from "../components/account/AccountExperience.jsx";
+import "../styles/global.css";
+---
+
+<MainLayout
+  title="Account // Rewards Dashboard"
+  description="Customer account dashboard for rewards points, recent orders, and account activity."
+>
+  <AccountExperience client:load />
+</MainLayout>

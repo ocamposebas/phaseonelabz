@@ -1,0 +1,469 @@
+---
+export const prerender = false;
+
+import MainLayout from "../../layouts/MainLayout.astro";
+import { policies, policyNav } from "../../components/data/policies";
+import "../../styles/global.css";
+
+const { slug } = Astro.params;
+const policy = policies[slug];
+
+if (!policy) {
+  return Astro.redirect("/policies/terms");
+}
+---
+
+<MainLayout title={`${policy.title} // Phase One Labz`} description={policy.description}>
+  <section class="policy-page">
+    <div class="policy-bg policy-bg-a"></div>
+    <div class="policy-bg policy-bg-b"></div>
+
+    <div class="policy-shell">
+      <aside class="policy-sidebar">
+        <div class="policy-sidebar-card">
+          <p>Policies</p>
+
+          <nav>
+            {
+              policyNav.map((item) => (
+                <a
+                  href={item.href}
+                  class:list={[
+                    "policy-nav-link",
+                    item.href === `/policies/${slug}` && "is-active",
+                  ]}
+                >
+                  {item.label}
+                </a>
+              ))
+            }
+          </nav>
+
+          <a href="/" class="policy-sidebar-home">
+            Back to Home
+          </a>
+        </div>
+      </aside>
+
+      <main class="policy-content">
+        <div class="policy-hero">
+          <p>{policy.eyebrow}</p>
+          <h1>{policy.title}</h1>
+          <span>{policy.updated}</span>
+        </div>
+
+        <div class="policy-warning">
+          <strong>Research use only.</strong>
+          Products are not for human consumption, animal use, diagnosis,
+          treatment, cure, mitigation, or prevention of disease.
+        </div>
+
+        <article class="policy-card">
+          {
+            policy.sections.map((section) => (
+              <section class="policy-section">
+                <h2>{section.heading}</h2>
+
+                {section.body.map((paragraph) => (
+                  <p>{paragraph}</p>
+                ))}
+              </section>
+            ))
+          }
+        </article>
+      </main>
+    </div>
+  </section>
+
+  <style>
+        .policy-page {
+        position: relative;
+        overflow: hidden;
+        min-height: 100vh;
+        padding: 150px 22px 90px;
+        color: white;
+        }
+
+        .policy-bg {
+        position: absolute;
+        pointer-events: none;
+        border-radius: 999px;
+        filter: blur(120px);
+        opacity: 0.42;
+        }
+
+        .policy-bg-a {
+        top: 8%;
+        left: -12%;
+        width: 360px;
+        height: 360px;
+        background: rgba(103, 232, 249, 0.08);
+        }
+
+        .policy-bg-b {
+        right: -12%;
+        bottom: 15%;
+        width: 420px;
+        height: 420px;
+        background: rgba(37, 99, 235, 0.09);
+        }
+
+        .policy-shell {
+        position: relative;
+        z-index: 1;
+        display: grid;
+        grid-template-columns: 280px minmax(0, 1fr);
+        gap: 34px;
+        width: min(1180px, 100%);
+        margin: 0 auto;
+        align-items: start;
+        }
+
+        .policy-sidebar {
+        position: sticky;
+        top: 120px;
+        }
+
+        .policy-sidebar-card {
+        border: 1px solid rgba(165, 243, 252, 0.1);
+        border-radius: 26px;
+        background:
+            linear-gradient(
+            180deg,
+            rgba(255, 255, 255, 0.035),
+            rgba(255, 255, 255, 0.012)
+            ),
+            rgba(2, 6, 23, 0.68);
+        padding: 18px;
+        box-shadow: 0 24px 70px rgba(0, 0, 0, 0.22);
+        }
+
+        .policy-sidebar-card > p {
+        margin: 0 0 14px;
+        color: rgba(165, 243, 252, 0.72);
+        font-size: 9px;
+        font-weight: 950;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        }
+
+        .policy-sidebar-card nav {
+        display: grid;
+        gap: 8px;
+        }
+
+        .policy-nav-link {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        min-height: 44px;
+        border: 1px solid rgba(165, 243, 252, 0.08);
+        border-radius: 15px;
+        background: rgba(255, 255, 255, 0.018);
+        padding: 0 13px;
+        color: rgba(203, 213, 225, 0.68);
+        font-size: 12px;
+        font-weight: 800;
+        transition:
+            border-color 180ms ease,
+            background 180ms ease,
+            color 180ms ease,
+            transform 180ms ease;
+        }
+
+        .policy-nav-link:hover,
+        .policy-nav-link.is-active {
+        border-color: rgba(103, 232, 249, 0.3);
+        background: rgba(103, 232, 249, 0.07);
+        color: white;
+        transform: translateY(-1px);
+        }
+
+        .policy-sidebar-home {
+        display: inline-flex;
+        width: 100%;
+        min-height: 48px;
+        align-items: center;
+        justify-content: center;
+        margin-top: 14px;
+        border: 1px solid rgba(103, 232, 249, 0.45);
+        border-radius: 16px;
+        background:
+            linear-gradient(
+            180deg,
+            rgba(103, 232, 249, 0.92),
+            rgba(34, 211, 238, 0.82)
+            );
+        color: rgb(2, 6, 23);
+        font-size: 9px;
+        font-weight: 950;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        box-shadow:
+            0 0 0 4px rgba(103, 232, 249, 0.055),
+            0 0 26px rgba(103, 232, 249, 0.18),
+            0 16px 38px rgba(0, 0, 0, 0.26);
+        transition:
+            transform 180ms ease,
+            border-color 180ms ease,
+            background 180ms ease,
+            color 180ms ease,
+            box-shadow 180ms ease;
+        }
+
+        .policy-sidebar-home:hover {
+        transform: translateY(-2px);
+        border-color: rgba(103, 232, 249, 0.7);
+        background:
+            linear-gradient(
+            180deg,
+            rgba(236, 254, 255, 1),
+            rgba(103, 232, 249, 0.94)
+            );
+        color: rgb(2, 6, 23);
+        box-shadow:
+            0 0 0 5px rgba(103, 232, 249, 0.075),
+            0 0 34px rgba(103, 232, 249, 0.25),
+            0 20px 52px rgba(0, 0, 0, 0.32);
+        }
+
+        .policy-content {
+        min-width: 0;
+        }
+
+        .policy-back-button {
+        position: relative;
+        z-index: 20;
+        display: inline-flex;
+        min-height: 54px;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        margin-bottom: 28px;
+        border: 1px solid rgba(103, 232, 249, 0.65);
+        border-radius: 999px;
+        background:
+            linear-gradient(
+            180deg,
+            rgba(103, 232, 249, 0.98),
+            rgba(34, 211, 238, 0.86)
+            );
+        padding: 0 24px;
+        color: rgb(2, 6, 23);
+        font-size: 10px;
+        font-weight: 950;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        box-shadow:
+            0 0 0 6px rgba(103, 232, 249, 0.06),
+            0 0 34px rgba(103, 232, 249, 0.24),
+            0 18px 55px rgba(0, 0, 0, 0.32);
+        transition:
+            transform 180ms ease,
+            box-shadow 180ms ease,
+            background 180ms ease,
+            color 180ms ease;
+        }
+
+        .policy-back-button::before {
+        content: "";
+        position: absolute;
+        inset: -7px;
+        z-index: -1;
+        border-radius: inherit;
+        border: 1px solid rgba(103, 232, 249, 0.12);
+        background: rgba(103, 232, 249, 0.045);
+        pointer-events: none;
+        }
+
+        .policy-back-button span {
+        display: grid;
+        width: 26px;
+        height: 26px;
+        place-items: center;
+        border-radius: 999px;
+        background: rgba(2, 6, 23, 0.14);
+        color: rgb(2, 6, 23);
+        font-size: 16px;
+        font-weight: 950;
+        line-height: 1;
+        transition: transform 180ms ease;
+        }
+
+        .policy-back-button:hover {
+        transform: translateY(-2px);
+        background:
+            linear-gradient(
+            180deg,
+            rgba(236, 254, 255, 1),
+            rgba(103, 232, 249, 0.95)
+            );
+        color: rgb(2, 6, 23);
+        box-shadow:
+            0 0 0 7px rgba(103, 232, 249, 0.08),
+            0 0 44px rgba(103, 232, 249, 0.34),
+            0 22px 70px rgba(0, 0, 0, 0.38);
+        }
+
+        .policy-back-button:hover span {
+        transform: translateX(-4px);
+        }
+
+        .policy-hero {
+        margin-bottom: 24px;
+        }
+
+        .policy-hero p {
+        margin: 0;
+        color: rgba(165, 243, 252, 0.72);
+        font-size: 10px;
+        font-weight: 950;
+        letter-spacing: 0.26em;
+        text-transform: uppercase;
+        }
+
+        .policy-hero h1 {
+        margin: 12px 0 0;
+        max-width: 760px;
+        color: white;
+        font-size: clamp(42px, 6vw, 78px);
+        font-weight: 680;
+        letter-spacing: -0.075em;
+        line-height: 0.92;
+        }
+
+        .policy-hero span {
+        display: block;
+        margin-top: 16px;
+        color: rgba(148, 163, 184, 0.72);
+        font-size: 13px;
+        font-weight: 700;
+        }
+
+        .policy-warning {
+        margin-bottom: 20px;
+        border: 1px solid rgba(103, 232, 249, 0.16);
+        border-radius: 20px;
+        background: rgba(103, 232, 249, 0.055);
+        padding: 16px 18px;
+        color: rgba(236, 254, 255, 0.78);
+        font-size: 13px;
+        line-height: 1.65;
+        }
+
+        .policy-warning strong {
+        color: white;
+        }
+
+        .policy-card {
+        border: 1px solid rgba(165, 243, 252, 0.1);
+        border-radius: 30px;
+        background:
+            linear-gradient(
+            180deg,
+            rgba(255, 255, 255, 0.034),
+            rgba(255, 255, 255, 0.012)
+            ),
+            rgba(2, 6, 23, 0.62);
+        padding: clamp(22px, 4vw, 42px);
+        box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.035),
+            0 26px 90px rgba(0, 0, 0, 0.26);
+        }
+
+        .policy-section {
+        padding: 26px 0;
+        border-bottom: 1px solid rgba(165, 243, 252, 0.09);
+        }
+
+        .policy-section:first-child {
+        padding-top: 0;
+        }
+
+        .policy-section:last-child {
+        padding-bottom: 0;
+        border-bottom: 0;
+        }
+
+        .policy-section h2 {
+        margin: 0 0 14px;
+        color: white;
+        font-size: 22px;
+        font-weight: 700;
+        letter-spacing: -0.045em;
+        line-height: 1.15;
+        }
+
+        .policy-section p {
+        margin: 0;
+        color: rgba(203, 213, 225, 0.76);
+        font-size: 14px;
+        line-height: 1.85;
+        }
+
+        .policy-section p + p {
+        margin-top: 12px;
+        }
+
+        @media (max-width: 900px) {
+        .policy-page {
+            padding: 125px 18px 72px;
+        }
+
+        .policy-shell {
+            grid-template-columns: 1fr;
+        }
+
+        .policy-sidebar {
+            position: relative;
+            top: auto;
+        }
+
+        .policy-sidebar-card nav {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .policy-sidebar-home {
+            display: none;
+        }
+        }
+
+        @media (max-width: 520px) {
+        .policy-page {
+            padding-top: 110px;
+        }
+
+        .policy-sidebar-card nav {
+            grid-template-columns: 1fr;
+        }
+
+        .policy-back-button {
+            width: 100%;
+            min-height: 56px;
+            margin-bottom: 24px;
+            font-size: 9px;
+            box-shadow:
+            0 0 0 5px rgba(103, 232, 249, 0.07),
+            0 0 32px rgba(103, 232, 249, 0.22),
+            0 16px 48px rgba(0, 0, 0, 0.35);
+        }
+
+        .policy-hero h1 {
+            font-size: 42px;
+        }
+
+        .policy-card {
+            border-radius: 24px;
+        }
+
+        .policy-section h2 {
+            font-size: 19px;
+        }
+
+        .policy-section p {
+            font-size: 13px;
+            line-height: 1.75;
+        }
+        }
+  </style>
+</MainLayout>

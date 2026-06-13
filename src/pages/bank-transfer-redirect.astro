@@ -1,0 +1,240 @@
+---
+const pageTitle = "Opening Bank Transfer";
+---
+
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{pageTitle} | Phase One Labz</title>
+  </head>
+
+  <body>
+    <main class="bt-redirect">
+      <section class="bt-card">
+        <div class="bt-orb"></div>
+
+        <p>Bank Transfer</p>
+        <h1 id="bt-title">Opening secure bank transfer...</h1>
+        <span id="bt-message">Please do not close this window.</span>
+
+        <a id="bt-return" href="/checkout">Return to checkout</a>
+      </section>
+    </main>
+
+    <script is:inline>
+      function getParam(name) {
+        return new URLSearchParams(window.location.search).get(name) || "";
+      }
+
+      function safeDecode(value) {
+        try {
+          return decodeURIComponent(value || "");
+        } catch {
+          return value || "";
+        }
+      }
+
+      function getSafeReturnUrl(value) {
+        const fallback =
+          sessionStorage.getItem("phaseone_bank_transfer_checkout_url") ||
+          "/checkout";
+
+        if (!value) return fallback;
+
+        try {
+          const parsed = new URL(value, window.location.origin);
+
+          if (parsed.origin !== window.location.origin) {
+            return fallback;
+          }
+
+          return parsed.toString();
+        } catch {
+          return fallback;
+        }
+      }
+
+      function getSafeRedirectUrl(value) {
+        if (!value) return "";
+
+        try {
+          const parsed = new URL(value, window.location.origin);
+          return parsed.toString();
+        } catch {
+          return "";
+        }
+      }
+
+      const title = document.getElementById("bt-title");
+      const message = document.getElementById("bt-message");
+      const returnButton = document.getElementById("bt-return");
+
+      const redirectUrl = getSafeRedirectUrl(safeDecode(getParam("redirect")));
+      const returnUrl = getSafeReturnUrl(safeDecode(getParam("return")));
+
+      returnButton.href = returnUrl;
+
+      const alreadyRedirected =
+        sessionStorage.getItem("phaseone_bank_transfer_redirected") === "1";
+
+      /*
+        Important:
+        First visit:
+        checkout → this bridge page → eDebit
+
+        If user presses Back from eDebit:
+        eDebit → this bridge page again
+        Since alreadyRedirected is 1, we send them back to your checkout,
+        not back into Tagada or WooCommerce.
+      */
+      if (alreadyRedirected) {
+        if (title) title.textContent = "Returning to checkout...";
+        if (message) message.textContent = "Taking you back to your order review.";
+
+        window.location.replace(returnUrl);
+      } else if (!redirectUrl) {
+        if (title) title.textContent = "Redirect unavailable";
+        if (message) message.textContent = "We could not open bank transfer checkout.";
+
+        window.location.replace(returnUrl);
+      } else {
+        sessionStorage.setItem("phaseone_bank_transfer_redirected", "1");
+        sessionStorage.setItem("phaseone_bank_transfer_checkout_url", returnUrl);
+
+        window.location.href = redirectUrl;
+      }
+    </script>
+
+    <style>
+      :global(html),
+      :global(body) {
+        margin: 0;
+        min-height: 100%;
+        background: #020617;
+      }
+
+      .bt-redirect {
+        min-height: 100vh;
+        min-height: 100dvh;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        color: white;
+        background:
+          radial-gradient(circle at 50% 0%, rgba(103, 232, 249, 0.11), transparent 38%),
+          radial-gradient(circle at 0% 100%, rgba(37, 99, 235, 0.09), transparent 34%),
+          #020617;
+        font-family:
+          Inter,
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          sans-serif;
+      }
+
+      .bt-card {
+        position: relative;
+        width: min(540px, 100%);
+        overflow: hidden;
+        border: 1px solid rgba(165, 243, 252, 0.14);
+        border-radius: 30px;
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.018)),
+          rgba(8, 24, 46, 0.86);
+        padding: clamp(28px, 5vw, 40px);
+        text-align: center;
+        box-shadow: 0 24px 80px rgba(0, 0, 0, 0.28);
+      }
+
+      .bt-card::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background-image:
+          linear-gradient(rgba(255, 255, 255, 0.018) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255, 255, 255, 0.012) 1px, transparent 1px);
+        background-size: 42px 42px;
+        opacity: 0.45;
+        mask-image: radial-gradient(circle at 50% 0%, black, transparent 72%);
+      }
+
+      .bt-orb {
+        position: absolute;
+        left: 50%;
+        top: -100px;
+        width: 240px;
+        height: 240px;
+        transform: translateX(-50%);
+        border-radius: 999px;
+        background: rgba(103, 232, 249, 0.13);
+        filter: blur(70px);
+        pointer-events: none;
+      }
+
+      .bt-card p,
+      .bt-card h1,
+      .bt-card span,
+      .bt-card a {
+        position: relative;
+        z-index: 1;
+      }
+
+      .bt-card p {
+        margin: 0;
+        color: rgba(165, 243, 252, 0.76);
+        font-size: 10px;
+        font-weight: 950;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+      }
+
+      .bt-card h1 {
+        margin: 14px 0 0;
+        color: white;
+        font-size: clamp(30px, 5vw, 46px);
+        font-weight: 740;
+        line-height: 0.96;
+        letter-spacing: -0.06em;
+      }
+
+      .bt-card span {
+        display: block;
+        margin-top: 12px;
+        color: rgba(203, 213, 225, 0.66);
+        font-size: 14px;
+        line-height: 1.6;
+      }
+
+      .bt-card a {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-top: 24px;
+        min-height: 46px;
+        border-radius: 999px;
+        background: rgb(103, 232, 249);
+        padding: 0 20px;
+        color: rgb(2, 6, 23);
+        font-size: 10px;
+        font-weight: 950;
+        letter-spacing: 0.16em;
+        text-decoration: none;
+        text-transform: uppercase;
+      }
+
+      @media (max-width: 520px) {
+        .bt-redirect {
+          padding: 16px;
+        }
+
+        .bt-card {
+          border-radius: 24px;
+        }
+      }
+    </style>
+  </body>
+</html>

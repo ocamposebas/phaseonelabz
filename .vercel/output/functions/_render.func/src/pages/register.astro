@@ -1,0 +1,14 @@
+---
+export const prerender = false;
+
+import MainLayout from "../layouts/MainLayout.astro";
+import RegisterExperience from "../components/account/RegisterExperience.jsx";
+import "../styles/global.css";
+---
+
+<MainLayout
+  title="Register // Client Portal"
+  description="Create your customer account to access rewards points, recent orders, and account activity."
+>
+  <RegisterExperience client:load />
+</MainLayout>

@@ -1,11 +1,76 @@
 ---
-import Welcome from '../components/Welcome.astro';
-import Layout from '../layouts/Layout.astro';
+export const prerender = false;
 
-// Welcome to Astro! Wondering what to do next? Check out the Astro documentation at https://docs.astro.build
-// Don't want to use any of this? Delete everything in this file, the `assets`, `components`, and `layouts` directories, and start fresh.
+import BaseLayout from "../layouts/MainLayout.astro";
+import ShopExperience from "../components/shop/ShopExperience.jsx";
+import "../styles/global.css";
+
+const WOO_URL = import.meta.env.WOOCOMMERCE_URL;
+const KEY = import.meta.env.WOOCOMMERCE_CONSUMER_KEY;
+const SECRET = import.meta.env.WOOCOMMERCE_CONSUMER_SECRET;
+
+let products = [];
+
+try {
+  if (!WOO_URL || !KEY || !SECRET) {
+    console.error("=== WOOCOMMERCE ENV ERROR === Missing variables");
+  } else {
+    const cleanUrl = WOO_URL.replace(/\/$/, "");
+
+    const url = new URL(`${cleanUrl}/wp-json/wc/v3/products`);
+
+    // IMPORTANTE:
+    // Antes estaba en 20, por eso posiblemente no llegaban RT3, TZ2, Hospira, Water.
+    url.searchParams.set("per_page", "100");
+    url.searchParams.set("page", "1");
+    url.searchParams.set("status", "publish");
+    url.searchParams.set("consumer_key", KEY);
+    url.searchParams.set("consumer_secret", SECRET);
+
+    const response = await fetch(url.toString(), {
+      headers: {
+        "User-Agent": "Research Catalog Astro",
+        Accept: "application/json",
+      },
+    });
+
+    console.log(
+      "WooCommerce URL:",
+      url
+        .toString()
+        .replace(KEY, "ck_hidden")
+        .replace(SECRET, "cs_hidden")
+    );
+
+    console.log("WooCommerce status:", response.status);
+
+    if (response.ok) {
+      products = await response.json();
+
+      console.log("=== API SUCCESS === Productos encontrados:", products.length);
+
+      console.log(
+        "=== PRODUCT DEBUG ===",
+        products.map((product) => ({
+          id: product.id,
+          name: product.name,
+          sku: product.sku,
+          slug: product.slug,
+        }))
+      );
+    } else {
+      const errorText = await response.text();
+      console.error("=== API ERROR ===", response.status, errorText);
+    }
+  }
+} catch (error) {
+  console.error("=== CATCH ERROR ===:", error);
+}
 ---
 
-<Layout>
-	<Welcome />
-</Layout>
+<BaseLayout
+  title="Research Compounds // Scientific Catalog"
+  description="Research-focused catalog experience for laboratory-use compounds with documentation, COA access, and responsible scientific presentation."
+>
+  <ShopExperience products={products} client:load />
+</BaseLayout>

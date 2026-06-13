@@ -1,0 +1,15 @@
+---
+export const prerender = false;
+
+import MainLayout from "../layouts/MainLayout.astro";
+import COAExperience from "../components/shop/COAExperience.jsx";
+
+import "../styles/global.css";
+---
+
+<MainLayout
+  title="COA Verification // Phase One Labs"
+  description="Search and verify certificates of analysis by product name, COA number, batch number, or compound."
+>
+  <COAExperience client:load />
+</MainLayout>

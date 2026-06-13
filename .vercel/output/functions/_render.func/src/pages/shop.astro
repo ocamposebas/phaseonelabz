@@ -1,0 +1,61 @@
+---
+export const prerender = false;
+
+import BaseLayout from "../layouts/MainLayout.astro";
+import ShopExperience from "../components/shop/ShopPageExperience";
+import "../styles/global.css";
+
+const WOO_URL = import.meta.env.WOOCOMMERCE_URL;
+const KEY = import.meta.env.WOOCOMMERCE_CONSUMER_KEY;
+const SECRET = import.meta.env.WOOCOMMERCE_CONSUMER_SECRET;
+
+let products = [];
+
+try {
+  if (!WOO_URL || !KEY || !SECRET) {
+    console.error("=== WOOCOMMERCE ENV ERROR === Missing variables");
+  } else {
+    const cleanUrl = WOO_URL.replace(/\/$/, "");
+
+    const url = new URL(`${cleanUrl}/wp-json/wc/v3/products`);
+    url.searchParams.set("per_page", "20");
+    url.searchParams.set("status", "publish");
+    url.searchParams.set("consumer_key", KEY);
+    url.searchParams.set("consumer_secret", SECRET);
+
+    const response = await fetch(url.toString(), {
+      headers: {
+        "User-Agent": "Research Catalog Astro",
+        Accept: "application/json",
+      },
+    });
+
+    console.log(
+      "WooCommerce URL:",
+      url
+        .toString()
+        .replace(KEY, "ck_hidden")
+        .replace(SECRET, "cs_hidden")
+    );
+
+    console.log("WooCommerce status:", response.status);
+
+    if (response.ok) {
+      products = await response.json();
+      console.log("=== API SUCCESS === Productos encontrados:", products.length);
+    } else {
+      const errorText = await response.text();
+      console.error("=== API ERROR ===", response.status, errorText);
+    }
+  }
+} catch (error) {
+  console.error("=== CATCH ERROR ===:", error);
+}
+---
+
+<BaseLayout
+  title="Research Compounds // Scientific Catalog"
+  description="Research-focused catalog experience for laboratory-use compounds with documentation, COA access, and responsible scientific presentation."
+>
+  <ShopExperience products={products} client:load />
+</BaseLayout>
