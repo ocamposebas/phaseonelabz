@@ -22,7 +22,7 @@ import { useCart } from "../cart/CartContext";
 
 const ACCOUNT_ENDPOINT = "/api/account/me";
 const VALIDATE_COUPON_ENDPOINT =
-  "https://phaseonelabz.com/wp-json/phaseone/v1/validate-coupon";
+  "https://staging.phaseonelabz.com/wp-json/phaseone/v1/validate-coupon";
 const WOO_URL = import.meta.env.PUBLIC_WOOCOMMERCE_URL || "";
 const PAYMENT_DISCOUNT_RATE = 0.05;
 const PAYMENT_DISCOUNT_METHOD_IDS = ["venmo", "zelle", "bank"];
