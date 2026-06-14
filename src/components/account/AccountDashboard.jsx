@@ -733,6 +733,85 @@ function AffiliateStatsDashboard({
   const commissionLabel = cleanAffiliateText(primaryCoupon?.commission_label || "—");
   const discountLabel = cleanAffiliateText(primaryCoupon?.discount_label || "No Discount");
 
+  const getAffiliateMetric = (...keys) => {
+    for (const key of keys) {
+      if (primaryCoupon?.[key] !== undefined && primaryCoupon?.[key] !== null) {
+        return primaryCoupon[key];
+      }
+
+      if (stats?.[key] !== undefined && stats?.[key] !== null) {
+        return stats[key];
+      }
+    }
+
+    return 0;
+  };
+
+  const referralClicks = Number(
+    getAffiliateMetric(
+      "referral_clicks",
+      "link_clicks",
+      "total_clicks",
+      "clicks"
+    ) || 0
+  );
+
+  const uniqueVisitors = Number(
+    getAffiliateMetric(
+      "unique_visitors",
+      "unique_clicks",
+      "unique_users",
+      "visitors"
+    ) || 0
+  );
+
+  const trackedConversions = Number(
+    getAffiliateMetric(
+      "tracked_conversions",
+      "conversions",
+      "conversion_count",
+      "total_conversions",
+      "total_usage"
+    ) || 0
+  );
+
+  const trackedRevenue = Number(
+    getAffiliateMetric(
+      "tracked_revenue",
+      "attributed_revenue",
+      "conversion_revenue",
+      "total_sales"
+    ) || 0
+  );
+
+  const rawConversionRate = getAffiliateMetric(
+    "conversion_rate",
+    "tracked_conversion_rate"
+  );
+
+  const conversionRate = Number(rawConversionRate || 0)
+    ? Number(rawConversionRate)
+    : uniqueVisitors > 0
+      ? (trackedConversions / uniqueVisitors) * 100
+      : referralClicks > 0
+        ? (trackedConversions / referralClicks) * 100
+        : 0;
+
+  const rawRevenuePerClick = getAffiliateMetric(
+    "revenue_per_click",
+    "rpc",
+    "earnings_per_click"
+  );
+
+  const revenuePerClick = Number(rawRevenuePerClick || 0)
+    ? Number(rawRevenuePerClick)
+    : referralClicks > 0
+      ? trackedRevenue / referralClicks
+      : 0;
+
+  const averageOrderValue =
+    trackedConversions > 0 ? trackedRevenue / trackedConversions : 0;
+
   const copyReferralUrl = async () => {
     if (!referralUrl || typeof navigator === "undefined") return;
 
@@ -830,11 +909,53 @@ function AffiliateStatsDashboard({
           <>
             <div className="grid gap-3 lg:grid-cols-3">
               <AffiliateMetricCard
+                label="Link Clicks"
+                value={referralClicks.toLocaleString("en-US")}
+                description="Total visits tracked from your affiliate link."
+              />
+
+              <AffiliateMetricCard
+                label="Unique Visitors"
+                value={uniqueVisitors.toLocaleString("en-US")}
+                description="Estimated unique people who entered through your link."
+              />
+
+              <AffiliateMetricCard
+                label="Conversions"
+                value={trackedConversions.toLocaleString("en-US")}
+                description="Orders attributed to this coupon or referral link."
+              />
+
+              <AffiliateMetricCard
+                label="Conversion Rate"
+                value={`${conversionRate.toFixed(2)}%`}
+                description="Conversions divided by unique referral visitors."
+              />
+
+              <AffiliateMetricCard
+                label="Tracked Revenue"
+                value={formatAffiliateMoney(trackedRevenue, currency)}
+                description="Revenue attributed by the affiliate tracking bridge."
+              />
+
+              <AffiliateMetricCard
+                label="Revenue / Click"
+                value={formatAffiliateMoney(revenuePerClick, currency)}
+                description="Average tracked revenue generated per referral click."
+              />
+
+              <AffiliateMetricCard
+                label="Avg Order Value"
+                value={formatAffiliateMoney(averageOrderValue, currency)}
+                description="Average tracked revenue per attributed conversion."
+              />
+
+              <AffiliateMetricCard
                 label="Total Usage"
                 value={Number(primaryCoupon?.total_usage || 0).toLocaleString(
                   "en-US"
                 )}
-                description="Total coupon uses."
+                description="Total coupon uses from Coupon Affiliates."
               />
 
               <AffiliateMetricCard

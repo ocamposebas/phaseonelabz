@@ -341,6 +341,130 @@ function getSavedCheckoutCoupon() {
   return getStoredCheckoutCoupon();
 }
 
+
+function getAffiliateVisitorId() {
+  if (typeof window === "undefined") return "";
+
+  const key = "phaseone_affiliate_visitor_id";
+  const existing = localStorage.getItem(key);
+
+  if (existing) return existing;
+
+  const visitorId =
+    typeof crypto !== "undefined" && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `visitor_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+
+  localStorage.setItem(key, visitorId);
+
+  try {
+    const maxAge = 60 * 60 * 24 * 90;
+    const encoded = encodeURIComponent(visitorId);
+    const baseCookie = `phaseone_affiliate_visitor_id=${encoded}; Path=/; Max-Age=${maxAge}; SameSite=Lax; Secure`;
+
+    document.cookie = baseCookie;
+    document.cookie = `${baseCookie}; Domain=.phaseonelabz.com`;
+  } catch {
+    // Cookie can fail in local/non-secure environments. localStorage is enough for frontend tracking.
+  }
+
+  return visitorId;
+}
+
+function rememberAffiliateAttribution(coupon = "") {
+  if (typeof window === "undefined") return "";
+
+  const cleanCoupon = normalizeCheckoutCoupon(coupon);
+
+  if (!cleanCoupon) return "";
+
+  const now = new Date().toISOString();
+
+  localStorage.setItem("phaseone_affiliate_last_touch_coupon", cleanCoupon);
+  localStorage.setItem("phaseone_affiliate_last_touch_at", now);
+
+  if (!localStorage.getItem("phaseone_affiliate_first_touch_coupon")) {
+    localStorage.setItem("phaseone_affiliate_first_touch_coupon", cleanCoupon);
+    localStorage.setItem("phaseone_affiliate_first_touch_at", now);
+  }
+
+  return cleanCoupon;
+}
+
+function shouldSkipAffiliateClickTracking(coupon = "") {
+  if (typeof window === "undefined") return true;
+
+  const cleanCoupon = normalizeCheckoutCoupon(coupon);
+
+  if (!cleanCoupon) return true;
+
+  // Prevent refresh/spam from inflating clicks too hard.
+  // Server-side should still dedupe unique visitors by visitorId.
+  const today = new Date().toISOString().slice(0, 10);
+  const sentKey = `phaseone_affiliate_click_sent_${cleanCoupon}_${today}`;
+
+  return localStorage.getItem(sentKey) === "1";
+}
+
+function markAffiliateClickTracked(coupon = "") {
+  if (typeof window === "undefined") return;
+
+  const cleanCoupon = normalizeCheckoutCoupon(coupon);
+
+  if (!cleanCoupon) return;
+
+  const today = new Date().toISOString().slice(0, 10);
+  const sentKey = `phaseone_affiliate_click_sent_${cleanCoupon}_${today}`;
+
+  localStorage.setItem(sentKey, "1");
+}
+
+async function trackAffiliateCouponEvent(event = "click", coupon = "") {
+  if (typeof window === "undefined") return;
+
+  const cleanCoupon = normalizeCheckoutCoupon(coupon);
+
+  if (!cleanCoupon) return;
+
+  rememberAffiliateAttribution(cleanCoupon);
+
+  if (event === "click" && shouldSkipAffiliateClickTracking(cleanCoupon)) {
+    return;
+  }
+
+  const payload = {
+    event,
+    coupon: cleanCoupon,
+    visitorId: getAffiliateVisitorId(),
+    pageUrl: window.location.href,
+    path: window.location.pathname || "",
+    query: window.location.search || "",
+    referrer: document.referrer || "",
+    userAgent: navigator.userAgent || "",
+    occurredAt: new Date().toISOString(),
+    source: "phaseone_frontend_coupon_url",
+  };
+
+  try {
+    const response = await fetch("/api/affiliate/track.json", {
+      method: "POST",
+      credentials: "include",
+      keepalive: true,
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (response.ok && event === "click") {
+      markAffiliateClickTracked(cleanCoupon);
+    }
+  } catch (error) {
+    console.warn("[Phase One] Affiliate event could not be tracked:", error);
+  }
+}
+
 function saveCheckoutCoupon(value = "") {
   if (typeof window === "undefined") return "";
 
@@ -1166,10 +1290,15 @@ export function CartProvider({ children }) {
     if (typeof window === "undefined") return;
 
     const syncCouponFromUrl = () => {
+      const couponFromUrl = getCheckoutCouponFromUrl();
       const savedCoupon = getSavedCheckoutCoupon();
 
       if (savedCoupon) {
         setCheckoutCouponState(savedCoupon);
+      }
+
+      if (couponFromUrl) {
+        trackAffiliateCouponEvent("click", couponFromUrl);
       }
     };
 
