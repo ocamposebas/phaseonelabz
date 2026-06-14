@@ -21,23 +21,9 @@ import {
 import { useCart } from "../cart/CartContext";
 
 const ACCOUNT_ENDPOINT = "/api/account/me";
-const WOO_URL = import.meta.env.PUBLIC_WOOCOMMERCE_URL || "";
-const WP_SITE_URL =
-  import.meta.env.PUBLIC_WP_SITE_URL ||
-  import.meta.env.PUBLIC_WOOCOMMERCE_URL ||
-  "https://phaseonelabz.com";
-
-function buildWordPressRestUrl(path = "") {
-  const cleanUrl = cleanWooUrl(WP_SITE_URL);
-
-  if (!cleanUrl) return path;
-
-  return `${cleanUrl}${path.startsWith("/") ? path : `/${path}`}`;
-}
-
-const VALIDATE_COUPON_ENDPOINT = buildWordPressRestUrl(
-  "/wp-json/phaseone/v1/validate-coupon"
-);
+const VALIDATE_COUPON_ENDPOINT =
+  "https://staging.phaseonelabz.com/wp-json/phaseone/v1/validate-coupon";
+const WOO_URL = import.meta.env.PUBLIC_WOOCOMMERCE_URL || "https://staging.phaseonelabz.com";
 const PAYMENT_DISCOUNT_RATE = 0.05;
 const PAYMENT_DISCOUNT_METHOD_IDS = ["venmo", "zelle", "bank"];
 
@@ -179,7 +165,11 @@ function safeJsonParse(value, fallback = null) {
 function looksLikeHtmlResponse(value = "") {
   const clean = String(value || "").trim().toLowerCase();
 
-  return clean.startsWith("<!doctype html") || clean.startsWith("<html");
+  return (
+    clean.startsWith("<!doctype html") ||
+    clean.startsWith("<html") ||
+    clean.includes("<body")
+  );
 }
 
 function cleanWooUrl(value = "") {
@@ -270,6 +260,48 @@ function normalizeCoupon(value = "") {
     .slice(0, 32);
 }
 
+
+function setPhaseoneCouponCookie(value = "") {
+  if (typeof document === "undefined") return "";
+
+  const cleanCoupon = normalizeCoupon(value);
+
+  if (!cleanCoupon) return "";
+
+  const maxAge = 60 * 60 * 24 * 7;
+  const encoded = encodeURIComponent(cleanCoupon);
+  const baseCookie = `phaseone_tagada_coupon=${encoded}; Path=/; Max-Age=${maxAge}; SameSite=Lax; Secure`;
+
+  // Host cookie for the current domain.
+  document.cookie = baseCookie;
+
+  // Shared cookie for phaseonelabz.com, staging.phaseonelabz.com, and checkout.phaseonelabz.com.
+  document.cookie = `${baseCookie}; Domain=.phaseonelabz.com`;
+
+  try {
+    window.sessionStorage?.setItem("phaseone_tagada_coupon", cleanCoupon);
+    window.localStorage?.setItem("phaseone_tagada_coupon", cleanCoupon);
+  } catch {
+    // Storage may be blocked; cookie is the important handoff.
+  }
+
+  return cleanCoupon;
+}
+
+function clearPhaseoneCouponCookie() {
+  if (typeof document === "undefined") return;
+
+  document.cookie = "phaseone_tagada_coupon=; Path=/; Max-Age=0; SameSite=Lax; Secure";
+  document.cookie = "phaseone_tagada_coupon=; Path=/; Domain=.phaseonelabz.com; Max-Age=0; SameSite=Lax; Secure";
+
+  try {
+    window.sessionStorage?.removeItem("phaseone_tagada_coupon");
+    window.localStorage?.removeItem("phaseone_tagada_coupon");
+  } catch {
+    // Ignore.
+  }
+}
+
 function normalizeEmail(value = "") {
   return String(value || "").trim().toLowerCase();
 }
@@ -304,7 +336,7 @@ function getAccountToken() {
   return localStorage.getItem("lab_auth_token") || "";
 }
 
-function getSavedCoupon() {
+function getUrlCoupon() {
   if (typeof window === "undefined") return "";
 
   const params = new URLSearchParams(window.location.search);
@@ -312,27 +344,63 @@ function getSavedCoupon() {
   const fromUrl =
     params.get("coupon") ||
     params.get("coupon_code") ||
+    params.get("discount_code") ||
+    params.get("promo") ||
     params.get("affiliate_coupon") ||
     params.get("phaseone_coupon") ||
+    params.get("phaseone_tagada_coupon") ||
+    params.get("phaseone_coupon_to_tagada") ||
     params.get("ref") ||
     "";
 
-  const cleanFromUrl = normalizeCoupon(fromUrl);
+  return normalizeCoupon(fromUrl);
+}
+
+function persistLockedUrlCoupon(value = "") {
+  if (typeof window === "undefined") return "";
+
+  const cleanCoupon = normalizeCoupon(value);
+
+  if (!cleanCoupon) return "";
+
+  localStorage.setItem("phaseone_checkout_coupon", cleanCoupon);
+  localStorage.setItem("phaseone_affiliate_coupon", cleanCoupon);
+  localStorage.setItem("phaseone_locked_checkout_coupon", cleanCoupon);
+  localStorage.setItem("phaseone_coupon_locked_from_url", "1");
+  setPhaseoneCouponCookie(cleanCoupon);
+
+  return cleanCoupon;
+}
+
+function getStoredLockedCoupon() {
+  if (typeof window === "undefined") return "";
+
+  const lockedFlag = localStorage.getItem("phaseone_coupon_locked_from_url") === "1";
+  const lockedCoupon = normalizeCoupon(
+    localStorage.getItem("phaseone_locked_checkout_coupon") || ""
+  );
+
+  if (lockedFlag && lockedCoupon) return lockedCoupon;
+
+  return "";
+}
+
+function getSavedCoupon() {
+  if (typeof window === "undefined") return "";
+
+  const cleanFromUrl = getUrlCoupon();
 
   /*
     Important:
-    Do not auto-prefill coupons from old localStorage/session values.
-    This prevents test codes like PRUEBA10 from appearing automatically.
-    Only a coupon explicitly present in the current URL can prefill the field.
+    The coupon can disappear from the visible URL after the customer navigates
+    from /?coupon=CODE to /shop or /checkout. We keep that original referral
+    code in localStorage and keep it locked until checkout.
   */
   if (cleanFromUrl) {
-    localStorage.setItem("phaseone_checkout_coupon", cleanFromUrl);
-    return cleanFromUrl;
+    return persistLockedUrlCoupon(cleanFromUrl);
   }
 
-  localStorage.removeItem("phaseone_checkout_coupon");
-
-  return "";
+  return getStoredLockedCoupon();
 }
 
 function saveCoupon(value = "") {
@@ -342,8 +410,14 @@ function saveCoupon(value = "") {
 
   if (cleanCoupon) {
     localStorage.setItem("phaseone_checkout_coupon", cleanCoupon);
+    localStorage.setItem("phaseone_affiliate_coupon", cleanCoupon);
+    setPhaseoneCouponCookie(cleanCoupon);
   } else {
     localStorage.removeItem("phaseone_checkout_coupon");
+    localStorage.removeItem("phaseone_affiliate_coupon");
+    localStorage.removeItem("phaseone_locked_checkout_coupon");
+    localStorage.removeItem("phaseone_coupon_locked_from_url");
+    clearPhaseoneCouponCookie();
   }
 
   return cleanCoupon;
@@ -849,7 +923,22 @@ function buildWooCheckoutUrl({
 
   const { firstName, lastName } = splitName(customerName);
 
+  if (cleanCoupon) {
+    /*
+      Safe handoff for Tagada only.
+      This custom parameter is ignored by WooCommerce add_to_cart and the
+      WordPress cart-sync snippet forwards it only after products are synced.
+    */
+    setPhaseoneCouponCookie(cleanCoupon);
+    url.searchParams.set("phaseone_tagada_coupon", cleanCoupon);
+  }
+
   if (cleanCoupon && discountToken) {
+    /*
+      Keep the original working WooCommerce coupon bridge flow.
+      Do not send generic coupon/coupon_code/discount_code/promo params here,
+      because they can interfere before the cart sync finishes.
+    */
     url.searchParams.set("phaseone_coupon", cleanCoupon);
     url.searchParams.set("phaseone_discount_token", discountToken);
     url.searchParams.set("phaseone_discount_amount", String(Number(discountAmount || 0)));
@@ -945,6 +1034,7 @@ export default function CheckoutTransferPage() {
   const [accountLoading, setAccountLoading] = useState(true);
   const [accountUser, setAccountUser] = useState(null);
   const [couponInput, setCouponInput] = useState("");
+  const [couponLocked, setCouponLocked] = useState(false);
   const [coupon, setCoupon] = useState("");
   const [couponMessage, setCouponMessage] = useState("");
   const [couponStatus, setCouponStatus] = useState("idle");
@@ -996,13 +1086,21 @@ export default function CheckoutTransferPage() {
     );
 
     const cleanCoupon = getSavedCoupon();
+    const lockedFromUrl = Boolean(getUrlCoupon());
+    const lockedFromStorage = Boolean(getStoredLockedCoupon());
+    const shouldLockCoupon = Boolean(lockedFromUrl || lockedFromStorage);
 
+    setCouponLocked(shouldLockCoupon);
     setCoupon(cleanCoupon);
     setCouponInput(cleanCoupon);
 
     if (cleanCoupon) {
       setCouponStatus("idle");
-      setCouponMessage("Apply the code from your link to preview the discount.");
+      setCouponMessage(
+        shouldLockCoupon
+          ? "Referral code locked from your link. It will be sent automatically to payment."
+          : "Apply the code from your link to preview the discount."
+      );
     } else {
       setCouponStatus("idle");
       setCouponMessage("");
@@ -1188,6 +1286,11 @@ export default function CheckoutTransferPage() {
   }, [canApplyCashback, applyCashback]);
 
   const handleCouponInput = (event) => {
+    if (couponLocked) {
+      setCouponMessage("This referral code is locked from your link.");
+      return;
+    }
+
     const cleanValue = normalizeCoupon(event.target.value);
     setCouponInput(cleanValue);
     setCouponMessage("");
@@ -1271,7 +1374,7 @@ export default function CheckoutTransferPage() {
 
       if (looksLikeHtmlResponse(rawText)) {
         throw new Error(
-          `Coupon endpoint returned an HTML 404 page. Check PUBLIC_WP_SITE_URL and confirm the WordPress plugin route exists: ${VALIDATE_COUPON_ENDPOINT}`
+          `Coupon endpoint returned an HTML page. Check PUBLIC_WP_SITE_URL and confirm the WordPress plugin route exists: ${VALIDATE_COUPON_ENDPOINT}`
         );
       }
 
@@ -1356,7 +1459,24 @@ export default function CheckoutTransferPage() {
     }
   };
 
+  useEffect(() => {
+    if (!couponLocked || !hasItems || !couponInput || couponStatus !== "idle") {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      applyCoupon();
+    }, 350);
+
+    return () => window.clearTimeout(timer);
+  }, [couponLocked, hasItems, couponInput, couponStatus]);
+
   const removeCoupon = () => {
+    if (couponLocked) {
+      setCouponMessage("This referral code is locked from your link.");
+      return;
+    }
+
     saveCoupon("");
     setCoupon("");
     setCouponInput("");
@@ -1377,12 +1497,12 @@ export default function CheckoutTransferPage() {
 
     const typedCoupon = normalizeCoupon(couponInput);
 
-    if (typedCoupon && couponStatus !== "valid") {
+    if (typedCoupon && couponStatus !== "valid" && !couponLocked) {
       setError("Please apply and validate the coupon before continuing.");
       return false;
     }
 
-    if (couponStatus === "valid" && !discountToken) {
+    if (couponStatus === "valid" && !discountToken && !couponLocked) {
       setError(
         "The coupon was validated, but the secure discount token is missing. Apply it again."
       );
@@ -1402,10 +1522,17 @@ export default function CheckoutTransferPage() {
   const continueToWooCheckout = () => {
     if (!validateBeforePayment()) return;
 
+    const checkoutCoupon =
+      couponStatus === "valid"
+        ? coupon
+        : couponLocked
+          ? normalizeCoupon(couponInput)
+          : "";
+
     const checkoutUrl = buildWooCheckoutUrl({
       session,
       cartItems,
-      coupon: couponStatus === "valid" ? coupon : "",
+      coupon: checkoutCoupon,
       discountToken: couponStatus === "valid" ? discountToken : "",
       discountAmount: couponStatus === "valid" ? validatedCouponDiscount : 0,
       previewTotal: paymentPreviewTotal,
@@ -1520,8 +1647,18 @@ export default function CheckoutTransferPage() {
           shippingTotal: Number(selectedShippingMethod?.price || 0),
           shipping_total: Number(selectedShippingMethod?.price || 0),
 
-          couponCode: couponStatus === "valid" ? coupon : "",
-          coupon: couponStatus === "valid" ? coupon : "",
+          couponCode:
+            couponStatus === "valid"
+              ? coupon
+              : couponLocked
+                ? normalizeCoupon(couponInput)
+                : "",
+          coupon:
+            couponStatus === "valid"
+              ? coupon
+              : couponLocked
+                ? normalizeCoupon(couponInput)
+                : "",
           discountToken: couponStatus === "valid" ? discountToken : "",
           couponDiscountAmount:
             couponStatus === "valid" ? validatedCouponDiscount : 0,
@@ -1717,19 +1854,27 @@ export default function CheckoutTransferPage() {
 
               <div className="coupon-box">
                 <input
-                  value={couponInput}
-                  onChange={handleCouponInput}
-                  placeholder="Enter code"
-                  inputMode="text"
-                  autoCapitalize="characters"
-                />
+                      value={couponInput}
+                      onChange={handleCouponInput}
+                      placeholder="Enter code"
+                      inputMode="text"
+                      autoCapitalize="characters"
+                      readOnly={couponLocked}
+                      aria-readonly={couponLocked}
+                      className={couponLocked ? "coupon-locked-input" : ""}
+                    />
 
-                {couponStatus === "valid" ? (
-                  <button type="button" className="remove-code" onClick={removeCoupon}>
-                    <X size={14} />
-                    Remove
-                  </button>
-                ) : (
+                    {couponLocked && couponStatus === "valid" ? (
+                      <button type="button" className="locked-code" disabled>
+                        <Lock size={14} />
+                        Locked
+                      </button>
+                    ) : couponStatus === "valid" ? (
+                      <button type="button" className="remove-code" onClick={removeCoupon}>
+                        <X size={14} />
+                        Remove
+                      </button>
+                    ) : (
                   <button
                     type="button"
                     onClick={applyCoupon}
@@ -1739,6 +1884,12 @@ export default function CheckoutTransferPage() {
                   </button>
                 )}
               </div>
+
+              {couponLocked && couponInput && (
+                <p className="coupon-locked-note">
+                  Referral code locked from your link. It will be passed to secure payment automatically.
+                </p>
+              )}
 
               {couponStatus === "valid" && coupon && (
                 <div className="applied-code">
@@ -2584,6 +2735,28 @@ const styles = `
     border: 1px solid rgba(248, 113, 113, 0.18);
     background: rgba(248, 113, 113, 0.1);
     color: rgb(254, 202, 202);
+  }
+
+  .coupon-box .locked-code {
+    border: 1px solid rgba(245, 158, 11, 0.35);
+    background: rgba(245, 158, 11, 0.14);
+    color: rgb(253, 230, 138);
+    cursor: not-allowed;
+  }
+
+  .coupon-locked-input {
+    border-color: rgba(245, 158, 11, 0.34);
+    background: rgba(245, 158, 11, 0.07);
+    color: rgb(253, 230, 138);
+    cursor: not-allowed;
+  }
+
+  .coupon-locked-note {
+    margin: 10px 0 0;
+    color: rgba(253, 230, 138, 0.82);
+    font-size: 11px;
+    font-weight: 800;
+    line-height: 1.5;
   }
 
   .applied-code,

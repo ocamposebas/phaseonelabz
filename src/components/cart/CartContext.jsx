@@ -234,35 +234,111 @@ function normalizeCheckoutCoupon(value = "") {
     .slice(0, 32);
 }
 
+
+function setPhaseoneCouponCookie(value = "") {
+  if (typeof document === "undefined") return "";
+
+  const cleanCoupon = normalizeCheckoutCoupon(value);
+
+  if (!cleanCoupon) return "";
+
+  const maxAge = 60 * 60 * 24 * 7;
+  const encoded = encodeURIComponent(cleanCoupon);
+  const baseCookie = `phaseone_tagada_coupon=${encoded}; Path=/; Max-Age=${maxAge}; SameSite=Lax; Secure`;
+
+  // Host cookie for the current domain.
+  document.cookie = baseCookie;
+
+  // Shared cookie for phaseonelabz.com, staging.phaseonelabz.com, and checkout.phaseonelabz.com.
+  document.cookie = `${baseCookie}; Domain=.phaseonelabz.com`;
+
+  try {
+    window.sessionStorage?.setItem("phaseone_tagada_coupon", cleanCoupon);
+    window.localStorage?.setItem("phaseone_tagada_coupon", cleanCoupon);
+  } catch {
+    // Storage may be blocked; cookie is the important handoff.
+  }
+
+  return cleanCoupon;
+}
+
+function clearPhaseoneCouponCookie() {
+  if (typeof document === "undefined") return;
+
+  document.cookie = "phaseone_tagada_coupon=; Path=/; Max-Age=0; SameSite=Lax; Secure";
+  document.cookie = "phaseone_tagada_coupon=; Path=/; Domain=.phaseonelabz.com; Max-Age=0; SameSite=Lax; Secure";
+
+  try {
+    window.sessionStorage?.removeItem("phaseone_tagada_coupon");
+    window.localStorage?.removeItem("phaseone_tagada_coupon");
+  } catch {
+    // Ignore.
+  }
+}
+
 function getSavedAuthToken() {
   if (typeof window === "undefined") return "";
 
   return localStorage.getItem("lab_auth_token") || "";
 }
 
-function getSavedCheckoutCoupon() {
+function getCheckoutCouponFromUrl() {
   if (typeof window === "undefined") return "";
 
   const params = new URLSearchParams(window.location.search);
-  const fromUrl =
-    params.get("coupon") ||
-    params.get("affiliate_coupon") ||
-    params.get("ref") ||
-    params.get("coupon_code") ||
-    "";
-
-  const cleanFromUrl = normalizeCheckoutCoupon(fromUrl);
-
-  if (cleanFromUrl) {
-    localStorage.setItem("phaseone_checkout_coupon", cleanFromUrl);
-    return cleanFromUrl;
-  }
 
   return normalizeCheckoutCoupon(
-    localStorage.getItem("phaseone_checkout_coupon") ||
+    params.get("coupon") ||
+      params.get("coupon_code") ||
+      params.get("discount_code") ||
+      params.get("phaseone_coupon") ||
+      params.get("affiliate_coupon") ||
+      params.get("promo") ||
+      params.get("ref") ||
+      ""
+  );
+}
+
+function persistCheckoutCouponEverywhere(value = "", options = {}) {
+  if (typeof window === "undefined") return "";
+
+  const cleanCoupon = normalizeCheckoutCoupon(value);
+
+  if (!cleanCoupon) return "";
+
+  localStorage.setItem("phaseone_checkout_coupon", cleanCoupon);
+  localStorage.setItem("phaseone_affiliate_coupon", cleanCoupon);
+  setPhaseoneCouponCookie(cleanCoupon);
+
+  if (options.locked) {
+    localStorage.setItem("phaseone_locked_checkout_coupon", cleanCoupon);
+    localStorage.setItem("phaseone_coupon_locked_from_url", "1");
+  }
+
+  return cleanCoupon;
+}
+
+function getStoredCheckoutCoupon() {
+  if (typeof window === "undefined") return "";
+
+  return normalizeCheckoutCoupon(
+    localStorage.getItem("phaseone_locked_checkout_coupon") ||
+      localStorage.getItem("phaseone_checkout_coupon") ||
       localStorage.getItem("phaseone_affiliate_coupon") ||
       ""
   );
+}
+
+function getSavedCheckoutCoupon() {
+  if (typeof window === "undefined") return "";
+
+  const cleanFromUrl = getCheckoutCouponFromUrl();
+
+  if (cleanFromUrl) {
+    return persistCheckoutCouponEverywhere(cleanFromUrl, { locked: true });
+  }
+
+  return getStoredCheckoutCoupon();
 }
 
 function saveCheckoutCoupon(value = "") {
@@ -272,8 +348,16 @@ function saveCheckoutCoupon(value = "") {
 
   if (cleanCoupon) {
     localStorage.setItem("phaseone_checkout_coupon", cleanCoupon);
+    localStorage.setItem("phaseone_affiliate_coupon", cleanCoupon);
+    setPhaseoneCouponCookie(cleanCoupon);
+    localStorage.removeItem("phaseone_locked_checkout_coupon");
+    localStorage.removeItem("phaseone_coupon_locked_from_url");
   } else {
     localStorage.removeItem("phaseone_checkout_coupon");
+    localStorage.removeItem("phaseone_affiliate_coupon");
+    localStorage.removeItem("phaseone_locked_checkout_coupon");
+    localStorage.removeItem("phaseone_coupon_locked_from_url");
+    clearPhaseoneCouponCookie();
   }
 
   return cleanCoupon;
@@ -817,6 +901,10 @@ function persistCheckoutSession({
 
   const sessionId = createCheckoutSessionId();
   const coupon = normalizeCheckoutCoupon(checkoutCoupon || getSavedCheckoutCoupon());
+
+  if (coupon) {
+    setPhaseoneCouponCookie(coupon);
+  }
   const customerEmail = getOmnisendContactEmail(account);
   const customerName = String(
     account?.name || account?.display_name || ""
@@ -864,7 +952,11 @@ function persistCheckoutSession({
   return sessionId;
 }
 
-function buildCustomCheckoutUrlFromSession(sessionId = "", baseUrl = "") {
+function buildCustomCheckoutUrlFromSession(
+  sessionId = "",
+  baseUrl = "",
+  checkoutCoupon = ""
+) {
   if (!sessionId) return null;
 
   const fallbackBase =
@@ -873,11 +965,20 @@ function buildCustomCheckoutUrlFromSession(sessionId = "", baseUrl = "") {
       : "/checkout";
 
   const url = new URL(baseUrl || fallbackBase);
+  const cleanCoupon = normalizeCheckoutCoupon(
+    checkoutCoupon || getSavedCheckoutCoupon()
+  );
 
   url.search = "";
   url.hash = "";
   url.searchParams.set("checkout_session", sessionId);
   url.searchParams.set("phaseone_checkout", "1");
+
+  if (cleanCoupon) {
+    // Keep the coupon visible only on the Astro custom checkout URL.
+    // CheckoutTransferPage will validate it, lock it, and carry it safely to Woo/Tagada.
+    url.searchParams.set("coupon", cleanCoupon);
+  }
 
   return url.toString();
 }
@@ -904,6 +1005,10 @@ function createCheckoutRecoveryUrl(items = [], options = {}, baseUrl = "") {
   const rewardProgress = getRewardProgress(normalizedItems);
   const rewardGifts = normalizedItems.filter(isRewardGift);
 
+  const cleanCheckoutCoupon = normalizeCheckoutCoupon(
+    options.checkoutCoupon || getSavedCheckoutCoupon()
+  );
+
   const sessionId = persistCheckoutSession({
     normalizedItems,
     payload,
@@ -913,12 +1018,16 @@ function createCheckoutRecoveryUrl(items = [], options = {}, baseUrl = "") {
     cartTotal,
     rewardProgress,
     rewardGifts,
-    checkoutCoupon: options.checkoutCoupon,
+    checkoutCoupon: cleanCheckoutCoupon,
     account: options.account,
     source: options.source || "phaseone_omnisend_abandoned_cart",
   });
 
-  return buildCustomCheckoutUrlFromSession(sessionId, baseUrl) || baseUrl || PHASEONE_PUBLIC_CHECKOUT_URL;
+  return (
+    buildCustomCheckoutUrlFromSession(sessionId, baseUrl, cleanCheckoutCoupon) ||
+    baseUrl ||
+    PHASEONE_PUBLIC_CHECKOUT_URL
+  );
 }
 
 function buildOmnisendCheckoutUrl(items = [], options = {}) {
