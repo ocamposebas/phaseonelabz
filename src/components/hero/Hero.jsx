@@ -1,52 +1,99 @@
+import { memo, useEffect, useState } from "react";
 import { ArrowRight, FileCheck2, PackageCheck, ShieldCheck } from "lucide-react";
 
-export default function Hero({ videoSrc = "/prueba.mp4" }) {
-  const featureCards = [
-    {
-      icon: ShieldCheck,
-      title: "Verified",
-      text: "Quality-focused product presentation.",
-    },
-    {
-      icon: FileCheck2,
-      title: "COA Access",
-      text: "Certificate flow that feels simple.",
-    },
-    {
-      icon: PackageCheck,
-      title: "Pack Ready",
-      text: "Made for bundles and discovery.",
-    },
-  ];
+const featureCards = [
+  {
+    icon: ShieldCheck,
+    title: "Verified",
+    text: "Quality-focused product presentation.",
+  },
+  {
+    icon: FileCheck2,
+    title: "COA Access",
+    text: "Certificate flow that feels simple.",
+  },
+  {
+    icon: PackageCheck,
+    title: "Pack Ready",
+    text: "Made for bundles and discovery.",
+  },
+];
+
+const FeatureCard = memo(function FeatureCard({ item }) {
+  const Icon = item.icon;
 
   return (
-    <section className="hero-section relative z-0 isolate min-h-screen overflow-hidden bg-[#020617] text-white">
-      {/* BACKGROUND VIDEO */}
-      <video
-        className="hero-bg-video absolute inset-0 z-0 h-full w-full object-cover"
-        src={videoSrc}
-        autoPlay
-        muted
-        loop
-        playsInline
-        preload="auto"
-        aria-hidden="true"
-      />
+    <div className="hero-feature-card group relative overflow-hidden border border-cyan-200/14 bg-slate-950/30 p-5 text-center transition-colors duration-200 hover:border-cyan-200/30 hover:bg-slate-950/42">
+      <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-2xl border border-cyan-200/16 bg-cyan-300/[0.08]">
+        <Icon size={18} className="text-cyan-200" aria-hidden="true" />
+      </div>
 
-      {/* VIDEO OVERLAY */}
-      <div className="absolute inset-0 z-10 bg-[linear-gradient(180deg,rgba(2,6,23,0.30),rgba(2,6,23,0.28)_36%,rgba(2,6,23,0.56)_72%,rgba(2,6,23,0.88))]" />
+      <p className="mt-4 text-[11px] font-black uppercase tracking-[0.18em] text-white">
+        {item.title}
+      </p>
 
-      {/* SOFT TOP FADE FOR NAV READABILITY */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-64 bg-[linear-gradient(180deg,rgba(2,6,23,0.68),rgba(2,6,23,0.24)_48%,rgba(2,6,23,0))]" />
+      <p className="mx-auto mt-2 max-w-[210px] text-xs leading-5 text-slate-100/80">
+        {item.text}
+      </p>
+    </div>
+  );
+});
 
-      {/* BOTTOM DEPTH */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-52 bg-[linear-gradient(0deg,rgba(2,6,23,0.94),rgba(2,6,23,0))]" />
+export default function Hero({
+  videoSrc = "/prueba.mp4",
+  posterSrc = "",
+}) {
+  const [canPlayVideo, setCanPlayVideo] = useState(false);
 
-      {/* CONTENT */}
-      <div className="hero-inner relative z-20 mx-auto flex min-h-screen w-full max-w-7xl flex-col items-center justify-center px-5 pb-14 pt-34 text-center sm:px-6 lg:px-8 lg:pb-16 lg:pt-36">
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const reducedMotion = window.matchMedia?.(
+      "(prefers-reduced-motion: reduce)"
+    )?.matches;
+
+    const saveData =
+      navigator.connection?.saveData ||
+      navigator.mozConnection?.saveData ||
+      navigator.webkitConnection?.saveData;
+
+    if (reducedMotion || saveData) {
+      setCanPlayVideo(false);
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setCanPlayVideo(true);
+    }, 80);
+
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  return (
+    <section className="hero-section relative isolate min-h-screen overflow-hidden bg-[#020617] text-white">
+      {canPlayVideo ? (
+        <video
+          className="hero-bg-video absolute inset-0 z-0 h-full w-full object-cover"
+          src={videoSrc}
+          poster={posterSrc || undefined}
+          autoPlay
+          muted
+          loop
+          playsInline
+          preload="metadata"
+          disablePictureInPicture
+          controlsList="nodownload nofullscreen noremoteplayback"
+          aria-hidden="true"
+        />
+      ) : (
+        <div className="hero-video-fallback absolute inset-0 z-0" />
+      )}
+
+      <div className="hero-overlay absolute inset-0 z-10" aria-hidden="true" />
+
+      <div className="hero-inner relative z-20 mx-auto flex min-h-screen w-full max-w-7xl flex-col items-center justify-center px-5 pb-14 pt-[136px] text-center sm:px-6 lg:px-8 lg:pb-16 lg:pt-[144px]">
         <div className="hero-content w-full">
-          {/* EYEBROW */}
-          <div className="mb-5 inline-flex items-center justify-center gap-3 rounded-full border border-cyan-200/18 bg-slate-950/24 px-4 py-2 backdrop-blur-md">
+          <div className="hero-eyebrow mb-5 inline-flex items-center justify-center gap-3 rounded-full border border-cyan-200/18 bg-slate-950/30 px-4 py-2">
             <span className="h-px w-8 bg-cyan-300/70 sm:w-10" />
 
             <span className="text-[9px] font-bold uppercase tracking-[0.28em] text-cyan-100 sm:text-[10px] sm:tracking-[0.34em]">
@@ -56,7 +103,6 @@ export default function Hero({ videoSrc = "/prueba.mp4" }) {
             <span className="h-px w-8 bg-cyan-300/70 sm:w-10" />
           </div>
 
-          {/* TITLE */}
           <h1 className="hero-title mx-auto max-w-[1040px] text-center text-[46px] font-semibold leading-[0.92] tracking-[-0.075em] text-white sm:text-[66px] lg:text-[88px] lg:leading-[0.88]">
             <span className="block">Research compounds,</span>
             <span className="block bg-gradient-to-r from-cyan-100 via-cyan-200 to-white bg-clip-text text-transparent">
@@ -64,58 +110,37 @@ export default function Hero({ videoSrc = "/prueba.mp4" }) {
             </span>
           </h1>
 
-          {/* COPY */}
           <p className="hero-copy mx-auto mt-5 max-w-[700px] text-center text-[14px] leading-7 text-slate-100/90 sm:text-base sm:leading-8">
             A refined catalog experience for research-focused products, built
             around clean browsing, batch transparency, COA access, and a more
             confident buying flow.
           </p>
 
-          {/* CTA */}
           <div className="hero-actions mt-7 flex w-full max-w-[430px] flex-col justify-center gap-3 sm:max-w-none sm:flex-row">
             <a
               href="/shop"
-              className="group inline-flex items-center justify-center gap-3 rounded-full bg-cyan-300 px-7 py-4 text-[11px] font-black uppercase tracking-[0.18em] text-slate-950 shadow-[0_20px_60px_rgba(34,211,238,0.22)] transition duration-300 hover:-translate-y-0.5 hover:bg-cyan-200"
+              className="group inline-flex items-center justify-center gap-3 rounded-full bg-cyan-300 px-7 py-4 text-[11px] font-black uppercase tracking-[0.18em] text-slate-950 transition-colors duration-200 hover:bg-cyan-200"
             >
               Shop Catalog
               <ArrowRight
                 size={16}
-                className="transition duration-300 group-hover:translate-x-1"
+                className="transition-transform duration-200 group-hover:translate-x-1"
+                aria-hidden="true"
               />
             </a>
 
             <a
               href="/coa"
-              className="inline-flex items-center justify-center rounded-full border border-cyan-200/25 bg-slate-950/24 px-7 py-4 text-[11px] font-black uppercase tracking-[0.18em] text-cyan-50 backdrop-blur-md transition duration-300 hover:border-cyan-200/50 hover:bg-cyan-300/[0.08]"
+              className="inline-flex items-center justify-center rounded-full border border-cyan-200/25 bg-slate-950/30 px-7 py-4 text-[11px] font-black uppercase tracking-[0.18em] text-cyan-50 transition-colors duration-200 hover:border-cyan-200/50 hover:bg-cyan-300/[0.08]"
             >
               Check COA
             </a>
           </div>
 
-          {/* FEATURE CARDS */}
           <div className="hero-feature-row mx-auto mt-10 grid w-full max-w-[920px] grid-cols-1 gap-3 sm:grid-cols-3 lg:mt-12">
-            {featureCards.map((item) => {
-              const Icon = item.icon;
-
-              return (
-                <div
-                  key={item.title}
-                  className="hero-feature-card group relative overflow-hidden border border-cyan-200/14 bg-slate-950/26 p-5 text-center backdrop-blur-md transition duration-300 hover:-translate-y-1 hover:border-cyan-200/35 hover:bg-slate-950/38"
-                >
-                  <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-2xl border border-cyan-200/16 bg-cyan-300/[0.08]">
-                    <Icon size={18} className="text-cyan-200" />
-                  </div>
-
-                  <p className="mt-4 text-[11px] font-black uppercase tracking-[0.18em] text-white">
-                    {item.title}
-                  </p>
-
-                  <p className="mx-auto mt-2 max-w-[210px] text-xs leading-5 text-slate-100/80">
-                    {item.text}
-                  </p>
-                </div>
-              );
-            })}
+            {featureCards.map((item) => (
+              <FeatureCard key={item.title} item={item} />
+            ))}
           </div>
         </div>
       </div>
@@ -125,19 +150,32 @@ export default function Hero({ videoSrc = "/prueba.mp4" }) {
           min-height: 100vh;
           min-height: 100svh;
           background: #020617;
+          isolation: isolate;
         }
 
         .hero-bg-video {
-          position: absolute;
-          inset: 0;
           width: 100%;
           height: 100%;
           min-width: 100%;
           min-height: 100%;
           object-fit: cover;
-          object-position: center center;
-          transform: scale(1.015);
-          filter: none;
+          object-position: center;
+          transform: translate3d(0, 0, 0) scale(1.01);
+          contain: paint;
+        }
+
+        .hero-video-fallback {
+          background:
+            radial-gradient(circle at 50% 18%, rgba(103, 232, 249, 0.14), transparent 32%),
+            radial-gradient(circle at 20% 90%, rgba(59, 130, 246, 0.12), transparent 36%),
+            linear-gradient(180deg, #020617, #03111f 46%, #020617);
+        }
+
+        .hero-overlay {
+          pointer-events: none;
+          background:
+            linear-gradient(180deg, rgba(2,6,23,0.68), rgba(2,6,23,0.24) 19%, rgba(2,6,23,0.34) 44%, rgba(2,6,23,0.72) 78%, rgba(2,6,23,0.96)),
+            radial-gradient(circle at 50% 38%, rgba(2,6,23,0.06), rgba(2,6,23,0.28) 62%, rgba(2,6,23,0.72));
         }
 
         .hero-inner {
@@ -146,14 +184,21 @@ export default function Hero({ videoSrc = "/prueba.mp4" }) {
         }
 
         .hero-content {
-          transform: translateY(24px);
+          transform: translate3d(0, 24px, 0);
+        }
+
+        .hero-eyebrow,
+        .hero-actions a,
+        .hero-feature-card {
+          transform: translate3d(0, 0, 0);
         }
 
         .hero-feature-card {
           border-radius: 24px;
           box-shadow:
             inset 0 1px 0 rgba(255,255,255,0.045),
-            0 22px 70px rgba(0,0,0,0.22);
+            0 16px 42px rgba(0,0,0,0.16);
+          contain: paint;
         }
 
         .hero-feature-card::before {
@@ -162,10 +207,10 @@ export default function Hero({ videoSrc = "/prueba.mp4" }) {
           inset: 0;
           pointer-events: none;
           background:
-            radial-gradient(circle at 50% 0%, rgba(103,232,249,0.11), transparent 46%),
-            linear-gradient(180deg, rgba(255,255,255,0.035), transparent);
+            radial-gradient(circle at 50% 0%, rgba(103,232,249,0.1), transparent 46%),
+            linear-gradient(180deg, rgba(255,255,255,0.03), transparent);
           opacity: 0;
-          transition: opacity 260ms ease;
+          transition: opacity 200ms ease;
         }
 
         .hero-feature-card:hover::before {
@@ -174,14 +219,13 @@ export default function Hero({ videoSrc = "/prueba.mp4" }) {
 
         @media (min-width: 1024px) {
           .hero-content {
-            transform: translateY(34px);
+            transform: translate3d(0, 34px, 0);
           }
         }
 
         @media (max-width: 768px) {
-          .hero-section {
-            min-height: 100vh;
-            min-height: 100svh;
+          .hero-bg-video {
+            transform: translate3d(0, 0, 0) scale(1.02);
           }
 
           .hero-inner {
@@ -192,7 +236,7 @@ export default function Hero({ videoSrc = "/prueba.mp4" }) {
           }
 
           .hero-content {
-            transform: translateY(14px);
+            transform: translate3d(0, 14px, 0);
           }
 
           .hero-title {
@@ -237,6 +281,18 @@ export default function Hero({ videoSrc = "/prueba.mp4" }) {
           .hero-feature-card {
             border-radius: 18px !important;
             padding: 13px 7px !important;
+            box-shadow:
+              inset 0 1px 0 rgba(255,255,255,0.035),
+              0 10px 24px rgba(0,0,0,0.12);
+          }
+
+          .hero-feature-card:hover {
+            background: rgba(15, 23, 42, 0.3);
+            border-color: rgba(165, 243, 252, 0.14);
+          }
+
+          .hero-feature-card::before {
+            display: none;
           }
 
           .hero-feature-card div {
@@ -266,7 +322,7 @@ export default function Hero({ videoSrc = "/prueba.mp4" }) {
           }
 
           .hero-content {
-            transform: translateY(8px);
+            transform: translate3d(0, 8px, 0);
           }
 
           .hero-title {
@@ -305,7 +361,7 @@ export default function Hero({ videoSrc = "/prueba.mp4" }) {
 
         @media (max-width: 360px) {
           .hero-content {
-            transform: translateY(4px);
+            transform: translate3d(0, 4px, 0);
           }
 
           .hero-title {
@@ -331,6 +387,15 @@ export default function Hero({ videoSrc = "/prueba.mp4" }) {
 
           .hero-feature-card p:last-of-type {
             font-size: 8px !important;
+          }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .hero-section *,
+          .hero-section *::before,
+          .hero-section *::after {
+            transition: none !important;
+            animation: none !important;
           }
         }
       `}</style>

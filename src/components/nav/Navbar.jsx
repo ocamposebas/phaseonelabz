@@ -453,26 +453,40 @@ export default function SiteHeader({
   }, []);
 
   useEffect(() => {
-    const handleScroll = () => {
-      const currentY = window.scrollY;
-      const goingDown = currentY > lastY.current;
+    if (typeof window === "undefined") return;
 
-      if (currentY < 24) {
-        setMode("top");
-      } else if (goingDown && currentY > 90) {
-        setMode("hidden");
-      } else if (!goingDown) {
-        setMode("compact");
+    let rafId = 0;
+    let activeMode = "top";
+
+    const updateMode = () => {
+      const currentY = Math.max(window.scrollY || 0, 0);
+      const nextMode = currentY <= 28 ? "top" : "compact";
+
+      if (activeMode !== nextMode) {
+        activeMode = nextMode;
+        setMode(nextMode);
       }
 
-      lastY.current = Math.max(currentY, 0);
+      lastY.current = currentY;
+      rafId = 0;
     };
 
-    handleScroll();
+    const handleScroll = () => {
+      if (rafId) return;
+      rafId = window.requestAnimationFrame(updateMode);
+    };
+
+    updateMode();
 
     window.addEventListener("scroll", handleScroll, { passive: true });
 
-    return () => window.removeEventListener("scroll", handleScroll);
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+
+      if (rafId) {
+        window.cancelAnimationFrame(rafId);
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -990,15 +1004,18 @@ export default function SiteHeader({
         .sh-announcement {
           position: relative;
           width: calc(100% + 24px);
+          height: 38px;
           margin-left: -12px;
           overflow: hidden;
           border-bottom: 1px solid rgba(165, 243, 252, 0.1);
-          backdrop-filter: blur(16px);
-          -webkit-backdrop-filter: blur(16px);
+          transform: translate3d(0, 0, 0);
           transition:
-            max-height 260ms ease,
             opacity 180ms ease,
-            background 220ms ease;
+            transform 260ms cubic-bezier(0.16, 1, 0.3, 1),
+            background 220ms ease,
+            visibility 0s linear 0s;
+          will-change: opacity, transform;
+          contain: paint;
         }
 
         .sh-header-home .sh-announcement {
@@ -1022,14 +1039,24 @@ export default function SiteHeader({
         }
 
         .sh-announcement.is-visible {
-          max-height: 38px;
           opacity: 1;
+          visibility: visible;
+          transform: translate3d(0, 0, 0);
         }
 
         .sh-announcement.is-hidden {
-          max-height: 0;
           opacity: 0;
+          visibility: hidden;
           pointer-events: none;
+          transform: translate3d(0, -8px, 0);
+          transition:
+            opacity 150ms ease,
+            transform 220ms cubic-bezier(0.16, 1, 0.3, 1),
+            visibility 0s linear 220ms;
+        }
+
+        .sh-announcement.is-hidden + .sh-nav-card {
+          transform: translate3d(0, -38px, 0);
         }
 
         .sh-announcement-inner {
@@ -1124,12 +1151,15 @@ export default function SiteHeader({
           margin-inline: auto;
           border-radius: 24px;
           overflow: visible;
+          transform: translate3d(0, 0, 0);
           transition:
+            transform 300ms cubic-bezier(0.16, 1, 0.3, 1),
             margin-top 260ms ease,
             background 220ms ease,
             border-color 220ms ease,
             box-shadow 220ms ease,
             backdrop-filter 220ms ease;
+          will-change: transform;
         }
 
         .sh-nav-top,
@@ -2006,6 +2036,22 @@ export default function SiteHeader({
           to {
             opacity: 1;
             transform: translateY(0) scale(1);
+          }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .sh-header,
+          .sh-announcement,
+          .sh-announcement-track,
+          .sh-nav-card,
+          .sh-mobile-panel,
+          .sh-mobile-backdrop,
+          .sh-mobile-links a,
+          .sh-mobile-links button,
+          .sh-inline-results {
+            animation: none !important;
+            transition-duration: 1ms !important;
+            scroll-behavior: auto !important;
           }
         }
 

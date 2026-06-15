@@ -1,3 +1,4 @@
+import { memo, useMemo } from "react";
 import {
   ArrowUpRight,
   Beaker,
@@ -77,6 +78,13 @@ const fallbackCategories = [
   },
 ];
 
+const fallbackCategoryMap = new Map(
+  fallbackCategories.flatMap((category) => [
+    [category.name, category],
+    [category.slug, category],
+  ])
+);
+
 function formatCount(count) {
   const total = Number(count || 0);
   return `${total} ${total === 1 ? "item" : "items"}`;
@@ -84,9 +92,76 @@ function formatCount(count) {
 
 function getCategoryHref(category) {
   const categoryValue = category.slug || category.name;
-
   return category.href || `/shop?category=${encodeURIComponent(categoryValue)}`;
 }
+
+function normalizeCategory(category) {
+  const fallback =
+    fallbackCategoryMap.get(category?.name) ||
+    fallbackCategoryMap.get(category?.slug) ||
+    null;
+
+  const slug = category?.slug || fallback?.slug || category?.name || "category";
+
+  const normalizedCategory = {
+    ...category,
+    name: category?.name || fallback?.name || "Catalog section",
+    slug,
+    count: category?.count ?? fallback?.count ?? 0,
+    description:
+      category?.description || fallback?.description || "Catalog section",
+    icon: category?.icon || fallback?.icon || FlaskConical,
+  };
+
+  return {
+    ...normalizedCategory,
+    href: getCategoryHref(normalizedCategory),
+  };
+}
+
+const CategoryCard = memo(function CategoryCard({ category }) {
+  const Icon = category.icon;
+
+  return (
+    <a href={category.href} className="category-card group">
+      <div className="relative z-10">
+        <div className="mb-5 flex items-start justify-between gap-3">
+          <div className="category-icon">
+            <Icon size={20} aria-hidden="true" />
+          </div>
+
+          <span className="category-arrow" aria-hidden="true">
+            <ArrowUpRight size={15} />
+          </span>
+        </div>
+
+        <div className="mb-4">
+          <p className="mb-2 text-[8px] font-black uppercase tracking-[0.2em] text-cyan-200/55 sm:text-[9px]">
+            {formatCount(category.count)}
+          </p>
+
+          <h3 className="min-h-[38px] text-[16px] font-semibold leading-[1.08] tracking-[-0.035em] text-white sm:min-h-[44px] sm:text-[20px]">
+            {category.name}
+          </h3>
+
+          <p className="mt-2 truncate text-[12px] font-medium text-slate-400 sm:text-[13px]">
+            {category.description}
+          </p>
+        </div>
+
+        <div className="h-px w-full bg-gradient-to-r from-cyan-200/18 via-cyan-200/6 to-transparent" />
+
+        <div className="mt-4 flex items-center justify-between gap-3">
+          <span className="text-[9px] font-black uppercase tracking-[0.18em] text-cyan-200/62">
+            Explore
+          </span>
+
+          <span className="category-dot" aria-hidden="true" />
+        </div>
+      </div>
+    </a>
+  );
+});
 
 export default function ShopByCategorySection({
   categories = fallbackCategories,
@@ -95,33 +170,22 @@ export default function ShopByCategorySection({
   titleBottom = "by category.",
   subtitle = "Explore products by research focus, support items, and specialized catalog groups.",
 }) {
-  const normalizedCategories = categories.map((category) => {
-    const fallback = fallbackCategories.find((item) => item.name === category.name);
+  const normalizedCategories = useMemo(() => {
+    const safeCategories = Array.isArray(categories)
+      ? categories
+      : fallbackCategories;
 
-    return {
-      ...category,
-      slug: category.slug || fallback?.slug || category.name,
-      description:
-        category.description || fallback?.description || "Catalog section",
-      icon: category.icon || fallback?.icon || FlaskConical,
-      href: getCategoryHref({
-        ...category,
-        slug: category.slug || fallback?.slug || category.name,
-      }),
-    };
-  });
+    return safeCategories.map(normalizeCategory);
+  }, [categories]);
 
   return (
-    <section className="relative overflow-hidden px-6 py-12 text-white sm:py-14 lg:py-16">
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute left-[8%] top-16 h-72 w-72 rounded-full bg-cyan-300/8 blur-[130px]" />
-        <div className="absolute right-[-10%] bottom-0 h-80 w-80 rounded-full bg-blue-500/10 blur-[130px]" />
-      </div>
+    <section className="category-section relative overflow-hidden px-6 py-12 text-white sm:py-14 lg:py-16">
+      <div className="category-bg" aria-hidden="true" />
 
       <div className="relative mx-auto max-w-6xl">
         <div className="mx-auto mb-9 flex max-w-4xl flex-col items-center text-center md:mx-0 md:items-start md:text-left lg:mb-10">
           <div className="mb-4 inline-flex items-center justify-center gap-3 md:justify-start">
-            <span className="h-2 w-2 rounded-full bg-cyan-300 shadow-[0_0_20px_rgba(103,232,249,0.75)]" />
+            <span className="h-2 w-2 rounded-full bg-cyan-300 shadow-[0_0_16px_rgba(103,232,249,0.55)]" />
 
             <span className="text-[9px] font-black uppercase tracking-[0.28em] text-cyan-200/65 sm:text-[10px] sm:tracking-[0.34em]">
               {eyebrow}
@@ -141,62 +205,187 @@ export default function ShopByCategorySection({
         </div>
 
         <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
-          {normalizedCategories.map((category, index) => {
-            const Icon = category.icon;
-
-            return (
-              <a
-                key={`${category.slug}-${index}`}
-                href={category.href}
-                className="group relative overflow-hidden rounded-[1.35rem] border border-cyan-200/10 bg-[#071421]/72 p-4 shadow-[0_18px_55px_rgba(0,0,0,0.18)] transition duration-300 hover:-translate-y-1 hover:border-cyan-200/25 hover:bg-[#0a1b2b]/82 sm:rounded-[1.55rem] sm:p-5"
-              >
-                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_80%_0%,rgba(103,232,249,0.13),transparent_42%)] opacity-70 transition group-hover:opacity-100" />
-                <div className="pointer-events-none absolute -right-12 -top-12 h-28 w-28 rounded-full bg-cyan-300/8 blur-2xl transition group-hover:bg-cyan-300/14" />
-
-                <div className="relative z-10">
-                  <div className="mb-5 flex items-start justify-between gap-3">
-                    <div className="grid h-11 w-11 place-items-center rounded-2xl border border-cyan-200/10 bg-cyan-300/[0.055] text-cyan-200 transition group-hover:border-cyan-200/25 group-hover:bg-cyan-300/[0.1] sm:h-12 sm:w-12">
-                      <Icon size={20} />
-                    </div>
-
-                    <span className="grid h-9 w-9 place-items-center rounded-full border border-cyan-200/10 bg-white/[0.03] text-cyan-100/55 transition group-hover:border-cyan-200/25 group-hover:bg-cyan-300/[0.09] group-hover:text-cyan-100">
-                      <ArrowUpRight size={15} />
-                    </span>
-                  </div>
-
-                  <div className="mb-4">
-                    <p className="mb-2 text-[8px] font-black uppercase tracking-[0.2em] text-cyan-200/55 sm:text-[9px]">
-                      {formatCount(category.count)}
-                    </p>
-
-                    <h3 className="min-h-[38px] text-[16px] font-semibold leading-[1.08] tracking-[-0.035em] text-white sm:min-h-[44px] sm:text-[20px]">
-                      {category.name}
-                    </h3>
-
-                    <p className="mt-2 truncate text-[12px] font-medium text-slate-400 sm:text-[13px]">
-                      {category.description}
-                    </p>
-                  </div>
-
-                  <div className="h-px w-full bg-gradient-to-r from-cyan-200/18 via-cyan-200/6 to-transparent" />
-
-                  <div className="mt-4 flex items-center justify-between gap-3">
-                    <span className="text-[9px] font-black uppercase tracking-[0.18em] text-cyan-200/62">
-                      Explore
-                    </span>
-
-                    <span className="h-1.5 w-1.5 rounded-full bg-cyan-300/70 shadow-[0_0_14px_rgba(103,232,249,0.65)] transition group-hover:scale-125" />
-                  </div>
-                </div>
-              </a>
-            );
-          })}
+          {normalizedCategories.map((category) => (
+            <CategoryCard key={category.slug || category.name} category={category} />
+          ))}
         </div>
 
         <p className="mt-6 text-center text-[9px] font-bold uppercase tracking-[0.18em] text-slate-500 sm:mt-7 md:text-left">
           Laboratory research catalog only.
         </p>
       </div>
+
+      <style>{`
+        .category-section {
+          isolation: isolate;
+        }
+
+        .category-bg {
+          pointer-events: none;
+          position: absolute;
+          inset: 0;
+          z-index: 0;
+          background:
+            radial-gradient(circle at 8% 18%, rgba(103, 232, 249, 0.07), transparent 28%),
+            radial-gradient(circle at 100% 90%, rgba(59, 130, 246, 0.08), transparent 30%);
+        }
+
+        .category-card {
+          position: relative;
+          overflow: hidden;
+          border-radius: 1.35rem;
+          border: 1px solid rgba(165, 243, 252, 0.1);
+          background: rgba(7, 20, 33, 0.72);
+          padding: 1rem;
+          box-shadow: 0 14px 38px rgba(0, 0, 0, 0.14);
+          transition:
+            transform 200ms ease,
+            border-color 200ms ease,
+            background 200ms ease;
+          content-visibility: auto;
+          contain-intrinsic-size: 210px;
+        }
+
+        .category-card::before {
+          content: "";
+          position: absolute;
+          inset: 0;
+          pointer-events: none;
+          background: radial-gradient(
+            circle at 82% 0%,
+            rgba(103, 232, 249, 0.1),
+            transparent 44%
+          );
+          opacity: 0.72;
+          transition: opacity 200ms ease;
+        }
+
+        .category-card::after {
+          content: "";
+          position: absolute;
+          right: -42px;
+          top: -42px;
+          width: 115px;
+          height: 115px;
+          border-radius: 999px;
+          pointer-events: none;
+          background: radial-gradient(
+            circle,
+            rgba(103, 232, 249, 0.08),
+            transparent 68%
+          );
+          opacity: 0.85;
+          transition: opacity 200ms ease;
+        }
+
+        .category-card:hover {
+          transform: translate3d(0, -4px, 0);
+          border-color: rgba(165, 243, 252, 0.24);
+          background: rgba(10, 27, 43, 0.82);
+        }
+
+        .category-card:hover::before,
+        .category-card:hover::after {
+          opacity: 1;
+        }
+
+        .category-icon {
+          display: grid;
+          height: 44px;
+          width: 44px;
+          place-items: center;
+          border-radius: 1rem;
+          border: 1px solid rgba(165, 243, 252, 0.1);
+          background: rgba(103, 232, 249, 0.055);
+          color: rgb(165, 243, 252);
+          transition:
+            background 200ms ease,
+            border-color 200ms ease;
+        }
+
+        .category-card:hover .category-icon {
+          border-color: rgba(165, 243, 252, 0.24);
+          background: rgba(103, 232, 249, 0.1);
+        }
+
+        .category-arrow {
+          display: grid;
+          height: 36px;
+          width: 36px;
+          place-items: center;
+          border-radius: 999px;
+          border: 1px solid rgba(165, 243, 252, 0.1);
+          background: rgba(255, 255, 255, 0.03);
+          color: rgba(207, 250, 254, 0.55);
+          transition:
+            background 200ms ease,
+            border-color 200ms ease,
+            color 200ms ease,
+            transform 200ms ease;
+        }
+
+        .category-card:hover .category-arrow {
+          transform: translate3d(1px, -1px, 0);
+          border-color: rgba(165, 243, 252, 0.24);
+          background: rgba(103, 232, 249, 0.09);
+          color: rgb(207, 250, 254);
+        }
+
+        .category-dot {
+          display: block;
+          height: 6px;
+          width: 6px;
+          border-radius: 999px;
+          background: rgba(103, 232, 249, 0.7);
+          box-shadow: 0 0 12px rgba(103, 232, 249, 0.5);
+          transition: transform 200ms ease;
+        }
+
+        .category-card:hover .category-dot {
+          transform: scale(1.18);
+        }
+
+        @media (min-width: 640px) {
+          .category-card {
+            border-radius: 1.55rem;
+            padding: 1.25rem;
+          }
+
+          .category-icon {
+            height: 48px;
+            width: 48px;
+          }
+        }
+
+        @media (max-width: 768px) {
+          .category-bg {
+            background:
+              radial-gradient(circle at 10% 12%, rgba(103, 232, 249, 0.045), transparent 30%),
+              radial-gradient(circle at 100% 90%, rgba(59, 130, 246, 0.055), transparent 32%);
+          }
+
+          .category-card {
+            content-visibility: visible;
+            contain-intrinsic-size: auto;
+            box-shadow: 0 10px 28px rgba(0, 0, 0, 0.12);
+          }
+
+          .category-card:hover {
+            transform: none;
+          }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .category-card,
+          .category-card::before,
+          .category-card::after,
+          .category-icon,
+          .category-arrow,
+          .category-dot {
+            transition: none !important;
+          }
+        }
+      `}</style>
     </section>
   );
 }

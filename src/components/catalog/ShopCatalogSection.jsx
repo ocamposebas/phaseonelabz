@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowRight,
   Beaker,
@@ -146,6 +146,26 @@ function normalizeProductOrderText(value = "") {
     .trim();
 }
 
+function normalizeCatalogFilterText(value = "") {
+  const normalized = String(value || "")
+    .toLowerCase()
+    .replace(/&amp;/g, "and")
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (
+    normalized === "accesories" ||
+    normalized === "accesory" ||
+    normalized === "accessory"
+  ) {
+    return "accessories";
+  }
+
+  return normalized;
+}
+
 function includesOrderTerm(searchable, term) {
   const cleanTerm = normalizeProductOrderText(term);
 
@@ -154,43 +174,7 @@ function includesOrderTerm(searchable, term) {
   return ` ${searchable} `.includes(` ${cleanTerm} `);
 }
 
-function getProductOrderSearchText(product) {
-  const categories = Array.isArray(product?.categories)
-    ? product.categories.map((category) => category?.name || category?.slug || "")
-    : [];
-
-  const tags = Array.isArray(product?.tags)
-    ? product.tags.map((tag) =>
-        typeof tag === "string" ? tag : tag?.name || tag?.slug || ""
-      )
-    : [];
-
-  const attributes = Array.isArray(product?.attributes)
-    ? product.attributes.flatMap((attribute) => [
-        attribute?.name || "",
-        attribute?.slug || "",
-        ...(attribute?.options || []),
-      ])
-    : [];
-
-  return normalizeProductOrderText(
-    [
-      product?.name,
-      product?.title,
-      product?.slug,
-      product?.sku,
-      product?.short_description,
-      product?.description,
-      ...categories,
-      ...tags,
-      ...attributes,
-    ].join(" ")
-  );
-}
-
-function productMatchesCustomRule(product, rule) {
-  const searchable = getProductOrderSearchText(product);
-
+function textMatchesCustomRule(searchable, rule) {
   if (rule.exclude?.some((term) => includesOrderTerm(searchable, term))) {
     return false;
   }
@@ -200,19 +184,26 @@ function productMatchesCustomRule(product, rule) {
   );
 }
 
-function getCustomProductRank(product) {
+function getCustomProductRankFromText(searchable) {
   const matchedRule = customProductOrder.find((rule) =>
-    productMatchesCustomRule(product, rule)
+    textMatchesCustomRule(searchable, rule)
   );
 
   return matchedRule?.rank || 9999;
 }
 
-function getProductMg(product) {
-  const searchable = getProductOrderSearchText(product);
+function getProductMgFromText(searchable) {
   const match = searchable.match(/(?:^|\s)(\d+(?:\.\d+)?)\s*mg(?:\s|$)/i);
 
   return match ? Number(match[1]) : 9999;
+}
+
+function getTermValue(term) {
+  if (!term) return "";
+
+  if (typeof term === "string") return term;
+
+  return term?.name || term?.slug || term?.label || "";
 }
 
 function getProductKey(product) {
@@ -239,32 +230,41 @@ function getProductCategory(product) {
   return "Research Peptides";
 }
 
-function normalizeCatalogFilterText(value = "") {
-  const normalized = String(value || "")
-    .toLowerCase()
-    .replace(/&amp;/g, "and")
-    .replace(/&/g, " and ")
-    .replace(/[^a-z0-9]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+function getProductPrice(product) {
+  const rawPrice =
+    product?.price ||
+    product?.regular_price ||
+    product?.sale_price ||
+    product?.price_html ||
+    0;
 
-  if (
-    normalized === "accesories" ||
-    normalized === "accesory" ||
-    normalized === "accessory"
-  ) {
-    return "accessories";
-  }
+  if (typeof rawPrice === "number") return rawPrice;
 
-  return normalized;
+  const parsed = String(rawPrice).replace(/[^0-9.]/g, "");
+
+  return Number(parsed || 0);
 }
 
-function getTermValue(term) {
-  if (!term) return "";
+function formatPrice(price) {
+  const number = Number(price || 0);
 
-  if (typeof term === "string") return term;
+  if (Number.isNaN(number) || number <= 0) return "Request Price";
 
-  return term?.name || term?.slug || term?.label || "";
+  return `$${number.toLocaleString(undefined, {
+    maximumFractionDigits: 2,
+  })}`;
+}
+
+function getProductTags(product) {
+  const rawTags = product?.tags || product?.labels || [];
+
+  if (!Array.isArray(rawTags)) return [];
+
+  return rawTags
+    .map((tag) =>
+      typeof tag === "string" ? tag.toLowerCase() : tag?.name?.toLowerCase()
+    )
+    .filter(Boolean);
 }
 
 function getProductCategoryFilterTerms(product) {
@@ -292,86 +292,8 @@ function getProductCategoryFilterTerms(product) {
     .filter(Boolean);
 }
 
-function productMatchesCategoryFilter(product, activeCategory) {
-  const target = normalizeCatalogFilterText(activeCategory);
-
-  if (!target || target === "all products") return true;
-
-  const terms = getProductCategoryFilterTerms(product);
-
-  const searchable = normalizeCatalogFilterText(
-    [
-      product?.name,
-      product?.title,
-      product?.slug,
-      product?.sku,
-      product?.short_description,
-      product?.description,
-      ...terms,
-    ].join(" ")
-  );
-
-  return (
-    terms.some((term) => term === target) ||
-    target.split(" ").every((word) => searchable.includes(word))
-  );
-}
-
-function getCategoryFromUrl() {
-  if (typeof window === "undefined") return "All Products";
-
-  const params = new URLSearchParams(window.location.search);
-  const categoryParam = params.get("category");
-
-  if (!categoryParam) return "All Products";
-
-  const normalizedParam = normalizeCatalogFilterText(categoryParam);
-
-  const matchedCategory = categoryFilters.find(
-    (category) => normalizeCatalogFilterText(category) === normalizedParam
-  );
-
-  return matchedCategory || "All Products";
-}
-
-function getProductPrice(product) {
-  const rawPrice =
-    product?.price ||
-    product?.regular_price ||
-    product?.sale_price ||
-    product?.price_html ||
-    0;
-
-  if (typeof rawPrice === "number") return rawPrice;
-
-  const parsed = String(rawPrice).replace(/[^0-9.]/g, "");
-  return Number(parsed || 0);
-}
-
-function formatPrice(price) {
-  const number = Number(price || 0);
-
-  if (Number.isNaN(number) || number <= 0) return "Request Price";
-
-  return `$${number.toLocaleString(undefined, {
-    maximumFractionDigits: 2,
-  })}`;
-}
-
-function getProductTags(product) {
-  const rawTags = product?.tags || product?.labels || [];
-
-  if (!Array.isArray(rawTags)) return [];
-
-  return rawTags
-    .map((tag) =>
-      typeof tag === "string" ? tag.toLowerCase() : tag?.name?.toLowerCase()
-    )
-    .filter(Boolean);
-}
-
-function getProductAvailability(product) {
-  const tags = getProductTags(product);
+function getProductAvailability(product, cachedTags) {
+  const tags = cachedTags || getProductTags(product);
 
   const stockStatus = String(product?.stock_status || product?.stockStatus || "")
     .toLowerCase()
@@ -421,6 +343,61 @@ function getProductAvailability(product) {
   };
 }
 
+function getProductUrl(product) {
+  return product?.slug ? `/product/${product.slug}` : `/product/${product?.id}`;
+}
+
+function getProductOrderSearchText(product) {
+  const categories = Array.isArray(product?.categories)
+    ? product.categories.map((category) => category?.name || category?.slug || "")
+    : [];
+
+  const tags = Array.isArray(product?.tags)
+    ? product.tags.map((tag) =>
+        typeof tag === "string" ? tag : tag?.name || tag?.slug || ""
+      )
+    : [];
+
+  const attributes = Array.isArray(product?.attributes)
+    ? product.attributes.flatMap((attribute) => [
+        attribute?.name || "",
+        attribute?.slug || "",
+        ...(attribute?.options || []),
+      ])
+    : [];
+
+  return normalizeProductOrderText(
+    [
+      product?.name,
+      product?.title,
+      product?.slug,
+      product?.sku,
+      product?.short_description,
+      product?.description,
+      ...categories,
+      ...tags,
+      ...attributes,
+    ].join(" ")
+  );
+}
+
+function getCategoryFromUrl() {
+  if (typeof window === "undefined") return "All Products";
+
+  const params = new URLSearchParams(window.location.search);
+  const categoryParam = params.get("category");
+
+  if (!categoryParam) return "All Products";
+
+  const normalizedParam = normalizeCatalogFilterText(categoryParam);
+
+  const matchedCategory = categoryFilters.find(
+    (category) => normalizeCatalogFilterText(category) === normalizedParam
+  );
+
+  return matchedCategory || "All Products";
+}
+
 function getPaginationPages(currentPage, totalPages) {
   if (totalPages <= 5) {
     return Array.from({ length: totalPages }, (_, index) => index + 1);
@@ -448,57 +425,123 @@ function getPaginationPages(currentPage, totalPages) {
   return pages;
 }
 
-function ProductCard({
-  product,
-  addToCart,
-  onBundleAdd,
-}) {
-  const productName = product?.name || product?.title || "Product";
+function prepareProductForCatalog(product) {
+  const name = product?.name || product?.title || "Product";
   const category = getProductCategory(product);
   const price = getProductPrice(product);
   const image = getProductImage(product);
-  const { isUnavailable, unavailableLabel } = getProductAvailability(product);
+  const url = getProductUrl(product);
+  const key = getProductKey(product);
+  const tags = getProductTags(product);
+  const availability = getProductAvailability(product, tags);
+  const orderText = getProductOrderSearchText(product);
+  const categoryTerms = getProductCategoryFilterTerms(product);
+
+  const searchText = normalizeCatalogFilterText(
+    [
+      product?.name,
+      product?.title,
+      product?.sku,
+      product?.slug,
+      product?.short_description,
+      product?.description,
+      category,
+      ...categoryTerms,
+      ...tags,
+    ].join(" ")
+  );
+
+  const newestRaw =
+    product?.date_created ||
+    product?.dateCreated ||
+    product?.created_at ||
+    product?.createdAt ||
+    0;
+
+  return {
+    product,
+    key,
+    name,
+    category,
+    price,
+    image,
+    url,
+    tags,
+    availability,
+    orderText,
+    categoryTerms,
+    searchText,
+    rank: getCustomProductRankFromText(orderText),
+    mg: getProductMgFromText(orderText),
+    onSale: Boolean(product?.sale_price || product?.onSale),
+    newestTime: newestRaw ? new Date(newestRaw).getTime() || 0 : 0,
+  };
+}
+
+function productMatchesCategoryMeta(item, activeCategory) {
+  const target = normalizeCatalogFilterText(activeCategory);
+
+  if (!target || target === "all products") return true;
+
+  return (
+    item.categoryTerms.some((term) => term === target) ||
+    target.split(" ").every((word) => item.searchText.includes(word))
+  );
+}
+
+const ProductCard = memo(function ProductCard({ item, addToCart, onBundleAdd }) {
+  const { product, name, category, price, image, url, availability } = item;
+  const { isUnavailable, unavailableLabel } = availability;
   const canSelectBundle = !isUnavailable;
 
-  const productUrl = product?.slug
-    ? `/product/${product.slug}`
-    : `/product/${product?.id}`;
+  const goToProduct = useCallback(() => {
+    window.location.href = url;
+  }, [url]);
 
-  const goToProduct = () => {
-    window.location.href = productUrl;
-  };
+  const handleCardKeyDown = useCallback(
+    (event) => {
+      const target = event.target;
 
-  const handleCardKeyDown = (event) => {
-    if (event.key === "Enter" || event.key === " ") {
+      if (target?.closest?.("button,a,input,select,textarea")) return;
+
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        goToProduct();
+      }
+    },
+    [goToProduct]
+  );
+
+  const handleAddToCart = useCallback(
+    (event) => {
       event.preventDefault();
-      goToProduct();
-    }
-  };
+      event.stopPropagation();
 
-  const handleAddToCart = (event) => {
-    event.preventDefault();
-    event.stopPropagation();
+      if (isUnavailable) return;
 
-    if (isUnavailable) return;
+      addToCart({
+        ...product,
+        id: product.id,
+        name,
+        price,
+        image,
+        category,
+      });
+    },
+    [addToCart, category, image, isUnavailable, name, price, product]
+  );
 
-    addToCart({
-      ...product,
-      id: product.id,
-      name: productName,
-      price,
-      image,
-      category,
-    });
-  };
+  const handleBundleAdd = useCallback(
+    (event) => {
+      event.preventDefault();
+      event.stopPropagation();
 
-  const handleBundleAdd = (event) => {
-    event.preventDefault();
-    event.stopPropagation();
+      if (!canSelectBundle) return;
 
-    if (!canSelectBundle) return;
-
-    onBundleAdd();
-  };
+      onBundleAdd(product);
+    },
+    [canSelectBundle, onBundleAdd, product]
+  );
 
   return (
     <article
@@ -506,7 +549,7 @@ function ProductCard({
       tabIndex={0}
       onClick={goToProduct}
       onKeyDown={handleCardKeyDown}
-      aria-label={`View details for ${productName}`}
+      aria-label={`View details for ${name}`}
       className={`product-float-card group cursor-pointer ${
         isUnavailable ? "product-float-card-unavailable" : ""
       }`}
@@ -520,7 +563,7 @@ function ProductCard({
           type="button"
           onClick={handleBundleAdd}
           className="product-bundle-select"
-          aria-label={`Add 3 ${productName} to cart and unlock 10% off`}
+          aria-label={`Add 3 ${name} to cart and unlock 10% off`}
         >
           <span />
           Add 3 & Save 10%
@@ -535,11 +578,11 @@ function ProductCard({
         <span className="product-float-pill">{category}</span>
 
         <a
-          href={productUrl}
+          href={url}
           onClick={(event) => {
             event.stopPropagation();
           }}
-          aria-label={`View details for ${productName}`}
+          aria-label={`View details for ${name}`}
           className="product-float-eye"
         >
           <Eye size={15} />
@@ -550,15 +593,16 @@ function ProductCard({
 
           <img
             src={image}
-            alt={productName}
+            alt={name}
             className="product-float-image"
             loading="lazy"
+            decoding="async"
           />
         </div>
       </div>
 
       <div className="product-float-body">
-        <h3 className="product-float-title">{productName}</h3>
+        <h3 className="product-float-title">{name}</h3>
 
         <p className="product-float-subtitle">
           Research use only · Batch documentation available
@@ -593,222 +637,16 @@ function ProductCard({
       </div>
     </article>
   );
-}
+});
 
-export default function ShopCatalogSection({
-  products = [],
-  productsPerPage = 20,
+const FilterPanel = memo(function FilterPanel({
+  activeCategory,
+  activePrice,
+  onCategoryChange,
+  onPriceChange,
+  onClear,
 }) {
-  const { addToCart } = useCart();
-
-  const [searchQuery, setSearchQuery] = useState("");
-  const [activeCategory, setActiveCategory] = useState(getCategoryFromUrl);
-  const [activePrice, setActivePrice] = useState(null);
-  const [activeCollection, setActiveCollection] = useState(null);
-  const [sortBy, setSortBy] = useState("popular");
-  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
-  const addSameProductBundleToCart = (product) => {
-    const availability = getProductAvailability(product);
-
-    if (availability.isUnavailable) return;
-
-    const productName = product?.name || product?.title || "Product";
-    const category = getProductCategory(product);
-    const price = getProductPrice(product);
-    const image = getProductImage(product);
-
-    const bundleItem = {
-      ...product,
-      id: product.id,
-      name: productName,
-      price,
-      image,
-      category,
-      bundleEligible: true,
-      bundleDiscount: 10,
-      bundleSameProductOnly: true,
-      bundleRequiredQuantity: 3,
-      bundleQuantity: 3,
-    };
-
-    // We add it 3 times because most cart contexts increment quantity per call.
-    // This makes the button work even if addToCart ignores a custom quantity field.
-    for (let index = 0; index < 3; index += 1) {
-      addToCart(bundleItem);
-    }
-  };
-
-  const filteredProducts = useMemo(() => {
-    let result = [...products];
-
-    const cleanSearch = searchQuery.trim().toLowerCase();
-
-    if (cleanSearch) {
-      result = result.filter((product) => {
-        const searchable = [
-          product?.name,
-          product?.title,
-          product?.sku,
-          getProductCategory(product),
-          ...(product?.tags || []).map((tag) =>
-            typeof tag === "string" ? tag : tag?.name || tag?.slug || ""
-          ),
-          ...(product?.labels || []).map((label) =>
-            typeof label === "string"
-              ? label
-              : label?.name || label?.slug || ""
-          ),
-        ]
-          .join(" ")
-          .toLowerCase();
-
-        return searchable.includes(cleanSearch);
-      });
-    }
-
-    if (activeCategory !== "All Products") {
-      result = result.filter((product) =>
-        productMatchesCategoryFilter(product, activeCategory)
-      );
-    }
-
-    if (activePrice) {
-      result = result.filter((product) => {
-        const price = getProductPrice(product);
-        return price >= activePrice.min && price < activePrice.max;
-      });
-    }
-
-    if (activeCollection) {
-      result = result.filter((product) => {
-        const tags = getProductTags(product);
-
-        if (activeCollection === "sale") {
-          return (
-            tags.includes("sale") ||
-            tags.includes("on sale") ||
-            product?.sale_price ||
-            product?.onSale
-          );
-        }
-
-        if (activeCollection === "coming-soon") {
-          return (
-            tags.includes("coming soon") ||
-            tags.includes("coming-soon") ||
-            product?.stock_status === "coming-soon"
-          );
-        }
-
-        return tags.includes(activeCollection);
-      });
-    }
-
-    result.sort((a, b) => {
-      const rankA = getCustomProductRank(a);
-      const rankB = getCustomProductRank(b);
-
-      const mgA = getProductMg(a);
-      const mgB = getProductMg(b);
-      const priceA = getProductPrice(a);
-      const priceB = getProductPrice(b);
-      const nameA = String(a?.name || a?.title || "");
-      const nameB = String(b?.name || b?.title || "");
-
-      if (sortBy === "popular") {
-        if (rankA !== rankB) return rankA - rankB;
-        if (mgA !== mgB) return mgA - mgB;
-        return nameA.localeCompare(nameB);
-      }
-
-      const availableA = getProductAvailability(a).isAvailable;
-      const availableB = getProductAvailability(b).isAvailable;
-
-      if (availableA && !availableB) return -1;
-      if (!availableA && availableB) return 1;
-
-      if (sortBy === "price-asc") return priceA - priceB;
-      if (sortBy === "price-desc") return priceB - priceA;
-      if (sortBy === "az") return nameA.localeCompare(nameB);
-      if (sortBy === "newest") {
-        return new Date(b?.date_created || 0) - new Date(a?.date_created || 0);
-      }
-
-      if (rankA !== rankB) return rankA - rankB;
-
-      return nameA.localeCompare(nameB);
-    });
-
-    return result;
-  }, [
-    products,
-    searchQuery,
-    activeCategory,
-    activePrice,
-    activeCollection,
-    sortBy,
-  ]);
-
-  const totalPages = Math.max(
-    1,
-    Math.ceil(filteredProducts.length / productsPerPage)
-  );
-
-  const paginatedProducts = useMemo(() => {
-    const start = (currentPage - 1) * productsPerPage;
-    return filteredProducts.slice(start, start + productsPerPage);
-  }, [filteredProducts, currentPage, productsPerPage]);
-
-  const paginationPages = useMemo(() => {
-    return getPaginationPages(currentPage, totalPages);
-  }, [currentPage, totalPages]);
-
-  const showingStart =
-    filteredProducts.length === 0 ? 0 : (currentPage - 1) * productsPerPage + 1;
-
-  const showingEnd = Math.min(
-    currentPage * productsPerPage,
-    filteredProducts.length
-  );
-
-  useEffect(() => {
-    const handlePopStateCategorySync = () => {
-      setActiveCategory(getCategoryFromUrl());
-    };
-
-    window.addEventListener("popstate", handlePopStateCategorySync);
-
-    return () => {
-      window.removeEventListener("popstate", handlePopStateCategorySync);
-    };
-  }, []);
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchQuery, activeCategory, activePrice, activeCollection, sortBy]);
-
-  useEffect(() => {
-    if (currentPage > totalPages) {
-      setCurrentPage(totalPages);
-    }
-  }, [currentPage, totalPages]);
-
-  const goToPage = (page) => {
-    const nextPage = Math.min(Math.max(page, 1), totalPages);
-    setCurrentPage(nextPage);
-  };
-
-  const clearFilters = () => {
-    setSearchQuery("");
-    setActiveCategory("All Products");
-    setActivePrice(null);
-    setActiveCollection(null);
-    setSortBy("popular");
-    setCurrentPage(1);
-  };
-
-  const FilterPanel = () => (
+  return (
     <div className="space-y-5">
       <div>
         <div className="mb-3 flex items-center justify-between">
@@ -818,7 +656,7 @@ export default function ShopCatalogSection({
 
           <button
             type="button"
-            onClick={clearFilters}
+            onClick={onClear}
             className="text-[8px] font-black uppercase tracking-[0.16em] text-slate-600 transition hover:text-cyan-100"
           >
             Clear
@@ -830,7 +668,7 @@ export default function ShopCatalogSection({
             <button
               key={category}
               type="button"
-              onClick={() => setActiveCategory(category)}
+              onClick={() => onCategoryChange(category)}
               className={`flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left transition ${
                 activeCategory === category
                   ? "border-cyan-200/25 bg-cyan-300/[0.075] text-cyan-100"
@@ -859,11 +697,7 @@ export default function ShopCatalogSection({
             <button
               key={price.label}
               type="button"
-              onClick={() =>
-                setActivePrice(
-                  activePrice?.label === price.label ? null : price
-                )
-              }
+              onClick={() => onPriceChange(price)}
               className={`flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left transition ${
                 activePrice?.label === price.label
                   ? "border-cyan-200/25 bg-cyan-300/[0.075] text-cyan-100"
@@ -880,13 +714,214 @@ export default function ShopCatalogSection({
 
       <button
         type="button"
-        onClick={clearFilters}
+        onClick={onClear}
         className="w-full rounded-xl border border-cyan-200/10 bg-white/[0.025] px-4 py-3 text-[9px] font-black uppercase tracking-[0.18em] text-slate-400 transition hover:border-cyan-200/25 hover:bg-cyan-300/[0.055] hover:text-cyan-100"
       >
         Clear Filters
       </button>
     </div>
   );
+});
+
+export default function ShopCatalogSection({
+  products = [],
+  productsPerPage = 20,
+}) {
+  const { addToCart } = useCart();
+
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
+  const [activeCategory, setActiveCategory] = useState(() => getCategoryFromUrl());
+  const [activePrice, setActivePrice] = useState(null);
+  const [activeCollection, setActiveCollection] = useState(null);
+  const [sortBy, setSortBy] = useState("popular");
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 160);
+
+    return () => window.clearTimeout(timer);
+  }, [searchQuery]);
+
+  const preparedProducts = useMemo(() => {
+    return products.map(prepareProductForCatalog);
+  }, [products]);
+
+  const addSameProductBundleToCart = useCallback(
+    (product) => {
+      const availability = getProductAvailability(product);
+
+      if (availability.isUnavailable) return;
+
+      const productName = product?.name || product?.title || "Product";
+      const category = getProductCategory(product);
+      const price = getProductPrice(product);
+      const image = getProductImage(product);
+
+      const bundleItem = {
+        ...product,
+        id: product.id,
+        name: productName,
+        price,
+        image,
+        category,
+        bundleEligible: true,
+        bundleDiscount: 10,
+        bundleSameProductOnly: true,
+        bundleRequiredQuantity: 3,
+        bundleQuantity: 3,
+      };
+
+      for (let index = 0; index < 3; index += 1) {
+        addToCart(bundleItem);
+      }
+    },
+    [addToCart]
+  );
+
+  const filteredItems = useMemo(() => {
+    const cleanSearch = normalizeCatalogFilterText(debouncedSearchQuery);
+
+    const result = preparedProducts.filter((item) => {
+      if (cleanSearch && !item.searchText.includes(cleanSearch)) {
+        return false;
+      }
+
+      if (!productMatchesCategoryMeta(item, activeCategory)) {
+        return false;
+      }
+
+      if (activePrice) {
+        if (item.price < activePrice.min || item.price >= activePrice.max) {
+          return false;
+        }
+      }
+
+      if (activeCollection) {
+        if (activeCollection === "sale") {
+          return (
+            item.tags.includes("sale") ||
+            item.tags.includes("on sale") ||
+            item.onSale
+          );
+        }
+
+        if (activeCollection === "coming-soon") {
+          return item.availability.isComingSoon;
+        }
+
+        return item.tags.includes(activeCollection);
+      }
+
+      return true;
+    });
+
+    result.sort((a, b) => {
+      if (sortBy === "popular") {
+        if (a.rank !== b.rank) return a.rank - b.rank;
+        if (a.mg !== b.mg) return a.mg - b.mg;
+        return a.name.localeCompare(b.name);
+      }
+
+      if (a.availability.isAvailable && !b.availability.isAvailable) return -1;
+      if (!a.availability.isAvailable && b.availability.isAvailable) return 1;
+
+      if (sortBy === "price-asc") return a.price - b.price;
+      if (sortBy === "price-desc") return b.price - a.price;
+      if (sortBy === "az") return a.name.localeCompare(b.name);
+      if (sortBy === "newest") return b.newestTime - a.newestTime;
+
+      if (a.rank !== b.rank) return a.rank - b.rank;
+
+      return a.name.localeCompare(b.name);
+    });
+
+    return result;
+  }, [
+    preparedProducts,
+    debouncedSearchQuery,
+    activeCategory,
+    activePrice,
+    activeCollection,
+    sortBy,
+  ]);
+
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredItems.length / productsPerPage)
+  );
+
+  const paginatedItems = useMemo(() => {
+    const safePage = Math.min(currentPage, totalPages);
+    const start = (safePage - 1) * productsPerPage;
+
+    return filteredItems.slice(start, start + productsPerPage);
+  }, [filteredItems, currentPage, productsPerPage, totalPages]);
+
+  const paginationPages = useMemo(() => {
+    return getPaginationPages(currentPage, totalPages);
+  }, [currentPage, totalPages]);
+
+  const showingStart =
+    filteredItems.length === 0 ? 0 : (currentPage - 1) * productsPerPage + 1;
+
+  const showingEnd = Math.min(
+    currentPage * productsPerPage,
+    filteredItems.length
+  );
+
+  useEffect(() => {
+    const handlePopStateCategorySync = () => {
+      setActiveCategory(getCategoryFromUrl());
+    };
+
+    window.addEventListener("popstate", handlePopStateCategorySync);
+
+    return () => {
+      window.removeEventListener("popstate", handlePopStateCategorySync);
+    };
+  }, []);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearchQuery, activeCategory, activePrice, activeCollection, sortBy]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
+  const goToPage = useCallback(
+    (page) => {
+      const nextPage = Math.min(Math.max(page, 1), totalPages);
+      setCurrentPage(nextPage);
+    },
+    [totalPages]
+  );
+
+  const clearFilters = useCallback(() => {
+    setSearchQuery("");
+    setDebouncedSearchQuery("");
+    setActiveCategory("All Products");
+    setActivePrice(null);
+    setActiveCollection(null);
+    setSortBy("popular");
+    setCurrentPage(1);
+  }, []);
+
+  const handleCategoryChange = useCallback((category) => {
+    setActiveCategory(category);
+  }, []);
+
+  const handlePriceChange = useCallback((price) => {
+    setActivePrice((currentPrice) =>
+      currentPrice?.label === price.label ? null : price
+    );
+  }, []);
 
   return (
     <section className="relative px-5 py-10 text-white sm:px-6 sm:py-14 lg:py-16">
@@ -928,8 +963,9 @@ export default function ShopCatalogSection({
               </h3>
 
               <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
-                Tap the bundle button on any eligible card. It will add 3 units of
-                that same product to the cart with the 10% bundle discount attached.
+                Tap the bundle button on any eligible card. It will add 3 units
+                of that same product to the cart with the 10% bundle discount
+                attached.
               </p>
             </div>
 
@@ -958,7 +994,9 @@ export default function ShopCatalogSection({
               <button
                 key={chip.value}
                 type="button"
-                onClick={() => setActiveCollection(active ? null : chip.value)}
+                onClick={() =>
+                  setActiveCollection(active ? null : chip.value)
+                }
                 className={`group relative overflow-hidden rounded-[1.15rem] border px-3.5 py-3.5 text-left transition sm:rounded-[1.4rem] sm:px-5 sm:py-4 ${
                   active
                     ? "border-cyan-200/30 bg-cyan-300/[0.075]"
@@ -1056,7 +1094,13 @@ export default function ShopCatalogSection({
                 </div>
               </div>
 
-              <FilterPanel />
+              <FilterPanel
+                activeCategory={activeCategory}
+                activePrice={activePrice}
+                onCategoryChange={handleCategoryChange}
+                onPriceChange={handlePriceChange}
+                onClear={clearFilters}
+              />
             </div>
           </aside>
 
@@ -1069,7 +1113,7 @@ export default function ShopCatalogSection({
                 </span>{" "}
                 of{" "}
                 <span className="font-semibold text-white">
-                  {filteredProducts.length}
+                  {filteredItems.length}
                 </span>{" "}
                 results
               </p>
@@ -1079,11 +1123,12 @@ export default function ShopCatalogSection({
               </p>
             </div>
 
-            {filteredProducts.length === 0 ? (
+            {filteredItems.length === 0 ? (
               <div className="rounded-[1.6rem] border border-cyan-200/10 bg-[#121E2E]/45 p-8 text-center sm:p-10">
                 <p className="text-xl font-semibold text-white">
                   No products found
                 </p>
+
                 <p className="mt-2 text-sm text-slate-500">
                   Try clearing filters or searching another term.
                 </p>
@@ -1099,12 +1144,12 @@ export default function ShopCatalogSection({
             ) : (
               <>
                 <div className="grid grid-cols-2 gap-3 sm:gap-5 xl:grid-cols-3">
-                  {paginatedProducts.map((product) => (
+                  {paginatedItems.map((item) => (
                     <ProductCard
-                      key={getProductKey(product)}
-                      product={product}
+                      key={item.key}
+                      item={item}
                       addToCart={addToCart}
-                      onBundleAdd={() => addSameProductBundleToCart(product)}
+                      onBundleAdd={addSameProductBundleToCart}
                     />
                   ))}
                 </div>
@@ -1178,7 +1223,7 @@ export default function ShopCatalogSection({
             type="button"
             aria-label="Close filters"
             onClick={() => setMobileFiltersOpen(false)}
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/60"
           />
 
           <div className="absolute bottom-0 left-0 right-0 max-h-[88vh] overflow-y-auto rounded-t-[2rem] border border-cyan-200/10 bg-[#07111D] p-6 shadow-[0_-30px_80px_rgba(0,0,0,0.35)]">
@@ -1197,7 +1242,13 @@ export default function ShopCatalogSection({
               </button>
             </div>
 
-            <FilterPanel />
+            <FilterPanel
+              activeCategory={activeCategory}
+              activePrice={activePrice}
+              onCategoryChange={handleCategoryChange}
+              onPriceChange={handlePriceChange}
+              onClear={clearFilters}
+            />
 
             <button
               type="button"
@@ -1209,8 +1260,6 @@ export default function ShopCatalogSection({
           </div>
         </div>
       )}
-
-
 
       <style>{`
         .product-float-card {
@@ -1228,21 +1277,23 @@ export default function ShopCatalogSection({
             inset 0 1px 0 rgba(255,255,255,0.04),
             0 18px 50px rgba(0, 0, 0, 0.22);
           transition:
-            transform 0.35s ease,
-            border-color 0.35s ease,
-            box-shadow 0.35s ease;
-        }
-
-        .product-float-card-selected {
-          border-color: rgba(103, 232, 249, 0.42);
-          box-shadow:
-            inset 0 1px 0 rgba(255,255,255,0.06),
-            0 0 0 1px rgba(103, 232, 249, 0.14),
-            0 26px 76px rgba(103, 232, 249, 0.12);
+            transform 220ms ease,
+            border-color 220ms ease,
+            box-shadow 220ms ease;
+          content-visibility: auto;
+          contain-intrinsic-size: 430px;
         }
 
         .product-float-card-unavailable {
           opacity: 0.72;
+        }
+
+        .product-float-card:hover {
+          transform: translate3d(0, -4px, 0);
+          border-color: rgba(122, 197, 255, 0.22);
+          box-shadow:
+            inset 0 1px 0 rgba(255,255,255,0.05),
+            0 20px 54px rgba(0, 0, 0, 0.3);
         }
 
         .product-stock-badge {
@@ -1255,14 +1306,13 @@ export default function ShopCatalogSection({
           align-items: center;
           border-radius: 999px;
           border: 1px solid rgba(255,255,255,0.1);
-          background: rgba(2, 6, 23, 0.72);
+          background: rgba(2, 6, 23, 0.82);
           padding: 0 10px;
           color: rgba(226, 232, 240, 0.82);
           font-size: 8px;
           font-weight: 900;
           letter-spacing: 0.14em;
           text-transform: uppercase;
-          backdrop-filter: blur(12px);
         }
 
         .product-bundle-select {
@@ -1276,23 +1326,22 @@ export default function ShopCatalogSection({
           gap: 8px;
           border-radius: 999px;
           border: 1px solid rgba(165, 243, 252, 0.16);
-          background: rgba(2, 6, 23, 0.72);
+          background: rgba(2, 6, 23, 0.82);
           padding: 0 11px;
           color: rgba(226, 232, 240, 0.82);
           font-size: 8px;
           font-weight: 900;
           letter-spacing: 0.14em;
           text-transform: uppercase;
-          backdrop-filter: blur(14px);
           transition:
-            background 220ms ease,
-            border-color 220ms ease,
-            color 220ms ease,
-            transform 220ms ease;
+            background 180ms ease,
+            border-color 180ms ease,
+            color 180ms ease,
+            transform 180ms ease;
         }
 
         .product-bundle-select:hover {
-          transform: translateY(-1px);
+          transform: translate3d(0, -1px, 0);
           border-color: rgba(103, 232, 249, 0.34);
           color: white;
         }
@@ -1305,26 +1354,6 @@ export default function ShopCatalogSection({
           background: transparent;
         }
 
-        .product-bundle-select-active {
-          border-color: rgba(103, 232, 249, 0.48);
-          background: rgba(103, 232, 249, 0.16);
-          color: rgb(236, 254, 255);
-        }
-
-        .product-bundle-select-active span {
-          border-color: rgb(103, 232, 249);
-          background: rgb(103, 232, 249);
-          box-shadow: 0 0 16px rgba(103, 232, 249, 0.55);
-        }
-
-        .product-float-card:hover {
-          transform: translateY(-6px);
-          border-color: rgba(122, 197, 255, 0.22);
-          box-shadow:
-            inset 0 1px 0 rgba(255,255,255,0.05),
-            0 24px 70px rgba(0, 0, 0, 0.34);
-        }
-
         .product-float-visual {
           position: relative;
           height: 250px;
@@ -1332,7 +1361,7 @@ export default function ShopCatalogSection({
           border-bottom: 1px solid rgba(122, 197, 255, 0.08);
           background:
             radial-gradient(circle at 20% 25%, rgba(106, 218, 255, 0.08), transparent 30%),
-            radial-gradient(circle at 80% 15%, rgba(79, 120, 255, 0.10), transparent 28%),
+            radial-gradient(circle at 80% 15%, rgba(79, 120, 255, 0.1), transparent 28%),
             linear-gradient(180deg, rgba(20, 36, 68, 0.96), rgba(10, 18, 37, 0.96));
         }
 
@@ -1340,34 +1369,34 @@ export default function ShopCatalogSection({
           position: absolute;
           inset: 0;
           background-image:
-            linear-gradient(rgba(122, 197, 255, 0.04) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(122, 197, 255, 0.04) 1px, transparent 1px);
-          background-size: 24px 24px;
-          mask-image: linear-gradient(180deg, rgba(0,0,0,0.55), transparent 100%);
+            linear-gradient(rgba(122, 197, 255, 0.035) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(122, 197, 255, 0.035) 1px, transparent 1px);
+          background-size: 28px 28px;
+          mask-image: linear-gradient(180deg, rgba(0,0,0,0.45), transparent 100%);
           pointer-events: none;
         }
 
         .visual-glow {
           position: absolute;
           border-radius: 999px;
-          filter: blur(40px);
           pointer-events: none;
+          opacity: 0.8;
         }
 
         .visual-glow-1 {
-          width: 140px;
-          height: 140px;
-          top: 25px;
-          left: 30px;
-          background: rgba(105, 226, 255, 0.14);
+          width: 160px;
+          height: 160px;
+          top: 10px;
+          left: 10px;
+          background: radial-gradient(circle, rgba(105, 226, 255, 0.14), transparent 68%);
         }
 
         .visual-glow-2 {
-          width: 180px;
-          height: 180px;
-          right: -20px;
-          bottom: 10px;
-          background: rgba(72, 111, 255, 0.14);
+          width: 200px;
+          height: 200px;
+          right: -55px;
+          bottom: -45px;
+          background: radial-gradient(circle, rgba(72, 111, 255, 0.14), transparent 68%);
         }
 
         .product-float-pill {
@@ -1381,13 +1410,12 @@ export default function ShopCatalogSection({
           padding: 0 10px;
           border-radius: 999px;
           border: 1px solid rgba(122, 197, 255, 0.14);
-          background: rgba(2, 6, 23, 0.58);
+          background: rgba(2, 6, 23, 0.68);
           color: rgba(184, 233, 255, 0.92);
           font-size: 9px;
           font-weight: 900;
           letter-spacing: 0.16em;
           text-transform: uppercase;
-          backdrop-filter: blur(12px);
         }
 
         .product-float-eye {
@@ -1401,23 +1429,20 @@ export default function ShopCatalogSection({
           place-items: center;
           border-radius: 14px;
           border: 1px solid rgba(122, 197, 255, 0.14);
-          background: rgba(2, 6, 23, 0.56);
+          background: rgba(2, 6, 23, 0.66);
           color: rgba(184, 233, 255, 0.82);
-          backdrop-filter: blur(12px);
           transition:
-            transform 0.25s ease,
-            border-color 0.25s ease,
-            background 0.25s ease,
-            color 0.25s ease,
-            box-shadow 0.25s ease;
+            transform 180ms ease,
+            border-color 180ms ease,
+            background 180ms ease,
+            color 180ms ease;
         }
 
         .product-float-eye:hover {
-          transform: translateY(-1px) scale(1.04);
+          transform: translate3d(0, -1px, 0) scale(1.03);
           border-color: rgba(122, 197, 255, 0.3);
           background: rgba(103, 232, 249, 0.12);
           color: #e6fbff;
-          box-shadow: 0 10px 28px rgba(103, 232, 249, 0.12);
         }
 
         .product-float-image-wrap {
@@ -1436,12 +1461,10 @@ export default function ShopCatalogSection({
           border-radius: 999px;
           background: radial-gradient(
             circle,
-            rgba(0,0,0,0.42) 0%,
+            rgba(0,0,0,0.34) 0%,
             rgba(0,0,0,0.06) 70%,
             transparent 100%
           );
-          filter: blur(7px);
-          animation: floatShadow 4.4s ease-in-out infinite;
         }
 
         .product-float-image {
@@ -1451,16 +1474,16 @@ export default function ShopCatalogSection({
           max-width: 82%;
           max-height: 195px;
           object-fit: contain;
-          filter: drop-shadow(0 18px 26px rgba(0,0,0,0.22));
-          animation: floatBottle 4.4s ease-in-out infinite;
+          filter: drop-shadow(0 16px 22px rgba(0,0,0,0.2));
+          transform: translate3d(0, 0, 0);
           transition:
-            transform 0.35s ease,
-            filter 0.35s ease;
+            transform 220ms ease,
+            filter 220ms ease;
         }
 
         .product-float-card:hover .product-float-image {
-          transform: scale(1.04);
-          filter: drop-shadow(0 24px 34px rgba(0,0,0,0.30));
+          transform: translate3d(0, -4px, 0) scale(1.025);
+          filter: drop-shadow(0 20px 28px rgba(0,0,0,0.26));
         }
 
         .product-float-body {
@@ -1520,15 +1543,15 @@ export default function ShopCatalogSection({
           );
           color: #041019;
           transition:
-            transform 0.25s ease,
-            box-shadow 0.25s ease,
-            background 0.25s ease;
-          box-shadow: 0 12px 30px rgba(79, 201, 245, 0.18);
+            transform 180ms ease,
+            box-shadow 180ms ease,
+            background 180ms ease;
+          box-shadow: 0 12px 28px rgba(79, 201, 245, 0.16);
         }
 
         .product-float-button:hover {
-          transform: translateY(-1px);
-          box-shadow: 0 18px 34px rgba(79, 201, 245, 0.25);
+          transform: translate3d(0, -1px, 0);
+          box-shadow: 0 15px 30px rgba(79, 201, 245, 0.22);
           background: linear-gradient(
             180deg,
             rgba(125, 230, 255, 1),
@@ -1544,128 +1567,22 @@ export default function ShopCatalogSection({
         }
 
         .product-float-arrow {
-          transition: transform 0.25s ease;
+          transition: transform 180ms ease;
         }
 
         .product-float-button:hover .product-float-arrow {
-          transform: translateX(2px);
-        }
-
-        .bundle-builder-bar {
-          position: fixed;
-          left: 50%;
-          bottom: 22px;
-          z-index: 80;
-          display: flex;
-          width: min(720px, calc(100% - 28px));
-          transform: translateX(-50%);
-          align-items: center;
-          justify-content: space-between;
-          gap: 18px;
-          border: 1px solid rgba(165, 243, 252, 0.16);
-          border-radius: 24px;
-          background:
-            linear-gradient(135deg, rgba(7, 17, 29, 0.96), rgba(2, 6, 23, 0.96));
-          padding: 14px;
-          box-shadow: 0 24px 90px rgba(0, 0, 0, 0.42);
-          backdrop-filter: blur(22px);
-        }
-
-        .bundle-builder-bar p {
-          margin: 0;
-          color: white;
-          font-size: 14px;
-          font-weight: 850;
-          letter-spacing: -0.02em;
-        }
-
-        .bundle-builder-bar span {
-          display: block;
-          margin-top: 3px;
-          color: rgba(148, 163, 184, 0.72);
-          font-size: 10px;
-          font-weight: 800;
-          letter-spacing: 0.12em;
-          text-transform: uppercase;
-        }
-
-        .bundle-builder-actions {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-        }
-
-        .bundle-builder-clear,
-        .bundle-builder-add {
-          min-height: 42px;
-          border-radius: 16px;
-          padding: 0 16px;
-          font-size: 9px;
-          font-weight: 900;
-          letter-spacing: 0.14em;
-          text-transform: uppercase;
-          transition:
-            transform 220ms ease,
-            opacity 220ms ease,
-            background 220ms ease;
-        }
-
-        .bundle-builder-clear {
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          background: rgba(255, 255, 255, 0.035);
-          color: rgba(226, 232, 240, 0.72);
-        }
-
-        .bundle-builder-add {
-          border: 1px solid rgba(103, 232, 249, 0.28);
-          background: rgb(103, 232, 249);
-          color: rgb(2, 6, 23);
-        }
-
-        .bundle-builder-add:disabled {
-          cursor: not-allowed;
-          opacity: 0.42;
-        }
-
-        .bundle-builder-clear:hover,
-        .bundle-builder-add:not(:disabled):hover {
-          transform: translateY(-1px);
-        }
-
-        @keyframes floatBottle {
-          0% {
-            transform: translateY(0px);
-          }
-
-          50% {
-            transform: translateY(-12px);
-          }
-
-          100% {
-            transform: translateY(0px);
-          }
-        }
-
-        @keyframes floatShadow {
-          0% {
-            transform: scaleX(1);
-            opacity: 0.34;
-          }
-
-          50% {
-            transform: scaleX(0.84);
-            opacity: 0.22;
-          }
-
-          100% {
-            transform: scaleX(1);
-            opacity: 0.34;
-          }
+          transform: translate3d(2px, 0, 0);
         }
 
         @media (max-width: 768px) {
           .product-float-card {
             border-radius: 20px;
+            content-visibility: visible;
+            contain-intrinsic-size: auto;
+          }
+
+          .product-float-card:hover {
+            transform: none;
           }
 
           .product-float-visual {
@@ -1718,12 +1635,22 @@ export default function ShopCatalogSection({
           .product-float-image {
             max-height: 122px;
             max-width: 78%;
+            filter: drop-shadow(0 12px 18px rgba(0,0,0,0.2));
+          }
+
+          .product-float-card:hover .product-float-image {
+            transform: none;
+            filter: drop-shadow(0 12px 18px rgba(0,0,0,0.2));
           }
 
           .product-float-shadow {
             bottom: 26px;
             width: 88px;
             height: 18px;
+          }
+
+          .visual-grid {
+            background-size: 32px 32px;
           }
 
           .visual-glow-1 {
@@ -1780,24 +1707,6 @@ export default function ShopCatalogSection({
             width: 12px;
             height: 12px;
           }
-
-          .bundle-builder-bar {
-            bottom: 14px;
-            flex-direction: column;
-            align-items: stretch;
-            border-radius: 22px;
-            padding: 13px;
-          }
-
-          .bundle-builder-actions {
-            display: grid;
-            grid-template-columns: 0.5fr 0.8fr 1.3fr;
-          }
-
-          .bundle-builder-clear,
-          .bundle-builder-add {
-            width: 100%;
-          }
         }
 
         @media (max-width: 420px) {
@@ -1826,9 +1735,13 @@ export default function ShopCatalogSection({
         }
 
         @media (prefers-reduced-motion: reduce) {
+          .product-float-card,
           .product-float-image,
-          .product-float-shadow {
-            animation: none;
+          .product-float-eye,
+          .product-bundle-select,
+          .product-float-button,
+          .product-float-arrow {
+            transition: none !important;
           }
         }
       `}</style>

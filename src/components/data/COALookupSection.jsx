@@ -359,6 +359,7 @@ export default function COALookupSection({
   );
 
   const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [openHistoryId, setOpenHistoryId] = useState(null);
   const [activeFilter, setActiveFilter] = useState("all");
   const [coaRecords, setCoaRecords] = useState(() =>
@@ -367,6 +368,14 @@ export default function COALookupSection({
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedQuery(query);
+    }, 140);
+
+    return () => window.clearTimeout(timer);
+  }, [query]);
 
   useEffect(() => {
     if (!apiUrl) {
@@ -435,12 +444,14 @@ export default function COALookupSection({
   }, [coaRecords]);
 
   const filteredRecords = useMemo(() => {
+    const cleanQuery = debouncedQuery.trim();
+
     let results = coaRecords.map((record) => ({
       record,
-      score: scoreRecord(record, query),
+      score: scoreRecord(record, cleanQuery),
     }));
 
-    if (query.trim()) {
+    if (cleanQuery) {
       results = results.filter((item) => item.score > 0);
     }
 
@@ -457,12 +468,13 @@ export default function COALookupSection({
     return results
       .sort((a, b) => b.score - a.score)
       .map((item) => item.record);
-  }, [coaRecords, query, activeFilter]);
+  }, [coaRecords, debouncedQuery, activeFilter]);
 
   const hasActiveFilters = query.trim().length > 0 || activeFilter !== "all";
 
   const clearAll = () => {
     setQuery("");
+    setDebouncedQuery("");
     setActiveFilter("all");
     setOpenHistoryId(null);
   };
@@ -474,15 +486,15 @@ export default function COALookupSection({
 
   return (
     <section className="relative overflow-hidden px-6 py-12 text-white sm:py-14 lg:py-16">
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute left-[8%] top-16 h-72 w-72 rounded-full bg-cyan-300/8 blur-[130px]" />
-        <div className="absolute right-[-10%] bottom-0 h-80 w-80 rounded-full bg-blue-500/10 blur-[130px]" />
-      </div>
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_8%_18%,rgba(103,232,249,0.065),transparent_30%),radial-gradient(circle_at_100%_88%,rgba(59,130,246,0.075),transparent_32%)]"
+      />
 
       <div className="relative mx-auto max-w-6xl">
         <div className="mx-auto mb-9 flex max-w-4xl flex-col items-center text-center md:mx-0 md:items-start md:text-left lg:mb-10">
           <div className="mb-4 inline-flex items-center justify-center gap-3 md:justify-start">
-            <span className="h-2 w-2 rounded-full bg-cyan-300 shadow-[0_0_20px_rgba(103,232,249,0.75)]" />
+            <span className="h-2 w-2 rounded-full bg-cyan-300 shadow-[0_0_16px_rgba(103,232,249,0.55)]" />
 
             <span className="text-[9px] font-black uppercase tracking-[0.28em] text-cyan-200/65 sm:text-[10px] sm:tracking-[0.34em]">
               COA Documentation
@@ -503,10 +515,10 @@ export default function COALookupSection({
         </div>
 
         <div className="grid gap-5 lg:grid-cols-[0.9fr_1.1fr]">
-          <div className="relative overflow-hidden rounded-[2rem] border border-cyan-200/10 bg-[#05111d] p-5 shadow-[0_28px_110px_rgba(0,0,0,0.25)] sm:p-6 lg:p-7">
+          <div className="relative overflow-hidden rounded-[2rem] border border-cyan-200/10 bg-[#05111d] p-5 shadow-[0_18px_60px_rgba(0,0,0,0.18)] sm:p-6 lg:p-7">
             <div className="pointer-events-none absolute inset-0">
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_15%,rgba(103,232,249,0.14),transparent_34%),radial-gradient(circle_at_20%_90%,rgba(59,130,246,0.12),transparent_32%)]" />
-              <div className="absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-cyan-200/35 to-transparent" />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_15%,rgba(103,232,249,0.12),transparent_34%),radial-gradient(circle_at_20%_90%,rgba(59,130,246,0.10),transparent_32%)]" />
+              <div className="absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-cyan-200/30 to-transparent" />
             </div>
 
             <div className="relative z-10">
@@ -650,8 +662,8 @@ export default function COALookupSection({
             </div>
           </div>
 
-          <div className="relative overflow-hidden rounded-[2rem] border border-cyan-200/10 bg-white/[0.018] p-5 backdrop-blur-xl sm:p-6 lg:p-7">
-            <div className="pointer-events-none absolute right-[-10%] top-[-30%] h-80 w-80 rounded-full bg-cyan-300/10 blur-[120px]" />
+          <div className="relative overflow-hidden rounded-[2rem] border border-cyan-200/10 bg-white/[0.018] p-5 sm:p-6 lg:p-7">
+            <div className="pointer-events-none absolute right-[-12%] top-[-28%] h-80 w-80 rounded-full bg-[radial-gradient(circle,rgba(103,232,249,0.10),transparent_68%)]" />
 
             <div className="relative z-10">
               <div className="mb-5 flex items-center justify-between gap-4">
@@ -987,6 +999,14 @@ export default function COALookupSection({
         .mini-coa-results::-webkit-scrollbar-thumb {
           border-radius: 999px;
           background: rgba(103, 232, 249, 0.22);
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .mini-coa-results *,
+          .mini-coa-results *::before,
+          .mini-coa-results *::after {
+            transition: none !important;
+          }
         }
       `}</style>
     </section>
