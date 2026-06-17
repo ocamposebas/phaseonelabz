@@ -987,6 +987,96 @@ function getOmnisendCartValue(items = []) {
   }, 0);
 }
 
+function getMetaPixelContentId(item = {}) {
+  const variationId = getVariationId(item);
+  const productId = getProductId(item);
+
+  return String(
+    variationId ||
+      productId ||
+      item.sku ||
+      item.slug ||
+      item.name ||
+      item.title ||
+      ""
+  );
+}
+
+function getMetaPixelItemName(item = {}) {
+  return String(item.name || item.title || "Phase One Labz Product").trim();
+}
+
+function getMetaPixelContents(items = []) {
+  return items
+    .map(normalizeCartItem)
+    .filter((item) => !isRewardGift(item))
+    .map((item) => {
+      const id = getMetaPixelContentId(item);
+
+      if (!id) return null;
+
+      return {
+        id,
+        quantity: Number(item.quantity || 1),
+        item_price: Number(getCartItemPrice(item) || 0),
+      };
+    })
+    .filter(Boolean);
+}
+
+function getMetaPixelCartValue(items = []) {
+  return Number(
+    items
+      .map(normalizeCartItem)
+      .filter((item) => !isRewardGift(item))
+      .reduce(
+        (total, item) =>
+          total + Number(getCartItemPrice(item) || 0) * Number(item.quantity || 1),
+        0
+      )
+      .toFixed(2)
+  );
+}
+
+function getMetaPixelCartItemCount(items = []) {
+  return items
+    .map(normalizeCartItem)
+    .filter((item) => !isRewardGift(item))
+    .reduce((count, item) => count + Number(item.quantity || 1), 0);
+}
+
+function buildMetaPixelCartPayload(items = [], extra = {}) {
+  const normalizedItems = items
+    .map(normalizeCartItem)
+    .filter((item) => !isRewardGift(item));
+
+  const contents = getMetaPixelContents(normalizedItems);
+  const contentIds = contents.map((item) => item.id).filter(Boolean);
+
+  return {
+    content_ids: contentIds,
+    contents,
+    content_type: "product",
+    value: getMetaPixelCartValue(normalizedItems),
+    currency: "USD",
+    num_items: getMetaPixelCartItemCount(normalizedItems),
+    ...extra,
+  };
+}
+
+function trackMetaPixelEvent(eventName, payload = {}) {
+  if (typeof window === "undefined") return;
+
+  if (typeof window.fbq !== "function") {
+    console.warn("[Phase One] Meta Pixel is not ready:", eventName, payload);
+    return;
+  }
+
+  window.fbq("track", eventName, payload);
+
+  console.log("[Phase One] Meta Pixel event sent:", eventName, payload);
+}
+
 
 function createCheckoutSessionId() {
   if (typeof crypto !== "undefined" && crypto.randomUUID) {
@@ -1441,6 +1531,15 @@ export function CartProvider({ children }) {
       { checkoutCoupon, account }
     );
 
+    trackMetaPixelEvent("AddToCart", {
+      content_ids: [getMetaPixelContentId(normalizedProduct)].filter(Boolean),
+      contents: getMetaPixelContents([normalizedProduct]),
+      content_name: getMetaPixelItemName(normalizedProduct),
+      content_type: "product",
+      value: Number((getCartItemPrice(normalizedProduct) * quantityToAdd).toFixed(2)),
+      currency: "USD",
+    });
+
     setCartItems((prevItems) => {
       const normalizedPrev = prevItems.map(normalizeCartItem);
       const paidPrev = normalizedPrev.filter((item) => !isRewardGift(item));
@@ -1563,12 +1662,22 @@ export function CartProvider({ children }) {
       return;
     }
 
+    const checkoutItemsForTracking = syncRewardGifts(
+      cartItems.map(normalizeCartItem),
+      rewardProducts
+    );
+
     pushOmnisendEvent(
       "started checkout",
-      syncRewardGifts(cartItems.map(normalizeCartItem), rewardProducts),
+      checkoutItemsForTracking,
       null,
       checkoutUrl,
       { checkoutCoupon, account }
+    );
+
+    trackMetaPixelEvent(
+      "InitiateCheckout",
+      buildMetaPixelCartPayload(checkoutItemsForTracking)
     );
 
     setCheckoutLoading(true);
