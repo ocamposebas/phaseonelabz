@@ -74,10 +74,10 @@ export default function ContactExperience() {
     <CartProvider>
       <Header logoSrc="/TRANSPARENCIA-03.webp" transparentOnTop={true} />
 
-      <main className="contact-experience relative overflow-hidden bg-[#020305] pt-[104px] text-white sm:pt-[112px] lg:pt-[118px]">
+      <main className="contact-experience relative overflow-hidden bg-[#020305] pt-[118px] text-white sm:pt-[128px] lg:pt-[136px]">
         <div className="contact-bg" aria-hidden="true" />
 
-        <section className="relative px-5 pb-14 pt-10 sm:px-6 sm:pb-16 sm:pt-14 lg:px-8 lg:pt-20">
+        <section className="relative px-5 pb-16 pt-12 sm:px-6 sm:pb-20 sm:pt-16 lg:px-8 lg:pb-24 lg:pt-20">
           <div className="mx-auto max-w-7xl">
             <div className="contact-hero">
               <div className="contact-hero-copy">
@@ -247,17 +247,17 @@ export default function ContactExperience() {
           inset: 0;
           pointer-events: none;
           background:
-            radial-gradient(circle at 50% -10%, rgba(103, 232, 249, 0.12), transparent 34%),
-            radial-gradient(circle at 100% 18%, rgba(59, 130, 246, 0.1), transparent 32%),
-            radial-gradient(circle at 0% 82%, rgba(103, 232, 249, 0.075), transparent 34%);
+            radial-gradient(circle at 50% -8%, rgba(103, 232, 249, 0.11), transparent 34%),
+            radial-gradient(circle at 100% 22%, rgba(59, 130, 246, 0.09), transparent 32%),
+            radial-gradient(circle at 0% 88%, rgba(103, 232, 249, 0.065), transparent 34%);
         }
 
         .contact-hero {
           display: flex;
           flex-direction: column;
           align-items: center;
-          gap: 1.25rem;
-          margin-bottom: 2.5rem;
+          gap: 1.5rem;
+          margin-bottom: 3rem;
           text-align: center;
         }
 
@@ -270,7 +270,7 @@ export default function ContactExperience() {
           align-items: center;
           justify-content: center;
           gap: 0.75rem;
-          margin-bottom: 1rem;
+          margin-bottom: 1.15rem;
           font-size: 0.5625rem;
           font-weight: 900;
           letter-spacing: 0.28em;
@@ -289,7 +289,7 @@ export default function ContactExperience() {
         .contact-title {
           max-width: 28rem;
           margin: 0 auto;
-          font-size: clamp(2.65rem, 11vw, 4.25rem);
+          font-size: clamp(2.75rem, 10.5vw, 4.35rem);
           font-weight: 600;
           line-height: 0.92;
           letter-spacing: -0.075em;
@@ -302,16 +302,16 @@ export default function ContactExperience() {
         }
 
         .contact-intro {
-          max-width: 29rem;
+          max-width: 31rem;
           margin: 0;
-          font-size: 0.875rem;
-          line-height: 1.8;
+          font-size: 0.925rem;
+          line-height: 1.85;
           color: rgba(148, 163, 184, 0.86);
         }
 
         .contact-layout {
           display: grid;
-          gap: 1rem;
+          gap: 1.25rem;
         }
 
         .contact-panel {
@@ -320,18 +320,16 @@ export default function ContactExperience() {
           border: 1px solid rgba(165, 243, 252, 0.1);
           border-radius: 1.35rem;
           background:
-            radial-gradient(circle at 100% 0%, rgba(103, 232, 249, 0.075), transparent 34%),
-            radial-gradient(circle at 0% 100%, rgba(59, 130, 246, 0.06), transparent 38%),
+            radial-gradient(circle at 100% 0%, rgba(103, 232, 249, 0.07), transparent 34%),
+            radial-gradient(circle at 0% 100%, rgba(59, 130, 246, 0.055), transparent 38%),
             rgba(255, 255, 255, 0.022);
-          padding: 1.15rem;
+          padding: 1.25rem;
           box-shadow: 0 24px 90px rgba(0, 0, 0, 0.24);
-          content-visibility: auto;
-          contain-intrinsic-size: 720px;
         }
 
         .contact-section-head {
           border-bottom: 1px solid rgba(165, 243, 252, 0.1);
-          padding-bottom: 1.5rem;
+          padding-bottom: 1.65rem;
         }
 
         .contact-eyebrow,
@@ -346,8 +344,8 @@ export default function ContactExperience() {
 
         .contact-section-head h2 {
           max-width: 34rem;
-          margin: 0.75rem 0 0;
-          font-size: clamp(2.15rem, 8vw, 3.35rem);
+          margin: 0.85rem 0 0;
+          font-size: clamp(2.2rem, 7.8vw, 3.35rem);
           font-weight: 600;
           line-height: 0.92;
           letter-spacing: -0.07em;
@@ -362,25 +360,26 @@ export default function ContactExperience() {
         .contact-section-head p {
           max-width: 36rem;
           margin: 1.25rem 0 0;
-          font-size: 0.875rem;
-          line-height: 1.75;
+          font-size: 0.9rem;
+          line-height: 1.8;
           color: rgba(100, 116, 139, 1);
         }
 
         .contact-form {
           display: grid;
-          gap: 1rem;
-          margin-top: 1.5rem;
+          gap: 1.05rem;
+          margin-top: 1.65rem;
         }
 
         .contact-grid {
           display: grid;
-          gap: 1rem;
+          gap: 1.05rem;
         }
 
         .contact-form label {
           display: grid;
-          gap: 0.5rem;
+          gap: 0.55rem;
+          min-width: 0;
         }
 
         .contact-form label span {
@@ -409,13 +408,13 @@ export default function ContactExperience() {
 
         .contact-form input,
         .contact-form select {
-          height: 3rem;
+          height: 3.15rem;
           border-radius: 1rem;
           padding: 0 1rem;
         }
 
         .contact-form textarea {
-          min-height: 11rem;
+          min-height: 12rem;
           resize: vertical;
           border-radius: 1rem;
           padding: 1rem;
@@ -443,11 +442,11 @@ export default function ContactExperience() {
         .contact-submit {
           display: inline-flex;
           width: 100%;
-          min-height: 3.25rem;
+          min-height: 3.35rem;
           align-items: center;
           justify-content: center;
           gap: 0.75rem;
-          margin-top: 0.5rem;
+          margin-top: 0.65rem;
           border: 1px solid rgba(165, 243, 252, 0.18);
           border-radius: 999px;
           background: rgb(103, 232, 249);
@@ -471,7 +470,7 @@ export default function ContactExperience() {
 
         .contact-methods {
           display: grid;
-          margin-top: 0.25rem;
+          margin-top: 0.45rem;
         }
 
         .contact-method {
@@ -480,7 +479,7 @@ export default function ContactExperience() {
           justify-content: space-between;
           gap: 1rem;
           border-bottom: 1px solid rgba(165, 243, 252, 0.1);
-          padding: 1.25rem 0;
+          padding: 1.35rem 0;
         }
 
         .contact-method:last-child {
@@ -488,7 +487,7 @@ export default function ContactExperience() {
         }
 
         .contact-method h3 {
-          margin: 0.5rem 0 0;
+          margin: 0.55rem 0 0;
           overflow-wrap: anywhere;
           font-size: clamp(1.45rem, 6vw, 1.8rem);
           font-weight: 600;
@@ -500,9 +499,9 @@ export default function ContactExperience() {
 
         .contact-method span {
           display: block;
-          margin-top: 0.75rem;
+          margin-top: 0.8rem;
           font-size: 0.875rem;
-          line-height: 1.55;
+          line-height: 1.6;
           color: rgba(100, 116, 139, 1);
         }
 
@@ -537,19 +536,22 @@ export default function ContactExperience() {
         }
 
         .contact-note {
-          border-top: 1px solid rgba(165, 243, 252, 0.1);
-          padding-top: 1rem;
+          margin-top: 0.9rem;
+          border: 1px solid rgba(248, 113, 113, 0.18);
+          border-radius: 1rem;
+          background: rgba(239, 68, 68, 0.045);
+          padding: 1rem;
         }
 
         .contact-note p {
           margin: 0;
           font-size: 0.6875rem;
           line-height: 1.7;
-          color: rgba(207, 250, 254, 0.66);
+          color: rgba(254, 226, 226, 0.72);
         }
 
         .contact-note strong {
-          color: rgba(165, 243, 252, 0.9);
+          color: rgba(252, 165, 165, 0.95);
           font-weight: 900;
           letter-spacing: 0.1em;
           text-transform: uppercase;
@@ -557,12 +559,13 @@ export default function ContactExperience() {
 
         @media (min-width: 640px) {
           .contact-hero {
-            margin-bottom: 3rem;
+            gap: 1.75rem;
+            margin-bottom: 3.5rem;
           }
 
           .contact-panel {
             border-radius: 2rem;
-            padding: 1.5rem;
+            padding: 1.65rem;
           }
 
           .contact-grid {
@@ -571,7 +574,8 @@ export default function ContactExperience() {
 
           .contact-form input,
           .contact-form select,
-          .contact-form textarea {
+          .contact-form textarea,
+          .contact-note {
             border-radius: 1.15rem;
           }
 
@@ -586,7 +590,7 @@ export default function ContactExperience() {
             flex-direction: row;
             align-items: flex-end;
             justify-content: space-between;
-            margin-bottom: 3.5rem;
+            margin-bottom: 4rem;
             text-align: left;
           }
 
@@ -600,7 +604,7 @@ export default function ContactExperience() {
           }
 
           .contact-intro {
-            padding-bottom: 0.4rem;
+            padding-bottom: 0.45rem;
           }
 
           .contact-layout {
@@ -609,11 +613,21 @@ export default function ContactExperience() {
           }
 
           .contact-panel {
-            padding: 1.75rem;
+            padding: 1.9rem;
           }
 
           .contact-direct-panel {
             align-self: start;
+          }
+        }
+
+        @media (min-width: 1280px) {
+          .contact-layout {
+            gap: 2.4rem;
+          }
+
+          .contact-panel {
+            padding: 2rem;
           }
         }
 
@@ -628,11 +642,6 @@ export default function ContactExperience() {
         }
 
         @media (max-width: 768px) {
-          .contact-panel {
-            content-visibility: visible;
-            contain-intrinsic-size: auto;
-          }
-
           .contact-submit:hover {
             transform: none;
           }
