@@ -25,6 +25,7 @@ const VALIDATE_COUPON_ENDPOINT =
   "https://staging.phaseonelabz.com/wp-json/phaseone/v1/validate-coupon";
 const WOO_URL = import.meta.env.PUBLIC_WOOCOMMERCE_URL || "https://staging.phaseonelabz.com";
 const PAYMENT_DISCOUNT_RATE = 0.05;
+const FREE_SHIPPING_MINIMUM = 35;
 const PAYMENT_DISCOUNT_METHOD_IDS = ["venmo", "zelle", "bank"];
 
 const PAYMENT_METHODS = [
@@ -1252,9 +1253,21 @@ export default function CheckoutTransferPage() {
   );
   const paymentDiscountLabel = getPaymentDiscountLabel(selectedPaymentMethod);
 
-  const bankShippingCost = selectedPaymentMethod?.id === "bank"
-    ? Number(selectedShippingMethod?.price || 0)
+  const freeShippingUnlocked = cartTotal >= FREE_SHIPPING_MINIMUM;
+  const amountUntilFreeShipping = Math.max(FREE_SHIPPING_MINIMUM - cartTotal, 0);
+  const selectedShippingOriginalPrice = Number(selectedShippingMethod?.price || 0);
+
+  const bankShippingCost = selectedPaymentMethod?.id === "bank" && !freeShippingUnlocked
+    ? selectedShippingOriginalPrice
     : 0;
+
+  const effectiveSelectedShippingMethod = {
+    ...selectedShippingMethod,
+    price: bankShippingCost,
+    original_price: selectedShippingOriginalPrice,
+    free_shipping_applied: selectedPaymentMethod?.id === "bank" && freeShippingUnlocked,
+    free_shipping_minimum: FREE_SHIPPING_MINIMUM,
+  };
 
   const paymentPreviewTotal = Math.max(
     previewTotal - paymentMethodDiscount + bankShippingCost,
@@ -1642,10 +1655,14 @@ export default function CheckoutTransferPage() {
           billing: finalBilling,
           shipping: finalShipping,
           items: checkoutItems,
-          shippingMethod: selectedShippingMethod,
-          shipping_method: selectedShippingMethod,
-          shippingTotal: Number(selectedShippingMethod?.price || 0),
-          shipping_total: Number(selectedShippingMethod?.price || 0),
+          shippingMethod: effectiveSelectedShippingMethod,
+          shipping_method: effectiveSelectedShippingMethod,
+          shippingTotal: bankShippingCost,
+          shipping_total: bankShippingCost,
+          freeShippingApplied: effectiveSelectedShippingMethod.free_shipping_applied,
+          free_shipping_applied: effectiveSelectedShippingMethod.free_shipping_applied,
+          freeShippingMinimum: FREE_SHIPPING_MINIMUM,
+          free_shipping_minimum: FREE_SHIPPING_MINIMUM,
 
           couponCode:
             couponStatus === "valid"
@@ -2223,7 +2240,11 @@ export default function CheckoutTransferPage() {
                   <div className="bank-form-section">
                     <div className="bank-section-title">
                       <span>Shipping method</span>
-                      <small>Select how you want this order shipped.</small>
+                      <small>
+                        {freeShippingUnlocked
+                          ? "Free shipping unlocked for this order."
+                          : `Free shipping starts at $${FREE_SHIPPING_MINIMUM}. Add ${formatMoney(amountUntilFreeShipping)} more to qualify.`}
+                      </small>
                     </div>
 
                     <div className="bank-shipping-options" role="radiogroup" aria-label="Shipping method">
@@ -2249,10 +2270,16 @@ export default function CheckoutTransferPage() {
 
                             <div>
                               <strong>{method.title}</strong>
-                              <small>{method.description}</small>
+                              <small>
+                                {freeShippingUnlocked
+                                  ? `${method.description} Free shipping is applied automatically.`
+                                  : method.description}
+                              </small>
                             </div>
 
-                            <em>{formatMoney(method.price)}</em>
+                            <em className={freeShippingUnlocked ? "free-shipping-price" : ""}>
+                              {freeShippingUnlocked ? "FREE" : formatMoney(method.price)}
+                            </em>
                           </button>
                         );
                       })}
@@ -2392,7 +2419,9 @@ export default function CheckoutTransferPage() {
                 {selectedPaymentMethod?.id === "bank" && (
                   <div className="shipping-line">
                     <span>{selectedShippingMethod?.title || "Shipping"}</span>
-                    <strong>{formatMoney(bankShippingCost)}</strong>
+                    <strong className={freeShippingUnlocked ? "free-shipping-price" : ""}>
+                      {freeShippingUnlocked ? "FREE" : formatMoney(bankShippingCost)}
+                    </strong>
                   </div>
                 )}
 
@@ -3151,6 +3180,11 @@ const styles = `
     font-style: normal;
     font-weight: 900;
     white-space: nowrap;
+  }
+
+  .free-shipping-price {
+    color: rgb(165, 243, 252) !important;
+    letter-spacing: 0.08em;
   }
 
   .checkout-error,

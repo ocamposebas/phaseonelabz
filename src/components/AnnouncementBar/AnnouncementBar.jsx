@@ -18,9 +18,10 @@ const navItems = [
 ];
 
 const announcementItems = [
-  "Research Use Only",
-  "99% Purity HPLC Verified",
-  "Free Shipping Over $250",
+  "Grand Opening Savings",
+  "Free Shipping Over $35",
+  "No Extra Card Fees",
+  "All for Our Grand Opening",
 ];
 
 function VialIcon() {
@@ -105,14 +106,12 @@ export default function SiteHeader({
     <>
       <header className={`sh-header ${hidden && !mobileOpen ? "sh-header-hidden" : ""}`}>
         <div className="sh-shell">
-          {/* Announcement */}
           <div className="sh-announcement">
             <div className="sh-announcement-fade sh-announcement-fade-left" />
             <div className="sh-announcement-fade sh-announcement-fade-right" />
             <AnnouncementLoop />
           </div>
 
-          {/* Navbar */}
           <div className={`sh-nav-card ${showGlass ? "sh-nav-glass" : "sh-nav-clear"}`}>
             <nav className="sh-nav">
               <a href="/" className="sh-logo" aria-label="Home">
@@ -225,8 +224,10 @@ export default function SiteHeader({
               </div>
 
               <div className="sh-mobile-note">
-                <p>Research Use Only</p>
-                <span>Laboratory research catalog only.</span>
+                <p>Grand Opening</p>
+                <span>
+                  Launch savings, free shipping over $35, and no extra card fees.
+                </span>
               </div>
 
               <div className="sh-mobile-bottom">
@@ -289,7 +290,7 @@ export default function SiteHeader({
         .sh-announcement-track {
           display: flex;
           width: max-content;
-          animation: shAnnouncementMove 38s linear infinite;
+          animation: shAnnouncementMove 42s linear infinite;
           will-change: transform;
         }
 
