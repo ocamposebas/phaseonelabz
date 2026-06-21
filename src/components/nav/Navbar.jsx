@@ -9,9 +9,10 @@ const navItems = [
 ];
 
 const announcementItems = [
-  "Research Use Only",
-  "99% Purity HPLC Verified",
-  "Free Shipping Over $250",
+  "Grand Opening Savings",
+  "Free Shipping Over $35",
+  "No Extra Card Fees",
+  "All for Our Grand Opening",
 ];
 
 const PRODUCTS_ENDPOINT =
@@ -939,13 +940,13 @@ export default function SiteHeader({
             </div>
 
             <div className="sh-mobile-note">
-              <p>{isLoggedIn ? "Account Active" : "Research Use Only"}</p>
+              <p>{isLoggedIn ? "Account Active" : "Grand Opening"}</p>
               <span>
                 {isLoggedIn
                   ? `${account?.points || 0} reward points · ${formatStoreCredit(
                       storeCreditBalance
                     )} store balance.`
-                  : "Laboratory research catalog only."}
+                  : "Opening savings, free shipping over $35, and no extra card fees."}
               </span>
             </div>
 
