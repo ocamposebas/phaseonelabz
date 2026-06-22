@@ -245,6 +245,42 @@ function getProductPrice(product) {
   return Number(parsed || 0);
 }
 
+function parseProductPriceNumber(value) {
+  if (value === null || value === undefined || value === "") return 0;
+
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  const parsed = String(value).replace(/[^0-9.]/g, "");
+
+  return Number(parsed || 0);
+}
+
+function isProductDiscounted(product) {
+  if (!product) return false;
+
+  if (product?.on_sale === true || product?.onSale === true) {
+    return true;
+  }
+
+  const regularPrice = parseProductPriceNumber(
+    product?.regular_price ?? product?.regularPrice
+  );
+
+  const salePrice = parseProductPriceNumber(
+    product?.sale_price ?? product?.salePrice
+  );
+
+  if (regularPrice > 0 && salePrice > 0 && salePrice < regularPrice) {
+    return true;
+  }
+
+  const priceHtml = String(product?.price_html || product?.priceHtml || "");
+
+  return /<del[\s>]/i.test(priceHtml) || priceHtml.includes("woocommerce-Price-amount") && priceHtml.includes("<del");
+}
+
 function formatPrice(price) {
   const number = Number(price || 0);
 
@@ -473,7 +509,7 @@ function prepareProductForCatalog(product) {
     searchText,
     rank: getCustomProductRankFromText(orderText),
     mg: getProductMgFromText(orderText),
-    onSale: Boolean(product?.sale_price || product?.onSale),
+    onSale: isProductDiscounted(product),
     newestTime: newestRaw ? new Date(newestRaw).getTime() || 0 : 0,
   };
 }
@@ -802,11 +838,7 @@ export default function ShopCatalogSection({
 
       if (activeCollection) {
         if (activeCollection === "sale") {
-          return (
-            item.tags.includes("sale") ||
-            item.tags.includes("on sale") ||
-            item.onSale
-          );
+          return item.onSale;
         }
 
         if (activeCollection === "coming-soon") {
@@ -1262,6 +1294,43 @@ export default function ShopCatalogSection({
       )}
 
       <style>{`
+        @keyframes productSoftFloat {
+          0%,
+          100% {
+            transform: translate3d(0, 0, 0);
+          }
+
+          50% {
+            transform: translate3d(0, var(--product-float-lift, -9px), 0);
+          }
+        }
+
+        @keyframes productShadowFloat {
+          0%,
+          100% {
+            transform: scaleX(1);
+            opacity: 0.72;
+          }
+
+          50% {
+            transform: scaleX(0.84);
+            opacity: 0.42;
+          }
+        }
+
+        @keyframes productGlowFloat {
+          0%,
+          100% {
+            transform: translate3d(0, 0, 0) scale(1);
+            opacity: 0.78;
+          }
+
+          50% {
+            transform: translate3d(0, -7px, 0) scale(1.04);
+            opacity: 0.92;
+          }
+        }
+
         .product-float-card {
           position: relative;
           overflow: hidden;
@@ -1381,6 +1450,8 @@ export default function ShopCatalogSection({
           border-radius: 999px;
           pointer-events: none;
           opacity: 0.8;
+          animation: productGlowFloat 5.6s ease-in-out infinite;
+          will-change: transform, opacity;
         }
 
         .visual-glow-1 {
@@ -1451,6 +1522,9 @@ export default function ShopCatalogSection({
           display: grid;
           place-items: center;
           padding: 22px;
+          --product-float-lift: -9px;
+          animation: productSoftFloat 5.6s ease-in-out infinite;
+          will-change: transform;
         }
 
         .product-float-shadow {
@@ -1465,6 +1539,9 @@ export default function ShopCatalogSection({
             rgba(0,0,0,0.06) 70%,
             transparent 100%
           );
+          animation: productShadowFloat 5.6s ease-in-out infinite;
+          transform-origin: center;
+          will-change: transform, opacity;
         }
 
         .product-float-image {
@@ -1630,6 +1707,7 @@ export default function ShopCatalogSection({
 
           .product-float-image-wrap {
             padding: 18px 12px;
+            --product-float-lift: -5px;
           }
 
           .product-float-image {
@@ -1737,11 +1815,15 @@ export default function ShopCatalogSection({
         @media (prefers-reduced-motion: reduce) {
           .product-float-card,
           .product-float-image,
+          .product-float-image-wrap,
+          .product-float-shadow,
+          .visual-glow,
           .product-float-eye,
           .product-bundle-select,
           .product-float-button,
           .product-float-arrow {
             transition: none !important;
+            animation: none !important;
           }
         }
       `}</style>
