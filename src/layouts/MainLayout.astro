@@ -4,6 +4,7 @@ import "../styles/global.css";
 import GlobalPreloader from "../components/loading/GlobalPreloader.jsx";
 import AgeGate from "../components/age-gate/AgeGate.jsx";
 import AffiliateCouponTracker from "../components/tracking/AffiliateCouponTracker.jsx";
+import Popups from "../components/popups/pop.jsx";
 
 interface Props {
   title?: string;
@@ -56,6 +57,7 @@ const websiteSchema = {
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
     <title>{fullTitle}</title>
+
     <meta name="description" content={description} />
     <meta
       name="robots"
@@ -64,16 +66,13 @@ const websiteSchema = {
 
     <link rel="canonical" href={canonicalUrl} />
 
-    <!-- Favicons PNG -->
     <link rel="icon" type="image/png" href="/favicon.png?v=6" />
     <link rel="shortcut icon" type="image/png" href="/favicon.png?v=6" />
     <link rel="apple-touch-icon" href="/favicon.png?v=6" />
 
-    <!-- Theme / Browser UI -->
     <meta name="theme-color" content="#020617" />
     <meta name="color-scheme" content="dark light" />
 
-    <!-- Open Graph -->
     <meta property="og:site_name" content={siteName} />
     <link rel="sitemap" href="/sitemap-index.xml" />
     <meta property="og:title" content={fullTitle} />
@@ -84,13 +83,11 @@ const websiteSchema = {
     <meta property="og:image:alt" content={`${siteName} research catalog`} />
     <meta property="og:locale" content="en_US" />
 
-    <!-- Twitter / X -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={fullTitle} />
     <meta name="twitter:description" content={description} />
     <meta name="twitter:image" content={ogImageUrl} />
 
-    <!-- Research-use disclaimer signals -->
     <meta
       name="classification"
       content="Research-use-only laboratory catalog"
@@ -100,12 +97,11 @@ const websiteSchema = {
       content="research peptides, laboratory peptides, research compounds, Phase One Labz, lab use only peptides, educational research peptides"
     />
 
-    <!-- Performance: preconnect external scripts -->
     <link rel="preconnect" href="https://omnisnippet1.com" crossorigin />
     <link rel="preconnect" href="https://embed.tawk.to" crossorigin />
     <link rel="preconnect" href="https://connect.facebook.net" crossorigin />
+    <link rel="preconnect" href="https://www.googletagmanager.com" crossorigin />
 
-    <!-- Meta Pixel Code -->
     <script is:inline define:vars={{ metaPixelId }}>
       !(function (f, b, e, v, n, t, s) {
         if (f.fbq) return;
@@ -134,9 +130,23 @@ const websiteSchema = {
       fbq("init", metaPixelId);
       fbq("track", "PageView");
     </script>
-    <!-- End Meta Pixel Code -->
 
-    <!-- Structured Data -->
+    <script
+      async
+      src="https://www.googletagmanager.com/gtag/js?id=AW-18266891349"
+    ></script>
+
+    <script is:inline>
+      window.dataLayer = window.dataLayer || [];
+
+      function gtag() {
+        dataLayer.push(arguments);
+      }
+
+      gtag("js", new Date());
+      gtag("config", "AW-18266891349");
+    </script>
+
     <script
       type="application/ld+json"
       set:html={JSON.stringify(organizationSchema)}
@@ -147,18 +157,8 @@ const websiteSchema = {
       set:html={JSON.stringify(websiteSchema)}
     />
   </head>
-    <!-- Google tag (gtag.js) -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=AW-18266891349"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-
-  gtag('config', 'AW-18266891349');
-</script>
 
   <body class={isHome ? "is-home-page" : ""}>
-    <!-- Meta Pixel Noscript -->
     <noscript>
       <img
         height="1"
@@ -169,17 +169,16 @@ const websiteSchema = {
       />
     </noscript>
 
-    <AffiliateCouponTracker client:load />
-
     <AgeGate
       client:load
       logoSrc="/TRANSPARENCIA-03.webp"
       underAgeRedirectUrl="https://www.google.com"
     />
 
+    <AffiliateCouponTracker client:load />
+
     <GlobalPreloader client:load logoSrc="/TRANSPARENCIA-03.webp" />
 
-    <!-- Omnisend delayed load -->
     <script is:inline type="text/javascript">
       window.omnisend = window.omnisend || [];
       window.omnisend.push(["brandID", "6a20666d078df331c0cd01d7"]);
@@ -211,5 +210,7 @@ const websiteSchema = {
     <main class="site-main">
       <slot />
     </main>
+
+    <Popups client:only="react" />
   </body>
 </html>
