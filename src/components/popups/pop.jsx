@@ -1,20 +1,14 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import {
-  ArrowRight,
-  Copy,
-  Loader2,
-  Mail,
-  Sparkles,
-  X,
-} from "lucide-react";
+import { ArrowRight, Copy, Loader2, Mail, Sparkles, X } from "lucide-react";
 
 const LAUNCH_CODE = "PHASE20";
 const EXTRA_CODE = "WELCOME10";
+const POPUP_SEEN_KEY = "phaseone_launch_offer_seen_v1";
 
 export default function Popups() {
   const [mounted, setMounted] = useState(false);
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState("idle");
   const [message, setMessage] = useState("");
@@ -22,6 +16,16 @@ export default function Popups() {
 
   useEffect(() => {
     setMounted(true);
+
+    const hasSeenPopup = localStorage.getItem(POPUP_SEEN_KEY);
+
+    if (hasSeenPopup === "true") {
+      setOpen(false);
+      return;
+    }
+
+    localStorage.setItem(POPUP_SEEN_KEY, "true");
+    setOpen(true);
   }, []);
 
   useEffect(() => {
@@ -31,7 +35,9 @@ export default function Popups() {
     document.body.style.overflow = "hidden";
 
     const handleKeyDown = (event) => {
-      if (event.key === "Escape") setOpen(false);
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
     };
 
     window.addEventListener("keydown", handleKeyDown);
@@ -94,185 +100,277 @@ export default function Popups() {
     }
   };
 
-  if (!mounted || !open) return null;
+  if (!mounted) return null;
 
   return createPortal(
     <>
-      <div
-        className="phase-modal-overlay"
-        onMouseDown={(event) => {
-          if (event.target === event.currentTarget) setOpen(false);
-        }}
-      >
-        <div
-          className="phase-modal"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Phase One Labz launch offer"
+      {!open && (
+        <button
+          type="button"
+          className="phase-saved-tab"
+          onClick={() => setOpen(true)}
+          aria-label="Open saved 20 percent offer"
         >
-          <button
-            type="button"
-            className="phase-modal-close"
-            onClick={() => setOpen(false)}
-            aria-label="Close popup"
-          >
-            <X size={16} />
-          </button>
+          <span className="phase-saved-tab-glow" />
+          <span className="phase-saved-tab-main">20%</span>
+          <span className="phase-saved-tab-text">saved</span>
+        </button>
+      )}
 
-          {status !== "success" ? (
-            <div className="phase-modal-inner">
-              <div className="phase-modal-top">
-                <div className="phase-modal-badge">
-                  <Sparkles size={12} />
-                  Launch Offer
+      {open && (
+        <div
+          className="phase-modal-overlay"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setOpen(false);
+          }}
+        >
+          <div
+            className="phase-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Phase One Labz launch offer"
+          >
+            <button
+              type="button"
+              className="phase-modal-close"
+              onClick={() => setOpen(false)}
+              aria-label="Close popup"
+            >
+              <X size={16} />
+            </button>
+
+            {status !== "success" ? (
+              <div className="phase-modal-inner">
+                <div className="phase-modal-top">
+                  <div className="phase-modal-badge">
+                    <Sparkles size={12} />
+                    Launch Offer
+                  </div>
+
+                  <h2>Welcome to Phase One Labz.</h2>
+
+                  <p>
+                    Use your launch code at checkout and get 20% off your first
+                    order. Available until supplies last.
+                  </p>
                 </div>
 
-                <h2>Welcome to Phase One Labz.</h2>
+                <button
+                  type="button"
+                  className="phase-code-box"
+                  onClick={() => copyCode(LAUNCH_CODE)}
+                >
+                  <span>
+                    <small>20% launch code</small>
+                    <strong>{LAUNCH_CODE}</strong>
+                  </span>
 
-                <p>
-                  Use your launch code at checkout and get 20% off your first
-                  order.
-                </p>
-              </div>
+                  <span className="phase-copy-circle">
+                    <Copy size={15} />
+                  </span>
+                </button>
 
-              <button
-                type="button"
-                className="phase-code-box"
-                onClick={() => copyCode(LAUNCH_CODE)}
-              >
-                <span>
-                  <small>20% launch code</small>
-                  <strong>{LAUNCH_CODE}</strong>
-                </span>
+                {copied === LAUNCH_CODE && (
+                  <p className="phase-copied">PHASE20 copied.</p>
+                )}
 
-                <span className="phase-copy-circle">
-                  <Copy size={15} />
-                </span>
-              </button>
+                <div className="phase-divider" />
 
-              {copied === LAUNCH_CODE && (
-                <p className="phase-copied">PHASE20 copied.</p>
-              )}
+                <div className="phase-extra">
+                  <h3>Want an extra 10%?</h3>
 
-              <div className="phase-divider" />
-
-              <div className="phase-extra">
-                <h3>Want an extra 10%?</h3>
-
-                <p>
-                  Join the list and unlock a private subscriber bonus for your
-                  order.
-                </p>
-
-                <form className="phase-form" onSubmit={handleSubmit}>
-                  <label className="phase-input">
-                    <Mail size={15} />
-                    <input
-                      type="email"
-                      required
-                      value={email}
-                      onChange={(event) => {
-                        setEmail(event.target.value);
-
-                        if (status !== "loading") {
-                          setStatus("idle");
-                          setMessage("");
-                        }
-                      }}
-                      placeholder="Email Address *"
-                    />
-                  </label>
-
-                  <button
-                    type="submit"
-                    className="phase-submit"
-                    disabled={status === "loading"}
-                  >
-                    {status === "loading" ? (
-                      <>
-                        <Loader2 size={14} className="phase-spin" />
-                        Saving
-                      </>
-                    ) : (
-                      <>
-                        Unlock Extra 10%
-                        <ArrowRight size={14} />
-                      </>
-                    )}
-                  </button>
-
-                  <p className="phase-small">
-                    No spam. Only launch updates, restocks, and COA notices.
+                  <p>
+                    Join the list and unlock a private subscriber bonus for your
+                    order.
                   </p>
 
-                  {message && (
-                    <p
-                      className={`phase-message ${
-                        status === "error"
-                          ? "phase-message-error"
-                          : "phase-message-success"
-                      }`}
+                  <form className="phase-form" onSubmit={handleSubmit}>
+                    <label className="phase-input">
+                      <Mail size={15} />
+                      <input
+                        type="email"
+                        required
+                        value={email}
+                        onChange={(event) => {
+                          setEmail(event.target.value);
+
+                          if (status !== "loading") {
+                            setStatus("idle");
+                            setMessage("");
+                          }
+                        }}
+                        placeholder="Email Address *"
+                      />
+                    </label>
+
+                    <button
+                      type="submit"
+                      className="phase-submit"
+                      disabled={status === "loading"}
                     >
-                      {message}
+                      {status === "loading" ? (
+                        <>
+                          <Loader2 size={14} className="phase-spin" />
+                          Saving
+                        </>
+                      ) : (
+                        <>
+                          Unlock Extra 10%
+                          <ArrowRight size={14} />
+                        </>
+                      )}
+                    </button>
+
+                    <p className="phase-small">
+                      No spam. Only launch updates, restocks, and COA notices.
+                      Offer available until supplies last.
                     </p>
-                  )}
-                </form>
+
+                    {message && (
+                      <p
+                        className={`phase-message ${
+                          status === "error"
+                            ? "phase-message-error"
+                            : "phase-message-success"
+                        }`}
+                      >
+                        {message}
+                      </p>
+                    )}
+                  </form>
+                </div>
               </div>
-            </div>
-          ) : (
-            <div className="phase-success phase-success-v2">
-              <div className="phase-success-topline">
-                <span>Subscriber bonus unlocked</span>
-              </div>
+            ) : (
+              <div className="phase-success phase-success-v2">
+                <div className="phase-success-topline">
+                  <span>Subscriber bonus unlocked</span>
+                </div>
 
-              <h2>Extra 10% unlocked.</h2>
+                <h2>Extra 10% unlocked.</h2>
 
-              <p>
-                Your launch discount is already active. Use your subscriber code
-                below for the extra bonus at checkout.
-              </p>
+                <p>
+                  Your launch discount is already active. Use your subscriber
+                  code below for the extra bonus at checkout.
+                </p>
 
-              <button
-                type="button"
-                className="phase-main-code"
-                onClick={() => copyCode(EXTRA_CODE)}
-              >
-                <span>
-                  <small>Extra 10% code</small>
-                  <strong>{EXTRA_CODE}</strong>
-                </span>
+                <button
+                  type="button"
+                  className="phase-main-code"
+                  onClick={() => copyCode(EXTRA_CODE)}
+                >
+                  <span>
+                    <small>Extra 10% code</small>
+                    <strong>{EXTRA_CODE}</strong>
+                  </span>
 
-                <span className="phase-main-code-icon">
-                  <Copy size={16} />
-                </span>
-              </button>
+                  <span className="phase-main-code-icon">
+                    <Copy size={16} />
+                  </span>
+                </button>
 
-              <div className="phase-secondary-code">
-                <span>
-                  Launch code:
-                  <strong>{LAUNCH_CODE}</strong>
-                </span>
+                <div className="phase-secondary-code">
+                  <span>
+                    Launch code:
+                    <strong>{LAUNCH_CODE}</strong>
+                  </span>
 
-                <button type="button" onClick={() => copyCode(LAUNCH_CODE)}>
-                  Copy
+                  <button type="button" onClick={() => copyCode(LAUNCH_CODE)}>
+                    Copy
+                  </button>
+                </div>
+
+                {copied && <p className="phase-copied">Code copied.</p>}
+
+                <p className="phase-success-note">
+                  Offer available until supplies last.
+                </p>
+
+                <button
+                  type="button"
+                  className="phase-shop"
+                  onClick={() => setOpen(false)}
+                >
+                  Continue Shopping
                 </button>
               </div>
-
-              {copied && <p className="phase-copied">Code copied.</p>}
-
-              <button
-                type="button"
-                className="phase-shop"
-                onClick={() => setOpen(false)}
-              >
-                Continue Shopping
-              </button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       <style>{`
+        .phase-modal-overlay,
+        .phase-modal-overlay *,
+        .phase-modal-overlay *::before,
+        .phase-modal-overlay *::after,
+        .phase-saved-tab,
+        .phase-saved-tab *,
+        .phase-saved-tab *::before,
+        .phase-saved-tab *::after {
+          box-sizing: border-box;
+        }
+
+        .phase-saved-tab {
+          position: fixed;
+          right: max(16px, env(safe-area-inset-right));
+          bottom: max(18px, env(safe-area-inset-bottom));
+          z-index: 2147483646;
+          width: 92px;
+          height: 58px;
+          border: 1px solid rgba(165, 243, 252, 0.28);
+          border-radius: 999px;
+          background:
+            radial-gradient(circle at 28% 18%, rgba(255, 255, 255, 0.18), transparent 30%),
+            linear-gradient(135deg, rgba(103, 232, 249, 0.18), rgba(2, 6, 23, 0.94));
+          color: #ffffff;
+          display: inline-flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 1px;
+          cursor: pointer;
+          overflow: hidden;
+          box-shadow:
+            0 18px 50px rgba(0, 0, 0, 0.42),
+            0 0 34px rgba(34, 211, 238, 0.16),
+            inset 0 1px 0 rgba(255, 255, 255, 0.12);
+          transition: transform 180ms ease, border-color 180ms ease, filter 180ms ease;
+        }
+
+        .phase-saved-tab:hover {
+          transform: translateY(-2px);
+          border-color: rgba(165, 243, 252, 0.46);
+          filter: brightness(1.06);
+        }
+
+        .phase-saved-tab-glow {
+          position: absolute;
+          inset: -18px;
+          pointer-events: none;
+          background: radial-gradient(circle at 50% 30%, rgba(103, 232, 249, 0.22), transparent 48%);
+          opacity: 0.9;
+        }
+
+        .phase-saved-tab-main {
+          position: relative;
+          z-index: 1;
+          font-size: 22px;
+          line-height: 1;
+          font-weight: 950;
+          letter-spacing: -0.04em;
+        }
+
+        .phase-saved-tab-text {
+          position: relative;
+          z-index: 1;
+          color: rgba(207, 250, 254, 0.82);
+          font-size: 9px;
+          line-height: 1;
+          font-weight: 900;
+          text-transform: uppercase;
+          letter-spacing: 0.14em;
+        }
+
         .phase-modal-overlay {
           position: fixed;
           inset: 0;
@@ -280,7 +378,7 @@ export default function Popups() {
           display: flex;
           align-items: center;
           justify-content: center;
-          padding: 18px;
+          padding: max(14px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) max(14px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
           background:
             radial-gradient(circle at 50% 0%, rgba(56, 189, 248, 0.18), transparent 34%),
             rgba(1, 6, 15, 0.86);
@@ -291,7 +389,9 @@ export default function Popups() {
         .phase-modal {
           position: relative;
           width: min(100%, 440px);
-          overflow: hidden;
+          max-height: min(92vh, 720px);
+          overflow-y: auto;
+          overscroll-behavior: contain;
           border-radius: 28px;
           border: 1px solid rgba(186, 230, 253, 0.16);
           background:
@@ -300,6 +400,11 @@ export default function Popups() {
           box-shadow:
             0 34px 110px rgba(0, 0, 0, 0.66),
             inset 0 1px 0 rgba(255, 255, 255, 0.08);
+          scrollbar-width: none;
+        }
+
+        .phase-modal::-webkit-scrollbar {
+          display: none;
         }
 
         .phase-modal::before {
@@ -343,11 +448,15 @@ export default function Popups() {
           padding: 28px;
         }
 
+        .phase-modal-top {
+          padding-right: 38px;
+        }
+
         .phase-modal-top h2 {
           margin: 16px 0 0;
           max-width: 340px;
           color: #ffffff;
-          font-size: 34px;
+          font-size: clamp(30px, 7vw, 34px);
           line-height: 0.98;
           font-weight: 650;
           letter-spacing: -0.055em;
@@ -375,6 +484,7 @@ export default function Popups() {
           font-weight: 900;
           text-transform: uppercase;
           letter-spacing: 0.18em;
+          white-space: nowrap;
         }
 
         .phase-code-box {
@@ -389,12 +499,14 @@ export default function Popups() {
           display: flex;
           align-items: center;
           justify-content: space-between;
+          gap: 14px;
           color: #ffffff;
           cursor: pointer;
           box-shadow:
             0 18px 54px rgba(14, 165, 233, 0.11),
             inset 0 1px 0 rgba(255, 255, 255, 0.07);
           transition: 160ms ease;
+          text-align: left;
         }
 
         .phase-code-box:hover {
@@ -415,10 +527,11 @@ export default function Popups() {
           display: block;
           margin-top: 5px;
           color: #ffffff;
-          font-size: 32px;
+          font-size: clamp(27px, 8vw, 32px);
           line-height: 1;
           font-weight: 950;
           letter-spacing: 0.12em;
+          word-break: break-word;
         }
 
         .phase-copy-circle {
@@ -447,7 +560,7 @@ export default function Popups() {
         .phase-extra h3 {
           margin: 0;
           color: #ffffff;
-          font-size: 25px;
+          font-size: clamp(23px, 6vw, 25px);
           line-height: 1;
           font-weight: 650;
           letter-spacing: -0.045em;
@@ -471,6 +584,7 @@ export default function Popups() {
           position: absolute;
           left: 15px;
           color: #64748b;
+          pointer-events: none;
         }
 
         .phase-input input {
@@ -481,7 +595,7 @@ export default function Popups() {
           background: transparent;
           color: #ffffff;
           padding: 0 16px 0 42px;
-          font-size: 13.5px;
+          font-size: 16px;
           font-weight: 600;
         }
 
@@ -575,7 +689,7 @@ export default function Popups() {
         .phase-success-v2 h2 {
           margin: 18px 0 0;
           color: #ffffff;
-          font-size: 34px;
+          font-size: clamp(30px, 7vw, 34px);
           line-height: 0.95;
           font-weight: 680;
           letter-spacing: -0.06em;
@@ -602,11 +716,13 @@ export default function Popups() {
           display: flex;
           align-items: center;
           justify-content: space-between;
+          gap: 14px;
           cursor: pointer;
           box-shadow:
             0 18px 54px rgba(14, 165, 233, 0.12),
             inset 0 1px 0 rgba(255, 255, 255, 0.07);
           transition: 160ms ease;
+          text-align: left;
         }
 
         .phase-main-code:hover {
@@ -627,10 +743,11 @@ export default function Popups() {
           display: block;
           margin-top: 6px;
           color: #ffffff;
-          font-size: 34px;
+          font-size: clamp(28px, 8vw, 34px);
           line-height: 1;
           font-weight: 950;
           letter-spacing: 0.12em;
+          word-break: break-word;
         }
 
         .phase-main-code-icon {
@@ -658,6 +775,7 @@ export default function Popups() {
         }
 
         .phase-secondary-code span {
+          min-width: 0;
           color: rgba(203, 213, 225, 0.74);
           font-size: 12px;
           font-weight: 700;
@@ -669,9 +787,11 @@ export default function Popups() {
           font-size: 13px;
           font-weight: 950;
           letter-spacing: 0.08em;
+          word-break: break-word;
         }
 
         .phase-secondary-code button {
+          flex: 0 0 auto;
           border: 0;
           border-radius: 999px;
           background: rgba(103, 232, 249, 0.12);
@@ -691,6 +811,12 @@ export default function Popups() {
           font-weight: 800;
         }
 
+        .phase-success-note {
+          margin-top: 10px !important;
+          color: #64748b !important;
+          font-size: 10px !important;
+        }
+
         .phase-spin {
           animation: phaseSpin 0.9s linear infinite;
         }
@@ -702,6 +828,17 @@ export default function Popups() {
         }
 
         @media (max-width: 520px) {
+          .phase-saved-tab {
+            right: max(12px, env(safe-area-inset-right));
+            bottom: max(14px, env(safe-area-inset-bottom));
+            width: 84px;
+            height: 54px;
+          }
+
+          .phase-saved-tab-main {
+            font-size: 20px;
+          }
+
           .phase-modal-overlay {
             align-items: flex-end;
             padding: 10px;
@@ -709,8 +846,7 @@ export default function Popups() {
 
           .phase-modal {
             width: 100%;
-            max-height: calc(100vh - 20px);
-            overflow-y: auto;
+            max-height: calc(100svh - 20px);
             border-radius: 24px;
           }
 
@@ -719,21 +855,73 @@ export default function Popups() {
             padding: 24px 18px 18px;
           }
 
+          .phase-modal-top {
+            padding-right: 34px;
+          }
+
+          .phase-code-box,
+          .phase-main-code {
+            border-radius: 19px;
+            padding: 15px;
+          }
+
+          .phase-copy-circle,
+          .phase-main-code-icon {
+            width: 38px;
+            height: 38px;
+          }
+
+          .phase-secondary-code {
+            align-items: flex-start;
+          }
+        }
+
+        @media (max-width: 380px) {
+          .phase-saved-tab {
+            width: 78px;
+            height: 50px;
+          }
+
+          .phase-saved-tab-main {
+            font-size: 18px;
+          }
+
+          .phase-saved-tab-text {
+            font-size: 8px;
+          }
+
+          .phase-modal-overlay {
+            padding: 8px;
+          }
+
+          .phase-modal {
+            max-height: calc(100svh - 16px);
+            border-radius: 22px;
+          }
+
+          .phase-modal-inner,
+          .phase-success-v2 {
+            padding: 22px 15px 15px;
+          }
+
           .phase-modal-top h2,
           .phase-success-v2 h2 {
-            font-size: 30px;
-          }
-
-          .phase-code-box strong {
-            font-size: 27px;
-          }
-
-          .phase-main-code strong {
             font-size: 28px;
           }
 
-          .phase-extra h3 {
-            font-size: 23px;
+          .phase-code-box strong,
+          .phase-main-code strong {
+            font-size: 25px;
+            letter-spacing: 0.1em;
+          }
+
+          .phase-secondary-code {
+            flex-direction: column;
+            gap: 9px;
+          }
+
+          .phase-secondary-code button {
+            width: 100%;
           }
         }
       `}</style>
