@@ -996,10 +996,6 @@ function findCurrentCoaRecord(
 
   const currentRecords = records.filter(isCurrentCoaRecord);
 
-  /*
-    Priority 1: Exact selected variation ID.
-    This prevents variable products from showing the wrong MG COA.
-  */
   if (selectedVariationId) {
     const exactVariationMatch = currentRecords.find((record) => {
       const variationIds = getRecordIdList(
@@ -1021,7 +1017,6 @@ function findCurrentCoaRecord(
     return null;
   }
 
-  /* Priority 2: Exact SKU match. */
   if (variationSku || productSku) {
     const exactSkuMatch = currentRecords.find((record) => {
       const recordSkus = getRecordSkuList(record);
@@ -1035,7 +1030,6 @@ function findCurrentCoaRecord(
     if (exactSkuMatch) return exactSkuMatch;
   }
 
-  /* Priority 3: Exact simple product ID. */
   if (productId) {
     const exactProductMatch = currentRecords.find((record) => {
       const productIds = getRecordIdList(
@@ -1052,9 +1046,7 @@ function findCurrentCoaRecord(
     if (exactProductMatch) return exactProductMatch;
   }
 
-  /*
-    Priority 4: Parent product ID only when the COA record does NOT require a variation.
-  */
+
   if (parentProductId || productId) {
     const lookupParentId = parentProductId || productId;
 
@@ -1081,7 +1073,6 @@ function findCurrentCoaRecord(
     if (exactParentMatch) return exactParentMatch;
   }
 
-  /* Last fallback: Name / alias / family matching. */
   const candidateRecords = currentRecords.filter((record) => {
     const recordName = normalizeText(getRecordProductName(record));
     const recordSlug = normalizeSlug(getRecordProductSlug(record) || recordName);
@@ -1130,7 +1121,7 @@ function findCurrentCoaRecord(
   return candidateRecords[0] || null;
 }
 
-const CUSTOM_ORDER_PRODUCT_IDS = [646];
+const CUSTOM_ORDER_PRODUCT_IDS = [591];
 const CUSTOM_ORDER_FALLBACK_EMAIL = "support@phaseonelabz.com";
 
 function isCustomOrderProduct(product) {
