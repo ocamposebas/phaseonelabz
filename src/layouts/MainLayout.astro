@@ -156,6 +156,17 @@ const websiteSchema = {
       type="application/ld+json"
       set:html={JSON.stringify(websiteSchema)}
     />
+
+    <style is:global>
+      body.phase-cart-open .phase-saved-tab,
+      html.phase-cart-open .phase-saved-tab,
+      body.phase-cart-open .phase-modal-overlay,
+      html.phase-cart-open .phase-modal-overlay {
+        opacity: 0 !important;
+        pointer-events: none !important;
+        visibility: hidden !important;
+      }
+    </style>
   </head>
 
   <body class={isHome ? "is-home-page" : ""}>
@@ -206,12 +217,11 @@ const websiteSchema = {
         });
       }
     </script>
-    
 
     <main class="site-main">
       <slot />
     </main>
 
-    <Popups client:only="react" />
+    <Popups client:idle />
   </body>
 </html>

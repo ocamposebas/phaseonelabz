@@ -525,10 +525,95 @@ function productMatchesCategoryMeta(item, activeCategory) {
   );
 }
 
+function isVariableCatalogProduct(product = {}) {
+  const productType = String(
+    product?.type || product?.product_type || product?.productType || ""
+  )
+    .toLowerCase()
+    .trim();
+
+  if (productType.includes("variable")) return true;
+
+  if (product?.has_options === true || product?.hasOptions === true) return true;
+
+  const variationCollections = [
+    product?.variations,
+    product?.variation_ids,
+    product?.variationIds,
+    product?.children,
+  ];
+
+  if (
+    variationCollections.some(
+      (collection) => Array.isArray(collection) && collection.length > 0
+    )
+  ) {
+    return true;
+  }
+
+  if (
+    Array.isArray(product?.attributes) &&
+    product.attributes.some(
+      (attribute) =>
+        attribute?.variation === true ||
+        attribute?.is_variation === true ||
+        attribute?.isVariation === true
+    )
+  ) {
+    return true;
+  }
+
+  const parseRangeNumber = (value) => {
+    if (value === null || value === undefined || value === "") return 0;
+    if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+
+    const parsed = String(value).replace(/[^0-9.]/g, "");
+    return Number(parsed || 0);
+  };
+
+  const priceRangePairs = [
+    [product?.min_price, product?.max_price],
+    [product?.minPrice, product?.maxPrice],
+    [product?.price_min, product?.price_max],
+    [product?.priceMin, product?.priceMax],
+    [product?.regular_price_min, product?.regular_price_max],
+    [product?.regularPriceMin, product?.regularPriceMax],
+    [product?.price_range?.min, product?.price_range?.max],
+    [product?.priceRange?.min, product?.priceRange?.max],
+  ];
+
+  if (
+    priceRangePairs.some(([min, max]) => {
+      const cleanMin = parseRangeNumber(min);
+      const cleanMax = parseRangeNumber(max);
+
+      return cleanMin > 0 && cleanMax > 0 && cleanMax !== cleanMin;
+    })
+  ) {
+    return true;
+  }
+
+  const priceRangeText = [
+    product?.price,
+    product?.price_html,
+    product?.priceHtml,
+    product?.price_range,
+    product?.priceRange,
+    product?.display_price,
+    product?.displayPrice,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  return /(&ndash;|&#8211;|–|—|\s-\s|\sto\s)/i.test(priceRangeText);
+}
+
 const ProductCard = memo(function ProductCard({ item, addToCart, onBundleAdd }) {
   const { product, name, category, price, image, url, availability } = item;
   const { isUnavailable, unavailableLabel } = availability;
-  const canSelectBundle = !isUnavailable;
+  const isVariableProduct = isVariableCatalogProduct(product);
+  const canSelectBundle = !isUnavailable && !isVariableProduct;
+  const actionLabel = isVariableProduct ? "Select Options" : "Add to cart";
 
   const goToProduct = useCallback(() => {
     window.location.href = url;
@@ -555,16 +640,35 @@ const ProductCard = memo(function ProductCard({ item, addToCart, onBundleAdd }) 
 
       if (isUnavailable) return;
 
+      if (isVariableProduct) {
+        goToProduct();
+        return;
+      }
+
       addToCart({
         ...product,
         id: product.id,
+        product_id: product.product_id || product.id,
+        parent_id: product.parent_id || product.product_id || product.id,
+        variation_id: 0,
+        variation: {},
         name,
         price,
         image,
         category,
       });
     },
-    [addToCart, category, image, isUnavailable, name, price, product]
+    [
+      addToCart,
+      category,
+      goToProduct,
+      image,
+      isUnavailable,
+      isVariableProduct,
+      name,
+      price,
+      product,
+    ]
   );
 
   const handleBundleAdd = useCallback(
@@ -664,9 +768,14 @@ const ProductCard = memo(function ProductCard({ item, addToCart, onBundleAdd }) 
             type="button"
             onClick={handleAddToCart}
             className="product-float-button"
+            aria-label={
+              isVariableProduct
+                ? `Select options for ${name}`
+                : `Add ${name} to cart`
+            }
           >
             <ShoppingBag size={14} />
-            <span>Add to cart</span>
+            <span>{actionLabel}</span>
             <ArrowRight size={14} className="product-float-arrow" />
           </button>
         )}

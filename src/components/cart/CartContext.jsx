@@ -234,6 +234,97 @@ function normalizeCheckoutCoupon(value = "") {
     .slice(0, 32);
 }
 
+/*
+  COUPON STORAGE
+  Coupons/referral codes should not live forever in localStorage.
+  The cookie already expires after 7 days, so localStorage now follows
+  the same rule. Old saved coupons without an expiration are treated as stale
+  and are removed automatically the next time the cart loads.
+*/
+const CHECKOUT_COUPON_STORAGE_DAYS = 7;
+const CHECKOUT_COUPON_TTL_MS =
+  CHECKOUT_COUPON_STORAGE_DAYS * 24 * 60 * 60 * 1000;
+
+const CHECKOUT_COUPON_STORAGE_KEYS = [
+  "phaseone_checkout_coupon",
+  "phaseone_affiliate_coupon",
+  "phaseone_locked_checkout_coupon",
+  "phaseone_coupon_locked_from_url",
+  "phaseone_tagada_coupon",
+];
+
+function getCouponExpiryKey(key = "") {
+  return `${key}_expires_at`;
+}
+
+function removeExpiringStorageItem(key = "") {
+  if (typeof window === "undefined" || !key) return;
+
+  try {
+    localStorage.removeItem(key);
+    localStorage.removeItem(getCouponExpiryKey(key));
+  } catch {
+    // Ignore blocked storage.
+  }
+}
+
+function setExpiringStorageItem(key = "", value = "", ttlMs = CHECKOUT_COUPON_TTL_MS) {
+  if (typeof window === "undefined" || !key) return "";
+
+  const cleanValue = String(value || "").trim();
+
+  if (!cleanValue) {
+    removeExpiringStorageItem(key);
+    return "";
+  }
+
+  try {
+    const expiresAt = Date.now() + ttlMs;
+
+    localStorage.setItem(key, cleanValue);
+    localStorage.setItem(getCouponExpiryKey(key), String(expiresAt));
+  } catch {
+    // Ignore blocked storage.
+  }
+
+  return cleanValue;
+}
+
+function getExpiringStorageItem(key = "") {
+  if (typeof window === "undefined" || !key) return "";
+
+  try {
+    const value = String(localStorage.getItem(key) || "").trim();
+
+    if (!value) {
+      removeExpiringStorageItem(key);
+      return "";
+    }
+
+    const expiresAt = Number(localStorage.getItem(getCouponExpiryKey(key)) || 0);
+
+    /*
+      Important:
+      Previous versions saved coupons forever and did not create an expiry key.
+      If a coupon exists but has no expiry, treat it as old/stale and remove it.
+    */
+    if (!expiresAt || Date.now() > expiresAt) {
+      removeExpiringStorageItem(key);
+      return "";
+    }
+
+    return value;
+  } catch {
+    return "";
+  }
+}
+
+function clearStoredCheckoutCouponData() {
+  if (typeof window === "undefined") return;
+
+  CHECKOUT_COUPON_STORAGE_KEYS.forEach(removeExpiringStorageItem);
+}
+
 
 function setPhaseoneCouponCookie(value = "") {
   if (typeof document === "undefined") return "";
@@ -242,7 +333,7 @@ function setPhaseoneCouponCookie(value = "") {
 
   if (!cleanCoupon) return "";
 
-  const maxAge = 60 * 60 * 24 * 7;
+  const maxAge = 60 * 60 * 24 * CHECKOUT_COUPON_STORAGE_DAYS;
   const encoded = encodeURIComponent(cleanCoupon);
   const baseCookie = `phaseone_tagada_coupon=${encoded}; Path=/; Max-Age=${maxAge}; SameSite=Lax; Secure`;
 
@@ -254,7 +345,7 @@ function setPhaseoneCouponCookie(value = "") {
 
   try {
     window.sessionStorage?.setItem("phaseone_tagada_coupon", cleanCoupon);
-    window.localStorage?.setItem("phaseone_tagada_coupon", cleanCoupon);
+    setExpiringStorageItem("phaseone_tagada_coupon", cleanCoupon);
   } catch {
     // Storage may be blocked; cookie is the important handoff.
   }
@@ -270,7 +361,7 @@ function clearPhaseoneCouponCookie() {
 
   try {
     window.sessionStorage?.removeItem("phaseone_tagada_coupon");
-    window.localStorage?.removeItem("phaseone_tagada_coupon");
+    removeExpiringStorageItem("phaseone_tagada_coupon");
   } catch {
     // Ignore.
   }
@@ -306,13 +397,13 @@ function persistCheckoutCouponEverywhere(value = "", options = {}) {
 
   if (!cleanCoupon) return "";
 
-  localStorage.setItem("phaseone_checkout_coupon", cleanCoupon);
-  localStorage.setItem("phaseone_affiliate_coupon", cleanCoupon);
+  setExpiringStorageItem("phaseone_checkout_coupon", cleanCoupon);
+  setExpiringStorageItem("phaseone_affiliate_coupon", cleanCoupon);
   setPhaseoneCouponCookie(cleanCoupon);
 
   if (options.locked) {
-    localStorage.setItem("phaseone_locked_checkout_coupon", cleanCoupon);
-    localStorage.setItem("phaseone_coupon_locked_from_url", "1");
+    setExpiringStorageItem("phaseone_locked_checkout_coupon", cleanCoupon);
+    setExpiringStorageItem("phaseone_coupon_locked_from_url", "1");
   }
 
   return cleanCoupon;
@@ -321,10 +412,16 @@ function persistCheckoutCouponEverywhere(value = "", options = {}) {
 function getStoredCheckoutCoupon() {
   if (typeof window === "undefined") return "";
 
+  const lockedFlag = getExpiringStorageItem("phaseone_coupon_locked_from_url") === "1";
+  const lockedCoupon = normalizeCheckoutCoupon(
+    getExpiringStorageItem("phaseone_locked_checkout_coupon")
+  );
+
+  if (lockedFlag && lockedCoupon) return lockedCoupon;
+
   return normalizeCheckoutCoupon(
-    localStorage.getItem("phaseone_locked_checkout_coupon") ||
-      localStorage.getItem("phaseone_checkout_coupon") ||
-      localStorage.getItem("phaseone_affiliate_coupon") ||
+    getExpiringStorageItem("phaseone_checkout_coupon") ||
+      getExpiringStorageItem("phaseone_affiliate_coupon") ||
       ""
   );
 }
@@ -471,16 +568,13 @@ function saveCheckoutCoupon(value = "") {
   const cleanCoupon = normalizeCheckoutCoupon(value);
 
   if (cleanCoupon) {
-    localStorage.setItem("phaseone_checkout_coupon", cleanCoupon);
-    localStorage.setItem("phaseone_affiliate_coupon", cleanCoupon);
+    setExpiringStorageItem("phaseone_checkout_coupon", cleanCoupon);
+    setExpiringStorageItem("phaseone_affiliate_coupon", cleanCoupon);
     setPhaseoneCouponCookie(cleanCoupon);
-    localStorage.removeItem("phaseone_locked_checkout_coupon");
-    localStorage.removeItem("phaseone_coupon_locked_from_url");
+    removeExpiringStorageItem("phaseone_locked_checkout_coupon");
+    removeExpiringStorageItem("phaseone_coupon_locked_from_url");
   } else {
-    localStorage.removeItem("phaseone_checkout_coupon");
-    localStorage.removeItem("phaseone_affiliate_coupon");
-    localStorage.removeItem("phaseone_locked_checkout_coupon");
-    localStorage.removeItem("phaseone_coupon_locked_from_url");
+    clearStoredCheckoutCouponData();
     clearPhaseoneCouponCookie();
   }
 

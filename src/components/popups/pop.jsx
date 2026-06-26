@@ -29,6 +29,20 @@ export default function Popups() {
   }, []);
 
   useEffect(() => {
+    const closeWhenCartOpens = (event) => {
+      if (event?.detail?.open) {
+        setOpen(false);
+      }
+    };
+
+    window.addEventListener("phase-cart-state", closeWhenCartOpens);
+
+    return () => {
+      window.removeEventListener("phase-cart-state", closeWhenCartOpens);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!mounted || !open) return;
 
     const originalOverflow = document.body.style.overflow;
@@ -108,7 +122,10 @@ export default function Popups() {
         <button
           type="button"
           className="phase-saved-tab"
-          onClick={() => setOpen(true)}
+          onClick={() => {
+            if (document.body.classList.contains("phase-cart-open")) return;
+            setOpen(true);
+          }}
           aria-label="Open saved 20 percent offer"
         >
           <span className="phase-saved-tab-glow" />
@@ -310,18 +327,26 @@ export default function Popups() {
           box-sizing: border-box;
         }
 
+        body.phase-cart-open .phase-saved-tab,
+        html.phase-cart-open .phase-saved-tab,
+        body.phase-cart-open .phase-modal-overlay,
+        html.phase-cart-open .phase-modal-overlay {
+          opacity: 0 !important;
+          pointer-events: none !important;
+          visibility: hidden !important;
+          transform: translateY(8px);
+        }
+
         .phase-saved-tab {
           position: fixed;
           right: max(16px, env(safe-area-inset-right));
           bottom: max(18px, env(safe-area-inset-bottom));
-          z-index: 2147483646;
-          width: 92px;
-          height: 58px;
-          border: 1px solid rgba(165, 243, 252, 0.28);
+          z-index: 80;
+          width: 74px;
+          height: 46px;
+          border: 1px solid rgba(165, 243, 252, 0.2);
           border-radius: 999px;
-          background:
-            radial-gradient(circle at 28% 18%, rgba(255, 255, 255, 0.18), transparent 30%),
-            linear-gradient(135deg, rgba(103, 232, 249, 0.18), rgba(2, 6, 23, 0.94));
+          background: rgba(2, 6, 23, 0.94);
           color: #ffffff;
           display: inline-flex;
           flex-direction: column;
@@ -330,31 +355,26 @@ export default function Popups() {
           gap: 1px;
           cursor: pointer;
           overflow: hidden;
-          box-shadow:
-            0 18px 50px rgba(0, 0, 0, 0.42),
-            0 0 34px rgba(34, 211, 238, 0.16),
-            inset 0 1px 0 rgba(255, 255, 255, 0.12);
-          transition: transform 180ms ease, border-color 180ms ease, filter 180ms ease;
+          box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+          transition: opacity 140ms ease, transform 140ms ease, border-color 140ms ease;
         }
 
         .phase-saved-tab:hover {
           transform: translateY(-2px);
           border-color: rgba(165, 243, 252, 0.46);
-          filter: brightness(1.06);
         }
 
         .phase-saved-tab-glow {
           position: absolute;
           inset: -18px;
           pointer-events: none;
-          background: radial-gradient(circle at 50% 30%, rgba(103, 232, 249, 0.22), transparent 48%);
-          opacity: 0.9;
+          display: none;
         }
 
         .phase-saved-tab-main {
           position: relative;
           z-index: 1;
-          font-size: 22px;
+          font-size: 19px;
           line-height: 1;
           font-weight: 950;
           letter-spacing: -0.04em;
@@ -364,7 +384,7 @@ export default function Popups() {
           position: relative;
           z-index: 1;
           color: rgba(207, 250, 254, 0.82);
-          font-size: 9px;
+          font-size: 8px;
           line-height: 1;
           font-weight: 900;
           text-transform: uppercase;
@@ -374,7 +394,7 @@ export default function Popups() {
         .phase-modal-overlay {
           position: fixed;
           inset: 0;
-          z-index: 2147483647;
+          z-index: 9997;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -382,7 +402,7 @@ export default function Popups() {
           background:
             radial-gradient(circle at 50% 0%, rgba(56, 189, 248, 0.18), transparent 34%),
             rgba(1, 6, 15, 0.86);
-          backdrop-filter: blur(14px);
+          backdrop-filter: none;
           color: #ffffff;
         }
 
@@ -831,12 +851,12 @@ export default function Popups() {
           .phase-saved-tab {
             right: max(12px, env(safe-area-inset-right));
             bottom: max(14px, env(safe-area-inset-bottom));
-            width: 84px;
-            height: 54px;
+            width: 66px;
+            height: 42px;
           }
 
           .phase-saved-tab-main {
-            font-size: 20px;
+            font-size: 17px;
           }
 
           .phase-modal-overlay {
@@ -878,12 +898,12 @@ export default function Popups() {
 
         @media (max-width: 380px) {
           .phase-saved-tab {
-            width: 78px;
-            height: 50px;
+            width: 60px;
+            height: 40px;
           }
 
           .phase-saved-tab-main {
-            font-size: 18px;
+            font-size: 16px;
           }
 
           .phase-saved-tab-text {
