@@ -342,11 +342,14 @@ export default function Popups() {
           right: max(16px, env(safe-area-inset-right));
           bottom: max(18px, env(safe-area-inset-bottom));
           z-index: 80;
-          width: 74px;
-          height: 46px;
-          border: 1px solid rgba(165, 243, 252, 0.2);
+          width: 88px;
+          height: 56px;
+          border: 1px solid rgba(165, 243, 252, 0.38);
           border-radius: 999px;
-          background: rgba(2, 6, 23, 0.94);
+          background:
+            radial-gradient(circle at 28% 18%, rgba(255, 255, 255, 0.22), transparent 30%),
+            radial-gradient(circle at 72% 84%, rgba(59, 130, 246, 0.32), transparent 42%),
+            linear-gradient(135deg, rgba(103, 232, 249, 0.34), rgba(8, 47, 73, 0.95) 48%, rgba(2, 6, 23, 0.96));
           color: #ffffff;
           display: inline-flex;
           flex-direction: column;
@@ -355,36 +358,47 @@ export default function Popups() {
           gap: 1px;
           cursor: pointer;
           overflow: hidden;
-          box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
-          transition: opacity 140ms ease, transform 140ms ease, border-color 140ms ease;
+          box-shadow:
+            0 14px 34px rgba(0, 0, 0, 0.34),
+            0 0 28px rgba(34, 211, 238, 0.22),
+            inset 0 1px 0 rgba(255, 255, 255, 0.16);
+          transition: opacity 140ms ease, transform 140ms ease, border-color 140ms ease, filter 140ms ease;
+          transform: translate3d(0, 0, 0);
         }
 
         .phase-saved-tab:hover {
-          transform: translateY(-2px);
-          border-color: rgba(165, 243, 252, 0.46);
+          transform: translate3d(0, -2px, 0);
+          border-color: rgba(165, 243, 252, 0.62);
+          filter: brightness(1.08);
         }
 
         .phase-saved-tab-glow {
           position: absolute;
-          inset: -18px;
+          inset: -24px;
           pointer-events: none;
-          display: none;
+          display: block;
+          background:
+            radial-gradient(circle at 50% 24%, rgba(255, 255, 255, 0.20), transparent 32%),
+            radial-gradient(circle at 50% 58%, rgba(103, 232, 249, 0.28), transparent 54%);
+          opacity: 0.95;
         }
 
         .phase-saved-tab-main {
           position: relative;
           z-index: 1;
-          font-size: 19px;
+          color: #ffffff;
+          font-size: 22px;
           line-height: 1;
           font-weight: 950;
           letter-spacing: -0.04em;
+          text-shadow: 0 0 18px rgba(103, 232, 249, 0.35);
         }
 
         .phase-saved-tab-text {
           position: relative;
           z-index: 1;
-          color: rgba(207, 250, 254, 0.82);
-          font-size: 8px;
+          color: rgba(207, 250, 254, 0.92);
+          font-size: 9px;
           line-height: 1;
           font-weight: 900;
           text-transform: uppercase;
@@ -851,12 +865,12 @@ export default function Popups() {
           .phase-saved-tab {
             right: max(12px, env(safe-area-inset-right));
             bottom: max(14px, env(safe-area-inset-bottom));
-            width: 66px;
-            height: 42px;
+            width: 82px;
+            height: 52px;
           }
 
           .phase-saved-tab-main {
-            font-size: 17px;
+            font-size: 20px;
           }
 
           .phase-modal-overlay {
@@ -898,12 +912,12 @@ export default function Popups() {
 
         @media (max-width: 380px) {
           .phase-saved-tab {
-            width: 60px;
-            height: 40px;
+            width: 76px;
+            height: 48px;
           }
 
           .phase-saved-tab-main {
-            font-size: 16px;
+            font-size: 18px;
           }
 
           .phase-saved-tab-text {
