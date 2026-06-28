@@ -15,7 +15,6 @@ interface Props {
 
 const siteName = "Phase One Labz";
 const siteUrl = "https://phaseonelabz.com";
-const metaPixelId = "4340714472849976";
 
 const {
   title = "Phase One Labz | Premium Research Peptides",
@@ -99,37 +98,6 @@ const websiteSchema = {
 
     <link rel="preconnect" href="https://omnisnippet1.com" crossorigin />
     <link rel="preconnect" href="https://embed.tawk.to" crossorigin />
-    <link rel="preconnect" href="https://connect.facebook.net" crossorigin />
-    <link rel="preconnect" href="https://www.googletagmanager.com" crossorigin />
-
-    <script is:inline define:vars={{ metaPixelId }}>
-      !(function (f, b, e, v, n, t, s) {
-        if (f.fbq) return;
-        n = f.fbq = function () {
-          n.callMethod
-            ? n.callMethod.apply(n, arguments)
-            : n.queue.push(arguments);
-        };
-        if (!f._fbq) f._fbq = n;
-        n.push = n;
-        n.loaded = true;
-        n.version = "2.0";
-        n.queue = [];
-        t = b.createElement(e);
-        t.async = true;
-        t.src = v;
-        s = b.getElementsByTagName(e)[0];
-        s.parentNode.insertBefore(t, s);
-      })(
-        window,
-        document,
-        "script",
-        "https://connect.facebook.net/en_US/fbevents.js"
-      );
-
-      fbq("init", metaPixelId);
-      fbq("track", "PageView");
-    </script>
 
     <script
       async
@@ -170,16 +138,6 @@ const websiteSchema = {
   </head>
 
   <body class={isHome ? "is-home-page" : ""}>
-    <noscript>
-      <img
-        height="1"
-        width="1"
-        style="display:none"
-        src={`https://www.facebook.com/tr?id=${metaPixelId}&ev=PageView&noscript=1`}
-        alt=""
-      />
-    </noscript>
-
     <AffiliateCouponTracker client:load />
 
     <AgeGate
