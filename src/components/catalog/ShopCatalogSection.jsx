@@ -666,7 +666,7 @@ const ProductCard = memo(function ProductCard({ item, addToCart, onBundleAdd }) 
         bundleSameProductOnly: false,
         bundleRequiredQuantity: 5,
         bundleQuantity: 1,
-        bundleRuleKey: "any-5-eligible-products",
+        bundleRuleKey: "any-5-products",
       });
     },
     [
@@ -714,7 +714,7 @@ const ProductCard = memo(function ProductCard({ item, addToCart, onBundleAdd }) 
           type="button"
           onClick={handleBundleAdd}
           className="product-bundle-select"
-          aria-label={`Add ${name} to bundle and unlock 10% off after 5 eligible products`}
+          aria-label={`Add ${name} to bundle and unlock 10% off after 5 products`}
         >
           <span />
           Add to Bundle
@@ -934,7 +934,7 @@ export default function ShopCatalogSection({
         bundleSameProductOnly: false,
         bundleRequiredQuantity: 5,
         bundleQuantity: 1,
-        bundleRuleKey: "any-5-eligible-products",
+        bundleRuleKey: "any-5-products",
       });
     },
     [addToCart]
@@ -1113,13 +1113,12 @@ export default function ShopCatalogSection({
               </div>
 
               <h3 className="text-xl font-semibold tracking-[-0.045em] text-white sm:text-2xl">
-                Add any 5 eligible products and unlock 10% off.
+                Add any 5 products and unlock 10% off.
               </h3>
 
               <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
-                Mix and match any 5 eligible products from the catalog. Once your
-                cart reaches 5 eligible items, the 10% bundle discount will be
-                applied.
+                Mix and match any 5 products from the catalog. Once your
+                cart reaches 5 products, the 10% discount will be applied.
               </p>
             </div>
 
@@ -1129,7 +1128,7 @@ export default function ShopCatalogSection({
               </p>
 
               <p className="mt-1 text-lg font-semibold text-white">
-                5 eligible products
+                5 products
               </p>
 
               <p className="mt-1 text-xs text-slate-500">
