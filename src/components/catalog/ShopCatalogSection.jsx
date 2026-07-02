@@ -612,11 +612,26 @@ function isVariableCatalogProduct(product = {}) {
   return /(&ndash;|&#8211;|–|—|\s-\s|\sto\s)/i.test(priceRangeText);
 }
 
+
+function getCartItemQuantity(item) {
+  const rawQuantity =
+    item?.quantity ??
+    item?.qty ??
+    item?.cart_quantity ??
+    item?.cartQuantity ??
+    1;
+
+  const quantity = Number(rawQuantity);
+
+  return Number.isFinite(quantity) && quantity > 0 ? quantity : 1;
+}
+
 const ProductCard = memo(function ProductCard({ item, addToCart, onBundleAdd }) {
   const { product, name, category, price, image, url, availability } = item;
   const { isUnavailable, unavailableLabel } = availability;
   const isVariableProduct = isVariableCatalogProduct(product);
-  const canSelectBundle = !isUnavailable && !isVariableProduct;
+  const canSelectBundle = !isUnavailable;
+  const showBundleButton = true;
   const actionLabel = isVariableProduct ? "Select Options" : "Add to cart";
 
   const goToProduct = useCallback(() => {
@@ -687,11 +702,16 @@ const ProductCard = memo(function ProductCard({ item, addToCart, onBundleAdd }) 
       event.preventDefault();
       event.stopPropagation();
 
-      if (!canSelectBundle) return;
+      if (isUnavailable) return;
+
+      if (isVariableProduct) {
+        goToProduct();
+        return;
+      }
 
       onBundleAdd(product);
     },
-    [canSelectBundle, onBundleAdd, product]
+    [goToProduct, isUnavailable, isVariableProduct, onBundleAdd, product]
   );
 
   return (
@@ -709,11 +729,13 @@ const ProductCard = memo(function ProductCard({ item, addToCart, onBundleAdd }) 
         <span className="product-stock-badge">{unavailableLabel}</span>
       )}
 
-      {canSelectBundle && (
+      {showBundleButton && (
         <button
           type="button"
           onClick={handleBundleAdd}
-          className="product-bundle-select"
+          disabled={!canSelectBundle}
+          aria-disabled={!canSelectBundle}
+          className={`product-bundle-select ${!canSelectBundle ? "product-bundle-select-disabled" : ""}`}
           aria-label={`Add ${name} to bundle and unlock 10% off after 5 products`}
         >
           <span />
@@ -883,7 +905,10 @@ export default function ShopCatalogSection({
   products = [],
   productsPerPage = 20,
 }) {
-  const { addToCart } = useCart();
+  const cartApi = useCart();
+  const addToCart = cartApi?.addToCart;
+  const cartItems =
+    cartApi?.cartItems || cartApi?.items || cartApi?.cart || [];
 
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
@@ -905,6 +930,20 @@ export default function ShopCatalogSection({
   const preparedProducts = useMemo(() => {
     return products.map(prepareProductForCatalog);
   }, [products]);
+
+  const cartProductsCount = useMemo(() => {
+    return cartItems.reduce((total, item) => {
+      return total + getCartItemQuantity(item);
+    }, 0);
+  }, [cartItems]);
+
+  const bundleGoal = 5;
+  const remainingBundleProducts = Math.max(0, bundleGoal - cartProductsCount);
+  const bundleUnlocked = cartProductsCount >= bundleGoal;
+  const bundleProgressWidth = Math.min(
+    (cartProductsCount / bundleGoal) * 100,
+    100
+  );
 
   const addAnyFiveBundleItemToCart = useCallback(
     (product) => {
@@ -1117,8 +1156,8 @@ export default function ShopCatalogSection({
               </h3>
 
               <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
-                Mix and match any 5 products from the catalog. Once your
-                cart reaches 5 products, the 10% discount will be applied.
+                Every product in the catalog counts toward the bundle. Add any 5
+                products to your cart and unlock 10% off automatically.
               </p>
             </div>
 
@@ -1128,12 +1167,23 @@ export default function ShopCatalogSection({
               </p>
 
               <p className="mt-1 text-lg font-semibold text-white">
-                5 products
+                {bundleUnlocked ? "Bundle unlocked" : `${cartProductsCount}/5 products`}
               </p>
 
               <p className="mt-1 text-xs text-slate-500">
-                Mix and match across the catalog.
+                {bundleUnlocked
+                  ? "10% off is active in your cart."
+                  : `You need ${remainingBundleProducts} more product${
+                      remainingBundleProducts === 1 ? "" : "s"
+                    } to complete the 5-product bundle and unlock 10% off.`}
               </p>
+
+              <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/[0.06]">
+                <div
+                  className="h-full rounded-full bg-cyan-300 transition-all duration-300"
+                  style={{ width: `${bundleProgressWidth}%` }}
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -1542,6 +1592,17 @@ export default function ShopCatalogSection({
           border-radius: 999px;
           border: 1px solid rgba(165, 243, 252, 0.45);
           background: transparent;
+        }
+
+        .product-bundle-select-disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+
+        .product-bundle-select-disabled:hover {
+          transform: none;
+          border-color: rgba(165, 243, 252, 0.16);
+          color: rgba(226, 232, 240, 0.82);
         }
 
         .product-float-visual {
