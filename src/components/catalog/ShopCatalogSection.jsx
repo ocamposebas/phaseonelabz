@@ -626,6 +626,180 @@ function getCartItemQuantity(item) {
   return Number.isFinite(quantity) && quantity > 0 ? quantity : 1;
 }
 
+
+function normalizeOptionText(value = "") {
+  return String(value || "")
+    .replace(/&amp;/g, "&")
+    .replace(/&#8211;/g, "–")
+    .replace(/&ndash;/g, "–")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function getOptionMgValue(value = "") {
+  const match = normalizeOptionText(value).match(/(\d+(?:\.\d+)?)\s*mg/i);
+
+  return match ? Number(match[1]) : 999999;
+}
+
+function getProductVariationObjects(product = {}) {
+  const possibleCollections = [
+    product?.variations,
+    product?.variation_objects,
+    product?.variationObjects,
+    product?.children,
+  ];
+
+  return possibleCollections
+    .flatMap((collection) => (Array.isArray(collection) ? collection : []))
+    .filter((variation) => variation && typeof variation === "object");
+}
+
+function getVariationLabel(variation = {}) {
+  const attributes = Array.isArray(variation?.attributes)
+    ? variation.attributes
+    : [];
+
+  const attributeText = attributes
+    .map((attribute) => {
+      if (typeof attribute === "string") return attribute;
+
+      return (
+        attribute?.option ||
+        attribute?.value ||
+        attribute?.name ||
+        attribute?.label ||
+        ""
+      );
+    })
+    .filter(Boolean)
+    .join(" ");
+
+  return normalizeOptionText(
+    variation?.name ||
+      variation?.title ||
+      variation?.label ||
+      variation?.option ||
+      variation?.attributes_text ||
+      variation?.attributesText ||
+      attributeText ||
+      variation?.sku ||
+      ""
+  );
+}
+
+function getProductMgOptions(product = {}) {
+  const options = [];
+  const seen = new Set();
+
+  const pushOption = (option) => {
+    const label = normalizeOptionText(option?.label || option?.name || option?.value);
+
+    if (!label) return;
+
+    const key = normalizeCatalogFilterText(
+      `${label} ${option?.variationId || option?.variation_id || ""}`
+    );
+
+    if (seen.has(key)) return;
+
+    seen.add(key);
+
+    options.push({
+      label,
+      value: option?.value || label,
+      variationId: option?.variationId || option?.variation_id || 0,
+      variation: option?.variation || null,
+      price: option?.price,
+      image: option?.image,
+      mgValue: getOptionMgValue(label),
+    });
+  };
+
+  getProductVariationObjects(product).forEach((variation) => {
+    const label = getVariationLabel(variation);
+
+    if (!label) return;
+
+    const variationPrice =
+      variation?.price ||
+      variation?.sale_price ||
+      variation?.salePrice ||
+      variation?.regular_price ||
+      variation?.regularPrice;
+
+    const variationImage =
+      variation?.image ||
+      variation?.image?.src ||
+      variation?.images?.[0]?.src ||
+      variation?.images?.[0]?.url;
+
+    pushOption({
+      label,
+      value: label,
+      variationId: variation?.id || variation?.variation_id || variation?.variationId || 0,
+      variation,
+      price: variationPrice,
+      image: variationImage,
+    });
+  });
+
+  if (Array.isArray(product?.attributes)) {
+    product.attributes.forEach((attribute) => {
+      const attributeName = normalizeCatalogFilterText(
+        attribute?.name || attribute?.slug || ""
+      );
+
+      const looksLikeMgAttribute =
+        attributeName.includes("mg") ||
+        attributeName.includes("size") ||
+        attributeName.includes("dose") ||
+        attributeName.includes("dosage") ||
+        attributeName.includes("strength") ||
+        attributeName.includes("specification");
+
+      const isVariationAttribute =
+        attribute?.variation === true ||
+        attribute?.is_variation === true ||
+        attribute?.isVariation === true;
+
+      if (!looksLikeMgAttribute && !isVariationAttribute) return;
+
+      const rawOptions = Array.isArray(attribute?.options)
+        ? attribute.options
+        : [];
+
+      rawOptions.forEach((rawOption) => {
+        const label =
+          typeof rawOption === "string"
+            ? rawOption
+            : rawOption?.name || rawOption?.label || rawOption?.value || "";
+
+        if (!label) return;
+
+        pushOption({
+          label,
+          value: label,
+          variation: {
+            [attribute?.slug || attribute?.name || "mg"]: label,
+          },
+        });
+      });
+    });
+  }
+
+  return options.sort((a, b) => {
+    if (a.mgValue !== b.mgValue) return a.mgValue - b.mgValue;
+
+    return a.label.localeCompare(b.label);
+  });
+}
+
+function productNeedsMgSelection(product = {}) {
+  return getProductMgOptions(product).length > 0;
+}
+
+
 const ProductCard = memo(function ProductCard({ item, addToCart, onBundleAdd }) {
   const { product, name, category, price, image, url, availability } = item;
   const { isUnavailable, unavailableLabel } = availability;
@@ -633,10 +807,17 @@ const ProductCard = memo(function ProductCard({ item, addToCart, onBundleAdd }) 
   const canSelectBundle = !isUnavailable;
   const showBundleButton = true;
   const actionLabel = isVariableProduct ? "Select Options" : "Add to cart";
+  const mgOptions = useMemo(() => getProductMgOptions(product), [product]);
+  const needsMgSelection = mgOptions.length > 0;
+  const [mgSelectorOpen, setMgSelectorOpen] = useState(false);
 
   const goToProduct = useCallback(() => {
     window.location.href = url;
   }, [url]);
+
+  const closeMgSelector = useCallback(() => {
+    setMgSelectorOpen(false);
+  }, []);
 
   const handleCardKeyDown = useCallback(
     (event) => {
@@ -669,8 +850,8 @@ const ProductCard = memo(function ProductCard({ item, addToCart, onBundleAdd }) 
         id: product.id,
         product_id: product.product_id || product.id,
         parent_id: product.parent_id || product.product_id || product.id,
-        variation_id: 0,
-        variation: {},
+        variation_id: product.variation_id || product.variationId || 0,
+        variation: product.variation || {},
         name,
         price,
         image,
@@ -704,14 +885,27 @@ const ProductCard = memo(function ProductCard({ item, addToCart, onBundleAdd }) 
 
       if (isUnavailable) return;
 
-      if (isVariableProduct) {
-        goToProduct();
+      if (needsMgSelection) {
+        setMgSelectorOpen((current) => !current);
         return;
       }
 
       onBundleAdd(product);
     },
-    [goToProduct, isUnavailable, isVariableProduct, onBundleAdd, product]
+    [isUnavailable, needsMgSelection, onBundleAdd, product]
+  );
+
+  const handleBundleMgSelect = useCallback(
+    (event, option) => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      if (isUnavailable) return;
+
+      onBundleAdd(product, option);
+      setMgSelectorOpen(false);
+    },
+    [isUnavailable, onBundleAdd, product]
   );
 
   return (
@@ -735,12 +929,61 @@ const ProductCard = memo(function ProductCard({ item, addToCart, onBundleAdd }) 
           onClick={handleBundleAdd}
           disabled={!canSelectBundle}
           aria-disabled={!canSelectBundle}
-          className={`product-bundle-select ${!canSelectBundle ? "product-bundle-select-disabled" : ""}`}
+          className={`product-bundle-select ${
+            !canSelectBundle ? "product-bundle-select-disabled" : ""
+          } ${mgSelectorOpen ? "product-bundle-select-active" : ""}`}
           aria-label={`Add ${name} to bundle and unlock 10% off after 5 products`}
         >
           <span />
-          Add to Bundle
+          {needsMgSelection ? "Choose MG" : "Add to Bundle"}
         </button>
+      )}
+
+      {mgSelectorOpen && (
+        <div
+          className="product-mg-selector"
+          onClick={(event) => event.stopPropagation()}
+          role="dialog"
+          aria-label={`Choose MG for ${name}`}
+        >
+          <div className="product-mg-selector-head">
+            <div>
+              <p className="product-mg-kicker">Select MG</p>
+              <p className="product-mg-title">Choose your option</p>
+            </div>
+
+            <button
+              type="button"
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                closeMgSelector();
+              }}
+              className="product-mg-close"
+              aria-label="Close MG selector"
+            >
+              <X size={13} />
+            </button>
+          </div>
+
+          <div className="product-mg-options">
+            {mgOptions.map((option) => (
+              <button
+                key={`${option.label}-${option.variationId || option.value}`}
+                type="button"
+                onClick={(event) => handleBundleMgSelect(event, option)}
+                className="product-mg-option"
+              >
+                <span>{option.label}</span>
+                <ArrowRight size={12} />
+              </button>
+            ))}
+          </div>
+
+          <p className="product-mg-note">
+            This adds the selected option to your 5-product bundle.
+          </p>
+        </div>
       )}
 
       <div className="product-float-visual">
@@ -946,25 +1189,35 @@ export default function ShopCatalogSection({
   );
 
   const addAnyFiveBundleItemToCart = useCallback(
-    (product) => {
+    (product, selectedOption = null) => {
       const availability = getProductAvailability(product);
 
       if (availability.isUnavailable) return;
 
       const productName = product?.name || product?.title || "Product";
       const category = getProductCategory(product);
-      const price = getProductPrice(product);
-      const image = getProductImage(product);
+      const selectedLabel = selectedOption?.label || "";
+      const selectedPrice = parseProductPriceNumber(selectedOption?.price);
+      const basePrice = getProductPrice(product);
+      const finalPrice = selectedPrice > 0 ? selectedPrice : basePrice;
+      const image = selectedOption?.image || getProductImage(product);
+      const variationId =
+        selectedOption?.variationId ||
+        product.variation_id ||
+        product.variationId ||
+        0;
 
       addToCart({
         ...product,
-        id: product.id,
+        id: variationId ? `${product.id}-${variationId}-${selectedLabel}` : product.id,
         product_id: product.product_id || product.id,
         parent_id: product.parent_id || product.product_id || product.id,
-        variation_id: 0,
-        variation: {},
-        name: productName,
-        price,
+        variation_id: variationId,
+        variation: selectedOption?.variation || product.variation || {},
+        selectedOption: selectedLabel,
+        selectedMg: selectedLabel,
+        name: selectedLabel ? `${productName} - ${selectedLabel}` : productName,
+        price: finalPrice,
         image,
         category,
 
@@ -1605,6 +1858,123 @@ export default function ShopCatalogSection({
           color: rgba(226, 232, 240, 0.82);
         }
 
+        .product-bundle-select-active {
+          border-color: rgba(103, 232, 249, 0.42);
+          background: rgba(103, 232, 249, 0.12);
+          color: #ecfeff;
+        }
+
+        .product-mg-selector {
+          position: absolute;
+          left: 14px;
+          right: 14px;
+          top: 88px;
+          z-index: 55;
+          overflow: hidden;
+          border-radius: 18px;
+          border: 1px solid rgba(165, 243, 252, 0.18);
+          background:
+            radial-gradient(circle at 20% 0%, rgba(103, 232, 249, 0.11), transparent 35%),
+            rgba(2, 6, 23, 0.94);
+          box-shadow:
+            0 22px 50px rgba(0, 0, 0, 0.4),
+            inset 0 1px 0 rgba(255,255,255,0.06);
+          padding: 12px;
+          backdrop-filter: blur(18px);
+        }
+
+        .product-mg-selector-head {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 12px;
+          margin-bottom: 10px;
+        }
+
+        .product-mg-kicker {
+          margin: 0;
+          color: rgba(103, 232, 249, 0.72);
+          font-size: 8px;
+          font-weight: 900;
+          letter-spacing: 0.18em;
+          text-transform: uppercase;
+        }
+
+        .product-mg-title {
+          margin: 3px 0 0;
+          color: white;
+          font-size: 13px;
+          font-weight: 800;
+          letter-spacing: -0.03em;
+        }
+
+        .product-mg-close {
+          display: grid;
+          width: 28px;
+          height: 28px;
+          place-items: center;
+          border-radius: 10px;
+          border: 1px solid rgba(255,255,255,0.08);
+          background: rgba(255,255,255,0.04);
+          color: rgba(226,232,240,0.76);
+          transition:
+            background 180ms ease,
+            color 180ms ease,
+            border-color 180ms ease;
+        }
+
+        .product-mg-close:hover {
+          border-color: rgba(103, 232, 249, 0.22);
+          background: rgba(103, 232, 249, 0.08);
+          color: white;
+        }
+
+        .product-mg-options {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 7px;
+          max-height: 116px;
+          overflow-y: auto;
+          padding-right: 2px;
+        }
+
+        .product-mg-option {
+          display: inline-flex;
+          min-height: 34px;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          border-radius: 999px;
+          border: 1px solid rgba(165, 243, 252, 0.14);
+          background: rgba(255,255,255,0.035);
+          padding: 0 11px;
+          color: rgba(226,232,240,0.88);
+          font-size: 10px;
+          font-weight: 900;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          transition:
+            transform 180ms ease,
+            background 180ms ease,
+            border-color 180ms ease,
+            color 180ms ease;
+        }
+
+        .product-mg-option:hover {
+          transform: translate3d(0, -1px, 0);
+          border-color: rgba(103, 232, 249, 0.32);
+          background: rgba(103, 232, 249, 0.1);
+          color: white;
+        }
+
+        .product-mg-note {
+          margin: 10px 0 0;
+          color: rgba(148, 163, 184, 0.66);
+          font-size: 10px;
+          line-height: 1.45;
+          font-weight: 700;
+        }
+
         .product-float-visual {
           position: relative;
           height: 250px;
@@ -1879,6 +2249,34 @@ export default function ShopCatalogSection({
             letter-spacing: 0.1em;
           }
 
+          .product-mg-selector {
+            left: 10px;
+            right: 10px;
+            top: 72px;
+            border-radius: 15px;
+            padding: 10px;
+          }
+
+          .product-mg-title {
+            font-size: 12px;
+          }
+
+          .product-mg-options {
+            gap: 6px;
+            max-height: 88px;
+          }
+
+          .product-mg-option {
+            min-height: 30px;
+            padding: 0 9px;
+            font-size: 8px;
+            letter-spacing: 0.06em;
+          }
+
+          .product-mg-note {
+            display: none;
+          }
+
           .product-float-eye {
             right: 10px;
             top: 10px;
@@ -2003,7 +2401,10 @@ export default function ShopCatalogSection({
           .product-float-eye,
           .product-bundle-select,
           .product-float-button,
-          .product-float-arrow {
+          .product-float-arrow,
+          .product-mg-selector,
+          .product-mg-option,
+          .product-mg-close {
             transition: none !important;
             animation: none !important;
           }
