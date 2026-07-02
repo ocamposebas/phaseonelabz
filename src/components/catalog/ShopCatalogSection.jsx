@@ -278,7 +278,11 @@ function isProductDiscounted(product) {
 
   const priceHtml = String(product?.price_html || product?.priceHtml || "");
 
-  return /<del[\s>]/i.test(priceHtml) || priceHtml.includes("woocommerce-Price-amount") && priceHtml.includes("<del");
+  return (
+    /<del[\s>]/i.test(priceHtml) ||
+    (priceHtml.includes("woocommerce-Price-amount") &&
+      priceHtml.includes("<del"))
+  );
 }
 
 function formatPrice(price) {
@@ -656,6 +660,13 @@ const ProductCard = memo(function ProductCard({ item, addToCart, onBundleAdd }) 
         price,
         image,
         category,
+
+        bundleEligible: true,
+        bundleDiscount: 10,
+        bundleSameProductOnly: false,
+        bundleRequiredQuantity: 5,
+        bundleQuantity: 1,
+        bundleRuleKey: "any-5-eligible-products",
       });
     },
     [
@@ -703,10 +714,10 @@ const ProductCard = memo(function ProductCard({ item, addToCart, onBundleAdd }) 
           type="button"
           onClick={handleBundleAdd}
           className="product-bundle-select"
-          aria-label={`Add 3 ${name} to cart and unlock 10% off`}
+          aria-label={`Add ${name} to bundle and unlock 10% off after 5 eligible products`}
         >
           <span />
-          Add 3 & Save 10%
+          Add to Bundle
         </button>
       )}
 
@@ -895,7 +906,7 @@ export default function ShopCatalogSection({
     return products.map(prepareProductForCatalog);
   }, [products]);
 
-  const addSameProductBundleToCart = useCallback(
+  const addAnyFiveBundleItemToCart = useCallback(
     (product) => {
       const availability = getProductAvailability(product);
 
@@ -906,23 +917,25 @@ export default function ShopCatalogSection({
       const price = getProductPrice(product);
       const image = getProductImage(product);
 
-      const bundleItem = {
+      addToCart({
         ...product,
         id: product.id,
+        product_id: product.product_id || product.id,
+        parent_id: product.parent_id || product.product_id || product.id,
+        variation_id: 0,
+        variation: {},
         name: productName,
         price,
         image,
         category,
+
         bundleEligible: true,
         bundleDiscount: 10,
-        bundleSameProductOnly: true,
-        bundleRequiredQuantity: 3,
-        bundleQuantity: 3,
-      };
-
-      for (let index = 0; index < 3; index += 1) {
-        addToCart(bundleItem);
-      }
+        bundleSameProductOnly: false,
+        bundleRequiredQuantity: 5,
+        bundleQuantity: 1,
+        bundleRuleKey: "any-5-eligible-products",
+      });
     },
     [addToCart]
   );
@@ -1100,13 +1113,13 @@ export default function ShopCatalogSection({
               </div>
 
               <h3 className="text-xl font-semibold tracking-[-0.045em] text-white sm:text-2xl">
-                Add 3 of the same product and unlock 10% off.
+                Add any 5 eligible products and unlock 10% off.
               </h3>
 
               <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
-                Tap the bundle button on any eligible card. It will add 3 units
-                of that same product to the cart with the 10% bundle discount
-                attached.
+                Mix and match any 5 eligible products from the catalog. Once your
+                cart reaches 5 eligible items, the 10% bundle discount will be
+                applied.
               </p>
             </div>
 
@@ -1116,11 +1129,11 @@ export default function ShopCatalogSection({
               </p>
 
               <p className="mt-1 text-lg font-semibold text-white">
-                3x same product
+                5 eligible products
               </p>
 
               <p className="mt-1 text-xs text-slate-500">
-                One click adds the full eligible bundle.
+                Mix and match across the catalog.
               </p>
             </div>
           </div>
@@ -1290,7 +1303,7 @@ export default function ShopCatalogSection({
                       key={item.key}
                       item={item}
                       addToCart={addToCart}
-                      onBundleAdd={addSameProductBundleToCart}
+                      onBundleAdd={addAnyFiveBundleItemToCart}
                     />
                   ))}
                 </div>

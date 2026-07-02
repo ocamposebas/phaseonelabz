@@ -10,7 +10,7 @@ const navItems = [
 
 const announcementItems = [
   "Grand Opening Savings",
-  "Free Shipping Over $35",
+  "Free Shipping Over $50",
   "No Extra Card Fees",
   "All for Our Grand Opening",
 ];
