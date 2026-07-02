@@ -25,8 +25,41 @@ const VALIDATE_COUPON_ENDPOINT =
   "https://staging.phaseonelabz.com/wp-json/phaseone/v1/validate-coupon";
 const WOO_URL = import.meta.env.PUBLIC_WOOCOMMERCE_URL || "https://staging.phaseonelabz.com";
 const PAYMENT_DISCOUNT_RATE = 0.05;
-const FREE_SHIPPING_MINIMUM = 35;
+const FREE_SHIPPING_MINIMUM = 50;
+const MANUAL_PAYMENT_SHIPPING_COST = 13;
 const PAYMENT_DISCOUNT_METHOD_IDS = ["venmo", "zelle", "bank"];
+const MANUAL_PAYMENT_METHOD_IDS = ["venmo", "zelle"];
+
+// Manual Venmo/Zelle details.
+// Set these in your .env before publishing so the public checkout shows your real payment info.
+const VENMO_PAYMENT_URL =
+  import.meta.env.PUBLIC_VENMO_PAYMENT_URL ||
+  "https://venmo.com/code?user_id=4599396356327117666&created=1782763350.789482&printed=1";
+const VENMO_PAYMENT_HANDLE =
+  import.meta.env.PUBLIC_VENMO_PAYMENT_HANDLE || "Phase One Labz";
+const ZELLE_PAYMENT_RECIPIENT =
+  import.meta.env.PUBLIC_ZELLE_PAYMENT_RECIPIENT || "Info@phaseonelabz.com";
+const ZELLE_PAYMENT_NAME =
+  import.meta.env.PUBLIC_ZELLE_PAYMENT_NAME || "Phase One Labz";
+
+const MANUAL_PAYMENT_DETAILS = {
+  venmo: {
+    title: "Venmo",
+    recipientLabel: "Venmo",
+    recipientValue: VENMO_PAYMENT_HANDLE,
+    extraRecipientLine: "Payment details appear here after the order is created.",
+    actionLabel: "Open Venmo",
+    actionHref: VENMO_PAYMENT_URL,
+  },
+  zelle: {
+    title: "Zelle",
+    recipientLabel: "Zelle",
+    recipientValue: ZELLE_PAYMENT_RECIPIENT,
+    extraRecipientLine: ZELLE_PAYMENT_NAME,
+    actionLabel: "",
+    actionHref: "",
+  },
+};
 
 const PAYMENT_METHODS = [
   {
@@ -44,23 +77,23 @@ const PAYMENT_METHODS = [
     id: "venmo",
     label: "Venmo",
     title: "Venmo",
-    description: "Continue to secure checkout and save 5% when paying with Venmo.",
+    description: "Complete checkout here, then see Venmo instructions in the thanks section and by email.",
     badge: "5% OFF",
-    flow: "secure_checkout",
+    flow: "manual_order",
     gatewayId: "",
     icon: Smartphone,
-    cta: "Continue to secure checkout",
+    cta: "Continue with Venmo",
   },
   {
     id: "zelle",
     label: "Zelle",
     title: "Zelle",
-    description: "Continue to secure checkout and save 5% when paying with Zelle.",
+    description: "Complete checkout here, then see Zelle instructions in the thanks section and by email.",
     badge: "5% OFF",
-    flow: "secure_checkout",
+    flow: "manual_order",
     gatewayId: "",
     icon: Building2,
-    cta: "Continue to secure checkout",
+    cta: "Continue with Zelle",
   },
   {
     id: "bank",
@@ -134,7 +167,7 @@ const BANK_SHIPPING_METHODS = [
     id: "standard",
     title: "Standard Shipping",
     description: "Estimated 3–7 business days after processing.",
-    price: 9.95,
+    price: 13,
     method_id: "flat_rate",
   },
   {
@@ -190,6 +223,20 @@ function getBankTransferEndpoint() {
   if (!cleanUrl) return "";
 
   return `${cleanUrl}/wp-json/phase/v1/create-edebit-order`;
+}
+
+function getManualPaymentOrderEndpoint() {
+  const wpUrl =
+    import.meta.env.PUBLIC_WP_SITE_URL ||
+    import.meta.env.PUBLIC_WOOCOMMERCE_URL ||
+    WOO_URL ||
+    "";
+
+  const cleanUrl = cleanWooUrl(wpUrl);
+
+  if (!cleanUrl) return "";
+
+  return `${cleanUrl}/wp-json/phase/v1/manual-payment-order`;
 }
 
 function getCleanCheckoutUrl() {
@@ -261,6 +308,33 @@ function normalizeCoupon(value = "") {
     .slice(0, 32);
 }
 
+function sanitizeCouponInput(value = "") {
+  return String(value || "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9-_\s,;]/g, "")
+    .slice(0, 120);
+}
+
+function normalizeCouponList(value = "") {
+  const raw = Array.isArray(value) ? value.join(",") : String(value || "");
+  const codes = raw
+    .split(/[\s,;]+/g)
+    .map((code) => normalizeCoupon(code))
+    .filter(Boolean);
+
+  const uniqueCodes = [];
+
+  codes.forEach((code) => {
+    if (!uniqueCodes.includes(code)) uniqueCodes.push(code);
+  });
+
+  return uniqueCodes.slice(0, 3);
+}
+
+function formatCouponList(value = "") {
+  return normalizeCouponList(value).join(", ");
+}
+
 
 function setPhaseoneCouponCookie(value = "") {
   if (typeof document === "undefined") return "";
@@ -314,6 +388,15 @@ function isValidEmail(value = "") {
 
 function isPaymentDiscountEligible(methodId = "") {
   return PAYMENT_DISCOUNT_METHOD_IDS.includes(String(methodId || ""));
+}
+
+function isManualPaymentMethod(methodId = "") {
+  return MANUAL_PAYMENT_METHOD_IDS.includes(String(methodId || ""));
+}
+
+function getManualPaymentDetails(methodId = "") {
+  if (!isManualPaymentMethod(methodId)) return null;
+  return MANUAL_PAYMENT_DETAILS[String(methodId || "")] || null;
 }
 
 function getPaymentDiscountAmount(methodId = "", amount = 0) {
@@ -407,12 +490,17 @@ function getSavedCoupon() {
 function saveCoupon(value = "") {
   if (typeof window === "undefined") return "";
 
-  const cleanCoupon = normalizeCoupon(value);
+  const couponCodes = normalizeCouponList(value);
+  const cleanCoupon = couponCodes.join(",");
+  const readableCoupon = couponCodes.join(", ");
 
   if (cleanCoupon) {
     localStorage.setItem("phaseone_checkout_coupon", cleanCoupon);
     localStorage.setItem("phaseone_affiliate_coupon", cleanCoupon);
-    setPhaseoneCouponCookie(cleanCoupon);
+
+    // Legacy Tagada/Woo bridge receives the first code for backward compatibility.
+    // The full list is also sent later as phaseone_coupons.
+    setPhaseoneCouponCookie(couponCodes[0]);
   } else {
     localStorage.removeItem("phaseone_checkout_coupon");
     localStorage.removeItem("phaseone_affiliate_coupon");
@@ -421,7 +509,7 @@ function saveCoupon(value = "") {
     clearPhaseoneCouponCookie();
   }
 
-  return cleanCoupon;
+  return readableCoupon;
 }
 
 function isRewardGiftItem(item = {}) {
@@ -481,6 +569,35 @@ function resolveNumericId(...values) {
   return 0;
 }
 
+function getNestedValue(source = {}, path = []) {
+  return path.reduce((current, key) => {
+    if (!current || typeof current !== "object") return undefined;
+    return current[key];
+  }, source);
+}
+
+function toMoneyNumber(value, fallback = 0) {
+  if (value === undefined || value === null || value === "") return fallback;
+
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  const cleaned = String(value)
+    .replace(/,/g, "")
+    .replace(/[^0-9.-]/g, "");
+
+  if (!cleaned || cleaned === "-" || cleaned === ".") return fallback;
+
+  const number = Number(cleaned);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+function getCartItemQuantity(item = {}) {
+  const quantity = Number(item.quantity ?? item.qty ?? item.count ?? 1);
+  return Number.isFinite(quantity) && quantity > 0 ? quantity : 1;
+}
+
 function getOfficialProductId(item = {}) {
   return resolveNumericId(
     item.product_id,
@@ -496,6 +613,21 @@ function getOfficialProductId(item = {}) {
     item.wordpress_id,
     item.parent_id,
     item.parentId,
+    item.parent?.id,
+    item.parent?.databaseId,
+    item.product?.id,
+    item.product?.databaseId,
+    item.product?.product_id,
+    item.product?.productId,
+    item.product?.wc_product_id,
+    item.node?.id,
+    item.node?.databaseId,
+    item.data?.product_id,
+    item.raw?.product_id,
+    item.merchandise?.product?.id,
+    item.merchandise?.product?.databaseId,
+    item.variant?.product_id,
+    item.selectedVariant?.product_id,
     item.id
   );
 }
@@ -509,31 +641,130 @@ function getOfficialVariationId(item = {}) {
     item.variant_id,
     item.variantId,
     item.databaseVariationId,
-    item.variationDatabaseId
+    item.variationDatabaseId,
+    item.variation?.id,
+    item.variation?.databaseId,
+    item.variant?.id,
+    item.variant?.databaseId,
+    item.selectedVariant?.id,
+    item.selectedVariant?.databaseId,
+    item.merchandise?.id,
+    item.merchandise?.databaseId,
+    item.data?.variation_id,
+    item.raw?.variation_id
   );
 }
 
-function getCartItemPrice(item = {}) {
-  if (isRewardGiftItem(item)) {
-    return 0;
+function getCartItemUnitPrice(item = {}) {
+  if (isRewardGiftItem(item)) return 0;
+
+  const directCandidates = [
+    item.price,
+    item.sale_price,
+    item.salePrice,
+    item.regular_price,
+    item.regularPrice,
+    item.unit_price,
+    item.unitPrice,
+    item.product_price,
+    item.productPrice,
+    item.final_price,
+    item.amount,
+    getNestedValue(item, ["prices", "price"]),
+    getNestedValue(item, ["price_data", "unit_amount"]),
+  ];
+
+  for (const candidate of directCandidates) {
+    const number = toMoneyNumber(candidate, NaN);
+    if (Number.isFinite(number) && number > 0) {
+      return number;
+    }
   }
 
-  return Number(item.price || item.sale_price || item.regular_price || 0);
+  const quantity = getCartItemQuantity(item);
+  const lineCandidates = [
+    item.line_total,
+    item.lineTotal,
+    item.total,
+    item.subtotal,
+    item.row_total,
+    item.rowTotal,
+    item.order_total,
+    item.orderTotal,
+    item.final_line_total,
+    item.finalLineTotal,
+  ];
+
+  for (const candidate of lineCandidates) {
+    const number = toMoneyNumber(candidate, NaN);
+    if (Number.isFinite(number) && number > 0) {
+      return Number((number / quantity).toFixed(2));
+    }
+  }
+
+  return 0;
+}
+
+function getCartItemPrice(item = {}) {
+  return getCartItemUnitPrice(item);
+}
+
+function getCartItemLineTotal(item = {}) {
+  if (isRewardGiftItem(item)) return 0;
+
+  const lineCandidates = [
+    item.line_total,
+    item.lineTotal,
+    item.total,
+    item.subtotal,
+    item.row_total,
+    item.rowTotal,
+    item.order_total,
+    item.orderTotal,
+    item.final_line_total,
+    item.finalLineTotal,
+  ];
+
+  for (const candidate of lineCandidates) {
+    const number = toMoneyNumber(candidate, NaN);
+    if (Number.isFinite(number) && number > 0) {
+      return Number(number.toFixed(2));
+    }
+  }
+
+  return Number((getCartItemUnitPrice(item) * getCartItemQuantity(item)).toFixed(2));
 }
 
 function calculateCartTotal(items = []) {
   return items.reduce((total, item) => {
-    return total + getCartItemPrice(item) * Number(item.quantity || 1);
+    return total + getCartItemLineTotal(item);
   }, 0);
 }
 
 function getItemImage(item = {}) {
   return (
     item.image ||
+    item.image_url ||
+    item.imageUrl ||
+    item.thumbnail ||
     item.images?.[0]?.src ||
     item.images?.[0]?.url ||
     item.featuredImage ||
+    item.product?.image ||
+    item.product?.images?.[0]?.src ||
     "/tarro.png"
+  );
+}
+
+function getItemName(item = {}) {
+  return (
+    item.name ||
+    item.title ||
+    item.product_name ||
+    item.productName ||
+    item.product?.name ||
+    item.product?.title ||
+    "Item"
   );
 }
 
@@ -545,6 +776,7 @@ function getItemOptions(item = {}) {
     item.selectedOptions ||
     item.variation ||
     item.variation_attributes ||
+    item.attributes ||
     {};
 
   if (!selected || typeof selected !== "object") return "";
@@ -565,25 +797,59 @@ function getItemOptions(item = {}) {
     .join(" / ");
 }
 
+function getVisibleCartItems(items = []) {
+  return Array.isArray(items) ? items.filter(Boolean) : [];
+}
+
+function chooseManualThanksItems(orderItems = [], currentCartItems = []) {
+  const safeOrderItems = Array.isArray(orderItems) ? orderItems.filter(Boolean) : [];
+  const safeCartItems = getVisibleCartItems(currentCartItems);
+
+  if (!safeOrderItems.length) return safeCartItems;
+  if (!safeCartItems.length) return safeOrderItems;
+
+  const orderTotal = safeOrderItems.reduce((sum, item) => sum + getCartItemLineTotal(item), 0);
+  const cartTotalValue = safeCartItems.reduce((sum, item) => sum + getCartItemLineTotal(item), 0);
+
+  if (safeOrderItems.length < safeCartItems.length) return safeCartItems;
+  if (cartTotalValue > 0 && orderTotal <= 0) return safeCartItems;
+
+  return safeOrderItems;
+}
+
 function buildCheckoutItems(cartItems = []) {
-  /* Used for coupon validation and eDebit/ACH. Rewards remain visual only. */
-  const officialItems = cartItems
+  /* Used for coupon validation, ACH, and manual Zelle/Venmo orders. Rewards remain visual only. */
+  const officialItems = getVisibleCartItems(cartItems)
     .filter((item) => !isRewardGiftItem(item))
-    .map((item) => ({
-      product_id: getOfficialProductId(item),
-      variation_id: getOfficialVariationId(item),
-      quantity: Number(item.quantity || 1),
-      price: getCartItemPrice(item),
-      regular_price: Number(item.regular_price || item.price || 0),
-      sale_price: Number(item.sale_price || item.price || 0),
-      variation:
-        item.variation ||
-        item.variation_attributes ||
-        item.selectedAttributes ||
-        item.selectedOptions ||
-        {},
-    }))
-    .filter((item) => item.product_id > 0 && item.quantity > 0);
+    .map((item) => {
+      const quantity = getCartItemQuantity(item);
+      const unitPrice = getCartItemUnitPrice(item);
+      const lineTotal = getCartItemLineTotal(item);
+
+      return {
+        product_id: getOfficialProductId(item),
+        variation_id: getOfficialVariationId(item),
+        quantity,
+        price: unitPrice,
+        unit_price: unitPrice,
+        line_total: lineTotal,
+        total: lineTotal,
+        regular_price: toMoneyNumber(item.regular_price || item.regularPrice || item.price, unitPrice),
+        sale_price: toMoneyNumber(item.sale_price || item.salePrice || item.price, unitPrice),
+        name: getItemName(item),
+        title: getItemName(item),
+        image: getItemImage(item),
+        cart_key: item.cartKey || item.cart_key || item.key || "",
+        sku: item.sku || item.product?.sku || "",
+        variation:
+          item.variation ||
+          item.variation_attributes ||
+          item.selectedAttributes ||
+          item.selectedOptions ||
+          {},
+      };
+    })
+    .filter((item) => (item.product_id > 0 || item.name) && item.quantity > 0);
 
   console.log("PHASE ONE official checkout items:", officialItems);
 
@@ -626,6 +892,109 @@ function pickFirstValue(...values) {
 
   return "";
 }
+
+function buildManualPaymentReference(source = {}) {
+  const directReference = pickFirstValue(
+    source?.payment_reference,
+    source?.paymentReference,
+    source?.reference
+  );
+
+  if (directReference && !/[0-9a-f]{8}-[0-9a-f]{4}/i.test(directReference)) {
+    return directReference.toUpperCase().replace(/[^A-Z0-9-]/g, "").slice(0, 18);
+  }
+
+  const rawOrderNumber = pickFirstValue(
+    source?.order_number,
+    source?.orderNumber,
+    source?.number,
+    source?.order_id,
+    source?.orderId,
+    source?.id
+  );
+
+  const cleanOrderNumber = String(rawOrderNumber || "")
+    .replace(/[^0-9]/g, "")
+    .slice(0, 10);
+
+  if (cleanOrderNumber) {
+    return `PO-${cleanOrderNumber}`;
+  }
+
+  return "";
+}
+
+function getManualOrderStorageSuffix(session = {}) {
+  return String(
+    session?.checkout_session ||
+      session?.session_id ||
+      session?.sessionId ||
+      getSessionIdFromUrl() ||
+      "current"
+  )
+    .replace(/[^a-zA-Z0-9-]/g, "")
+    .slice(0, 40) || "current";
+}
+
+function normalizeManualOrderData(data = {}) {
+  const order = data?.order || data || {};
+  const orderId = Number(
+    order?.order_id ||
+      order?.orderId ||
+      order?.id ||
+      data?.order_id ||
+      data?.orderId ||
+      0
+  );
+
+  if (!orderId) return null;
+
+  const orderNumber = String(
+    order?.order_number ||
+      order?.orderNumber ||
+      order?.number ||
+      data?.order_number ||
+      data?.orderNumber ||
+      orderId
+  );
+
+  const paymentReference = buildManualPaymentReference({
+    payment_reference:
+      order?.payment_reference ||
+      order?.paymentReference ||
+      data?.payment_reference ||
+      data?.paymentReference,
+    order_number: orderNumber,
+    order_id: orderId,
+  });
+
+  return {
+    ...order,
+    order_id: orderId,
+    order_number: orderNumber,
+    payment_reference: paymentReference,
+    payment_method:
+      order?.payment_method ||
+      order?.paymentMethod ||
+      data?.payment_method ||
+      data?.paymentMethod ||
+      "",
+    payment_method_title:
+      order?.payment_method_title ||
+      order?.paymentMethodTitle ||
+      data?.payment_method_title ||
+      data?.paymentMethodTitle ||
+      "",
+    total: Number(order?.total ?? order?.order_total ?? data?.total ?? data?.order_total ?? 0),
+    expires_at:
+      order?.expires_at ||
+      order?.expiresAt ||
+      data?.expires_at ||
+      data?.expiresAt ||
+      "",
+  };
+}
+
 
 function normalizeCheckoutAddress(source = {}, fallback = {}) {
   const data = source && typeof source === "object" ? source : {};
@@ -802,6 +1171,24 @@ function normalizeCheckoutFormForOrder(form = {}) {
   return clean;
 }
 
+function formatAddressBlock(address = {}) {
+  const clean = normalizeCheckoutAddress(address || {}, {});
+  const fullName = [clean.first_name, clean.last_name].filter(Boolean).join(" ");
+  const cityLine = [clean.city, clean.state, clean.postcode].filter(Boolean).join(", ");
+
+  return {
+    fullName,
+    lines: [
+      clean.address_1,
+      clean.address_2,
+      cityLine,
+      clean.country,
+    ].filter(Boolean),
+    phone: clean.phone,
+    email: normalizeEmail(clean.email || ""),
+  };
+}
+
 function getSessionIdFromUrl() {
   if (typeof window === "undefined") return "";
 
@@ -902,7 +1289,9 @@ function buildWooCheckoutUrl({
     url.searchParams.set("lab_checkout", legacyItems);
   }
 
-  const cleanCoupon = normalizeCoupon(coupon);
+  const couponCodes = normalizeCouponList(coupon);
+  const cleanCoupon = couponCodes[0] || "";
+  const cleanCoupons = couponCodes.join(",");
   const token =
     session?.auth_token ||
     session?.token ||
@@ -934,14 +1323,24 @@ function buildWooCheckoutUrl({
     url.searchParams.set("phaseone_tagada_coupon", cleanCoupon);
   }
 
-  if (cleanCoupon && discountToken) {
+  if (cleanCoupons && discountToken) {
     /*
       Keep the original working WooCommerce coupon bridge flow.
       Do not send generic coupon/coupon_code/discount_code/promo params here,
       because they can interfere before the cart sync finishes.
+      For multiple coupons, the first code/token remains in the legacy fields and
+      the full list is available in phaseone_coupons / phaseone_discount_tokens.
     */
+    const discountTokens = String(discountToken || "")
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+
     url.searchParams.set("phaseone_coupon", cleanCoupon);
-    url.searchParams.set("phaseone_discount_token", discountToken);
+    url.searchParams.set("phaseone_coupons", cleanCoupons);
+    url.searchParams.set("phaseone_coupon_count", String(couponCodes.length));
+    url.searchParams.set("phaseone_discount_token", discountTokens[0] || discountToken);
+    url.searchParams.set("phaseone_discount_tokens", discountTokens.join(","));
     url.searchParams.set("phaseone_discount_amount", String(Number(discountAmount || 0)));
     url.searchParams.set("phaseone_preview_total", String(Number(previewTotal || 0)));
   }
@@ -977,6 +1376,7 @@ function buildWooCheckoutUrl({
     url.searchParams.set("phaseone_selected_payment", paymentMethod.id);
     url.searchParams.set("phaseone_payment_flow", paymentMethod.flow || paymentMethod.id);
     url.searchParams.set("phaseone_payment_label", paymentMethod.title || paymentMethod.label || "");
+
   }
 
   if (Number(paymentDiscountAmount || 0) > 0) {
@@ -1004,8 +1404,8 @@ function buildWooCheckoutUrl({
     url.searchParams.set("phaseone_policy_acknowledged_at", new Date().toISOString());
   }
 
-  // Important: card keeps the normal checkout flow without payment discount.
-  // Venmo and Zelle keep the same secure flow, but receive a 5% discount flag.
+  // Important: card keeps the normal checkout flow.
+  // Venmo and Zelle are handled by the manual-payment REST endpoint.
   // Only Bank Transfer is forced to the Yodlee/eDebit WooCommerce gateway.
   if (paymentMethod?.gatewayId) {
     url.searchParams.set("payment_method", paymentMethod.gatewayId);
@@ -1051,6 +1451,8 @@ export default function CheckoutTransferPage() {
   const [checkoutForm, setCheckoutForm] = useState(() => getBlankCheckoutForm());
   const [selectedShippingMethodId, setSelectedShippingMethodId] = useState("standard");
   const [policyAcknowledged, setPolicyAcknowledged] = useState(false);
+  const [manualPaymentOrder, setManualPaymentOrder] = useState(null);
+  const [manualPaymentStatus, setManualPaymentStatus] = useState("idle");
 
   const hasProviderCartItems =
     Array.isArray(cart?.cartItems) && cart.cartItems.length > 0;
@@ -1172,6 +1574,23 @@ export default function CheckoutTransferPage() {
     );
   }, [session, accountUser, bankTransferEmail]);
 
+  const manualOrderStorageKey = useMemo(() => {
+    return `phaseone_manual_payment_order_${getManualOrderStorageSuffix(session || {})}`;
+  }, [session]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const savedOrder = normalizeManualOrderData(
+      safeJsonParse(localStorage.getItem(manualOrderStorageKey), null)
+    );
+
+    if (savedOrder?.order_id && savedOrder?.payment_reference) {
+      setManualPaymentOrder(savedOrder);
+      setManualPaymentStatus("ready");
+    }
+  }, [manualOrderStorageKey]);
+
   const sessionCartItems =
     session?.cart_items ||
     session?.cartItems ||
@@ -1242,6 +1661,9 @@ export default function CheckoutTransferPage() {
     PAYMENT_METHODS.find((method) => method.id === selectedPaymentMethodId) ||
     PAYMENT_METHODS[0];
 
+  const isManualPaymentSelected = isManualPaymentMethod(selectedPaymentMethod?.id);
+  const manualPaymentDetails = getManualPaymentDetails(selectedPaymentMethod?.id);
+
   const selectedShippingMethod =
     BANK_SHIPPING_METHODS.find((method) => method.id === selectedShippingMethodId) ||
     BANK_SHIPPING_METHODS[0];
@@ -1261,6 +1683,12 @@ export default function CheckoutTransferPage() {
     ? selectedShippingOriginalPrice
     : 0;
 
+  const manualShippingCost = isManualPaymentSelected && !freeShippingUnlocked
+    ? MANUAL_PAYMENT_SHIPPING_COST
+    : 0;
+
+  const activeShippingCost = bankShippingCost + manualShippingCost;
+
   const effectiveSelectedShippingMethod = {
     ...selectedShippingMethod,
     price: bankShippingCost,
@@ -1270,9 +1698,68 @@ export default function CheckoutTransferPage() {
   };
 
   const paymentPreviewTotal = Math.max(
-    previewTotal - paymentMethodDiscount + bankShippingCost,
+    previewTotal - paymentMethodDiscount + activeShippingCost,
     0
   );
+
+  const manualPaymentReference = buildManualPaymentReference(manualPaymentOrder || {});
+  const manualPaymentReady = Boolean(
+    isManualPaymentSelected && manualPaymentOrder?.order_id && manualPaymentReference
+  );
+  const manualPaymentMatchesSelected = Boolean(
+    manualPaymentReady &&
+      selectedPaymentMethod?.id &&
+      [
+        selectedPaymentMethod.id,
+        `phaseone_${selectedPaymentMethod.id}`,
+      ].includes(String(manualPaymentOrder?.payment_method || ""))
+  );
+  // Zelle/Venmo instructions are shown inside this same component after the order is created.
+  const showManualInstructions = Boolean(manualPaymentReady && manualPaymentMatchesSelected);
+  const manualInstructionsEmail = normalizeEmail(
+    manualPaymentOrder?.email ||
+      manualPaymentOrder?.billing?.email ||
+      checkoutForm.email ||
+      bankTransferEmail
+  );
+
+  const manualOrderDisplayNumber = manualPaymentOrder?.order_number
+    ? `#${manualPaymentOrder.order_number}`
+    : "";
+  const manualOrderTotal = Number(manualPaymentOrder?.total || 0) > 0
+    ? Number(manualPaymentOrder.total)
+    : paymentPreviewTotal;
+
+  const manualPaymentAmount = useMemo(
+    () => formatMoney(manualOrderTotal),
+    [manualOrderTotal]
+  );
+
+  const manualOrderPaymentDetails =
+    manualPaymentOrder?.payment_details ||
+    manualPaymentOrder?.paymentDetails ||
+    manualPaymentDetails ||
+    null;
+
+  const manualThanksBilling = formatAddressBlock(
+    manualPaymentOrder?.billing || normalizeCheckoutFormForOrder(checkoutForm)
+  );
+
+  const manualThanksShipping = formatAddressBlock(
+    manualPaymentOrder?.shipping ||
+      manualPaymentOrder?.billing ||
+      normalizeCheckoutFormForOrder(checkoutForm)
+  );
+
+  const manualThanksItems = chooseManualThanksItems(manualPaymentOrder?.items, cartItems);
+
+  useEffect(() => {
+    if (!showManualInstructions || typeof window === "undefined") return;
+
+    window.requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, behavior: "auto" });
+    });
+  }, [showManualInstructions]);
 
   const effectiveBankTransferEmail = normalizeEmail(
     checkoutForm.email || bankTransferEmail
@@ -1304,11 +1791,23 @@ export default function CheckoutTransferPage() {
       return;
     }
 
-    const cleanValue = normalizeCoupon(event.target.value);
-    setCouponInput(cleanValue);
-    setCouponMessage("");
+    const cleanValue = sanitizeCouponInput(event.target.value);
+    const couponCodes = normalizeCouponList(cleanValue);
 
-    if (cleanValue !== coupon) {
+    setCouponInput(cleanValue);
+
+    const typedCouponCount = sanitizeCouponInput(event.target.value)
+      .split(/[\s,;]+/g)
+      .map((code) => normalizeCoupon(code))
+      .filter(Boolean).length;
+
+    if (typedCouponCount > 3) {
+      setCouponMessage("You can apply up to 3 coupons per order.");
+    } else {
+      setCouponMessage("");
+    }
+
+    if (formatCouponList(cleanValue) !== coupon) {
       setCouponStatus("idle");
       setCouponDiscount(0);
       setCouponData(null);
@@ -1317,16 +1816,16 @@ export default function CheckoutTransferPage() {
   };
 
   const applyCoupon = async () => {
-    const cleanCoupon = normalizeCoupon(couponInput);
+    const couponCodes = normalizeCouponList(couponInput);
 
-    if (!cleanCoupon) {
+    if (!couponCodes.length) {
       saveCoupon("");
       setCoupon("");
       setCouponStatus("error");
       setCouponDiscount(0);
       setCouponData(null);
       setDiscountToken("");
-      setCouponMessage("Enter a promo or affiliate code first.");
+      setCouponMessage("Enter up to 3 promo or affiliate codes first.");
       return;
     }
 
@@ -1341,7 +1840,11 @@ export default function CheckoutTransferPage() {
 
     try {
       setCouponStatus("loading");
-      setCouponMessage("Validating coupon...");
+      setCouponMessage(
+        couponCodes.length > 1
+          ? `Validating ${couponCodes.length} coupons...`
+          : "Validating coupon..."
+      );
       setCouponDiscount(0);
       setCouponData(null);
       setDiscountToken("");
@@ -1349,113 +1852,137 @@ export default function CheckoutTransferPage() {
       const token = getAccountToken();
       const checkoutItems = buildCheckoutItems(cartItems);
       const customerEmail = accountUser?.email || session?.customer?.email || "";
+      const validatedCoupons = [];
+      let accumulatedDiscount = 0;
 
-      console.log("PHASE ONE COUPON REQUEST:", {
-        endpoint: VALIDATE_COUPON_ENDPOINT,
-        coupon: cleanCoupon,
-        subtotal: cartTotal,
-        items: checkoutItems,
-        customerEmail,
-      });
+      for (const cleanCoupon of couponCodes) {
+        const workingSubtotal = Math.max(cartTotal - accumulatedDiscount, 0);
 
-      const response = await fetch(VALIDATE_COUPON_ENDPOINT, {
-        method: "POST",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
+        console.log("PHASE ONE COUPON REQUEST:", {
+          endpoint: VALIDATE_COUPON_ENDPOINT,
           coupon: cleanCoupon,
-          code: cleanCoupon,
-          subtotal: cartTotal,
-          customerEmail,
-          customer_email: customerEmail,
+          subtotal: workingSubtotal,
           items: checkoutItems,
-          cartItems: checkoutItems,
-        }),
-      });
+          customerEmail,
+        });
 
-      const rawText = await response.text();
+        const response = await fetch(VALIDATE_COUPON_ENDPOINT, {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            coupon: cleanCoupon,
+            code: cleanCoupon,
+            subtotal: workingSubtotal,
+            originalSubtotal: cartTotal,
+            original_subtotal: cartTotal,
+            customerEmail,
+            customer_email: customerEmail,
+            items: checkoutItems,
+            cartItems: checkoutItems,
+          }),
+        });
 
-      console.log("PHASE ONE COUPON RAW RESPONSE:", {
-        status: response.status,
-        ok: response.ok,
-        rawText,
-      });
+        const rawText = await response.text();
 
-      if (looksLikeHtmlResponse(rawText)) {
-        throw new Error(
-          `Coupon endpoint returned an HTML page. Check PUBLIC_WP_SITE_URL and confirm the WordPress plugin route exists: ${VALIDATE_COUPON_ENDPOINT}`
-        );
-      }
+        console.log("PHASE ONE COUPON RAW RESPONSE:", {
+          coupon: cleanCoupon,
+          status: response.status,
+          ok: response.ok,
+          rawText,
+        });
 
-      let data = null;
+        if (looksLikeHtmlResponse(rawText)) {
+          throw new Error(
+            `Coupon endpoint returned an HTML page. Check PUBLIC_WP_SITE_URL and confirm the WordPress plugin route exists: ${VALIDATE_COUPON_ENDPOINT}`
+          );
+        }
 
-      try {
-        data = rawText ? JSON.parse(rawText) : null;
-      } catch {
-        data = null;
-      }
+        let data = null;
 
-      console.log("PHASE ONE COUPON PARSED RESPONSE:", data);
+        try {
+          data = rawText ? JSON.parse(rawText) : null;
+        } catch {
+          data = null;
+        }
 
-      if (!response.ok || !data?.valid) {
-        const realError =
-          data?.error ||
-          data?.message ||
-          rawText ||
-          `Coupon validation failed with status ${response.status}.`;
+        console.log("PHASE ONE COUPON PARSED RESPONSE:", data);
 
-        throw new Error(realError);
-      }
-
-      const discountAmount = Math.max(
-        Number(data.discountAmount ?? data.discount_amount ?? 0),
-        0
-      );
-
-      const secureToken =
-        data.discountToken ||
-        data.discount_token ||
-        data.phaseone_discount_token ||
-        "";
-
-      const serverCoupon = data?.coupon?.code || data?.code || cleanCoupon;
-      const savedCoupon = saveCoupon(serverCoupon);
-      const couponDetails = data?.coupon || {};
-
-      if (discountAmount <= 0) {
-        throw new Error(
-          data?.error ||
+        if (!response.ok || !data?.valid) {
+          const realError =
+            data?.error ||
             data?.message ||
-            "This coupon was found, but it returned no discount."
+            rawText ||
+            `${cleanCoupon} failed with status ${response.status}.`;
+
+          throw new Error(realError);
+        }
+
+        const discountAmount = Math.max(
+          Number(data.discountAmount ?? data.discount_amount ?? 0),
+          0
         );
+
+        const secureToken =
+          data.discountToken ||
+          data.discount_token ||
+          data.phaseone_discount_token ||
+          "";
+
+        const serverCoupon = normalizeCoupon(data?.coupon?.code || data?.code || cleanCoupon);
+        const couponDetails = data?.coupon || {};
+
+        if (discountAmount <= 0) {
+          throw new Error(
+            data?.error ||
+              data?.message ||
+              `${serverCoupon || cleanCoupon} was found, but it returned no discount.`
+          );
+        }
+
+        if (!secureToken) {
+          throw new Error(
+            `${serverCoupon || cleanCoupon} validated, but the secure discount token was not returned.`
+          );
+        }
+
+        accumulatedDiscount += discountAmount;
+        validatedCoupons.push({
+          code: serverCoupon || cleanCoupon,
+          discountAmount,
+          discountToken: secureToken,
+          data,
+          details: {
+            ...couponDetails,
+            discount_type:
+              couponDetails.discount_type ||
+              couponDetails.discountType ||
+              data.discount_type ||
+              data.discountType ||
+              "",
+          },
+        });
       }
 
-      if (!secureToken) {
-        throw new Error(
-          "Coupon validated, but the secure discount token was not returned."
-        );
-      }
+      const savedCoupon = saveCoupon(validatedCoupons.map((item) => item.code).join(","));
+      const totalDiscount = Number(accumulatedDiscount.toFixed(2));
+      const discountTokens = validatedCoupons.map((item) => item.discountToken).join(",");
 
       setCoupon(savedCoupon);
+      setCouponInput(savedCoupon);
       setCouponStatus("valid");
-      setCouponDiscount(discountAmount);
+      setCouponDiscount(totalDiscount);
       setCouponData({
-        ...data,
-        ...couponDetails,
-        discount_type:
-          couponDetails.discount_type ||
-          couponDetails.discountType ||
-          data.discount_type ||
-          data.discountType ||
-          "",
+        coupons: validatedCoupons,
+        coupon_count: validatedCoupons.length,
       });
-      setDiscountToken(secureToken);
+      setDiscountToken(discountTokens);
       setCouponMessage(
-        data?.message || `${savedCoupon} applied: -${formatMoney(discountAmount)}.`
+        `${savedCoupon} applied: -${formatMoney(totalDiscount)}.`
       );
     } catch (err) {
       console.error("PHASE ONE COUPON APPLY ERROR:", err);
@@ -1497,7 +2024,7 @@ export default function CheckoutTransferPage() {
     setCouponDiscount(0);
     setCouponData(null);
     setDiscountToken("");
-    setCouponMessage("Coupon removed.");
+    setCouponMessage("Coupons removed.");
   };
 
   const validateBeforePayment = () => {
@@ -1508,10 +2035,10 @@ export default function CheckoutTransferPage() {
       return false;
     }
 
-    const typedCoupon = normalizeCoupon(couponInput);
+    const typedCoupons = normalizeCouponList(couponInput);
 
-    if (typedCoupon && couponStatus !== "valid" && !couponLocked) {
-      setError("Please apply and validate the coupon before continuing.");
+    if (typedCoupons.length && couponStatus !== "valid" && !couponLocked) {
+      setError("Please apply and validate the coupon codes before continuing.");
       return false;
     }
 
@@ -1539,7 +2066,7 @@ export default function CheckoutTransferPage() {
       couponStatus === "valid"
         ? coupon
         : couponLocked
-          ? normalizeCoupon(couponInput)
+          ? formatCouponList(couponInput)
           : "";
 
     const checkoutUrl = buildWooCheckoutUrl({
@@ -1668,15 +2195,23 @@ export default function CheckoutTransferPage() {
             couponStatus === "valid"
               ? coupon
               : couponLocked
-                ? normalizeCoupon(couponInput)
+                ? formatCouponList(couponInput)
                 : "",
           coupon:
             couponStatus === "valid"
               ? coupon
               : couponLocked
-                ? normalizeCoupon(couponInput)
+                ? formatCouponList(couponInput)
                 : "",
+          couponCodes: normalizeCouponList(
+            couponStatus === "valid" ? coupon : couponInput
+          ),
+          coupon_codes: normalizeCouponList(
+            couponStatus === "valid" ? coupon : couponInput
+          ),
           discountToken: couponStatus === "valid" ? discountToken : "",
+          discountTokens: couponStatus === "valid" ? String(discountToken || "").split(",").filter(Boolean) : [],
+          discount_tokens: couponStatus === "valid" ? String(discountToken || "").split(",").filter(Boolean) : [],
           couponDiscountAmount:
             couponStatus === "valid" ? validatedCouponDiscount : 0,
           discountAmount:
@@ -1748,15 +2283,426 @@ export default function CheckoutTransferPage() {
     }
   };
 
+  const createOrReuseManualPaymentOrder = async (methodId = selectedPaymentMethod?.id) => {
+    const manualMethod = PAYMENT_METHODS.find((method) => method.id === methodId);
+
+    if (!manualMethod || !isManualPaymentMethod(manualMethod.id)) return;
+
+    if (!validateBeforePayment()) {
+      setManualPaymentStatus("idle");
+      return;
+    }
+
+    const checkoutItems = buildCheckoutItems(cartItems);
+
+    if (!checkoutItems.length) {
+      setError("No valid cart items were found for this order.");
+      setManualPaymentStatus("error");
+      return;
+    }
+
+    const normalizedForm = normalizeCheckoutFormForOrder(checkoutForm);
+    const customerData = getSessionCustomerData(session || {}, accountUser || {});
+    const finalEmail = normalizeEmail(
+      normalizedForm.email ||
+        bankTransferEmail ||
+        customerData?.billing?.email ||
+        customerData?.customer?.email ||
+        ""
+    );
+
+    if (!isValidEmail(finalEmail)) {
+      setError("Enter a valid email before generating Venmo/Zelle payment instructions.");
+      setManualPaymentStatus("error");
+      return;
+    }
+
+    const requiredFields = [
+      ["first_name", "First name"],
+      ["last_name", "Last name"],
+      ["address_1", "Address"],
+      ["city", "City"],
+      ["state", "State"],
+      ["postcode", "Postal code"],
+      ["phone", "Phone number"],
+    ];
+
+    const missingField = requiredFields.find(([key]) => !normalizedForm[key]);
+
+    if (missingField) {
+      setError(`${missingField[1]} is required before creating the ${manualMethod.title} order.`);
+      setManualPaymentStatus("error");
+      return;
+    }
+
+    const finalBilling = {
+      ...normalizeCheckoutAddress(customerData?.billing || {}, normalizedForm),
+      ...normalizedForm,
+      email: finalEmail,
+    };
+
+    const finalShipping = {
+      ...normalizeCheckoutAddress(customerData?.shipping || {}, finalBilling),
+      ...normalizedForm,
+      email: finalEmail,
+    };
+
+    const finalCustomer = {
+      firstName: finalBilling.first_name,
+      lastName: finalBilling.last_name,
+      email: finalEmail,
+      phone: finalBilling.phone,
+    };
+
+    const savedOrder = typeof window !== "undefined"
+      ? normalizeManualOrderData(
+          safeJsonParse(localStorage.getItem(manualOrderStorageKey), null)
+        )
+      : null;
+
+    const existingOrderId = Number(
+      manualPaymentOrder?.order_id || savedOrder?.order_id || 0
+    );
+
+    try {
+      setError("");
+      setPaymentNotice("");
+      setLoading(true);
+      setManualPaymentStatus("loading");
+
+      const endpoint = getManualPaymentOrderEndpoint();
+
+      if (!endpoint) {
+        throw new Error(
+          "Manual payment endpoint is missing. Check PUBLIC_WP_SITE_URL or PUBLIC_WOOCOMMERCE_URL."
+        );
+      }
+
+      const response = await fetch(endpoint, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          ...(getAccountToken()
+            ? { Authorization: `Bearer ${getAccountToken()}` }
+            : {}),
+        },
+        body: JSON.stringify({
+          existingOrderId,
+          existing_order_id: existingOrderId,
+          paymentMethod: manualMethod.id,
+          payment_method: manualMethod.id,
+          paymentMethodTitle: manualMethod.title,
+          payment_method_title: manualMethod.title,
+          customer: finalCustomer,
+          billing: finalBilling,
+          shipping: finalShipping,
+          items: checkoutItems,
+          shippingMethod: {
+            id: freeShippingUnlocked ? "free_manual_shipping" : "manual_flat_rate",
+            title: freeShippingUnlocked ? "Free Shipping" : "Standard Shipping",
+            price: manualShippingCost,
+            method_id: freeShippingUnlocked ? "free_shipping" : "flat_rate",
+            free_shipping_applied: freeShippingUnlocked,
+            free_shipping_minimum: FREE_SHIPPING_MINIMUM,
+          },
+          shipping_method: {
+            id: freeShippingUnlocked ? "free_manual_shipping" : "manual_flat_rate",
+            title: freeShippingUnlocked ? "Free Shipping" : "Standard Shipping",
+            price: manualShippingCost,
+            method_id: freeShippingUnlocked ? "free_shipping" : "flat_rate",
+            free_shipping_applied: freeShippingUnlocked,
+            free_shipping_minimum: FREE_SHIPPING_MINIMUM,
+          },
+          shippingTotal: manualShippingCost,
+          shipping_total: manualShippingCost,
+          freeShippingApplied: freeShippingUnlocked,
+          free_shipping_applied: freeShippingUnlocked,
+          freeShippingMinimum: FREE_SHIPPING_MINIMUM,
+          free_shipping_minimum: FREE_SHIPPING_MINIMUM,
+          couponCode:
+            couponStatus === "valid"
+              ? coupon
+              : couponLocked
+                ? formatCouponList(couponInput)
+                : "",
+          coupon:
+            couponStatus === "valid"
+              ? coupon
+              : couponLocked
+                ? formatCouponList(couponInput)
+                : "",
+          couponCodes: normalizeCouponList(
+            couponStatus === "valid" ? coupon : couponInput
+          ),
+          coupon_codes: normalizeCouponList(
+            couponStatus === "valid" ? coupon : couponInput
+          ),
+          discountToken: couponStatus === "valid" ? discountToken : "",
+          discountTokens: couponStatus === "valid" ? String(discountToken || "").split(",").filter(Boolean) : [],
+          discount_tokens: couponStatus === "valid" ? String(discountToken || "").split(",").filter(Boolean) : [],
+          couponDiscountAmount:
+            couponStatus === "valid" ? validatedCouponDiscount : 0,
+          paymentDiscountAmount: paymentMethodDiscount,
+          payment_discount_amount: paymentMethodDiscount,
+          paymentDiscountRate: PAYMENT_DISCOUNT_RATE,
+          payment_discount_rate: PAYMENT_DISCOUNT_RATE,
+          paymentDiscountLabel: paymentDiscountLabel,
+          payment_discount_label: paymentDiscountLabel,
+          cashbackAmount: cashbackToApply,
+          cashback_amount: cashbackToApply,
+          previewTotal: paymentPreviewTotal,
+          preview_total: paymentPreviewTotal,
+          cartTotal,
+          cart_total: cartTotal,
+          source: "phaseone_custom_checkout_manual_payment",
+          expiresInHours: 24,
+          expires_in_hours: 24,
+          ageConfirmed: true,
+          researchUseAcknowledged: true,
+          termsAccepted: true,
+          refundPolicyAccepted: true,
+          researchUsePolicyAccepted: true,
+          policyAcknowledgedAt: new Date().toISOString(),
+          policyAcknowledgementText: POLICY_ACKNOWLEDGEMENT_TEXT,
+          acknowledgements: {
+            age21OrOlder: true,
+            inVitroResearchUseOnly: true,
+            termsAndConditionsAccepted: true,
+            refundPolicyAccepted: true,
+            researchUseOnlyPolicyAccepted: true,
+            acceptedAt: new Date().toISOString(),
+            text: POLICY_ACKNOWLEDGEMENT_TEXT,
+          },
+        }),
+      });
+
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok || data?.success === false) {
+        throw new Error(
+          data?.message ||
+            data?.error ||
+            "Unable to prepare Venmo/Zelle payment instructions."
+        );
+      }
+
+      const normalizedOrderData = normalizeManualOrderData(data);
+
+      if (!normalizedOrderData?.order_id || !normalizedOrderData?.payment_reference) {
+        throw new Error("The order was created, but no payment reference was returned.");
+      }
+
+      const orderData = {
+        ...normalizedOrderData,
+        email: normalizedOrderData.email || finalEmail,
+        customer: normalizedOrderData.customer || finalCustomer,
+        billing: normalizedOrderData.billing || finalBilling,
+        shipping: normalizedOrderData.shipping || finalShipping,
+        payment_details:
+          normalizedOrderData.payment_details ||
+          normalizedOrderData.paymentDetails ||
+          data?.payment_details ||
+          data?.paymentDetails ||
+          getManualPaymentDetails(manualMethod.id),
+      };
+
+      setManualPaymentOrder(orderData);
+      setManualPaymentStatus("ready");
+
+      if (typeof window !== "undefined") {
+        localStorage.setItem(manualOrderStorageKey, JSON.stringify(orderData));
+        localStorage.setItem("phaseone_checkout_email", finalEmail);
+        localStorage.setItem("phaseone_checkout_shipping", JSON.stringify(checkoutForm));
+
+      }
+
+      setLoading(false);
+      setPaymentNotice(
+        `${manualMethod.title} order ${orderData.order_number ? `#${orderData.order_number}` : ""} created. Payment instructions are shown below and were emailed to ${finalEmail}.`
+      );
+
+      if (typeof window !== "undefined") {
+        window.setTimeout(() => {
+          document
+            .querySelector(".phase-thanks-card")
+            ?.scrollIntoView({ behavior: "auto", block: "start" });
+        }, 120);
+      }
+    } catch (err) {
+      console.error("PHASE ONE MANUAL PAYMENT ORDER ERROR:", err);
+      setLoading(false);
+      setManualPaymentStatus("error");
+      setPaymentNotice("");
+      setError(
+        err?.message ||
+          "Unable to prepare Venmo/Zelle payment instructions. Please try again."
+      );
+    }
+  };
+
   const handleContinuePayment = () => {
     if (selectedPaymentMethod?.id === "bank") {
       createBankTransferOrder();
       return;
     }
 
+    if (isManualPaymentSelected) {
+      createOrReuseManualPaymentOrder(selectedPaymentMethod?.id);
+      return;
+    }
+
     setPaymentNotice("");
     continueToWooCheckout();
   };
+
+
+  if (showManualInstructions && manualPaymentDetails) {
+    return (
+      <main className="checkout-page manual-thanks-page">
+        <section className="checkout-shell manual-thanks-shell">
+          <section className="phase-thanks-card phase-thanks-card-full" aria-live="polite">
+            <div className="phase-thanks-hero">
+              <span className="phase-thanks-icon">
+                <BadgeCheck size={24} />
+              </span>
+
+              <div>
+                <p>Thank you</p>
+                <h2>Your order was received</h2>
+                <span>
+                  Order {manualOrderDisplayNumber || ""} is on hold until we confirm your {manualPaymentDetails.title} payment. A copy of these instructions was sent to {manualInstructionsEmail || manualThanksBilling.email || "your email"}.
+                </span>
+              </div>
+            </div>
+
+            <div className="phase-thanks-grid main-grid">
+              <div className="phase-thanks-panel payment-panel">
+                <span>Amount to send</span>
+                <strong>{manualPaymentAmount}</strong>
+                <small>Send this exact amount.</small>
+              </div>
+
+              <div className="phase-thanks-panel reference-panel">
+                <span>Payment reference</span>
+                <strong>{manualPaymentReference}</strong>
+                <small>Use only this reference in the payment note.</small>
+              </div>
+            </div>
+
+            <div className="phase-thanks-split">
+              <div className="phase-thanks-box">
+                <div className="phase-thanks-box-head">
+                  <span>Payment instructions</span>
+                  <strong>{manualPaymentDetails.title}</strong>
+                </div>
+
+                <div className="phase-thanks-line">
+                  <span>{manualPaymentDetails.recipientLabel}</span>
+                  <strong>
+                    {manualOrderPaymentDetails?.recipient || manualPaymentDetails.recipientValue}
+                  </strong>
+                </div>
+
+                {(manualOrderPaymentDetails?.recipient_extra || manualPaymentDetails.extraRecipientLine) && (
+                  <div className="phase-thanks-line">
+                    <span>Name</span>
+                    <strong>
+                      {manualOrderPaymentDetails?.recipient_extra || manualPaymentDetails.extraRecipientLine}
+                    </strong>
+                  </div>
+                )}
+
+                <div className="phase-thanks-line">
+                  <span>Status</span>
+                  <strong>Awaiting payment</strong>
+                </div>
+
+                {(manualOrderPaymentDetails?.button_url || manualPaymentDetails.actionHref) && (
+                  <a
+                    className="phase-thanks-action"
+                    href={manualOrderPaymentDetails?.button_url || manualPaymentDetails.actionHref}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {manualOrderPaymentDetails?.button_label || manualPaymentDetails.actionLabel || "Open payment app"}
+                  </a>
+                )}
+              </div>
+
+              <div className="phase-thanks-box">
+                <div className="phase-thanks-box-head">
+                  <span>Shipping details</span>
+                  <strong>{manualThanksShipping.fullName || "Shipping address"}</strong>
+                </div>
+
+                <div className="phase-thanks-address">
+                  {manualThanksShipping.lines.length ? (
+                    manualThanksShipping.lines.map((line) => <p key={line}>{line}</p>)
+                  ) : (
+                    <p>Shipping address saved on the order.</p>
+                  )}
+                  {manualThanksShipping.phone && <p>{manualThanksShipping.phone}</p>}
+                </div>
+
+                <div className="phase-thanks-line compact">
+                  <span>Email</span>
+                  <strong>{manualInstructionsEmail || manualThanksBilling.email}</strong>
+                </div>
+              </div>
+            </div>
+
+            <div className="phase-thanks-box order-box">
+              <div className="phase-thanks-box-head">
+                <span>Order details</span>
+                <strong>{manualThanksItems.length} item{manualThanksItems.length === 1 ? "" : "s"}</strong>
+              </div>
+
+              <div className="phase-thanks-items">
+                {manualThanksItems.map((item, index) => {
+                  const options = getItemOptions(item);
+                  const lineTotal = getCartItemLineTotal(item);
+                  const image = getItemImage(item);
+                  const name = getItemName(item);
+                  const quantity = getCartItemQuantity(item);
+
+                  return (
+                    <div key={item.cartKey || item.cart_key || `${item.id || item.product_id || name}-${index}`}>
+                      <span className="phase-thanks-item-media">
+                        <img src={image} alt="" loading="lazy" />
+                      </span>
+
+                      <span className="phase-thanks-item-copy">
+                        <strong>{quantity}× {name}</strong>
+                        {options && <small>{options}</small>}
+                      </span>
+
+                      <em>{isRewardGiftItem(item) ? "FREE" : formatMoney(lineTotal)}</em>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="phase-thanks-warning">
+              <AlertTriangle size={16} />
+              <p>
+                Important: write only <strong>{manualPaymentReference}</strong> in the payment note. Do not include product names. Unpaid Zelle/Venmo orders cancel automatically after 24 hours.
+              </p>
+            </div>
+
+            <div className="phase-thanks-actions-row">
+              <a href="/shop">Continue shopping</a>
+              <a href="/contact">Need help?</a>
+            </div>
+          </section>
+        </section>
+
+        <style>{styles}</style>
+      </main>
+    );
+  }
 
 
   if (!hasItems) {
@@ -1852,8 +2798,7 @@ export default function CheckoutTransferPage() {
 
               <p className="checkout-copy">
                 Add a promo or affiliate code, apply available cashback, then
-                choose your payment method. Venmo, Zelle, and ACH Bank Transfer
-                receive an automatic 5% payment discount. ACH shows the discount instantly before payment.
+                choose your payment method. Complete the checkout details before pressing Comprar.
               </p>
             </div>
 
@@ -1865,7 +2810,7 @@ export default function CheckoutTransferPage() {
 
                 <div>
                   <p>Promo code</p>
-                  <h2>Coupon or affiliate code</h2>
+                  <h2>Coupon or affiliate codes</h2>
                 </div>
               </div>
 
@@ -1873,7 +2818,7 @@ export default function CheckoutTransferPage() {
                 <input
                       value={couponInput}
                       onChange={handleCouponInput}
-                      placeholder="Enter code"
+                      placeholder="CODE1, CODE2, CODE3"
                       inputMode="text"
                       autoCapitalize="characters"
                       readOnly={couponLocked}
@@ -1902,6 +2847,12 @@ export default function CheckoutTransferPage() {
                 )}
               </div>
 
+              {!couponLocked && (
+                <p className="coupon-locked-note">
+                  You can apply up to 3 codes. Separate them with commas or spaces.
+                </p>
+              )}
+
               {couponLocked && couponInput && (
                 <p className="coupon-locked-note">
                   Referral code locked from your link. It will be passed to secure payment automatically.
@@ -1912,7 +2863,7 @@ export default function CheckoutTransferPage() {
                 <div className="applied-code">
                   <BadgeCheck size={15} />
                   <p>
-                    <strong>{coupon}</strong> applied. Estimated discount: {" "}
+                    <strong>{coupon}</strong> applied. Total discount: {" "}
                     <strong>-{formatMoney(validatedCouponDiscount)}</strong>.
                   </p>
                 </div>
@@ -2042,6 +2993,7 @@ export default function CheckoutTransferPage() {
                         setSelectedPaymentMethodId(method.id);
                         setError("");
                         setPaymentNotice("");
+
                       }}
                     >
                       <span className="payment-icon">
@@ -2061,35 +3013,158 @@ export default function CheckoutTransferPage() {
                 })}
               </div>
 
-              <div className="payment-selected-note">
-                <ShieldCheck size={15} />
-                <p>
-                  Selected: <strong>{selectedPaymentMethod.title}</strong>.{" "}
-                  {paymentMethodDiscount > 0
-                    ? `${paymentDiscountLabel} is applied to your estimated total.`
-                    : selectedPaymentMethod.id === "bank"
-                      ? "You will continue directly to the verified bank transfer portal in this tab."
-                      : "You will continue through the same secure checkout flow."}
-                </p>
-              </div>
-
-              {["venmo", "zelle"].includes(selectedPaymentMethod.id) && (
-                <div className="payment-red-warning">
-                  <AlertTriangle size={15} />
+              {!isManualPaymentSelected && (
+                <div className="payment-selected-note">
+                  <ShieldCheck size={15} />
                   <p>
-                    Include your order number only. Do not include peptide or
-                    product names in the payment note.
+                    Selected: <strong>{selectedPaymentMethod.title}</strong>.{" "}
+                    {paymentMethodDiscount > 0
+                      ? `${paymentDiscountLabel} is applied to your estimated total.`
+                      : selectedPaymentMethod.id === "bank"
+                        ? "You will continue directly to the verified bank transfer portal in this tab."
+                        : "You will continue through the same secure checkout flow."}
                   </p>
                 </div>
               )}
 
-              {selectedPaymentMethod.id === "bank" && (
+              {showManualInstructions && manualPaymentDetails && (
+                <section className="phase-thanks-card" aria-live="polite">
+                  <div className="phase-thanks-hero">
+                    <span className="phase-thanks-icon">
+                      <BadgeCheck size={22} />
+                    </span>
+
+                    <div>
+                      <p>Thanks</p>
+                      <h2>Your order was received</h2>
+                      <span>
+                        Order {manualOrderDisplayNumber || ""} is on hold until we confirm your {manualPaymentDetails.title} payment.
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="phase-thanks-grid main-grid">
+                    <div className="phase-thanks-panel payment-panel">
+                      <span>Amount to send</span>
+                      <strong>{manualPaymentAmount}</strong>
+                      <small>Send the exact amount shown here.</small>
+                    </div>
+
+                    <div className="phase-thanks-panel">
+                      <span>Payment reference</span>
+                      <strong>{manualPaymentReference}</strong>
+                      <small>Put only this in the payment note.</small>
+                    </div>
+                  </div>
+
+                  <div className="phase-thanks-split">
+                    <div className="phase-thanks-box">
+                      <div className="phase-thanks-box-head">
+                        <span>Payment instructions</span>
+                        <strong>{manualPaymentDetails.title}</strong>
+                      </div>
+
+                      <div className="phase-thanks-line">
+                        <span>{manualPaymentDetails.recipientLabel}</span>
+                        <strong>
+                          {manualOrderPaymentDetails?.recipient || manualPaymentDetails.recipientValue}
+                        </strong>
+                      </div>
+
+                      {(manualOrderPaymentDetails?.recipient_extra || manualPaymentDetails.extraRecipientLine) && (
+                        <div className="phase-thanks-line">
+                          <span>Name</span>
+                          <strong>
+                            {manualOrderPaymentDetails?.recipient_extra || manualPaymentDetails.extraRecipientLine}
+                          </strong>
+                        </div>
+                      )}
+
+                      <div className="phase-thanks-line">
+                        <span>Status</span>
+                        <strong>Awaiting payment</strong>
+                      </div>
+
+                      {(manualOrderPaymentDetails?.button_url || manualPaymentDetails.actionHref) && (
+                        <a
+                          className="phase-thanks-action"
+                          href={manualOrderPaymentDetails?.button_url || manualPaymentDetails.actionHref}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          {manualOrderPaymentDetails?.button_label || manualPaymentDetails.actionLabel || "Open payment app"}
+                        </a>
+                      )}
+                    </div>
+
+                    <div className="phase-thanks-box">
+                      <div className="phase-thanks-box-head">
+                        <span>Shipping details</span>
+                        <strong>{manualThanksShipping.fullName || "Shipping address"}</strong>
+                      </div>
+
+                      <div className="phase-thanks-address">
+                        {manualThanksShipping.lines.length ? (
+                          manualThanksShipping.lines.map((line) => <p key={line}>{line}</p>)
+                        ) : (
+                          <p>Shipping address saved on the order.</p>
+                        )}
+                        {manualThanksShipping.phone && <p>{manualThanksShipping.phone}</p>}
+                      </div>
+
+                      <div className="phase-thanks-line compact">
+                        <span>Email</span>
+                        <strong>{manualInstructionsEmail || manualThanksBilling.email}</strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="phase-thanks-box order-box">
+                    <div className="phase-thanks-box-head">
+                      <span>Order details</span>
+                      <strong>{manualThanksItems.length} item{manualThanksItems.length === 1 ? "" : "s"}</strong>
+                    </div>
+
+                    <div className="phase-thanks-items">
+                      {manualThanksItems.map((item, index) => {
+                        const options = getItemOptions(item);
+                        const lineTotal = getCartItemLineTotal(item);
+
+                        return (
+                          <div key={item.cartKey || `${item.id || item.product_id}-${index}`}>
+                            <span>
+                              <strong>{item.quantity || 1}× {item.name || item.title || "Item"}</strong>
+                              {options && <small>{options}</small>}
+                            </span>
+                            <em>{isRewardGiftItem(item) ? "FREE" : formatMoney(lineTotal)}</em>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="phase-thanks-warning">
+                    <AlertTriangle size={16} />
+                    <p>
+                      Important: write only <strong>{manualPaymentReference}</strong> in the payment note. Do not include product names. Unpaid Zelle/Venmo orders cancel automatically after 24 hours.
+                    </p>
+                  </div>
+                </section>
+              )}
+
+              {(selectedPaymentMethod.id === "bank" || (isManualPaymentSelected && !showManualInstructions)) && (
                 <div className="bank-checkout-panel">
                   <div className="bank-checkout-intro">
                     <div>
-                      <strong>Secure bank transfer details</strong>
+                      <strong>
+                        {selectedPaymentMethod.id === "bank"
+                          ? "Secure bank transfer details"
+                          : `${selectedPaymentMethod.title} checkout details`}
+                      </strong>
                       <p>
-                        Complete your contact, delivery address, and shipping option. Your ACH 5% discount is already applied in the order summary.
+                        {selectedPaymentMethod.id === "bank"
+                          ? "Complete your contact, delivery address, and shipping option. Your ACH 5% discount is already applied in the order summary."
+                          : `Fill in the contact and shipping information below. We use this address to ship your order. Shipping is free over ${formatMoney(FREE_SHIPPING_MINIMUM)}; otherwise it is ${formatMoney(MANUAL_PAYMENT_SHIPPING_COST)}.`}
                       </p>
                     </div>
                   </div>
@@ -2243,47 +3318,68 @@ export default function CheckoutTransferPage() {
                       <small>
                         {freeShippingUnlocked
                           ? "Free shipping unlocked for this order."
-                          : `Free shipping starts at $${FREE_SHIPPING_MINIMUM}. Add ${formatMoney(amountUntilFreeShipping)} more to qualify.`}
+                          : `Shipping is $${MANUAL_PAYMENT_SHIPPING_COST}. Add ${formatMoney(amountUntilFreeShipping)} more to get free shipping.`}
                       </small>
                     </div>
 
-                    <div className="bank-shipping-options" role="radiogroup" aria-label="Shipping method">
-                      {BANK_SHIPPING_METHODS.map((method) => {
-                        const active = selectedShippingMethodId === method.id;
+                    {selectedPaymentMethod.id === "bank" ? (
+                      <div className="bank-shipping-options" role="radiogroup" aria-label="Shipping method">
+                        {BANK_SHIPPING_METHODS.map((method) => {
+                          const active = selectedShippingMethodId === method.id;
 
-                        return (
-                          <button
-                            key={method.id}
-                            type="button"
-                            role="radio"
-                            aria-checked={active}
-                            className={`bank-shipping-method ${active ? "is-active" : ""}`}
-                            onClick={() => {
-                              setSelectedShippingMethodId(method.id);
-                              setError("");
-                              setPaymentNotice("");
-                            }}
-                          >
-                            <span>
-                              <Truck size={16} />
-                            </span>
+                          return (
+                            <button
+                              key={method.id}
+                              type="button"
+                              role="radio"
+                              aria-checked={active}
+                              className={`bank-shipping-method ${active ? "is-active" : ""}`}
+                              onClick={() => {
+                                setSelectedShippingMethodId(method.id);
+                                setError("");
+                                setPaymentNotice("");
+                              }}
+                            >
+                              <span>
+                                <Truck size={16} />
+                              </span>
 
-                            <div>
-                              <strong>{method.title}</strong>
-                              <small>
-                                {freeShippingUnlocked
-                                  ? `${method.description} Free shipping is applied automatically.`
-                                  : method.description}
-                              </small>
-                            </div>
+                              <div>
+                                <strong>{method.title}</strong>
+                                <small>
+                                  {freeShippingUnlocked
+                                    ? `${method.description} Free shipping is applied automatically.`
+                                    : method.description}
+                                </small>
+                              </div>
 
-                            <em className={freeShippingUnlocked ? "free-shipping-price" : ""}>
-                              {freeShippingUnlocked ? "FREE" : formatMoney(method.price)}
-                            </em>
-                          </button>
-                        );
-                      })}
-                    </div>
+                              <em className={freeShippingUnlocked ? "free-shipping-price" : ""}>
+                                {freeShippingUnlocked ? "FREE" : formatMoney(method.price)}
+                              </em>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="manual-shipping-single">
+                        <span>
+                          <Truck size={16} />
+                        </span>
+
+                        <div>
+                          <strong>{freeShippingUnlocked ? "Free Shipping" : "Standard Shipping"}</strong>
+                          <small>
+                            {freeShippingUnlocked
+                              ? `Free shipping is applied because the order is over ${formatMoney(FREE_SHIPPING_MINIMUM)}.`
+                              : `Shipping is ${formatMoney(MANUAL_PAYMENT_SHIPPING_COST)}. Add ${formatMoney(amountUntilFreeShipping)} more to get free shipping.`}
+                          </small>
+                        </div>
+
+                        <em className={freeShippingUnlocked ? "free-shipping-price" : ""}>
+                          {freeShippingUnlocked ? "FREE" : formatMoney(MANUAL_PAYMENT_SHIPPING_COST)}
+                        </em>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -2320,34 +3416,46 @@ export default function CheckoutTransferPage() {
             <button
               type="button"
               onClick={handleContinuePayment}
-              disabled={loading}
+              disabled={loading || manualPaymentStatus === "loading" || showManualInstructions}
               className="checkout-submit"
             >
               <span className="checkout-submit-main">
                 <strong>
-                  {loading
-                    ? "Opening secure checkout"
-                    : selectedPaymentMethod?.id === "bank"
-                      ? "Continue with ACH Discount"
-                      : "Continue to secure checkout"}
+                  {loading || manualPaymentStatus === "loading"
+                    ? isManualPaymentSelected
+                      ? "Creating order"
+                      : "Opening secure checkout"
+                    : showManualInstructions
+                      ? "Payment instructions ready"
+                      : selectedPaymentMethod?.id === "bank"
+                        ? "Continue with ACH Discount"
+                        : isManualPaymentSelected
+                          ? "Comprar"
+                          : "Continue to secure checkout"}
                 </strong>
 
                 <span>
-                  {paymentMethodDiscount > 0
-                    ? `${paymentDiscountLabel} applied.`
-                    : "Protected payment redirect."}
+                  {showManualInstructions
+                    ? "Use the payment details shown above."
+                    : isManualPaymentSelected
+                      ? "The order will be created now. The thanks section will appear here with payment instructions."
+                      : paymentMethodDiscount > 0
+                        ? `${paymentDiscountLabel} applied.`
+                        : "Protected payment redirect."}
                 </span>
               </span>
 
               <span className="checkout-submit-icon">→</span>
             </button>
 
-            <div className="security-note">
-              <ShieldCheck size={17} />
-              <p>
-                Venmo, Zelle, and ACH Bank Transfer receive a 5% payment discount. ACH is applied immediately in this checkout before continuing to the bank portal.
-              </p>
-            </div>
+            {isManualPaymentSelected && (
+              <div className="security-note manual-final-note">
+                <ShieldCheck size={17} />
+                <p>
+                  After pressing Comprar, your order will be created and the thanks section will appear here with payment instructions. Use only the payment reference shown in the thanks section.
+                </p>
+              </div>
+            )}
           </div>
 
           <aside className="checkout-summary">
@@ -2416,11 +3524,11 @@ export default function CheckoutTransferPage() {
                   </div>
                 )}
 
-                {selectedPaymentMethod?.id === "bank" && (
+                {(selectedPaymentMethod?.id === "bank" || isManualPaymentSelected) && (
                   <div className="shipping-line">
-                    <span>{selectedShippingMethod?.title || "Shipping"}</span>
+                    <span>Shipping</span>
                     <strong className={freeShippingUnlocked ? "free-shipping-price" : ""}>
-                      {freeShippingUnlocked ? "FREE" : formatMoney(bankShippingCost)}
+                      {freeShippingUnlocked ? "FREE" : formatMoney(activeShippingCost)}
                     </strong>
                   </div>
                 )}
@@ -2472,6 +3580,17 @@ const styles = `
     padding: 78px 20px 72px;
     color: #ffffff;
     background: transparent;
+  }
+
+  .manual-thanks-page {
+    display: grid;
+    align-items: start;
+    padding: clamp(44px, 7vh, 82px) 14px 54px;
+  }
+
+  .manual-thanks-shell {
+    width: min(940px, 100%);
+    margin: 0 auto;
   }
 
   .checkout-empty-page {
@@ -3037,6 +4156,289 @@ const styles = `
       0 12px 30px rgba(245, 158, 11, 0.34);
   }
 
+  .manual-payment-panel {
+    display: grid;
+    gap: 14px;
+    margin-top: 16px;
+    border: 1px solid rgba(103, 232, 249, 0.14);
+    border-radius: 22px;
+    background:
+      linear-gradient(135deg, rgba(103, 232, 249, 0.07), rgba(2, 6, 23, 0.16)),
+      rgba(2, 6, 23, 0.38);
+    padding: 16px;
+  }
+
+  .simple-manual-payment {
+    gap: 12px;
+    border-color: rgba(103, 232, 249, 0.18);
+    background: rgba(2, 6, 23, 0.42);
+  }
+
+  .simple-manual-payment.is-ready {
+    border-color: rgba(34, 197, 94, 0.28);
+    background:
+      linear-gradient(135deg, rgba(34, 197, 94, 0.075), rgba(2, 6, 23, 0.16)),
+      rgba(2, 6, 23, 0.46);
+  }
+
+  .manual-payment-simple-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+    padding-bottom: 12px;
+  }
+
+  .manual-payment-simple-head span,
+  .manual-payment-simple-grid span {
+    display: block;
+    color: rgba(103, 232, 249, 0.72);
+    font-size: 9px;
+    font-weight: 950;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+
+  .manual-payment-simple-head strong {
+    display: block;
+    margin-top: 5px;
+    color: white;
+    font-size: 28px;
+    font-weight: 900;
+    letter-spacing: -0.055em;
+    line-height: 1;
+  }
+
+  .manual-payment-simple-head p {
+    margin: 6px 0 0;
+    color: rgba(203, 213, 225, 0.62);
+    font-size: 12px;
+    line-height: 1.45;
+  }
+
+  .manual-payment-loading {
+    display: grid;
+    gap: 5px;
+  }
+
+  .manual-payment-loading span {
+    color: rgba(103, 232, 249, 0.74);
+    font-size: 9px;
+    font-weight: 950;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+
+  .manual-payment-loading strong {
+    color: #ffffff;
+    font-size: 16px;
+    font-weight: 850;
+    letter-spacing: -0.03em;
+  }
+
+  .manual-payment-loading p,
+  .manual-payment-expiry {
+    margin: 0;
+    color: rgba(203, 213, 225, 0.62);
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  .manual-payment-expiry {
+    border-top: 1px solid rgba(148, 163, 184, 0.12);
+    padding-top: 12px;
+  }
+
+  .manual-payment-simple-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .manual-payment-simple-grid > div {
+    min-width: 0;
+    border: 1px solid rgba(148, 163, 184, 0.12);
+    border-radius: 16px;
+    background: rgba(2, 6, 23, 0.38);
+    padding: 12px;
+  }
+
+  .manual-payment-simple-grid strong {
+    display: block;
+    margin-top: 7px;
+    overflow-wrap: anywhere;
+    color: white;
+    font-size: 13px;
+    font-weight: 900;
+    line-height: 1.3;
+  }
+
+  .manual-payment-simple-grid small {
+    display: block;
+    margin-top: 5px;
+    color: rgba(203, 213, 225, 0.58);
+    font-size: 11px;
+    line-height: 1.35;
+  }
+
+  .manual-payment-action.compact {
+    min-height: 40px;
+    padding: 0 13px;
+    white-space: nowrap;
+  }
+
+  .manual-payment-head {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 14px;
+    align-items: start;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+    padding-bottom: 14px;
+  }
+
+  .manual-payment-head span,
+  .manual-payment-info-grid span {
+    display: block;
+    color: rgba(103, 232, 249, 0.72);
+    font-size: 9px;
+    font-weight: 950;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+  }
+
+  .manual-payment-head strong {
+    display: block;
+    margin-top: 5px;
+    color: #ffffff;
+    font-size: 17px;
+    font-weight: 880;
+    letter-spacing: -0.035em;
+  }
+
+  .manual-payment-head p {
+    max-width: 640px;
+    margin: 7px 0 0;
+    color: rgba(203, 213, 225, 0.64);
+    font-size: 12px;
+    line-height: 1.6;
+  }
+
+  .manual-payment-total {
+    min-width: 150px;
+    border: 1px solid rgba(103, 232, 249, 0.13);
+    border-radius: 17px;
+    background: rgba(103, 232, 249, 0.055);
+    padding: 12px;
+    text-align: right;
+  }
+
+  .manual-payment-total small {
+    display: block;
+    color: rgba(203, 213, 225, 0.58);
+    font-size: 9px;
+    font-weight: 950;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+
+  .manual-payment-total strong {
+    display: block;
+    margin-top: 5px;
+    color: rgb(165, 243, 252);
+    font-size: 20px;
+    font-weight: 950;
+    letter-spacing: -0.04em;
+  }
+
+  .manual-payment-info-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .manual-payment-info-grid > div {
+    min-width: 0;
+    border: 1px solid rgba(148, 163, 184, 0.12);
+    border-radius: 18px;
+    background: rgba(2, 6, 23, 0.42);
+    padding: 14px;
+  }
+
+  .manual-payment-info-grid strong {
+    display: block;
+    margin-top: 7px;
+    overflow-wrap: anywhere;
+    color: #ffffff;
+    font-size: 13px;
+    font-weight: 900;
+    line-height: 1.35;
+  }
+
+  .manual-payment-info-grid small {
+    display: block;
+    margin-top: 5px;
+    color: rgba(203, 213, 225, 0.56);
+    font-size: 11px;
+    line-height: 1.35;
+  }
+
+  .manual-payment-action {
+    display: inline-flex;
+    width: fit-content;
+    min-height: 44px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(103, 232, 249, 0.25);
+    border-radius: 999px;
+    background: rgb(103, 232, 249);
+    padding: 0 16px;
+    color: rgb(2, 6, 23);
+    font-size: 10px;
+    font-weight: 950;
+    letter-spacing: 0.15em;
+    text-decoration: none;
+    text-transform: uppercase;
+  }
+
+  .manual-payment-steps {
+    display: grid;
+    gap: 9px;
+    margin: 0;
+    padding-left: 20px;
+    color: rgba(226, 232, 240, 0.76);
+    font-size: 12px;
+    font-weight: 760;
+    line-height: 1.5;
+  }
+
+  .manual-payment-steps li::marker {
+    color: rgb(165, 243, 252);
+    font-weight: 950;
+  }
+
+  .manual-payment-warning {
+    display: flex;
+    gap: 10px;
+    border: 1px solid rgba(245, 158, 11, 0.22);
+    border-radius: 17px;
+    background: rgba(245, 158, 11, 0.075);
+    padding: 12px;
+    color: rgba(253, 230, 138, 0.92);
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 1.5;
+  }
+
+  .manual-payment-warning p {
+    margin: 0;
+  }
+
+  .manual-payment-warning svg {
+    flex: 0 0 auto;
+    margin-top: 2px;
+  }
+
 
   .bank-checkout-panel {
     display: grid;
@@ -3131,7 +4533,8 @@ const styles = `
     gap: 10px;
   }
 
-  .bank-shipping-method {
+  .bank-shipping-method,
+  .manual-shipping-single {
     display: grid;
     grid-template-columns: 40px minmax(0, 1fr) auto;
     gap: 11px;
@@ -3150,7 +4553,13 @@ const styles = `
     background: rgba(8, 29, 45, 0.78);
   }
 
-  .bank-shipping-method > span {
+  .manual-shipping-single {
+    border-color: rgba(103, 232, 249, 0.2);
+    background: rgba(8, 29, 45, 0.58);
+  }
+
+  .bank-shipping-method > span,
+  .manual-shipping-single > span {
     display: grid;
     width: 40px;
     height: 40px;
@@ -3160,13 +4569,15 @@ const styles = `
     color: rgb(165, 243, 252);
   }
 
-  .bank-shipping-method strong {
+  .bank-shipping-method strong,
+  .manual-shipping-single strong {
     display: block;
     font-size: 13px;
     font-weight: 850;
   }
 
-  .bank-shipping-method small {
+  .bank-shipping-method small,
+  .manual-shipping-single small {
     display: block;
     margin-top: 3px;
     color: rgba(203, 213, 225, 0.58);
@@ -3174,7 +4585,8 @@ const styles = `
     line-height: 1.35;
   }
 
-  .bank-shipping-method em {
+  .bank-shipping-method em,
+  .manual-shipping-single em {
     color: rgb(165, 243, 252);
     font-size: 13px;
     font-style: normal;
@@ -3185,6 +4597,294 @@ const styles = `
   .free-shipping-price {
     color: rgb(165, 243, 252) !important;
     letter-spacing: 0.08em;
+  }
+
+
+  .phase-thanks-card {
+    display: grid;
+    gap: 14px;
+    border: 1px solid rgba(103, 232, 249, 0.18);
+    border-radius: 26px;
+    background:
+      linear-gradient(135deg, rgba(103, 232, 249, 0.08), rgba(2, 6, 23, 0.16)),
+      rgba(2, 6, 23, 0.5);
+    padding: 18px;
+    box-shadow: none;
+  }
+
+  .phase-thanks-card-full {
+    gap: 18px;
+    padding: clamp(18px, 3vw, 28px);
+    background: rgba(2, 6, 23, 0.72);
+  }
+
+  .phase-thanks-actions-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: flex-end;
+    border-top: 1px solid rgba(148, 163, 184, 0.12);
+    padding-top: 14px;
+  }
+
+  .phase-thanks-actions-row a {
+    display: inline-flex;
+    min-height: 42px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(103, 232, 249, 0.18);
+    border-radius: 999px;
+    background: rgba(103, 232, 249, 0.08);
+    padding: 0 15px;
+    color: rgb(165, 243, 252);
+    font-size: 10px;
+    font-weight: 950;
+    letter-spacing: 0.14em;
+    text-decoration: none;
+    text-transform: uppercase;
+  }
+
+  .phase-thanks-actions-row a:first-child {
+    border: 0;
+    background: rgb(103, 232, 249);
+    color: rgb(2, 6, 23);
+  }
+
+  .phase-thanks-hero {
+    display: flex;
+    align-items: flex-start;
+    gap: 13px;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+    padding-bottom: 14px;
+  }
+
+  .phase-thanks-icon {
+    display: grid;
+    width: 48px;
+    height: 48px;
+    flex: 0 0 auto;
+    place-items: center;
+    border: 1px solid rgba(103, 232, 249, 0.2);
+    border-radius: 17px;
+    background: rgba(103, 232, 249, 0.08);
+    color: rgb(165, 243, 252);
+  }
+
+  .phase-thanks-hero p,
+  .phase-thanks-panel span,
+  .phase-thanks-box-head span,
+  .phase-thanks-line span {
+    margin: 0;
+    color: rgba(103, 232, 249, 0.72);
+    font-size: 9px;
+    font-weight: 950;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+
+  .phase-thanks-hero h2 {
+    margin: 4px 0 0;
+    color: #ffffff;
+    font-size: clamp(28px, 4vw, 42px);
+    font-weight: 790;
+    letter-spacing: -0.06em;
+    line-height: 0.96;
+  }
+
+  .phase-thanks-hero > div > span {
+    display: block;
+    margin-top: 8px;
+    color: rgba(203, 213, 225, 0.66);
+    font-size: 12.5px;
+    line-height: 1.55;
+  }
+
+  .phase-thanks-grid,
+  .phase-thanks-split {
+    display: grid;
+    gap: 12px;
+  }
+
+  .phase-thanks-grid.main-grid,
+  .phase-thanks-split {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .phase-thanks-panel,
+  .phase-thanks-box {
+    border: 1px solid rgba(148, 163, 184, 0.12);
+    border-radius: 20px;
+    background: rgba(2, 6, 23, 0.42);
+    padding: 15px;
+  }
+
+  .phase-thanks-panel strong {
+    display: block;
+    margin-top: 7px;
+    color: #ffffff;
+    font-size: 24px;
+    font-weight: 900;
+    letter-spacing: -0.04em;
+  }
+
+  .phase-thanks-panel.payment-panel strong {
+    color: rgb(165, 243, 252);
+    font-size: 30px;
+  }
+
+  .phase-thanks-panel small,
+  .phase-thanks-box-head + .phase-thanks-address,
+  .phase-thanks-line.compact,
+  .phase-thanks-items small {
+    color: rgba(203, 213, 225, 0.58);
+    font-size: 11.5px;
+    line-height: 1.45;
+  }
+
+  .phase-thanks-box-head {
+    display: grid;
+    gap: 5px;
+    margin-bottom: 12px;
+  }
+
+  .phase-thanks-box-head strong,
+  .phase-thanks-line strong {
+    color: #ffffff;
+    font-size: 13px;
+    font-weight: 880;
+    line-height: 1.35;
+  }
+
+  .phase-thanks-line {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    border-top: 1px solid rgba(148, 163, 184, 0.1);
+    padding: 11px 0 0;
+    margin-top: 11px;
+  }
+
+  .phase-thanks-line strong {
+    text-align: right;
+    word-break: break-word;
+  }
+
+  .phase-thanks-line.compact strong {
+    max-width: 70%;
+  }
+
+  .phase-thanks-address {
+    display: grid;
+    gap: 3px;
+    color: rgba(226, 232, 240, 0.78);
+    font-size: 12px;
+    line-height: 1.45;
+  }
+
+  .phase-thanks-address p {
+    margin: 0;
+  }
+
+  .phase-thanks-action {
+    display: inline-flex;
+    min-height: 44px;
+    align-items: center;
+    justify-content: center;
+    margin-top: 14px;
+    border-radius: 999px;
+    background: rgb(103, 232, 249);
+    padding: 0 16px;
+    color: rgb(2, 6, 23);
+    font-size: 10px;
+    font-weight: 950;
+    letter-spacing: 0.14em;
+    text-decoration: none;
+    text-transform: uppercase;
+  }
+
+  .phase-thanks-items {
+    display: grid;
+    gap: 10px;
+  }
+
+  .phase-thanks-items > div {
+    display: grid;
+    grid-template-columns: 42px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    border-top: 1px solid rgba(148, 163, 184, 0.1);
+    padding-top: 10px;
+  }
+
+  .phase-thanks-item-media {
+    display: grid;
+    width: 42px;
+    height: 42px;
+    place-items: center;
+    border: 1px solid rgba(148, 163, 184, 0.12);
+    border-radius: 14px;
+    background: rgba(15, 23, 42, 0.45);
+    overflow: hidden;
+  }
+
+  .phase-thanks-item-media img {
+    width: 34px;
+    height: 34px;
+    object-fit: contain;
+  }
+
+  .phase-thanks-item-copy {
+    min-width: 0;
+  }
+
+  .phase-thanks-items > div:first-child {
+    border-top: 0;
+    padding-top: 0;
+  }
+
+  .phase-thanks-items strong {
+    display: block;
+    color: #ffffff;
+    font-size: 12.5px;
+    font-weight: 850;
+    line-height: 1.35;
+  }
+
+  .phase-thanks-items small {
+    display: block;
+    margin-top: 3px;
+  }
+
+  .phase-thanks-items em {
+    color: rgb(165, 243, 252);
+    font-size: 12px;
+    font-style: normal;
+    font-weight: 900;
+    white-space: nowrap;
+  }
+
+  .phase-thanks-warning {
+    display: flex;
+    gap: 10px;
+    border: 1px solid rgba(248, 113, 113, 0.24);
+    border-radius: 18px;
+    background: rgba(248, 113, 113, 0.075);
+    padding: 13px;
+    color: rgba(254, 202, 202, 0.94);
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 1.55;
+  }
+
+  .phase-thanks-warning p {
+    margin: 0;
+  }
+
+  .phase-thanks-warning svg {
+    flex: 0 0 auto;
+    margin-top: 2px;
+    color: rgb(252, 165, 165);
   }
 
   .checkout-error,
@@ -3570,8 +5270,12 @@ const styles = `
     .payment-method-grid,
     .bank-shipping-options,
     .reward-grid,
+    .manual-payment-head,
+    .manual-payment-info-grid,
     .bank-form-grid.two,
-    .bank-form-grid.three {
+    .bank-form-grid.three,
+    .phase-thanks-grid.main-grid,
+    .phase-thanks-split {
       grid-template-columns: 1fr;
     }
 
@@ -3590,6 +5294,64 @@ const styles = `
     }
 
     .coupon-box button {
+      width: 100%;
+    }
+
+
+    .manual-payment-simple-head,
+    .manual-payment-simple-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .manual-payment-simple-head {
+      align-items: stretch;
+      flex-direction: column;
+    }
+
+
+    .manual-thanks-page {
+      padding: 42px 12px 44px;
+    }
+
+    .phase-thanks-card-full {
+      border-radius: 22px;
+      padding: 15px;
+    }
+
+    .phase-thanks-hero {
+      display: grid;
+      gap: 11px;
+    }
+
+    .phase-thanks-line {
+      display: grid;
+      gap: 6px;
+    }
+
+    .phase-thanks-line strong,
+    .phase-thanks-line.compact strong {
+      max-width: 100%;
+      text-align: left;
+    }
+
+    .phase-thanks-items > div {
+      grid-template-columns: 40px minmax(0, 1fr);
+    }
+
+    .phase-thanks-items em {
+      grid-column: 2;
+      justify-self: start;
+    }
+
+    .phase-thanks-actions-row {
+      justify-content: stretch;
+    }
+
+    .phase-thanks-actions-row a {
+      width: 100%;
+    }
+
+    .manual-payment-action.compact {
       width: 100%;
     }
 
@@ -3627,15 +5389,22 @@ const styles = `
       font-size: 38px;
     }
 
-    .bank-checkout-panel {
+    .bank-checkout-panel,
+    .manual-payment-panel {
       padding: 13px;
     }
 
-    .bank-shipping-method {
+    .manual-payment-total {
+      text-align: left;
+    }
+
+    .bank-shipping-method,
+    .manual-shipping-single {
       grid-template-columns: 38px minmax(0, 1fr);
     }
 
-    .bank-shipping-method em {
+    .bank-shipping-method em,
+    .manual-shipping-single em {
       grid-column: 2;
     }
   }
