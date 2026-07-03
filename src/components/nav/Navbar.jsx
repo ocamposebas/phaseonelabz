@@ -6,6 +6,7 @@ const navItems = [
   { label: "Shop", href: "/shop" },
   { label: "COA", href: "/coa" },
   { label: "Restock Status", href: "/restock-status" },
+  { label: "Military Discount", href: "/military-discount" },
 ];
 
 const announcementItems = [
