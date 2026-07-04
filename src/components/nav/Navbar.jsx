@@ -947,7 +947,7 @@ export default function SiteHeader({
                   ? `${account?.points || 0} reward points · ${formatStoreCredit(
                       storeCreditBalance
                     )} store balance.`
-                  : "Opening savings, free shipping over $35, and no extra card fees."}
+                  : "Opening savings, free shipping over $50, and no extra card fees."}
               </span>
             </div>
 
