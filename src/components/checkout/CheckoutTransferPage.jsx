@@ -64,14 +64,14 @@ const MANUAL_PAYMENT_DETAILS = {
 const PAYMENT_METHODS = [
   {
     id: "card",
-    label: "Card",
-    title: "Credit / Debit Card",
-    description: "Continue to the same secure checkout and pay by card.",
+    label: "Card / Klarna / Affirm",
+    title: "Card / Klarna / Affirm",
+    description: "Pay securely with credit/debit card, Klarna, or Affirm.",
     badge: "Secure",
     flow: "secure_checkout",
     gatewayId: "",
     icon: CreditCard,
-    cta: "Continue to secure checkout",
+    cta: "Continue with Card / Klarna / Affirm",
   },
   {
     id: "venmo",
