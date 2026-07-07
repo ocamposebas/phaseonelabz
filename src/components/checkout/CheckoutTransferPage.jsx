@@ -2798,7 +2798,7 @@ export default function CheckoutTransferPage() {
 
               <p className="checkout-copy">
                 Add a promo or affiliate code, apply available cashback, then
-                choose your payment method. Complete the checkout details before pressing Comprar.
+                choose your payment method. Complete the checkout details before pressing Buy Now.
               </p>
             </div>
 
@@ -3430,7 +3430,7 @@ export default function CheckoutTransferPage() {
                       : selectedPaymentMethod?.id === "bank"
                         ? "Continue with ACH Discount"
                         : isManualPaymentSelected
-                          ? "Comprar"
+                          ? "Buy Now"
                           : "Continue to secure checkout"}
                 </strong>
 
@@ -3452,7 +3452,7 @@ export default function CheckoutTransferPage() {
               <div className="security-note manual-final-note">
                 <ShieldCheck size={17} />
                 <p>
-                  After pressing Comprar, your order will be created and the thanks section will appear here with payment instructions. Use only the payment reference shown in the thanks section.
+                  After pressing Buy Now, your order will be created and the thanks section will appear here with payment instructions. Use only the payment reference shown in the thanks section.
                 </p>
               </div>
             )}
