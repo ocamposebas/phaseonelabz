@@ -10,10 +10,10 @@ const navItems = [
 ];
 
 const announcementItems = [
-  "Grand Opening Savings",
-  "Free Shipping Over $50",
+  "Research Peptides Available",
+  "Free Shipping Over $100",
   "No Extra Card Fees",
-  "All for Our Grand Opening",
+  "Verified COAs & Seamless Experience",
 ];
 
 const PRODUCTS_ENDPOINT =
