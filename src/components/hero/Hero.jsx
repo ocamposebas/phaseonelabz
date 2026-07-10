@@ -305,17 +305,19 @@ export default function Hero({
 
           .hero-inner {
             justify-content: center !important;
+            box-sizing: border-box;
             padding-top: calc(96px + env(safe-area-inset-top)) !important;
-            padding-right: max(16px, env(safe-area-inset-right)) !important;
+            padding-right: max(20px, env(safe-area-inset-right)) !important;
             padding-bottom: calc(66px + env(safe-area-inset-bottom)) !important;
-            padding-left: max(16px, env(safe-area-inset-left)) !important;
+            padding-left: max(20px, env(safe-area-inset-left)) !important;
           }
 
           .hero-content {
-            width: 100% !important;
-            max-width: 372px !important;
+            width: min(100%, 390px) !important;
+            max-width: 390px !important;
             margin-inline: auto !important;
-            transform: translate3d(0, clamp(26px, 4.2vh, 40px), 0) !important;
+            box-sizing: border-box;
+            transform: translate3d(0, clamp(24px, 4vh, 38px), 0) !important;
           }
 
           .hero-eyebrow {
@@ -324,12 +326,12 @@ export default function Hero({
 
           .hero-title {
             width: 100% !important;
-            max-width: none !important;
+            max-width: 350px !important;
             margin-inline: auto !important;
-            max-width: 340px !important;
-            font-size: clamp(32px, 9.4vw, 42px) !important;
-            line-height: 1.02 !important;
-            letter-spacing: -0.038em !important;
+            font-size: clamp(27px, 7.8vw, 34px) !important;
+            line-height: 1.05 !important;
+            letter-spacing: -0.032em !important;
+            text-align: center !important;
           }
 
           .hero-title-desktop {
@@ -337,13 +339,16 @@ export default function Hero({
           }
 
           .hero-title-mobile {
-            display: grid !important;
-            justify-items: center;
-            gap: 1px;
+            display: flex !important;
+            width: 100%;
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
           }
 
           .hero-title-line {
             display: block;
+            max-width: 100%;
             white-space: nowrap;
           }
 
@@ -356,10 +361,10 @@ export default function Hero({
 
           .hero-copy {
             width: 100% !important;
-            max-width: 338px !important;
+            max-width: 310px !important;
             margin-top: 16px !important;
-            font-size: 13.5px !important;
-            line-height: 1.56 !important;
+            font-size: 13px !important;
+            line-height: 1.55 !important;
             color: rgba(241, 245, 249, 0.92) !important;
           }
 
@@ -368,19 +373,23 @@ export default function Hero({
           }
 
           .hero-copy-mobile {
-            display: grid !important;
-            justify-items: center;
+            display: block !important;
+            text-wrap: balance;
           }
 
           .hero-copy-mobile > span {
-            display: block;
-            white-space: nowrap;
+            display: inline;
+            white-space: normal;
+          }
+
+          .hero-copy-mobile > span + span::before {
+            content: " ";
           }
 
           .hero-actions {
             width: 100% !important;
-            max-width: 296px !important;
-            margin: 23px auto 0 !important;
+            max-width: 268px !important;
+            margin: 22px auto 0 !important;
             flex-direction: column !important;
             align-items: center !important;
             gap: 8px !important;
@@ -388,10 +397,10 @@ export default function Hero({
 
           .hero-primary-cta {
             width: 100% !important;
-            min-height: 52px !important;
-            padding: 0 18px !important;
+            min-height: 48px !important;
+            padding: 0 16px !important;
             border: 1px solid rgba(207, 250, 254, 0.62);
-            font-size: 12px !important;
+            font-size: 11px !important;
             font-weight: 900 !important;
             letter-spacing: 0.08em !important;
             color: #082f49 !important;
@@ -407,13 +416,13 @@ export default function Hero({
 
           .hero-secondary-cta {
             width: 100% !important;
-            min-height: 44px !important;
-            padding: 0 18px !important;
+            min-height: 40px !important;
+            padding: 0 15px !important;
             border: 1px solid rgba(165, 243, 252, 0.3) !important;
             border-radius: 999px !important;
             background:
               linear-gradient(180deg, rgba(15, 23, 42, 0.82), rgba(2, 6, 23, 0.74)) !important;
-            font-size: 10.5px !important;
+            font-size: 9.8px !important;
             font-weight: 900 !important;
             letter-spacing: 0.08em !important;
             color: rgba(240, 249, 255, 0.98) !important;
@@ -500,30 +509,32 @@ export default function Hero({
 
         @media (max-width: 390px) {
           .hero-content {
-            transform: translate3d(0, 24px, 0) !important;
+            transform: translate3d(0, 22px, 0) !important;
           }
 
           .hero-inner {
             padding-top: calc(92px + env(safe-area-inset-top)) !important;
-            padding-right: max(16px, env(safe-area-inset-right)) !important;
+            padding-right: max(18px, env(safe-area-inset-right)) !important;
             padding-bottom: calc(58px + env(safe-area-inset-bottom)) !important;
-            padding-left: max(16px, env(safe-area-inset-left)) !important;
+            padding-left: max(18px, env(safe-area-inset-left)) !important;
           }
 
           .hero-title {
-            max-width: none !important;
-            max-width: 324px !important;
-            font-size: clamp(30px, 9vw, 38px) !important;
+            max-width: 330px !important;
+            font-size: clamp(27px, 7.7vw, 31px) !important;
           }
 
           .hero-copy {
-            max-width: 322px !important;
-            font-size: 13px !important;
+            max-width: 304px !important;
+            font-size: 12.5px !important;
           }
 
-          .hero-actions,
+          .hero-actions {
+            max-width: 258px !important;
+          }
+
           .hero-feature-row {
-            max-width: 290px !important;
+            max-width: 300px !important;
           }
         }
 
@@ -533,19 +544,21 @@ export default function Hero({
           }
 
           .hero-title {
-            max-width: none !important;
-            max-width: 292px !important;
-            font-size: 27px !important;
+            max-width: 286px !important;
+            font-size: 25px !important;
           }
 
           .hero-copy {
-            max-width: 286px !important;
+            max-width: 278px !important;
             font-size: 11.5px !important;
           }
 
-          .hero-actions,
+          .hero-actions {
+            max-width: 244px !important;
+          }
+
           .hero-feature-row {
-            max-width: 274px !important;
+            max-width: 286px !important;
           }
 
           .hero-feature-card {
