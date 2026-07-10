@@ -306,16 +306,16 @@ export default function Hero({
           .hero-inner {
             justify-content: center !important;
             padding-top: calc(96px + env(safe-area-inset-top)) !important;
-            padding-right: 12px !important;
+            padding-right: max(16px, env(safe-area-inset-right)) !important;
             padding-bottom: calc(66px + env(safe-area-inset-bottom)) !important;
-            padding-left: 12px !important;
+            padding-left: max(16px, env(safe-area-inset-left)) !important;
           }
 
           .hero-content {
             width: 100% !important;
-            max-width: 400px !important;
+            max-width: 372px !important;
             margin-inline: auto !important;
-            transform: translate3d(0, clamp(28px, 4.5vh, 44px), 0) !important;
+            transform: translate3d(0, clamp(26px, 4.2vh, 40px), 0) !important;
           }
 
           .hero-eyebrow {
@@ -326,9 +326,10 @@ export default function Hero({
             width: 100% !important;
             max-width: none !important;
             margin-inline: auto !important;
-            font-size: clamp(31px, 9.6vw, 41px) !important;
-            line-height: 1.04 !important;
-            letter-spacing: -0.035em !important;
+            max-width: 340px !important;
+            font-size: clamp(32px, 9.4vw, 42px) !important;
+            line-height: 1.02 !important;
+            letter-spacing: -0.038em !important;
           }
 
           .hero-title-desktop {
@@ -355,10 +356,10 @@ export default function Hero({
 
           .hero-copy {
             width: 100% !important;
-            max-width: 372px !important;
+            max-width: 338px !important;
             margin-top: 16px !important;
-            font-size: 14px !important;
-            line-height: 1.58 !important;
+            font-size: 13.5px !important;
+            line-height: 1.56 !important;
             color: rgba(241, 245, 249, 0.92) !important;
           }
 
@@ -378,19 +379,19 @@ export default function Hero({
 
           .hero-actions {
             width: 100% !important;
-            max-width: 344px !important;
-            margin: 25px auto 0 !important;
+            max-width: 296px !important;
+            margin: 23px auto 0 !important;
             flex-direction: column !important;
             align-items: center !important;
-            gap: 10px !important;
+            gap: 8px !important;
           }
 
           .hero-primary-cta {
             width: 100% !important;
-            min-height: 58px !important;
-            padding: 0 22px !important;
+            min-height: 52px !important;
+            padding: 0 18px !important;
             border: 1px solid rgba(207, 250, 254, 0.62);
-            font-size: 13px !important;
+            font-size: 12px !important;
             font-weight: 900 !important;
             letter-spacing: 0.08em !important;
             color: #082f49 !important;
@@ -400,21 +401,21 @@ export default function Hero({
           }
 
           .hero-primary-cta svg {
-            width: 18px;
-            height: 18px;
+            width: 14px;
+            height: 14px;
           }
 
           .hero-secondary-cta {
             width: 100% !important;
-            min-height: 50px !important;
-            padding: 0 22px !important;
+            min-height: 44px !important;
+            padding: 0 18px !important;
             border: 1px solid rgba(165, 243, 252, 0.3) !important;
             border-radius: 999px !important;
             background:
               linear-gradient(180deg, rgba(15, 23, 42, 0.82), rgba(2, 6, 23, 0.74)) !important;
-            font-size: 11.5px !important;
+            font-size: 10.5px !important;
             font-weight: 900 !important;
-            letter-spacing: 0.09em !important;
+            letter-spacing: 0.08em !important;
             color: rgba(240, 249, 255, 0.98) !important;
             box-shadow:
               inset 0 1px 0 rgba(255, 255, 255, 0.08),
@@ -432,11 +433,11 @@ export default function Hero({
 
           .hero-feature-row {
             width: 100% !important;
-            max-width: 344px !important;
+            max-width: 320px !important;
             grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
             gap: 0 !important;
             margin-top: 20px !important;
-            padding-top: 19px !important;
+            padding-top: 18px !important;
             border-top: 1px solid rgba(165, 243, 252, 0.14);
           }
 
@@ -499,50 +500,52 @@ export default function Hero({
 
         @media (max-width: 390px) {
           .hero-content {
-            transform: translate3d(0, 28px, 0) !important;
+            transform: translate3d(0, 24px, 0) !important;
           }
 
           .hero-inner {
             padding-top: calc(92px + env(safe-area-inset-top)) !important;
-            padding-right: 16px !important;
+            padding-right: max(16px, env(safe-area-inset-right)) !important;
             padding-bottom: calc(58px + env(safe-area-inset-bottom)) !important;
-            padding-left: 16px !important;
+            padding-left: max(16px, env(safe-area-inset-left)) !important;
           }
 
           .hero-title {
             max-width: none !important;
-            font-size: clamp(30px, 9vw, 37px) !important;
+            max-width: 324px !important;
+            font-size: clamp(30px, 9vw, 38px) !important;
           }
 
           .hero-copy {
-            max-width: none !important;
+            max-width: 322px !important;
             font-size: 13px !important;
           }
 
           .hero-actions,
           .hero-feature-row {
-            max-width: 336px !important;
+            max-width: 290px !important;
           }
         }
 
         @media (max-width: 340px) {
           .hero-content {
-            transform: translate3d(0, 18px, 0) !important;
+            transform: translate3d(0, 14px, 0) !important;
           }
 
           .hero-title {
             max-width: none !important;
-            font-size: 28px !important;
+            max-width: 292px !important;
+            font-size: 27px !important;
           }
 
           .hero-copy {
-            max-width: none !important;
-            font-size: 12px !important;
+            max-width: 286px !important;
+            font-size: 11.5px !important;
           }
 
           .hero-actions,
           .hero-feature-row {
-            max-width: 304px !important;
+            max-width: 274px !important;
           }
 
           .hero-feature-card {
