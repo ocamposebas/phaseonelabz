@@ -1,5 +1,10 @@
 import { memo, useEffect, useState } from "react";
-import { ArrowRight, FileCheck2, PackageCheck, ShieldCheck } from "lucide-react";
+import {
+  ArrowRight,
+  FileCheck2,
+  PackageCheck,
+  ShieldCheck,
+} from "lucide-react";
 
 const featureCards = [
   {
@@ -23,16 +28,16 @@ const FeatureCard = memo(function FeatureCard({ item }) {
   const Icon = item.icon;
 
   return (
-    <div className="hero-feature-card group relative overflow-hidden border border-cyan-200/14 bg-slate-950/30 p-5 text-center transition-colors duration-200 hover:border-cyan-200/30 hover:bg-slate-950/42">
-      <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-2xl border border-cyan-200/16 bg-cyan-300/[0.08]">
+    <div className="hero-feature-card group relative overflow-hidden border border-cyan-200/15 bg-slate-950/30 p-5 text-center transition-colors duration-200 hover:border-cyan-200/30 hover:bg-slate-950/40">
+      <div className="hero-feature-icon mx-auto flex h-10 w-10 items-center justify-center rounded-2xl border border-cyan-200/15 bg-cyan-300/[0.08]">
         <Icon size={18} className="text-cyan-200" aria-hidden="true" />
       </div>
 
-      <p className="mt-4 text-[11px] font-black uppercase tracking-[0.18em] text-white">
+      <p className="hero-feature-title mt-4 text-[11px] font-black uppercase tracking-[0.18em] text-white">
         {item.title}
       </p>
 
-      <p className="mx-auto mt-2 max-w-[210px] text-xs leading-5 text-slate-100/80">
+      <p className="hero-feature-copy mx-auto mt-2 max-w-[210px] text-xs leading-5 text-slate-100/80">
         {item.text}
       </p>
     </div>
@@ -93,33 +98,46 @@ export default function Hero({
 
       <div className="hero-inner relative z-20 mx-auto flex min-h-screen w-full max-w-7xl flex-col items-center justify-center px-5 pb-14 pt-[136px] text-center sm:px-6 lg:px-8 lg:pb-16 lg:pt-[144px]">
         <div className="hero-content w-full">
-          <div className="hero-eyebrow mb-5 inline-flex items-center justify-center gap-3 rounded-full border border-cyan-200/18 bg-slate-950/30 px-4 py-2">
+          <div className="hero-eyebrow mb-5 inline-flex items-center justify-center gap-3 rounded-full border border-cyan-200/20 bg-slate-950/35 px-4 py-2">
             <span className="h-px w-8 bg-cyan-300/70 sm:w-10" />
-
             <span className="text-[9px] font-bold uppercase tracking-[0.28em] text-cyan-100 sm:text-[10px] sm:tracking-[0.34em]">
               Research Use Only
             </span>
-
             <span className="h-px w-8 bg-cyan-300/70 sm:w-10" />
           </div>
 
-          <h1 className="hero-title mx-auto max-w-[1040px] text-center text-[46px] font-semibold leading-[0.92] tracking-[-0.075em] text-white sm:text-[66px] lg:text-[88px] lg:leading-[0.88]">
-            <span className="block">Research compounds,</span>
-            <span className="block bg-gradient-to-r from-cyan-100 via-cyan-200 to-white bg-clip-text text-transparent">
-              presented with clarity.
+          <h1 className="hero-title mx-auto max-w-[1040px] text-center font-semibold text-white">
+            <span className="hero-title-desktop">
+              <span className="block">Research compounds,</span>
+              <span className="block bg-gradient-to-r from-cyan-100 via-cyan-200 to-white bg-clip-text text-transparent">
+                presented with clarity.
+              </span>
+            </span>
+
+            <span className="hero-title-mobile">
+              <span className="hero-title-line">Research compounds,</span>
+              <span className="hero-title-line hero-title-accent">
+                presented with clarity.
+              </span>
             </span>
           </h1>
 
           <p className="hero-copy mx-auto mt-5 max-w-[700px] text-center text-[14px] leading-7 text-slate-100/90 sm:text-base sm:leading-8">
-            A refined catalog experience for research-focused products, built
-            around clean browsing, batch transparency, COA access, and a more
-            confident buying flow.
+            <span className="hero-copy-desktop">
+              A refined catalog experience for research-focused products, built
+              around clean browsing, batch transparency, COA access, and a more
+              confident buying flow.
+            </span>
+            <span className="hero-copy-mobile">
+              <span>Clear batch details, direct COA access,</span>
+              <span>and a cleaner research catalog.</span>
+            </span>
           </p>
 
           <div className="hero-actions mt-7 flex w-full max-w-[430px] flex-col justify-center gap-3 sm:max-w-none sm:flex-row">
             <a
               href="/shop"
-              className="group inline-flex items-center justify-center gap-3 rounded-full bg-cyan-300 px-7 py-4 text-[11px] font-black uppercase tracking-[0.18em] text-slate-950 transition-colors duration-200 hover:bg-cyan-200"
+              className="hero-primary-cta group inline-flex items-center justify-center gap-3 rounded-full bg-cyan-300 px-7 py-4 text-[11px] font-black uppercase tracking-[0.14em] text-slate-950 transition-colors duration-200 hover:bg-cyan-200"
             >
               Shop Catalog
               <ArrowRight
@@ -131,7 +149,7 @@ export default function Hero({
 
             <a
               href="/coa"
-              className="inline-flex items-center justify-center rounded-full border border-cyan-200/25 bg-slate-950/30 px-7 py-4 text-[11px] font-black uppercase tracking-[0.18em] text-cyan-50 transition-colors duration-200 hover:border-cyan-200/50 hover:bg-cyan-300/[0.08]"
+              className="hero-secondary-cta inline-flex items-center justify-center rounded-full border border-cyan-200/25 bg-slate-950/35 px-7 py-4 text-[11px] font-black uppercase tracking-[0.14em] text-cyan-50 transition-colors duration-200 hover:border-cyan-200/50 hover:bg-cyan-300/[0.08]"
             >
               Check COA
             </a>
@@ -187,10 +205,15 @@ export default function Hero({
           transform: translate3d(0, 24px, 0);
         }
 
-        .hero-eyebrow,
-        .hero-actions a,
-        .hero-feature-card {
-          transform: translate3d(0, 0, 0);
+        .hero-title {
+          font-size: 46px;
+          line-height: 0.92;
+          letter-spacing: -0.075em;
+        }
+
+        .hero-title-mobile,
+        .hero-copy-mobile {
+          display: none;
         }
 
         .hero-feature-card {
@@ -217,176 +240,291 @@ export default function Hero({
           opacity: 1;
         }
 
+        .hero-primary-cta {
+          box-shadow: 0 10px 30px rgba(103, 232, 249, 0.18);
+        }
+
+        .hero-primary-cta,
+        .hero-secondary-cta {
+          backdrop-filter: blur(10px);
+          -webkit-backdrop-filter: blur(10px);
+        }
+
+        @media (min-width: 640px) {
+          .hero-title {
+            font-size: 66px;
+          }
+        }
+
         @media (min-width: 1024px) {
           .hero-content {
             transform: translate3d(0, 34px, 0);
           }
+
+          .hero-title {
+            font-size: 88px;
+            line-height: 0.88;
+          }
         }
 
         @media (max-width: 768px) {
+          .hero-section,
+          .hero-inner {
+            min-height: 100svh !important;
+          }
+
           .hero-bg-video {
-            transform: translate3d(0, 0, 0) scale(1.02);
+            object-position: 50% 38%;
+            transform: translate3d(0, 0, 0) scale(1.025);
+            filter: saturate(0.82) contrast(1.04);
+          }
+
+          .hero-overlay {
+            background:
+              linear-gradient(
+                180deg,
+                rgba(2, 6, 23, 0.94) 0%,
+                rgba(2, 6, 23, 0.73) 24%,
+                rgba(2, 6, 23, 0.58) 52%,
+                rgba(2, 6, 23, 0.82) 78%,
+                rgba(2, 6, 23, 0.99) 100%
+              ),
+              radial-gradient(
+                circle at 50% 34%,
+                rgba(34, 211, 238, 0.08),
+                rgba(2, 6, 23, 0.2) 48%,
+                rgba(2, 6, 23, 0.74) 100%
+              );
           }
 
           .hero-inner {
-            min-height: 100vh !important;
-            min-height: 100svh !important;
-            padding-top: 112px !important;
-            padding-bottom: 32px !important;
+            justify-content: center !important;
+            padding-top: calc(96px + env(safe-area-inset-top)) !important;
+            padding-right: 12px !important;
+            padding-bottom: calc(66px + env(safe-area-inset-bottom)) !important;
+            padding-left: 12px !important;
           }
 
           .hero-content {
-            transform: translate3d(0, 14px, 0);
+            width: 100% !important;
+            max-width: 400px !important;
+            margin-inline: auto !important;
+            transform: none !important;
+          }
+
+          .hero-eyebrow {
+            display: none !important;
           }
 
           .hero-title {
             width: 100% !important;
-            max-width: calc(100vw - 30px) !important;
-            font-size: clamp(39px, 11vw, 58px) !important;
-            line-height: 0.94 !important;
-            letter-spacing: -0.075em !important;
+            max-width: none !important;
+            margin-inline: auto !important;
+            font-size: clamp(31px, 9.6vw, 41px) !important;
+            line-height: 1.04 !important;
+            letter-spacing: -0.035em !important;
           }
 
-          .hero-copy {
-            max-width: 350px !important;
-            margin-top: 18px !important;
-            font-size: 13px !important;
-            line-height: 1.72 !important;
+          .hero-title-desktop {
+            display: none !important;
           }
 
-          .hero-actions {
-            max-width: 345px !important;
-            flex-direction: row !important;
-            gap: 10px !important;
-            margin-top: 26px !important;
+          .hero-title-mobile {
+            display: grid !important;
+            justify-items: center;
+            gap: 1px;
           }
 
-          .hero-actions a {
-            flex: 1 1 0;
-            min-width: 0;
-            min-height: 46px;
-            padding: 0 13px !important;
-            font-size: 8px !important;
-            letter-spacing: 0.11em !important;
+          .hero-title-line {
+            display: block;
             white-space: nowrap;
           }
 
+          .hero-title-accent {
+            background: linear-gradient(90deg, #cffafe, #67e8f9 52%, #ffffff);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+          }
+
+          .hero-copy {
+            width: 100% !important;
+            max-width: 372px !important;
+            margin-top: 16px !important;
+            font-size: 14px !important;
+            line-height: 1.58 !important;
+            color: rgba(241, 245, 249, 0.92) !important;
+          }
+
+          .hero-copy-desktop {
+            display: none !important;
+          }
+
+          .hero-copy-mobile {
+            display: grid !important;
+            justify-items: center;
+          }
+
+          .hero-copy-mobile > span {
+            display: block;
+            white-space: nowrap;
+          }
+
+          .hero-actions {
+            width: 100% !important;
+            max-width: 344px !important;
+            margin: 25px auto 0 !important;
+            flex-direction: column !important;
+            align-items: center !important;
+            gap: 11px !important;
+          }
+
+          .hero-primary-cta {
+            width: 100% !important;
+            min-height: 58px !important;
+            padding: 0 22px !important;
+            border: 1px solid rgba(207, 250, 254, 0.62);
+            font-size: 13px !important;
+            font-weight: 900 !important;
+            letter-spacing: 0.08em !important;
+            color: #082f49 !important;
+            box-shadow:
+              inset 0 1px 0 rgba(255,255,255,0.5),
+              0 14px 30px rgba(34, 211, 238, 0.16);
+          }
+
+          .hero-primary-cta svg {
+            width: 18px;
+            height: 18px;
+          }
+
+          .hero-secondary-cta {
+            width: auto !important;
+            min-height: 40px !important;
+            padding: 8px 16px !important;
+            border: 0 !important;
+            border-radius: 999px !important;
+            background: transparent !important;
+            font-size: 11px !important;
+            font-weight: 800 !important;
+            letter-spacing: 0.12em !important;
+            color: rgba(226, 232, 240, 0.92) !important;
+            box-shadow: none !important;
+          }
+
           .hero-feature-row {
-            max-width: 350px !important;
+            width: 100% !important;
+            max-width: 344px !important;
             grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-            gap: 8px !important;
-            margin-top: 28px !important;
+            gap: 0 !important;
+            margin-top: 23px !important;
+            padding-top: 20px !important;
+            border-top: 1px solid rgba(165, 243, 252, 0.14);
           }
 
           .hero-feature-card {
-            border-radius: 18px !important;
-            padding: 13px 7px !important;
-            box-shadow:
-              inset 0 1px 0 rgba(255,255,255,0.035),
-              0 10px 24px rgba(0,0,0,0.12);
+            position: relative;
+            display: flex !important;
+            min-width: 0;
+            min-height: 0 !important;
+            flex-direction: column;
+            align-items: center;
+            gap: 9px;
+            overflow: visible !important;
+            border: 0 !important;
+            border-radius: 0 !important;
+            background: transparent !important;
+            padding: 0 10px !important;
+            box-shadow: none !important;
+            contain: none !important;
           }
 
-          .hero-feature-card:hover {
-            background: rgba(15, 23, 42, 0.3);
-            border-color: rgba(165, 243, 252, 0.14);
+          .hero-feature-card:not(:last-child)::after {
+            content: "";
+            position: absolute;
+            top: 4px;
+            right: 0;
+            width: 1px;
+            height: 52px;
+            background: rgba(165, 243, 252, 0.1);
           }
 
           .hero-feature-card::before {
-            display: none;
+            display: none !important;
           }
 
-          .hero-feature-card div {
-            width: 34px !important;
-            height: 34px !important;
-            border-radius: 14px !important;
+          .hero-feature-icon {
+            width: 38px !important;
+            height: 38px !important;
+            margin: 0 !important;
+            border-radius: 12px !important;
+            background: rgba(34, 211, 238, 0.08) !important;
           }
 
-          .hero-feature-card p:first-of-type {
-            margin-top: 10px !important;
-            font-size: 8px !important;
-            line-height: 1 !important;
-            letter-spacing: 0.1em !important;
+          .hero-feature-icon svg {
+            width: 17px;
+            height: 17px;
           }
 
-          .hero-feature-card p:last-of-type {
-            margin-top: 7px !important;
-            font-size: 8.4px !important;
-            line-height: 1.35 !important;
+          .hero-feature-title {
+            margin: 0 !important;
+            font-size: 9.8px !important;
+            line-height: 1.15 !important;
+            letter-spacing: 0.08em !important;
+            white-space: nowrap;
+          }
+
+          .hero-feature-copy {
+            display: none !important;
           }
         }
 
-        @media (max-width: 420px) {
+        @media (max-width: 390px) {
           .hero-inner {
-            padding-top: 108px !important;
-            padding-bottom: 28px !important;
-          }
-
-          .hero-content {
-            transform: translate3d(0, 8px, 0);
+            padding-top: calc(92px + env(safe-area-inset-top)) !important;
+            padding-right: 16px !important;
+            padding-bottom: calc(58px + env(safe-area-inset-bottom)) !important;
+            padding-left: 16px !important;
           }
 
           .hero-title {
-            font-size: clamp(34px, 10vw, 42px) !important;
-            letter-spacing: -0.07em !important;
+            max-width: none !important;
+            font-size: clamp(30px, 9vw, 37px) !important;
           }
 
           .hero-copy {
-            max-width: 324px !important;
-            margin-top: 16px !important;
-            font-size: 12.7px !important;
+            max-width: none !important;
+            font-size: 13px !important;
           }
 
-          .hero-actions {
-            max-width: 322px !important;
-            gap: 8px !important;
-            margin-top: 24px !important;
-          }
-
-          .hero-actions a {
-            min-height: 44px;
-            padding-inline: 10px !important;
-            font-size: 7.4px !important;
-          }
-
+          .hero-actions,
           .hero-feature-row {
-            max-width: 326px !important;
-            gap: 7px !important;
-            margin-top: 26px !important;
-          }
-
-          .hero-feature-card {
-            min-height: 116px;
+            max-width: 336px !important;
           }
         }
 
-        @media (max-width: 360px) {
-          .hero-content {
-            transform: translate3d(0, 4px, 0);
-          }
-
+        @media (max-width: 340px) {
           .hero-title {
-            font-size: 31px !important;
+            max-width: none !important;
+            font-size: 28px !important;
           }
 
           .hero-copy {
-            max-width: 296px !important;
+            max-width: none !important;
+            font-size: 12px !important;
           }
 
-          .hero-actions {
-            max-width: 300px !important;
-          }
-
-          .hero-actions a {
-            font-size: 7px !important;
+          .hero-actions,
+          .hero-feature-row {
+            max-width: 304px !important;
           }
 
           .hero-feature-card {
-            min-height: 108px;
             padding-inline: 5px !important;
           }
 
-          .hero-feature-card p:last-of-type {
-            font-size: 8px !important;
+          .hero-feature-title {
+            font-size: 8.7px !important;
           }
         }
 
