@@ -129,8 +129,8 @@ export default function Hero({
               confident buying flow.
             </span>
             <span className="hero-copy-mobile">
-              <span>Clear batch details, direct COA access,</span>
-              <span>and a cleaner research catalog.</span>
+              <span>Batch transparency and direct COA access.</span>
+              <span>Built for a cleaner research flow.</span>
             </span>
           </p>
 
@@ -317,21 +317,41 @@ export default function Hero({
             max-width: 390px !important;
             margin-inline: auto !important;
             box-sizing: border-box;
-            transform: translate3d(0, clamp(24px, 4vh, 38px), 0) !important;
+            transform: translate3d(0, clamp(34px, 5vh, 50px), 0) !important;
           }
 
           .hero-eyebrow {
-            display: none !important;
+            display: inline-flex !important;
+            margin: 0 auto 18px !important;
+            gap: 8px !important;
+            padding: 7px 12px !important;
+            border: 1px solid rgba(165, 243, 252, 0.2) !important;
+            border-radius: 999px !important;
+            background: rgba(2, 6, 23, 0.34) !important;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+          }
+
+          .hero-eyebrow > span:first-child,
+          .hero-eyebrow > span:last-child {
+            width: 14px !important;
+          }
+
+          .hero-eyebrow > span:nth-child(2) {
+            font-size: 8px !important;
+            letter-spacing: 0.18em !important;
           }
 
           .hero-title {
             width: 100% !important;
-            max-width: 350px !important;
+            max-width: 330px !important;
             margin-inline: auto !important;
-            font-size: clamp(27px, 7.8vw, 34px) !important;
-            line-height: 1.05 !important;
-            letter-spacing: -0.032em !important;
+            font-size: clamp(31px, 8.8vw, 39px) !important;
+            line-height: 0.95 !important;
+            letter-spacing: -0.045em !important;
             text-align: center !important;
+            text-shadow: 0 10px 34px rgba(0,0,0,0.34);
           }
 
           .hero-title-desktop {
@@ -343,7 +363,7 @@ export default function Hero({
             width: 100%;
             flex-direction: column;
             align-items: center;
-            gap: 2px;
+            gap: 3px;
           }
 
           .hero-title-line {
@@ -361,11 +381,11 @@ export default function Hero({
 
           .hero-copy {
             width: 100% !important;
-            max-width: 310px !important;
+            max-width: 250px !important;
             margin-top: 16px !important;
-            font-size: 13px !important;
-            line-height: 1.55 !important;
-            color: rgba(241, 245, 249, 0.92) !important;
+            font-size: 10.5px !important;
+            line-height: 1.45 !important;
+            color: rgba(241, 245, 249, 0.68) !important;
           }
 
           .hero-copy-desktop {
@@ -373,32 +393,30 @@ export default function Hero({
           }
 
           .hero-copy-mobile {
-            display: block !important;
-            text-wrap: balance;
+            display: grid !important;
+            justify-items: center;
+            gap: 1px;
           }
 
           .hero-copy-mobile > span {
-            display: inline;
-            white-space: normal;
+            display: block;
+            white-space: nowrap;
           }
 
-          .hero-copy-mobile > span + span::before {
-            content: " ";
-          }
-
+          
           .hero-actions {
             width: 100% !important;
-            max-width: 268px !important;
+            max-width: 286px !important;
             margin: 22px auto 0 !important;
             flex-direction: column !important;
             align-items: center !important;
-            gap: 8px !important;
+            gap: 9px !important;
           }
 
           .hero-primary-cta {
             width: 100% !important;
-            min-height: 48px !important;
-            padding: 0 16px !important;
+            min-height: 49px !important;
+            padding: 0 18px !important;
             border: 1px solid rgba(207, 250, 254, 0.62);
             font-size: 11px !important;
             font-weight: 900 !important;
@@ -406,7 +424,7 @@ export default function Hero({
             color: #082f49 !important;
             box-shadow:
               inset 0 1px 0 rgba(255,255,255,0.5),
-              0 14px 30px rgba(34, 211, 238, 0.16);
+              0 16px 34px rgba(34, 211, 238, 0.22);
           }
 
           .hero-primary-cta svg {
@@ -415,14 +433,15 @@ export default function Hero({
           }
 
           .hero-secondary-cta {
-            width: 100% !important;
-            min-height: 40px !important;
+            width: auto !important;
+            min-width: 170px !important;
+            min-height: 36px !important;
             padding: 0 15px !important;
             border: 1px solid rgba(165, 243, 252, 0.3) !important;
             border-radius: 999px !important;
             background:
               linear-gradient(180deg, rgba(15, 23, 42, 0.82), rgba(2, 6, 23, 0.74)) !important;
-            font-size: 9.8px !important;
+            font-size: 9.4px !important;
             font-weight: 900 !important;
             letter-spacing: 0.08em !important;
             color: rgba(240, 249, 255, 0.98) !important;
@@ -442,12 +461,12 @@ export default function Hero({
 
           .hero-feature-row {
             width: 100% !important;
-            max-width: 320px !important;
+            max-width: 314px !important;
             grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-            gap: 0 !important;
-            margin-top: 20px !important;
-            padding-top: 18px !important;
-            border-top: 1px solid rgba(165, 243, 252, 0.14);
+            gap: 8px !important;
+            margin-top: 22px !important;
+            padding-top: 0 !important;
+            border-top: 0 !important;
           }
 
           .hero-feature-card {
@@ -457,24 +476,20 @@ export default function Hero({
             min-height: 0 !important;
             flex-direction: column;
             align-items: center;
-            gap: 9px;
-            overflow: visible !important;
-            border: 0 !important;
-            border-radius: 0 !important;
-            background: transparent !important;
-            padding: 0 10px !important;
-            box-shadow: none !important;
-            contain: none !important;
+            justify-content: center;
+            gap: 8px;
+            overflow: hidden !important;
+            border: 1px solid rgba(165, 243, 252, 0.1) !important;
+            border-radius: 16px !important;
+            background: rgba(2, 6, 23, 0.26) !important;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            padding: 12px 8px !important;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.04) !important;
+            contain: paint !important;
           }
-
           .hero-feature-card:not(:last-child)::after {
-            content: "";
-            position: absolute;
-            top: 4px;
-            right: 0;
-            width: 1px;
-            height: 52px;
-            background: rgba(165, 243, 252, 0.1);
+            display: none !important;
           }
 
           .hero-feature-card::before {
@@ -482,8 +497,8 @@ export default function Hero({
           }
 
           .hero-feature-icon {
-            width: 38px !important;
-            height: 38px !important;
+            width: 34px !important;
+            height: 34px !important;
             margin: 0 !important;
             border-radius: 12px !important;
             background: rgba(34, 211, 238, 0.08) !important;
@@ -496,8 +511,8 @@ export default function Hero({
 
           .hero-feature-title {
             margin: 0 !important;
-            font-size: 9.8px !important;
-            line-height: 1.15 !important;
+            font-size: 8.8px !important;
+            line-height: 1.2 !important;
             letter-spacing: 0.08em !important;
             white-space: nowrap;
           }
@@ -509,7 +524,7 @@ export default function Hero({
 
         @media (max-width: 390px) {
           .hero-content {
-            transform: translate3d(0, 22px, 0) !important;
+            transform: translate3d(0, 28px, 0) !important;
           }
 
           .hero-inner {
@@ -520,41 +535,41 @@ export default function Hero({
           }
 
           .hero-title {
-            max-width: 330px !important;
-            font-size: clamp(27px, 7.7vw, 31px) !important;
+            max-width: 316px !important;
+            font-size: clamp(28px, 8.1vw, 34px) !important;
           }
 
           .hero-copy {
-            max-width: 304px !important;
-            font-size: 12.5px !important;
+            max-width: 246px !important;
+            font-size: 10px !important;
           }
 
           .hero-actions {
-            max-width: 258px !important;
+            max-width: 274px !important;
           }
 
           .hero-feature-row {
-            max-width: 300px !important;
+            max-width: 298px !important;
           }
         }
 
         @media (max-width: 340px) {
           .hero-content {
-            transform: translate3d(0, 14px, 0) !important;
+            transform: translate3d(0, 18px, 0) !important;
           }
 
           .hero-title {
-            max-width: 286px !important;
+            max-width: 282px !important;
             font-size: 25px !important;
           }
 
           .hero-copy {
-            max-width: 278px !important;
-            font-size: 11.5px !important;
+            max-width: 232px !important;
+            font-size: 9.7px !important;
           }
 
           .hero-actions {
-            max-width: 244px !important;
+            max-width: 258px !important;
           }
 
           .hero-feature-row {
