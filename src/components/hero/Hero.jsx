@@ -149,9 +149,15 @@ export default function Hero({
 
             <a
               href="/coa"
-              className="hero-secondary-cta inline-flex items-center justify-center rounded-full border border-cyan-200/25 bg-slate-950/35 px-7 py-4 text-[11px] font-black uppercase tracking-[0.14em] text-cyan-50 transition-colors duration-200 hover:border-cyan-200/50 hover:bg-cyan-300/[0.08]"
+              className="hero-secondary-cta group inline-flex items-center justify-center gap-2.5 rounded-full border border-cyan-200/25 bg-slate-950/35 px-7 py-4 text-[11px] font-black uppercase tracking-[0.14em] text-cyan-50 transition-colors duration-200 hover:border-cyan-200/50 hover:bg-cyan-300/[0.08]"
             >
+              <FileCheck2 size={16} aria-hidden="true" />
               Check COA
+              <ArrowRight
+                size={15}
+                className="transition-transform duration-200 group-hover:translate-x-1"
+                aria-hidden="true"
+              />
             </a>
           </div>
 
@@ -309,7 +315,7 @@ export default function Hero({
             width: 100% !important;
             max-width: 400px !important;
             margin-inline: auto !important;
-            transform: none !important;
+            transform: translate3d(0, clamp(28px, 4.5vh, 44px), 0) !important;
           }
 
           .hero-eyebrow {
@@ -376,7 +382,7 @@ export default function Hero({
             margin: 25px auto 0 !important;
             flex-direction: column !important;
             align-items: center !important;
-            gap: 11px !important;
+            gap: 10px !important;
           }
 
           .hero-primary-cta {
@@ -399,17 +405,29 @@ export default function Hero({
           }
 
           .hero-secondary-cta {
-            width: auto !important;
-            min-height: 40px !important;
-            padding: 8px 16px !important;
-            border: 0 !important;
+            width: 100% !important;
+            min-height: 50px !important;
+            padding: 0 22px !important;
+            border: 1px solid rgba(165, 243, 252, 0.3) !important;
             border-radius: 999px !important;
-            background: transparent !important;
-            font-size: 11px !important;
-            font-weight: 800 !important;
-            letter-spacing: 0.12em !important;
-            color: rgba(226, 232, 240, 0.92) !important;
-            box-shadow: none !important;
+            background:
+              linear-gradient(180deg, rgba(15, 23, 42, 0.82), rgba(2, 6, 23, 0.74)) !important;
+            font-size: 11.5px !important;
+            font-weight: 900 !important;
+            letter-spacing: 0.09em !important;
+            color: rgba(240, 249, 255, 0.98) !important;
+            box-shadow:
+              inset 0 1px 0 rgba(255, 255, 255, 0.08),
+              0 12px 28px rgba(0, 0, 0, 0.2) !important;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+          }
+
+          .hero-secondary-cta svg {
+            width: 16px;
+            height: 16px;
+            flex: 0 0 auto;
+            color: #a5f3fc;
           }
 
           .hero-feature-row {
@@ -417,8 +435,8 @@ export default function Hero({
             max-width: 344px !important;
             grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
             gap: 0 !important;
-            margin-top: 23px !important;
-            padding-top: 20px !important;
+            margin-top: 20px !important;
+            padding-top: 19px !important;
             border-top: 1px solid rgba(165, 243, 252, 0.14);
           }
 
@@ -480,6 +498,10 @@ export default function Hero({
         }
 
         @media (max-width: 390px) {
+          .hero-content {
+            transform: translate3d(0, 28px, 0) !important;
+          }
+
           .hero-inner {
             padding-top: calc(92px + env(safe-area-inset-top)) !important;
             padding-right: 16px !important;
@@ -504,6 +526,10 @@ export default function Hero({
         }
 
         @media (max-width: 340px) {
+          .hero-content {
+            transform: translate3d(0, 18px, 0) !important;
+          }
+
           .hero-title {
             max-width: none !important;
             font-size: 28px !important;
