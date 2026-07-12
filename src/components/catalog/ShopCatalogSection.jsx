@@ -452,9 +452,13 @@ function getHtmlDiscountCandidate(source = {}) {
   if (source?.on_sale === true || source?.onSale === true) {
     const prices = extractPriceNumbers(priceHtml);
 
-    if (prices.length >= 2) {
-      const regularPrice = Math.max(...prices);
-      const salePrice = Math.min(...prices);
+    // Only use the fallback when the HTML contains exactly one regular/sale pair.
+    // With variable products, combining the highest regular price with the lowest
+    // sale price from different variations creates an incorrect percentage.
+    if (prices.length === 2) {
+      const [firstPrice, secondPrice] = prices;
+      const regularPrice = Math.max(firstPrice, secondPrice);
+      const salePrice = Math.min(firstPrice, secondPrice);
 
       return createDiscountCandidate(
         regularPrice,
@@ -692,42 +696,340 @@ function getProductPrice(product) {
   return htmlPrices.length ? Math.min(...htmlPrices) : 0;
 }
 
-function getProductPricing(product = {}) {
+
+function entityHasActiveSale(source = {}) {
+  if (!source || typeof source !== "object") return false;
+
+  if (source?.on_sale === true || source?.onSale === true) return true;
+  if (getExplicitDiscountPercent(source) > 0) return true;
+
+  const directRegular = getFirstPositivePrice(source, [
+    "regular_price",
+    "regularPrice",
+    "display_regular_price",
+    "displayRegularPrice",
+    "variation_regular_price",
+    "variationRegularPrice",
+  ]);
+
+  const directSale = getFirstPositivePrice(source, [
+    "sale_price",
+    "salePrice",
+    "discounted_price",
+    "discountedPrice",
+  ]);
+
+  const directCurrent = getFirstPositivePrice(source, [
+    "price",
+    "current_price",
+    "currentPrice",
+    "display_price",
+    "displayPrice",
+    "variation_price",
+    "variationPrice",
+  ]);
+
+  if (
+    directRegular > 0 &&
+    (directSale > 0 ? directSale : directCurrent) > 0 &&
+    (directSale > 0 ? directSale : directCurrent) < directRegular
+  ) {
+    return true;
+  }
+
+  const storeRegular = getFirstPositivePrice(
+    source,
+    ["prices.regular_price", "prices.regularPrice"],
+    getStoreApiPriceNumber
+  );
+  const storeSale = getFirstPositivePrice(
+    source,
+    ["prices.sale_price", "prices.salePrice"],
+    getStoreApiPriceNumber
+  );
+  const storeCurrent = getFirstPositivePrice(
+    source,
+    ["prices.price", "prices.current_price", "prices.currentPrice"],
+    getStoreApiPriceNumber
+  );
+
+  if (
+    storeRegular > 0 &&
+    (storeSale > 0 ? storeSale : storeCurrent) > 0 &&
+    (storeSale > 0 ? storeSale : storeCurrent) < storeRegular
+  ) {
+    return true;
+  }
+
+  const priceHtml = String(source?.price_html || source?.priceHtml || "");
+
+  return /<del\b[^>]*>[\s\S]*?<\/del>[\s\S]*?<ins\b[^>]*>[\s\S]*?<\/ins>/i.test(
+    priceHtml
+  );
+}
+
+function hasProductSaleSignal(product = {}) {
+  if (entityHasActiveSale(product)) return true;
+  if (getVariationPriceMatrixCandidates(product).length > 0) return true;
+
+  return getProductVariationObjects(product).some(entityHasActiveSale);
+}
+
+function chooseCandidateClosestToCatalogPrice(candidates = [], catalogPrice = 0) {
+  if (!candidates.length) return null;
+
+  const exactCandidates =
+    catalogPrice > 0
+      ? candidates.filter(
+          (candidate) => Math.abs(candidate.currentPrice - catalogPrice) <= 0.05
+        )
+      : [];
+
+  const pool = exactCandidates.length ? exactCandidates : candidates;
+
+  return [...pool].sort((a, b) => {
+    const sourcePriority = {
+      direct: 0,
+      "store-api": 1,
+      metadata: 2,
+      "price-html": 3,
+      "price-html-text": 4,
+      "price-range": 5,
+      "variation-price-matrix": 6,
+      "variation-direct": 7,
+      "variation-store-api": 8,
+      "variation-price-html": 9,
+      "variation-price-html-text": 10,
+      "explicit-percent": 11,
+      "price-html-fallback": 30,
+      "variation-price-html-fallback": 31,
+    };
+
+    const priorityDifference =
+      (sourcePriority[a.source] ?? 20) - (sourcePriority[b.source] ?? 20);
+
+    if (priorityDifference !== 0) return priorityDifference;
+
+    const aDifference = a.regularPrice - a.currentPrice;
+    const bDifference = b.regularPrice - b.currentPrice;
+
+    if (Math.abs(aDifference - bDifference) > 0.001) {
+      return aDifference - bDifference;
+    }
+
+    return a.regularPrice - b.regularPrice;
+  })[0];
+}
+
+function getReliableProductDiscountPercent(product = {}) {
+  const explicitPercent = getExplicitDiscountPercent(product);
+
+  if (explicitPercent > 0) return Math.round(explicitPercent);
+
   const catalogPrice = getProductPrice(product);
-  const candidates = [
-    ...getEntityDiscountCandidates(product),
-    ...getVariationPriceMatrixCandidates(product),
-    ...getProductVariationObjects(product).flatMap((variation) =>
+  const productCandidates = getEntityDiscountCandidates(product).filter(
+    (candidate) =>
+      candidate.source !== "price-html-fallback" &&
+      candidate.source !== "explicit-percent"
+  );
+
+  const matrixCandidates = getVariationPriceMatrixCandidates(product);
+  const variationCandidates = getProductVariationObjects(product).flatMap(
+    (variation) =>
       getEntityDiscountCandidates(variation)
-    ),
+        .filter(
+          (candidate) =>
+            candidate.source !== "price-html-fallback" &&
+            candidate.source !== "explicit-percent"
+        )
+        .map((candidate) => ({
+          ...candidate,
+          source: `variation-${candidate.source}`,
+        }))
+  );
+
+  const selected = chooseCandidateClosestToCatalogPrice(
+    [...productCandidates, ...matrixCandidates, ...variationCandidates],
+    catalogPrice
+  );
+
+  return selected?.discountPercent || 0;
+}
+
+function getDominantCatalogDiscountPercent(products = []) {
+  const tally = new Map();
+
+  const addPercent = (percent, weight = 1) => {
+    const normalizedPercent = Math.round(Number(percent || 0));
+
+    if (normalizedPercent <= 0 || normalizedPercent >= 100) return;
+
+    tally.set(normalizedPercent, (tally.get(normalizedPercent) || 0) + weight);
+  };
+
+  products.forEach((product) => {
+    if (!hasProductSaleSignal(product)) return;
+    if (isVariableCatalogProduct(product)) return;
+
+    addPercent(getReliableProductDiscountPercent(product), 6);
+  });
+
+  if (tally.size === 0) {
+    products.forEach((product) => {
+      if (!hasProductSaleSignal(product)) return;
+
+      addPercent(getReliableProductDiscountPercent(product), 1);
+    });
+  }
+
+  const result = [...tally.entries()].sort((a, b) => {
+    if (a[1] !== b[1]) return b[1] - a[1];
+
+    return a[0] - b[0];
+  })[0];
+
+  return result?.[0] || 0;
+}
+
+function getProductPricing(product = {}, activeCatalogDiscountPercent = 0) {
+  const catalogPrice = getProductPrice(product);
+  const explicitPercent = getExplicitDiscountPercent(product);
+  const productCandidates = getEntityDiscountCandidates(product);
+  const matrixCandidates = getVariationPriceMatrixCandidates(product);
+  const variationCandidates = getProductVariationObjects(product).flatMap(
+    (variation) =>
+      getEntityDiscountCandidates(variation).map((candidate) => ({
+        ...candidate,
+        source: `variation-${candidate.source}`,
+      }))
+  );
+
+  const candidates = [
+    ...productCandidates,
+    ...matrixCandidates,
+    ...variationCandidates,
   ];
+
+  if (explicitPercent > 0 && catalogPrice > 0) {
+    const computedRegularPrice = catalogPrice / (1 - explicitPercent / 100);
+    const explicitCandidate = createDiscountCandidate(
+      computedRegularPrice,
+      catalogPrice,
+      explicitPercent,
+      "product-explicit-percent"
+    );
+
+    if (explicitCandidate) candidates.unshift(explicitCandidate);
+  }
 
   const uniqueCandidates = candidates.filter((candidate, index, all) => {
     return (
       all.findIndex(
         (item) =>
           Math.abs(item.regularPrice - candidate.regularPrice) < 0.001 &&
-          Math.abs(item.currentPrice - candidate.currentPrice) < 0.001
+          Math.abs(item.currentPrice - candidate.currentPrice) < 0.001 &&
+          item.discountPercent === candidate.discountPercent
       ) === index
     );
   });
 
-  const exactCandidate =
-    catalogPrice > 0
-      ? uniqueCandidates
-          .filter(
-            (candidate) => Math.abs(candidate.currentPrice - catalogPrice) <= 0.05
-          )
-          .sort((a, b) => b.discountPercent - a.discountPercent)[0]
-      : null;
+  const sourcePriority = {
+    "product-explicit-percent": 0,
+    "variation-price-matrix": 1,
+    "variation-direct": 2,
+    "variation-store-api": 3,
+    "variation-price-html": 4,
+    "variation-price-html-text": 5,
+    "price-range": 6,
+    "price-html": 7,
+    "price-html-text": 8,
+    "direct": 9,
+    "store-api": 10,
+    "metadata": 11,
+    "explicit-percent": 12,
+    "price-html-fallback": 30,
+    "variation-price-html-fallback": 31,
+  };
 
-  const directCandidate = uniqueCandidates.find((candidate) =>
-    ["direct", "store-api", "price-range", "price-html", "price-html-text", "metadata", "explicit-percent"].includes(
-      candidate.source
+  const rankCandidate = (candidate) =>
+    sourcePriority[candidate.source] ?? 20;
+
+  const exactCandidates =
+    catalogPrice > 0
+      ? uniqueCandidates.filter(
+          (candidate) => Math.abs(candidate.currentPrice - catalogPrice) <= 0.05
+        )
+      : [];
+
+  const exactCandidate = exactCandidates.sort((a, b) => {
+    const priorityDifference = rankCandidate(a) - rankCandidate(b);
+
+    if (priorityDifference !== 0) return priorityDifference;
+
+    // When several variations share the same displayed minimum sale price,
+    // use the closest matching regular price instead of the largest discount.
+    const aDifference = a.regularPrice - a.currentPrice;
+    const bDifference = b.regularPrice - b.currentPrice;
+
+    if (Math.abs(aDifference - bDifference) > 0.001) {
+      return aDifference - bDifference;
+    }
+
+    return a.regularPrice - b.regularPrice;
+  })[0];
+
+  const directCandidate = uniqueCandidates
+    .filter((candidate) =>
+      [
+        "product-explicit-percent",
+        "direct",
+        "store-api",
+        "price-range",
+        "price-html",
+        "price-html-text",
+        "metadata",
+        "explicit-percent",
+      ].includes(candidate.source)
     )
-  );
+    .sort((a, b) => {
+      const priorityDifference = rankCandidate(a) - rankCandidate(b);
+
+      if (priorityDifference !== 0) return priorityDifference;
+
+      return a.regularPrice - b.regularPrice;
+    })[0];
 
   const selectedCandidate = exactCandidate || directCandidate || null;
+  const saleSignal = hasProductSaleSignal(product);
+  const normalizedActivePercent = Math.round(
+    Number(activeCatalogDiscountPercent || 0)
+  );
+  const shouldUseCatalogPercent =
+    saleSignal &&
+    isVariableCatalogProduct(product) &&
+    catalogPrice > 0 &&
+    normalizedActivePercent > 0 &&
+    normalizedActivePercent < 100 &&
+    (!selectedCandidate ||
+      Math.abs(selectedCandidate.discountPercent - normalizedActivePercent) > 2);
+
+  if (shouldUseCatalogPercent) {
+    const computedRegularPrice =
+      catalogPrice / (1 - normalizedActivePercent / 100);
+    const catalogPercentCandidate = createDiscountCandidate(
+      computedRegularPrice,
+      catalogPrice,
+      normalizedActivePercent,
+      "catalog-active-percent"
+    );
+
+    if (catalogPercentCandidate) {
+      return {
+        ...catalogPercentCandidate,
+        hasDiscount: true,
+      };
+    }
+  }
 
   if (selectedCandidate) {
     return {
@@ -930,10 +1232,10 @@ function getPaginationPages(currentPage, totalPages) {
   return pages;
 }
 
-function prepareProductForCatalog(product) {
+function prepareProductForCatalog(product, activeCatalogDiscountPercent = 0) {
   const name = product?.name || product?.title || "Product";
   const category = getProductCategory(product);
-  const pricing = getProductPricing(product);
+  const pricing = getProductPricing(product, activeCatalogDiscountPercent);
   const price = pricing.currentPrice || getProductPrice(product);
   const image = getProductImage(product);
   const url = getProductUrl(product);
@@ -980,7 +1282,7 @@ function prepareProductForCatalog(product) {
     searchText,
     rank: getCustomProductRankFromText(orderText),
     mg: getProductMgFromText(orderText),
-    onSale: pricing.hasDiscount || isProductDiscounted(product),
+    onSale: pricing.hasDiscount || hasProductSaleSignal(product),
     newestTime: newestRaw ? new Date(newestRaw).getTime() || 0 : 0,
   };
 }
@@ -1666,9 +1968,15 @@ export default function ShopCatalogSection({
     return () => window.clearTimeout(timer);
   }, [searchQuery]);
 
-  const preparedProducts = useMemo(() => {
-    return products.map(prepareProductForCatalog);
+  const activeCatalogDiscountPercent = useMemo(() => {
+    return getDominantCatalogDiscountPercent(products);
   }, [products]);
+
+  const preparedProducts = useMemo(() => {
+    return products.map((product) =>
+      prepareProductForCatalog(product, activeCatalogDiscountPercent)
+    );
+  }, [products, activeCatalogDiscountPercent]);
 
   const cartProductsCount = useMemo(() => {
     return cartItems.reduce((total, item) => {
