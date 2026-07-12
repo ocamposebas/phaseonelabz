@@ -230,21 +230,6 @@ function getProductCategory(product) {
   return "Research Peptides";
 }
 
-function getProductPrice(product) {
-  const rawPrice =
-    product?.price ||
-    product?.regular_price ||
-    product?.sale_price ||
-    product?.price_html ||
-    0;
-
-  if (typeof rawPrice === "number") return rawPrice;
-
-  const parsed = String(rawPrice).replace(/[^0-9.]/g, "");
-
-  return Number(parsed || 0);
-}
-
 function parseProductPriceNumber(value) {
   if (value === null || value === undefined || value === "") return 0;
 
@@ -252,37 +237,517 @@ function parseProductPriceNumber(value) {
     return Number.isFinite(value) ? value : 0;
   }
 
-  const parsed = String(value).replace(/[^0-9.]/g, "");
+  const normalized = String(value)
+    .replace(/&nbsp;|&#160;/gi, " ")
+    .replace(/,/g, "")
+    .trim();
 
-  return Number(parsed || 0);
+  const match = normalized.match(/-?\d+(?:\.\d+)?/);
+  const number = Number(match?.[0] || 0);
+
+  return Number.isFinite(number) ? number : 0;
+}
+
+function getObjectPath(source, path) {
+  return path.split(".").reduce((value, key) => value?.[key], source);
+}
+
+function getFirstPositivePrice(source, paths, parser = parseProductPriceNumber) {
+  for (const path of paths) {
+    const price = parser(getObjectPath(source, path), source);
+
+    if (price > 0) return price;
+  }
+
+  return 0;
+}
+
+function getStoreApiPriceNumber(value, source = {}) {
+  const number = parseProductPriceNumber(value);
+
+  if (number <= 0) return 0;
+
+  const minorUnit = Number(
+    source?.prices?.currency_minor_unit ??
+      source?.prices?.currencyMinorUnit ??
+      source?.currency_minor_unit ??
+      source?.currencyMinorUnit
+  );
+
+  if (!Number.isFinite(minorUnit) || minorUnit <= 0) return number;
+
+  return number / 10 ** minorUnit;
+}
+
+function decodePriceHtml(value = "") {
+  return String(value || "")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&#36;|&dollar;/gi, "$")
+    .replace(/&nbsp;|&#160;/gi, " ")
+    .replace(/&ndash;|&#8211;/gi, "–")
+    .replace(/&mdash;|&#8212;/gi, "—")
+    .replace(/&amp;/gi, "&")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function extractPriceNumbers(value = "") {
+  const cleanText = decodePriceHtml(value).replace(/,/g, "");
+  const matches = cleanText.match(/\d+(?:\.\d+)?/g) || [];
+
+  return matches
+    .map((match) => Number(match))
+    .filter((number) => Number.isFinite(number) && number > 0);
+}
+
+function getMetaValue(source = {}, acceptedKeys = []) {
+  const normalizedKeys = acceptedKeys.map((key) => String(key).toLowerCase());
+  const metadata = source?.meta_data || source?.metaData || source?.metadata || [];
+
+  if (Array.isArray(metadata)) {
+    const matched = metadata.find((entry) => {
+      const key = String(entry?.key || entry?.name || "").toLowerCase();
+
+      return normalizedKeys.includes(key);
+    });
+
+    if (matched) return matched?.value ?? matched?.data ?? matched?.meta_value;
+  }
+
+  return undefined;
+}
+
+function getExplicitDiscountPercent(source = {}) {
+  const directPaths = [
+    "discount_percent",
+    "discountPercent",
+    "discount_percentage",
+    "discountPercentage",
+    "sale_percent",
+    "salePercent",
+    "sale_percentage",
+    "salePercentage",
+    "active_discount_percent",
+    "activeDiscountPercent",
+    "active_discount_percentage",
+    "activeDiscountPercentage",
+    "percent_off",
+    "percentOff",
+    "discount.percent",
+    "discount.percentage",
+    "active_discount.percent",
+    "active_discount.percentage",
+    "activeDiscount.percent",
+    "activeDiscount.percentage",
+  ];
+
+  for (const path of directPaths) {
+    const percent = parseProductPriceNumber(getObjectPath(source, path));
+
+    if (percent > 0 && percent < 100) return percent;
+  }
+
+  const metaPercent = parseProductPriceNumber(
+    getMetaValue(source, [
+      "_discount_percent",
+      "discount_percent",
+      "_discount_percentage",
+      "discount_percentage",
+      "_sale_percent",
+      "sale_percent",
+      "_sale_percentage",
+      "sale_percentage",
+      "_active_discount_percent",
+      "active_discount_percent",
+      "_active_discount_percentage",
+      "active_discount_percentage",
+      "_percent_off",
+      "percent_off",
+    ])
+  );
+
+  return metaPercent > 0 && metaPercent < 100 ? metaPercent : 0;
+}
+
+function createDiscountCandidate(
+  regularPrice,
+  currentPrice,
+  explicitPercent = 0,
+  source = "unknown"
+) {
+  const regular = Number(regularPrice || 0);
+  const current = Number(currentPrice || 0);
+
+  if (
+    !Number.isFinite(regular) ||
+    !Number.isFinite(current) ||
+    regular <= 0 ||
+    current <= 0 ||
+    current >= regular - 0.001
+  ) {
+    return null;
+  }
+
+  const calculatedPercent = ((regular - current) / regular) * 100;
+  const discountPercent = Math.max(
+    1,
+    Math.min(
+      99,
+      Math.round(
+        explicitPercent > 0 && explicitPercent < 100
+          ? explicitPercent
+          : calculatedPercent
+      )
+    )
+  );
+
+  return {
+    regularPrice: regular,
+    currentPrice: current,
+    salePrice: current,
+    discountPercent,
+    source,
+  };
+}
+
+function getHtmlDiscountCandidate(source = {}) {
+  const priceHtml = String(source?.price_html || source?.priceHtml || "");
+
+  if (!priceHtml) return null;
+
+  const delMatch = priceHtml.match(/<del\b[^>]*>([\s\S]*?)<\/del>/i);
+  const insMatch = priceHtml.match(/<ins\b[^>]*>([\s\S]*?)<\/ins>/i);
+
+  if (delMatch && insMatch) {
+    const regularPrices = extractPriceNumbers(delMatch[1]);
+    const salePrices = extractPriceNumbers(insMatch[1]);
+    const regularPrice = regularPrices.length ? Math.min(...regularPrices) : 0;
+    const salePrice = salePrices.length ? Math.min(...salePrices) : 0;
+
+    return createDiscountCandidate(
+      regularPrice,
+      salePrice,
+      getExplicitDiscountPercent(source),
+      "price-html"
+    );
+  }
+
+  const cleanText = decodePriceHtml(priceHtml);
+  const originalMatch = cleanText.match(
+    /original\s+price(?:\s+was)?\s*:?\s*\$?\s*([0-9,.]+)/i
+  );
+  const currentMatch = cleanText.match(
+    /current\s+price(?:\s+is)?\s*:?\s*\$?\s*([0-9,.]+)/i
+  );
+
+  if (originalMatch && currentMatch) {
+    return createDiscountCandidate(
+      parseProductPriceNumber(originalMatch[1]),
+      parseProductPriceNumber(currentMatch[1]),
+      getExplicitDiscountPercent(source),
+      "price-html-text"
+    );
+  }
+
+  if (source?.on_sale === true || source?.onSale === true) {
+    const prices = extractPriceNumbers(priceHtml);
+
+    if (prices.length >= 2) {
+      const regularPrice = Math.max(...prices);
+      const salePrice = Math.min(...prices);
+
+      return createDiscountCandidate(
+        regularPrice,
+        salePrice,
+        getExplicitDiscountPercent(source),
+        "price-html-fallback"
+      );
+    }
+  }
+
+  return null;
+}
+
+function getEntityDiscountCandidates(source = {}) {
+  if (!source || typeof source !== "object") return [];
+
+  const candidates = [];
+  const explicitPercent = getExplicitDiscountPercent(source);
+
+  const pushCandidate = (regularPrice, currentPrice, candidateSource) => {
+    const candidate = createDiscountCandidate(
+      regularPrice,
+      currentPrice,
+      explicitPercent,
+      candidateSource
+    );
+
+    if (candidate) candidates.push(candidate);
+  };
+
+  const directRegular = getFirstPositivePrice(source, [
+    "regular_price",
+    "regularPrice",
+    "display_regular_price",
+    "displayRegularPrice",
+    "variation_regular_price",
+    "variationRegularPrice",
+    "original_price",
+    "originalPrice",
+    "compare_at_price",
+    "compareAtPrice",
+  ]);
+
+  const directSale = getFirstPositivePrice(source, [
+    "sale_price",
+    "salePrice",
+    "discounted_price",
+    "discountedPrice",
+  ]);
+
+  const directCurrent = getFirstPositivePrice(source, [
+    "price",
+    "current_price",
+    "currentPrice",
+    "display_price",
+    "displayPrice",
+    "variation_price",
+    "variationPrice",
+  ]);
+
+  pushCandidate(
+    directRegular,
+    directSale > 0 ? directSale : directCurrent,
+    "direct"
+  );
+
+  const storeRegular = getFirstPositivePrice(
+    source,
+    ["prices.regular_price", "prices.regularPrice"],
+    getStoreApiPriceNumber
+  );
+  const storeSale = getFirstPositivePrice(
+    source,
+    ["prices.sale_price", "prices.salePrice"],
+    getStoreApiPriceNumber
+  );
+  const storeCurrent = getFirstPositivePrice(
+    source,
+    ["prices.price", "prices.current_price", "prices.currentPrice"],
+    getStoreApiPriceNumber
+  );
+
+  pushCandidate(
+    storeRegular,
+    storeSale > 0 ? storeSale : storeCurrent,
+    "store-api"
+  );
+
+  const rangeRegular = getFirstPositivePrice(source, [
+    "min_regular_price",
+    "minRegularPrice",
+    "regular_price_min",
+    "regularPriceMin",
+    "price_range.regular_price",
+    "priceRange.regularPrice",
+    "price_range.regular.min",
+    "priceRange.regular.min",
+    "prices.price_range.regular_price",
+    "prices.price_range.regularPrice",
+    "prices.price_range.regular.min",
+  ]);
+
+  const rangeSale = getFirstPositivePrice(source, [
+    "min_sale_price",
+    "minSalePrice",
+    "sale_price_min",
+    "salePriceMin",
+    "price_range.sale_price",
+    "priceRange.salePrice",
+    "price_range.sale.min",
+    "priceRange.sale.min",
+    "prices.price_range.sale_price",
+    "prices.price_range.salePrice",
+    "prices.price_range.sale.min",
+  ]);
+
+  const rangeCurrent = getFirstPositivePrice(source, [
+    "min_price",
+    "minPrice",
+    "price_min",
+    "priceMin",
+    "price_range.min",
+    "priceRange.min",
+    "price_range.min_price",
+    "priceRange.minPrice",
+  ]);
+
+  pushCandidate(
+    rangeRegular,
+    rangeSale > 0 ? rangeSale : rangeCurrent,
+    "price-range"
+  );
+
+  const metaRegular = parseProductPriceNumber(
+    getMetaValue(source, [
+      "_regular_price",
+      "regular_price",
+      "_original_price",
+      "original_price",
+      "_compare_at_price",
+      "compare_at_price",
+    ])
+  );
+  const metaSale = parseProductPriceNumber(
+    getMetaValue(source, [
+      "_sale_price",
+      "sale_price",
+      "_discounted_price",
+      "discounted_price",
+      "_price",
+      "price",
+    ])
+  );
+
+  pushCandidate(metaRegular, metaSale, "metadata");
+
+  const htmlCandidate = getHtmlDiscountCandidate(source);
+
+  if (htmlCandidate) candidates.push(htmlCandidate);
+
+  const currentPrice = directCurrent || storeCurrent || rangeCurrent || metaSale;
+
+  if (explicitPercent > 0 && currentPrice > 0) {
+    const computedRegular = currentPrice / (1 - explicitPercent / 100);
+
+    pushCandidate(computedRegular, currentPrice, "explicit-percent");
+  }
+
+  return candidates;
+}
+
+function getVariationPriceMatrixCandidates(product = {}) {
+  const matrix =
+    product?.variation_prices ||
+    product?.variationPrices ||
+    product?.prices_by_variation ||
+    product?.pricesByVariation;
+
+  if (!matrix || typeof matrix !== "object" || Array.isArray(matrix)) return [];
+
+  const regularMap = matrix?.regular_price || matrix?.regularPrice || {};
+  const saleMap = matrix?.sale_price || matrix?.salePrice || {};
+  const currentMap = matrix?.price || matrix?.current_price || matrix?.currentPrice || {};
+  const ids = new Set([
+    ...Object.keys(regularMap || {}),
+    ...Object.keys(saleMap || {}),
+    ...Object.keys(currentMap || {}),
+  ]);
+
+  return [...ids]
+    .map((id) => {
+      const regularPrice = parseProductPriceNumber(regularMap?.[id]);
+      const salePrice = parseProductPriceNumber(saleMap?.[id]);
+      const currentPrice = parseProductPriceNumber(currentMap?.[id]);
+
+      return createDiscountCandidate(
+        regularPrice,
+        salePrice > 0 ? salePrice : currentPrice,
+        getExplicitDiscountPercent(product),
+        "variation-price-matrix"
+      );
+    })
+    .filter(Boolean);
+}
+
+function getProductPrice(product) {
+  const directPrice = getFirstPositivePrice(product, [
+    "price",
+    "current_price",
+    "currentPrice",
+    "sale_price",
+    "salePrice",
+    "regular_price",
+    "regularPrice",
+    "min_price",
+    "minPrice",
+    "price_min",
+    "priceMin",
+  ]);
+
+  if (directPrice > 0) return directPrice;
+
+  const storePrice = getFirstPositivePrice(
+    product,
+    ["prices.price", "prices.sale_price", "prices.regular_price"],
+    getStoreApiPriceNumber
+  );
+
+  if (storePrice > 0) return storePrice;
+
+  const htmlPrices = extractPriceNumbers(
+    product?.price_html || product?.priceHtml || ""
+  );
+
+  return htmlPrices.length ? Math.min(...htmlPrices) : 0;
+}
+
+function getProductPricing(product = {}) {
+  const catalogPrice = getProductPrice(product);
+  const candidates = [
+    ...getEntityDiscountCandidates(product),
+    ...getVariationPriceMatrixCandidates(product),
+    ...getProductVariationObjects(product).flatMap((variation) =>
+      getEntityDiscountCandidates(variation)
+    ),
+  ];
+
+  const uniqueCandidates = candidates.filter((candidate, index, all) => {
+    return (
+      all.findIndex(
+        (item) =>
+          Math.abs(item.regularPrice - candidate.regularPrice) < 0.001 &&
+          Math.abs(item.currentPrice - candidate.currentPrice) < 0.001
+      ) === index
+    );
+  });
+
+  const exactCandidate =
+    catalogPrice > 0
+      ? uniqueCandidates
+          .filter(
+            (candidate) => Math.abs(candidate.currentPrice - catalogPrice) <= 0.05
+          )
+          .sort((a, b) => b.discountPercent - a.discountPercent)[0]
+      : null;
+
+  const directCandidate = uniqueCandidates.find((candidate) =>
+    ["direct", "store-api", "price-range", "price-html", "price-html-text", "metadata", "explicit-percent"].includes(
+      candidate.source
+    )
+  );
+
+  const selectedCandidate = exactCandidate || directCandidate || null;
+
+  if (selectedCandidate) {
+    return {
+      ...selectedCandidate,
+      hasDiscount: true,
+    };
+  }
+
+  return {
+    regularPrice: catalogPrice,
+    currentPrice: catalogPrice,
+    salePrice: 0,
+    discountPercent: 0,
+    hasDiscount: false,
+    source: "catalog-price",
+  };
 }
 
 function isProductDiscounted(product) {
-  if (!product) return false;
-
-  if (product?.on_sale === true || product?.onSale === true) {
-    return true;
-  }
-
-  const regularPrice = parseProductPriceNumber(
-    product?.regular_price ?? product?.regularPrice
-  );
-
-  const salePrice = parseProductPriceNumber(
-    product?.sale_price ?? product?.salePrice
-  );
-
-  if (regularPrice > 0 && salePrice > 0 && salePrice < regularPrice) {
-    return true;
-  }
-
-  const priceHtml = String(product?.price_html || product?.priceHtml || "");
-
-  return (
-    /<del[\s>]/i.test(priceHtml) ||
-    (priceHtml.includes("woocommerce-Price-amount") &&
-      priceHtml.includes("<del"))
-  );
+  return getProductPricing(product).hasDiscount;
 }
 
 function formatPrice(price) {
@@ -468,7 +933,8 @@ function getPaginationPages(currentPage, totalPages) {
 function prepareProductForCatalog(product) {
   const name = product?.name || product?.title || "Product";
   const category = getProductCategory(product);
-  const price = getProductPrice(product);
+  const pricing = getProductPricing(product);
+  const price = pricing.currentPrice || getProductPrice(product);
   const image = getProductImage(product);
   const url = getProductUrl(product);
   const key = getProductKey(product);
@@ -504,6 +970,7 @@ function prepareProductForCatalog(product) {
     name,
     category,
     price,
+    pricing,
     image,
     url,
     tags,
@@ -513,7 +980,7 @@ function prepareProductForCatalog(product) {
     searchText,
     rank: getCustomProductRankFromText(orderText),
     mg: getProductMgFromText(orderText),
-    onSale: isProductDiscounted(product),
+    onSale: pricing.hasDiscount || isProductDiscounted(product),
     newestTime: newestRaw ? new Date(newestRaw).getTime() || 0 : 0,
   };
 }
@@ -647,11 +1114,24 @@ function getProductVariationObjects(product = {}) {
     product?.variations,
     product?.variation_objects,
     product?.variationObjects,
+    product?.available_variations,
+    product?.availableVariations,
+    product?.variation_data,
+    product?.variationData,
+    product?.variations_data,
+    product?.variationsData,
     product?.children,
   ];
 
   return possibleCollections
-    .flatMap((collection) => (Array.isArray(collection) ? collection : []))
+    .flatMap((collection) => {
+      if (Array.isArray(collection)) return collection;
+      if (collection && typeof collection === "object") {
+        return Object.values(collection);
+      }
+
+      return [];
+    })
     .filter((variation) => variation && typeof variation === "object");
 }
 
@@ -801,7 +1281,7 @@ function productNeedsMgSelection(product = {}) {
 
 
 const ProductCard = memo(function ProductCard({ item, addToCart, onBundleAdd }) {
-  const { product, name, category, price, image, url, availability } = item;
+  const { product, name, category, price, pricing, image, url, availability } = item;
   const { isUnavailable, unavailableLabel } = availability;
   const isVariableProduct = isVariableCatalogProduct(product);
   const canSelectBundle = !isUnavailable;
@@ -1024,7 +1504,23 @@ const ProductCard = memo(function ProductCard({ item, addToCart, onBundleAdd }) 
           Research use only · Batch documentation available
         </p>
 
-        <p className="product-float-price">{formatPrice(price)}</p>
+        {pricing?.hasDiscount ? (
+          <p className="product-float-price product-float-price-discounted">
+            <span className="product-float-price-regular">
+              {formatPrice(pricing.regularPrice)}
+            </span>
+
+            <span className="product-float-price-current">
+              {formatPrice(pricing.currentPrice)}
+            </span>
+
+            <span className="product-float-discount-badge">
+              {pricing.discountPercent}% OFF
+            </span>
+          </p>
+        ) : (
+          <p className="product-float-price">{formatPrice(price)}</p>
+        )}
 
         {isUnavailable ? (
           <button
@@ -2146,6 +2642,46 @@ export default function ShopCatalogSection({
           letter-spacing: -0.04em;
         }
 
+        .product-float-price-discounted {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 7px;
+        }
+
+        .product-float-price-regular {
+          color: rgba(148, 163, 184, 0.52);
+          font-size: 13px;
+          font-weight: 800;
+          letter-spacing: -0.02em;
+          text-decoration: line-through;
+          text-decoration-thickness: 1.5px;
+        }
+
+        .product-float-price-current {
+          color: #7ee3ff;
+          font-size: 22px;
+          font-weight: 900;
+          letter-spacing: -0.04em;
+        }
+
+        .product-float-discount-badge {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 22px;
+          padding: 0 8px;
+          border: 1px solid rgba(126, 227, 255, 0.2);
+          border-radius: 999px;
+          background: rgba(126, 227, 255, 0.075);
+          color: rgba(220, 248, 255, 0.92);
+          font-size: 8px;
+          font-weight: 900;
+          letter-spacing: 0.08em;
+          line-height: 1;
+          text-transform: uppercase;
+        }
+
         .product-float-button,
         .product-float-button-disabled {
           display: inline-flex;
@@ -2349,6 +2885,25 @@ export default function ShopCatalogSection({
             font-size: 18px;
           }
 
+          .product-float-price-discounted {
+            gap: 5px;
+          }
+
+          .product-float-price-regular {
+            font-size: 10px;
+          }
+
+          .product-float-price-current {
+            font-size: 18px;
+          }
+
+          .product-float-discount-badge {
+            min-height: 18px;
+            padding: 0 6px;
+            font-size: 6.5px;
+            letter-spacing: 0.06em;
+          }
+
           .product-float-button,
           .product-float-button-disabled {
             min-height: 38px;
@@ -2383,6 +2938,19 @@ export default function ShopCatalogSection({
 
           .product-float-price {
             font-size: 17px;
+          }
+
+          .product-float-price-current {
+            font-size: 17px;
+          }
+
+          .product-float-price-regular {
+            font-size: 9px;
+          }
+
+          .product-float-discount-badge {
+            padding: 0 5px;
+            font-size: 6px;
           }
 
           .product-float-button,
