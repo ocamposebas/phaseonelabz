@@ -19,10 +19,12 @@ import {
 } from "lucide-react";
 
 const GROUPS_PER_PAGE = 12;
+const COA_REQUEST_TIMEOUT_MS = 10000;
+const COA_CACHE_KEY = "phaseone-coa-records-v1";
 
 const DEFAULT_COA_API_URL =
   import.meta.env.PUBLIC_WP_COA_API_URL ||
-  "https://phaseonelabz.com/wp-json/phaseone/v1/coas";
+  "/wp-json/phaseone/v1/coas";
 
 const FILTERS = [
   { label: "All families", value: "All" },
@@ -681,7 +683,7 @@ function FamilyCard({ group, onOpen }) {
     <button
       type="button"
       onClick={() => onOpen(group.key)}
-      className="group relative min-h-[250px] overflow-hidden rounded-[1.6rem] border border-blue-100/10 bg-[#081321]/85 p-4 text-left shadow-[0_20px_65px_rgba(0,0,0,0.22)] transition duration-300 hover:-translate-y-1 hover:border-blue-300/30 hover:bg-[#0a192b] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300/60 sm:min-h-[270px] sm:p-5"
+      className="group relative min-h-[250px] overflow-hidden rounded-[1.6rem] border border-blue-100/10 bg-[#081321]/85 p-4 text-left shadow-[0_8px_24px_rgba(0,0,0,0.18)] transition duration-300 hover:border-blue-300/30 hover:bg-[#0a192b] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300/60 sm:min-h-[270px] sm:p-5 lg:shadow-[0_20px_65px_rgba(0,0,0,0.22)] lg:hover:-translate-y-1"
       aria-label={"Open " + group.name + " COA reports"}
     >
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_85%_0%,rgba(59,130,246,0.15),transparent_42%)] opacity-75 transition group-hover:opacity-100" />
@@ -892,7 +894,7 @@ function FamilyModal({ group, onClose }) {
 
   return (
     <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center bg-[#01050c]/82 p-3 backdrop-blur-md sm:p-6"
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-[#01050c]/88 p-3 backdrop-blur-none sm:p-6 lg:bg-[#01050c]/82 lg:backdrop-blur-md"
       role="dialog"
       aria-modal="true"
       aria-label={safeGroupName + " COA reports"}
@@ -902,7 +904,7 @@ function FamilyModal({ group, onClose }) {
     >
       <div
         data-coa-modal-version="mobile-pdf-first-v2"
-        className="relative flex flex-col overflow-hidden rounded-[1.4rem] border border-blue-200/15 bg-[#07111f] shadow-[0_38px_120px_rgba(0,0,0,0.72)]"
+        className="relative flex flex-col overflow-hidden rounded-[1.4rem] border border-blue-200/15 bg-[#07111f] shadow-[0_14px_45px_rgba(0,0,0,0.5)] lg:shadow-[0_38px_120px_rgba(0,0,0,0.72)]"
         style={{
           width: 1020,
           height: 610,
@@ -996,7 +998,7 @@ function FamilyModal({ group, onClose }) {
           </div>
         </div>
 
-        <div className="relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain lg:grid lg:grid-cols-[235px_minmax(0,1fr)] lg:overflow-hidden">
+        <div className="relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch] lg:grid lg:grid-cols-[235px_minmax(0,1fr)] lg:overflow-hidden">
           <aside className="order-2 border-t border-white/[0.07] bg-[#081321]/70 p-4 lg:order-1 lg:overflow-y-auto lg:border-b-0 lg:border-r lg:border-t-0">
             {primaryRecord ? (
               <>
@@ -1141,7 +1143,7 @@ function FamilyModal({ group, onClose }) {
               )}
             </div>
 
-            <div className="relative min-h-[430px] flex-1 overflow-hidden rounded-xl border border-blue-200/12 bg-white shadow-[0_18px_55px_rgba(0,0,0,0.3)] sm:min-h-[470px] sm:rounded-2xl lg:min-h-0">
+            <div className="relative min-h-[430px] flex-1 overflow-hidden rounded-xl border border-blue-200/12 bg-white shadow-none sm:min-h-[470px] sm:rounded-2xl lg:min-h-0 lg:shadow-[0_18px_55px_rgba(0,0,0,0.3)]">
               {pdfEmbedUrl ? (
                 <iframe
                   key={pdfEmbedUrl}
@@ -1154,7 +1156,7 @@ function FamilyModal({ group, onClose }) {
                   }
                   loading="lazy"
                   allowFullScreen
-                  className="absolute inset-0 h-full w-full bg-white"
+                  className="pointer-events-none absolute inset-0 h-full w-full bg-white lg:pointer-events-auto"
                 />
               ) : (
                 <div className="absolute inset-0 grid place-items-center bg-[#091321] p-8 text-center">
@@ -1249,16 +1251,41 @@ export default function COALookupSection({
     }
 
     const controller = new AbortController();
+    let isMounted = true;
+    let didTimeout = false;
+    let hasCachedRecords = false;
+
+    try {
+      const cachedPayload = window.localStorage.getItem(COA_CACHE_KEY);
+
+      if (cachedPayload) {
+        const cachedRecords = normalizeCoaPayload(JSON.parse(cachedPayload));
+
+        if (cachedRecords.length > 0) {
+          hasCachedRecords = true;
+          setCoaRecords(cachedRecords);
+          setIsLoading(false);
+        }
+      }
+    } catch (cacheError) {
+      console.warn("COA cache could not be read:", cacheError);
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      didTimeout = true;
+      controller.abort();
+    }, COA_REQUEST_TIMEOUT_MS);
 
     async function loadCoas() {
       try {
-        setIsLoading(true);
+        if (!hasCachedRecords) setIsLoading(true);
         setLoadError("");
 
         const response = await fetch(apiUrl, {
           method: "GET",
           headers: { Accept: "application/json" },
-          cache: "no-store",
+          cache: "default",
+          credentials: "same-origin",
           signal: controller.signal,
         });
 
@@ -1267,22 +1294,45 @@ export default function COALookupSection({
         }
 
         const payload = await response.json();
-        setCoaRecords(normalizeCoaPayload(payload));
+        const normalizedRecords = normalizeCoaPayload(payload);
+
+        if (!isMounted) return;
+
+        setCoaRecords(normalizedRecords);
+
+        try {
+          window.localStorage.setItem(
+            COA_CACHE_KEY,
+            JSON.stringify(normalizedRecords)
+          );
+        } catch (cacheError) {
+          console.warn("COA cache could not be updated:", cacheError);
+        }
       } catch (error) {
-        if (error.name === "AbortError") return;
+        if (!isMounted) return;
 
         console.error("COA lookup API error:", error);
-        setCoaRecords([]);
-        setLoadError(
-          "The records could not be loaded. Confirm that the WordPress COA plugin is active and its public endpoint is available."
-        );
+
+        if (!hasCachedRecords) {
+          setCoaRecords([]);
+          setLoadError(
+            didTimeout
+              ? "The COA server took too long to respond. Please try again."
+              : "The records could not be loaded. Confirm that the WordPress COA plugin is active and its public endpoint is available."
+          );
+        }
       } finally {
-        if (!controller.signal.aborted) setIsLoading(false);
+        window.clearTimeout(timeoutId);
+        if (isMounted) setIsLoading(false);
       }
     }
 
     loadCoas();
-    return () => controller.abort();
+    return () => {
+      isMounted = false;
+      window.clearTimeout(timeoutId);
+      controller.abort();
+    };
   }, [apiUrl, reloadKey]);
 
   const allGroups = useMemo(() => groupCoaRecords(coaRecords), [coaRecords]);
@@ -1370,13 +1420,10 @@ export default function COALookupSection({
   };
 
   return (
-    <section className="coa-section relative overflow-hidden bg-[#040a13] px-4 py-12 text-white sm:px-6 sm:py-16 lg:py-20">
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute left-[-12%] top-[-8%] h-[440px] w-[440px] rounded-full bg-blue-600/[0.09] blur-[145px]" />
-        <div className="absolute bottom-[-10%] right-[-12%] h-[420px] w-[420px] rounded-full bg-cyan-400/[0.055] blur-[150px]" />
-        <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.014)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.014)_1px,transparent_1px)] bg-[size:46px_46px] [mask-image:linear-gradient(to_bottom,black,transparent_70%)]" />
-      </div>
-
+    <section
+      className="relative px-4 py-12 text-white sm:px-6 sm:py-16 lg:py-20"
+      style={{ background: "transparent", backgroundImage: "none" }}
+    >
       <div className="relative mx-auto max-w-6xl">
         <header className="mx-auto max-w-3xl text-center">
           <div className="inline-flex items-center gap-2 rounded-full border border-blue-300/15 bg-blue-400/[0.06] px-3 py-2">
@@ -1400,7 +1447,7 @@ export default function COALookupSection({
           </p>
         </header>
 
-        <div className="mx-auto mt-8 max-w-4xl rounded-[1.65rem] border border-blue-200/10 bg-[#07111e]/80 p-3 shadow-[0_25px_90px_rgba(0,0,0,0.28)] backdrop-blur-xl sm:mt-10 sm:p-4">
+        <div className="mx-auto mt-8 max-w-4xl rounded-[1.65rem] border border-blue-200/10 bg-[#07111e]/95 p-3 shadow-[0_10px_34px_rgba(0,0,0,0.2)] backdrop-blur-none sm:mt-10 sm:p-4 lg:bg-[#07111e]/80 lg:shadow-[0_25px_90px_rgba(0,0,0,0.28)] lg:backdrop-blur-xl">
           <div className="relative">
             <Search
               size={18}
