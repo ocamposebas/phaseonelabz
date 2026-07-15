@@ -347,11 +347,11 @@ export default function Hero({
 
           .hero-title {
             width: 100% !important;
-            max-width: 370px !important;
+            max-width: 390px !important;
             margin-inline: auto !important;
-            font-size: clamp(32px, 9.6vw, 43px) !important;
+            font-size: clamp(27px, 8.6vw, 40px) !important;
             line-height: 0.97 !important;
-            letter-spacing: -0.05em !important;
+            letter-spacing: -0.055em !important;
             text-align: center !important;
             text-wrap: balance;
             text-shadow: 0 12px 38px rgba(0,0,0,0.42);
@@ -372,7 +372,7 @@ export default function Hero({
           .hero-title-line {
             display: block;
             max-width: 100%;
-            text-wrap: balance;
+            white-space: nowrap;
           }
 
           .hero-title-accent {
@@ -549,8 +549,8 @@ export default function Hero({
           }
 
           .hero-title {
-            max-width: 346px !important;
-            font-size: clamp(30px, 9.2vw, 36px) !important;
+            max-width: 362px !important;
+            font-size: clamp(27px, 8.5vw, 34px) !important;
           }
 
           .hero-copy {
@@ -566,8 +566,9 @@ export default function Hero({
 
         @media (max-width: 340px) {
           .hero-title {
-            max-width: 300px !important;
-            font-size: 28px !important;
+            max-width: 100% !important;
+            font-size: clamp(25.5px, 8.2vw, 28px) !important;
+            letter-spacing: -0.06em !important;
           }
 
           .hero-copy {
