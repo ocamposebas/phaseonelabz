@@ -2180,7 +2180,7 @@ export default function ShopCatalogSection({
   }, []);
 
   return (
-    <section className="relative px-5 py-10 text-white sm:px-6 sm:py-14 lg:py-16">
+    <section className="product-catalog-section relative px-3 py-10 text-white sm:px-6 sm:py-14 lg:py-16">
       <div className="mx-auto max-w-7xl">
         <div className="mb-8 flex max-w-4xl flex-col items-center text-center md:mx-0 md:items-start md:text-left lg:mb-10">
           <div className="mb-4 inline-flex items-center justify-center gap-3 md:justify-start">
@@ -2409,7 +2409,7 @@ export default function ShopCatalogSection({
               </div>
             ) : (
               <>
-                <div className="grid grid-cols-1 items-stretch gap-4 sm:grid-cols-2 sm:gap-5 xl:grid-cols-3">
+                <div className="product-catalog-grid">
                   {paginatedItems.map((item) => (
                     <ProductCard
                       key={item.key}
@@ -3308,6 +3308,229 @@ export default function ShopCatalogSection({
           .product-float-button-disabled {
             font-size: 7.5px;
             letter-spacing: 0.1em;
+          }
+        }
+
+        .product-catalog-grid {
+          display: grid !important;
+          width: 100%;
+          min-width: 0;
+          grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+          align-items: stretch;
+          gap: 10px !important;
+        }
+
+        .product-catalog-grid > .product-float-card {
+          width: 100%;
+          min-width: 0;
+        }
+
+        @media (min-width: 640px) {
+          .product-catalog-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            gap: 20px !important;
+          }
+        }
+
+        @media (min-width: 1280px) {
+          .product-catalog-grid {
+            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+          }
+        }
+
+        @media (max-width: 639px) {
+          .product-float-card {
+            border-radius: 17px;
+          }
+
+          .product-float-visual {
+            height: 150px;
+          }
+
+          .product-float-topbar {
+            inset: 8px 8px auto;
+            gap: 4px;
+          }
+
+          .product-float-top-actions {
+            gap: 4px;
+          }
+
+          .product-float-pill {
+            min-height: 20px;
+            max-width: calc(100% - 34px);
+            padding: 0 6px;
+            font-size: 6.3px;
+            letter-spacing: 0.065em;
+          }
+
+          .product-stock-badge {
+            min-height: 20px;
+            max-width: 58px;
+            overflow: hidden;
+            padding: 0 6px;
+            font-size: 6px;
+            letter-spacing: 0.06em;
+            text-overflow: ellipsis;
+          }
+
+          .product-float-eye {
+            width: 27px;
+            height: 27px;
+            border-radius: 9px;
+          }
+
+          .product-float-eye svg {
+            width: 12px;
+            height: 12px;
+          }
+
+          .product-float-image-wrap {
+            padding: 22px 8px 10px;
+            --product-float-lift: -4px;
+          }
+
+          .product-float-image {
+            max-width: 82%;
+            max-height: 96px;
+          }
+
+          .product-float-shadow {
+            bottom: 18px;
+            width: 68px;
+            height: 14px;
+          }
+
+          .visual-glow-1 {
+            width: 86px;
+            height: 86px;
+            top: 26px;
+            left: 8px;
+          }
+
+          .visual-glow-2 {
+            width: 96px;
+            height: 96px;
+            right: -26px;
+            bottom: 2px;
+          }
+
+          .product-float-body {
+            padding: 10px;
+          }
+
+          .product-float-title {
+            min-height: 31px;
+            font-size: 13px;
+            line-height: 1.16;
+            letter-spacing: -0.025em;
+          }
+
+          .product-float-price {
+            min-height: 23px;
+            margin-top: 7px;
+            font-size: 16px;
+          }
+
+          .product-float-price-discounted {
+            gap: 4px;
+          }
+
+          .product-float-price-current {
+            font-size: 15.5px;
+          }
+
+          .product-float-price-regular {
+            font-size: 8.5px;
+          }
+
+          .product-float-discount-badge {
+            min-height: 16px;
+            padding: 0 4px;
+            font-size: 5.5px;
+            letter-spacing: 0.035em;
+          }
+
+          .product-float-actions {
+            gap: 6px;
+            padding-top: 10px;
+          }
+
+          .product-float-button,
+          .product-float-button-disabled {
+            min-height: 36px;
+            gap: 5px;
+            border-radius: 11px;
+            padding: 0 7px;
+            font-size: 7.2px;
+            letter-spacing: 0.065em;
+          }
+
+          .product-float-button .product-float-arrow {
+            display: none;
+          }
+
+          .product-float-button svg,
+          .product-float-button-disabled svg {
+            width: 11px;
+            height: 11px;
+            flex: 0 0 auto;
+          }
+
+          .product-bundle-select {
+            min-height: 34px;
+            gap: 5px;
+            border-radius: 11px;
+            padding: 0 6px;
+            font-size: 7px;
+            letter-spacing: 0.065em;
+          }
+
+          .product-bundle-select span {
+            width: 7px;
+            height: 7px;
+            flex: 0 0 auto;
+          }
+
+          .product-mg-selector {
+            margin-top: 7px;
+            border-radius: 12px;
+            padding: 8px;
+          }
+
+          .product-mg-selector-head {
+            gap: 6px;
+            margin-bottom: 7px;
+          }
+
+          .product-mg-kicker {
+            font-size: 6px;
+            letter-spacing: 0.1em;
+          }
+
+          .product-mg-title {
+            font-size: 10px;
+          }
+
+          .product-mg-close {
+            width: 24px;
+            height: 24px;
+            border-radius: 8px;
+          }
+
+          .product-mg-options {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 5px;
+          }
+
+          .product-mg-option {
+            width: 100%;
+            min-width: 0;
+            min-height: 28px;
+            padding: 0 4px;
+            font-size: 7px;
+            letter-spacing: 0.035em;
           }
         }
 
