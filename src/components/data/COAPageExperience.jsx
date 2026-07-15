@@ -754,13 +754,13 @@ function DetailStat({ label, value, accent = false }) {
   const safeValue = cleanDisplayText(value);
 
   return (
-    <div className="flex items-center justify-between gap-4 border-b border-white/[0.06] px-3.5 py-2.5 last:border-b-0">
+    <div className="min-w-0 rounded-xl border border-white/[0.06] bg-white/[0.018] px-3 py-3 lg:flex lg:items-center lg:justify-between lg:gap-4 lg:rounded-none lg:border-x-0 lg:border-t-0 lg:bg-transparent lg:px-3.5 lg:py-2.5 lg:last:border-b-0">
       <dt className="shrink-0 text-[7px] font-black uppercase tracking-[0.15em] text-slate-600">
         {label}
       </dt>
       <dd
         className={cx(
-          "min-w-0 truncate text-right text-[11px] font-semibold",
+          "mt-1.5 min-w-0 truncate text-left text-[11px] font-semibold lg:mt-0 lg:text-right",
           accent ? "text-emerald-200" : "text-slate-300"
         )}
         title={safeValue}
@@ -818,6 +818,7 @@ function FamilyModal({ group, onClose }) {
   const [selectedStrengthKey, setSelectedStrengthKey] = useState(
     group.strengthGroups[0]?.key || ""
   );
+  const [isMobileModal, setIsMobileModal] = useState(false);
 
   const selectedStrength =
     group.strengthGroups.find((item) => item.key === selectedStrengthKey) ||
@@ -866,6 +867,21 @@ function FamilyModal({ group, onClose }) {
   }, [selectedStrength, primaryRecord?.id]);
 
   useEffect(() => {
+    const mediaQuery = window.matchMedia("(max-width: 1023px)");
+    const updateLayout = () => setIsMobileModal(mediaQuery.matches);
+
+    updateLayout();
+
+    if (mediaQuery.addEventListener) {
+      mediaQuery.addEventListener("change", updateLayout);
+      return () => mediaQuery.removeEventListener("change", updateLayout);
+    }
+
+    mediaQuery.addListener(updateLayout);
+    return () => mediaQuery.removeListener(updateLayout);
+  }, []);
+
+  useEffect(() => {
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
 
@@ -892,7 +908,8 @@ function FamilyModal({ group, onClose }) {
 
   return (
     <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center bg-[#01050c]/82 p-3 backdrop-blur-md sm:p-6"
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-[#01050c]/82 backdrop-blur-md"
+      style={{ padding: isMobileModal ? 4 : 24 }}
       role="dialog"
       aria-modal="true"
       aria-label={safeGroupName + " COA reports"}
@@ -901,13 +918,14 @@ function FamilyModal({ group, onClose }) {
       }}
     >
       <div
-        data-coa-modal-version="wide-1020-final"
+        data-coa-modal-version="mobile-pdf-first-v3"
         className="relative flex flex-col overflow-hidden rounded-[1.4rem] border border-blue-200/15 bg-[#07111f] shadow-[0_38px_120px_rgba(0,0,0,0.72)]"
         style={{
-          width: 1020,
-          height: 610,
-          maxWidth: "calc(100vw - 24px)",
-          maxHeight: "calc(100dvh - 24px)",
+          width: isMobileModal ? "calc(100vw - 8px)" : 1020,
+          height: isMobileModal ? "calc(100dvh - 8px)" : 610,
+          maxWidth: isMobileModal ? "calc(100vw - 8px)" : 1020,
+          maxHeight: isMobileModal ? "calc(100dvh - 8px)" : 610,
+          borderRadius: isMobileModal ? 16 : 22,
         }}
       >
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_6%_0%,rgba(59,130,246,0.14),transparent_30%)]" />
@@ -944,62 +962,143 @@ function FamilyModal({ group, onClose }) {
           </button>
         </header>
 
-        <div className="relative z-10 flex shrink-0 items-center gap-3 border-b border-white/[0.07] bg-[#050d18]/80 px-4 py-2 sm:px-5">
-          <div
-            className="coa-scroll-row flex min-w-0 flex-1 gap-2 overflow-x-auto pb-0.5"
-            role="tablist"
-            aria-label="Product strengths"
-          >
-            {group.strengthGroups.map((strengthGroup) => {
-              const active = strengthGroup.key === selectedStrength?.key;
-              const hasCurrentLot = strengthGroup.records.some((record) =>
-                isCurrentShippingLot(record)
-              );
+        {isMobileModal ? (
+          <div className="relative z-10 shrink-0 border-b border-white/[0.07] bg-[#050d18]/90 px-3 py-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[9px] font-black uppercase tracking-[0.16em] text-blue-300/75">
+                  Available strengths
+                </p>
+                <p className="mt-0.5 text-[10px] text-slate-500">
+                  Choose a presentation to view its certificate
+                </p>
+              </div>
 
-              return (
-                <button
-                  key={strengthGroup.key}
-                  type="button"
-                  role="tab"
-                  aria-selected={active}
-                  onClick={() => setSelectedStrengthKey(strengthGroup.key)}
-                  className={cx(
-                    "inline-flex min-h-9 shrink-0 items-center gap-2 rounded-xl border px-3.5 text-[10px] font-semibold tracking-[-0.01em] transition",
-                    active
-                      ? "border-blue-300/35 bg-blue-400/[0.14] text-white shadow-[0_8px_24px_rgba(37,99,235,0.14)]"
-                      : "border-white/[0.07] bg-white/[0.02] text-slate-500 hover:border-blue-300/20 hover:text-blue-100"
-                  )}
-                >
-                  {active && <Check size={12} />}
-                  {strengthGroup.label}
-                  {hasCurrentLot && (
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-300 shadow-[0_0_8px_rgba(110,231,183,0.9)]" />
-                  )}
-                </button>
-              );
-            })}
+              <div className="flex shrink-0 items-center gap-1.5">
+                <span className="inline-flex min-h-7 items-center gap-1 rounded-full border border-blue-300/15 bg-blue-400/[0.08] px-2 text-[6px] font-black uppercase tracking-[0.08em] text-blue-100">
+                  <BadgeCheck size={9} />
+                  Current
+                </span>
+                {isShipping && (
+                  <span className="inline-flex min-h-7 items-center gap-1 rounded-full border border-emerald-300/15 bg-emerald-400/[0.08] px-2 text-[6px] font-black uppercase tracking-[0.08em] text-emerald-200">
+                    <ShieldCheck size={9} />
+                    Shipping
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div
+              className="mt-2.5 flex flex-wrap gap-2"
+              role="tablist"
+              aria-label="Product strengths"
+            >
+              {group.strengthGroups.map((strengthGroup) => {
+                const active = strengthGroup.key === selectedStrength?.key;
+                const hasCurrentLot = strengthGroup.records.some((record) =>
+                  isCurrentShippingLot(record)
+                );
+
+                return (
+                  <button
+                    key={strengthGroup.key}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    aria-label={"View " + strengthGroup.label + " certificate"}
+                    onClick={() => setSelectedStrengthKey(strengthGroup.key)}
+                    className={cx(
+                      "inline-flex min-h-10 items-center gap-2 rounded-xl border px-3.5 text-[11px] font-semibold transition",
+                      active
+                        ? "border-blue-300/40 bg-blue-400/[0.16] text-white shadow-[0_8px_24px_rgba(37,99,235,0.18)]"
+                        : "border-white/[0.09] bg-white/[0.025] text-slate-400"
+                    )}
+                  >
+                    {active && <Check size={13} />}
+                    {strengthGroup.label}
+                    {hasCurrentLot && (
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-300 shadow-[0_0_8px_rgba(110,231,183,0.9)]" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
           </div>
+        ) : (
+          <div className="relative z-10 flex shrink-0 items-center gap-3 border-b border-white/[0.07] bg-[#050d18]/80 px-5 py-2">
+            <div
+              className="coa-scroll-row flex min-w-0 flex-1 gap-2 overflow-x-auto pb-0.5"
+              role="tablist"
+              aria-label="Product strengths"
+            >
+              {group.strengthGroups.map((strengthGroup) => {
+                const active = strengthGroup.key === selectedStrength?.key;
+                const hasCurrentLot = strengthGroup.records.some((record) =>
+                  isCurrentShippingLot(record)
+                );
 
-          <div className="ml-auto flex shrink-0 flex-nowrap items-center gap-2">
-            <span className="inline-flex min-h-8 whitespace-nowrap items-center gap-1.5 rounded-full border border-blue-300/15 bg-blue-400/[0.08] px-2.5 text-[7px] font-black uppercase tracking-[0.11em] text-blue-100">
-              <BadgeCheck size={10} />
-              <span>Current certificate</span>
-            </span>
-            {isShipping && (
-              <span className="inline-flex min-h-8 whitespace-nowrap items-center gap-1.5 rounded-full border border-emerald-300/15 bg-emerald-400/[0.08] px-2.5 text-[7px] font-black uppercase tracking-[0.11em] text-emerald-200">
-                <ShieldCheck size={10} />
-                <span>Shipping now</span>
+                return (
+                  <button
+                    key={strengthGroup.key}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => setSelectedStrengthKey(strengthGroup.key)}
+                    className={cx(
+                      "inline-flex min-h-9 shrink-0 items-center gap-2 rounded-xl border px-3.5 text-[10px] font-semibold tracking-[-0.01em] transition",
+                      active
+                        ? "border-blue-300/35 bg-blue-400/[0.14] text-white shadow-[0_8px_24px_rgba(37,99,235,0.14)]"
+                        : "border-white/[0.07] bg-white/[0.02] text-slate-500 hover:border-blue-300/20 hover:text-blue-100"
+                    )}
+                  >
+                    {active && <Check size={12} />}
+                    {strengthGroup.label}
+                    {hasCurrentLot && (
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-300 shadow-[0_0_8px_rgba(110,231,183,0.9)]" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="ml-auto flex shrink-0 flex-nowrap items-center gap-2">
+              <span className="inline-flex min-h-8 whitespace-nowrap items-center gap-1.5 rounded-full border border-blue-300/15 bg-blue-400/[0.08] px-2.5 text-[7px] font-black uppercase tracking-[0.11em] text-blue-100">
+                <BadgeCheck size={10} />
+                Current certificate
               </span>
-            )}
+              {isShipping && (
+                <span className="inline-flex min-h-8 whitespace-nowrap items-center gap-1.5 rounded-full border border-emerald-300/15 bg-emerald-400/[0.08] px-2.5 text-[7px] font-black uppercase tracking-[0.11em] text-emerald-200">
+                  <ShieldCheck size={10} />
+                  Shipping now
+                </span>
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
-        <div className="relative z-10 min-h-0 flex-1 overflow-y-auto lg:grid lg:grid-cols-[235px_minmax(0,1fr)] lg:overflow-hidden">
-          <aside className="border-b border-white/[0.07] bg-[#081321]/70 p-4 lg:overflow-y-auto lg:border-b-0 lg:border-r">
+        <div
+          className="relative z-10 min-h-0 flex-1 overflow-y-auto overscroll-contain"
+          style={
+            isMobileModal
+              ? { display: "flex", flexDirection: "column" }
+              : {
+                  display: "grid",
+                  gridTemplateColumns: "235px minmax(0, 1fr)",
+                  overflow: "hidden",
+                }
+          }
+        >
+          <aside
+            className="border-t border-white/[0.07] bg-[#081321]/70 p-4 lg:border-b-0 lg:border-r lg:border-t-0"
+            style={{
+              order: isMobileModal ? 2 : 1,
+              overflowY: isMobileModal ? "visible" : "auto",
+            }}
+          >
             {primaryRecord ? (
               <>
                 <p className="text-[7px] font-black uppercase tracking-[0.18em] text-slate-600">
-                  Selected presentation
+                  {isMobileModal ? "2. Certificate details" : "Selected presentation"}
                 </p>
                 <h3 className="mt-1.5 text-[29px] font-semibold leading-none tracking-[-0.055em] text-white">
                   {selectedStrength.label}
@@ -1010,8 +1109,8 @@ function FamilyModal({ group, onClose }) {
                   {documentLabel}
                 </p>
 
-                <div className="mt-4 overflow-hidden rounded-xl border border-white/[0.07] bg-white/[0.018]">
-                  <dl>
+                <div className="mt-4 lg:overflow-hidden lg:rounded-xl lg:border lg:border-white/[0.07] lg:bg-white/[0.018]">
+                  <dl className="grid grid-cols-2 gap-2 lg:block lg:gap-0">
                     <DetailStat
                       label="Batch / lot"
                       value={primaryRecord.batch || primaryRecord.lot}
@@ -1110,7 +1209,13 @@ function FamilyModal({ group, onClose }) {
             )}
           </aside>
 
-          <section className="flex min-h-[540px] min-w-0 flex-col bg-[#040a13] p-3 lg:min-h-0">
+          <section
+            className="flex min-w-0 flex-col bg-[#040a13] p-2.5 sm:p-3"
+            style={{
+              order: isMobileModal ? 1 : 2,
+              minHeight: isMobileModal ? 500 : 0,
+            }}
+          >
             <div className="mb-2.5 flex shrink-0 items-center justify-between gap-3 px-0.5">
               <div className="flex min-w-0 items-center gap-3">
                 <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-blue-300/10 bg-blue-400/[0.06] text-blue-200">
@@ -1118,7 +1223,7 @@ function FamilyModal({ group, onClose }) {
                 </div>
                 <div className="min-w-0">
                   <p className="text-[8px] font-black uppercase tracking-[0.17em] text-blue-300/60">
-                    PDF preview
+                    {isMobileModal ? "1. Report preview" : "PDF preview"}
                   </p>
                   <p className="mt-0.5 truncate text-[11px] font-semibold text-slate-300">
                     {safeGroupName} / {selectedStrength?.label || "COA"}
@@ -1139,7 +1244,10 @@ function FamilyModal({ group, onClose }) {
               )}
             </div>
 
-            <div className="relative min-h-[470px] flex-1 overflow-hidden rounded-2xl border border-blue-200/12 bg-white shadow-[0_18px_55px_rgba(0,0,0,0.3)] lg:min-h-0">
+            <div
+              className="relative flex-1 overflow-hidden rounded-xl border border-blue-200/12 bg-white shadow-[0_18px_55px_rgba(0,0,0,0.3)] sm:rounded-2xl"
+              style={{ minHeight: isMobileModal ? 430 : 0 }}
+            >
               {pdfEmbedUrl ? (
                 <iframe
                   key={pdfEmbedUrl}
