@@ -185,7 +185,10 @@ export default function Hero({
           object-fit: cover;
           object-position: center;
           transform: translate3d(0, 0, 0) scale(1.01);
-          contain: paint;
+          -webkit-transform: translate3d(0, 0, 0) scale(1.01);
+          backface-visibility: hidden;
+          -webkit-backface-visibility: hidden;
+          will-change: transform, opacity;
         }
 
         .hero-video-fallback {
@@ -197,6 +200,11 @@ export default function Hero({
 
         .hero-overlay {
           pointer-events: none;
+          transform: translate3d(0, 0, 0);
+          -webkit-transform: translate3d(0, 0, 0);
+          backface-visibility: hidden;
+          -webkit-backface-visibility: hidden;
+          will-change: transform;
           background:
             linear-gradient(180deg, rgba(2,6,23,0.68), rgba(2,6,23,0.24) 19%, rgba(2,6,23,0.34) 44%, rgba(2,6,23,0.72) 78%, rgba(2,6,23,0.96)),
             radial-gradient(circle at 50% 38%, rgba(2,6,23,0.06), rgba(2,6,23,0.28) 62%, rgba(2,6,23,0.72));
@@ -282,18 +290,20 @@ export default function Hero({
           .hero-bg-video {
             object-position: 50% 42%;
             transform: translate3d(0, 0, 0) scale(1.015);
-            filter: saturate(0.88) contrast(1.06);
+            -webkit-transform: translate3d(0, 0, 0) scale(1.015);
+            opacity: 0.68;
+            filter: none;
           }
 
           .hero-overlay {
             background:
               linear-gradient(
                 180deg,
-                rgba(2, 6, 23, 0.88) 0%,
-                rgba(2, 6, 23, 0.54) 25%,
-                rgba(2, 6, 23, 0.42) 48%,
-                rgba(2, 6, 23, 0.79) 77%,
-                rgba(2, 6, 23, 0.97) 100%
+                rgba(2, 6, 23, 0.82) 0%,
+                rgba(2, 6, 23, 0.32) 25%,
+                rgba(2, 6, 23, 0.15) 48%,
+                rgba(2, 6, 23, 0.69) 77%,
+                rgba(2, 6, 23, 0.955) 100%
               ),
               radial-gradient(
                 ellipse at 50% 47%,
@@ -327,9 +337,9 @@ export default function Hero({
             padding: 7px 13px !important;
             border: 1px solid rgba(165, 243, 252, 0.24) !important;
             border-radius: 999px !important;
-            background: rgba(2, 6, 23, 0.46) !important;
-            backdrop-filter: blur(14px);
-            -webkit-backdrop-filter: blur(14px);
+            background: rgba(2, 6, 23, 0.62) !important;
+            backdrop-filter: none;
+            -webkit-backdrop-filter: none;
             box-shadow:
               inset 0 1px 0 rgba(255,255,255,0.05),
               0 10px 26px rgba(0, 0, 0, 0.16);
@@ -444,7 +454,7 @@ export default function Hero({
             border: 1px solid rgba(165, 243, 252, 0.3) !important;
             border-radius: 999px !important;
             background:
-              linear-gradient(180deg, rgba(15, 23, 42, 0.82), rgba(2, 6, 23, 0.74)) !important;
+              linear-gradient(180deg, rgba(15, 23, 42, 0.92), rgba(2, 6, 23, 0.88)) !important;
             font-size: 8.7px !important;
             font-weight: 900 !important;
             letter-spacing: 0.075em !important;
@@ -452,8 +462,8 @@ export default function Hero({
             box-shadow:
               inset 0 1px 0 rgba(255, 255, 255, 0.08),
               0 12px 28px rgba(0, 0, 0, 0.2) !important;
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
+            backdrop-filter: none;
+            -webkit-backdrop-filter: none;
           }
 
           .hero-secondary-cta svg {
@@ -473,12 +483,18 @@ export default function Hero({
             padding: 7px 5px !important;
             border: 1px solid rgba(165, 243, 252, 0.12) !important;
             border-radius: 20px !important;
-            background: rgba(2, 6, 23, 0.42) !important;
+            background: rgba(2, 6, 23, 0.58) !important;
             box-shadow:
               inset 0 1px 0 rgba(255,255,255,0.045),
               0 18px 38px rgba(0,0,0,0.18);
-            backdrop-filter: blur(14px);
-            -webkit-backdrop-filter: blur(14px);
+            backdrop-filter: none;
+            -webkit-backdrop-filter: none;
+          }
+
+          .hero-primary-cta,
+          .hero-secondary-cta {
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
           }
 
           .hero-feature-card {
