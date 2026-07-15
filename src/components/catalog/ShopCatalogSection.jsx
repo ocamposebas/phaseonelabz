@@ -1701,90 +1701,31 @@ const ProductCard = memo(function ProductCard({ item, addToCart, onBundleAdd }) 
         isUnavailable ? "product-float-card-unavailable" : ""
       }`}
     >
-      {isUnavailable && (
-        <span className="product-stock-badge">{unavailableLabel}</span>
-      )}
-
-      {showBundleButton && (
-        <button
-          type="button"
-          onClick={handleBundleAdd}
-          disabled={!canSelectBundle}
-          aria-disabled={!canSelectBundle}
-          className={`product-bundle-select ${
-            !canSelectBundle ? "product-bundle-select-disabled" : ""
-          } ${mgSelectorOpen ? "product-bundle-select-active" : ""}`}
-          aria-label={`Add ${name} to bundle and unlock 10% off after 5 products`}
-        >
-          <span />
-          {needsMgSelection ? "Choose MG" : "Add to Bundle"}
-        </button>
-      )}
-
-      {mgSelectorOpen && (
-        <div
-          className="product-mg-selector"
-          onClick={(event) => event.stopPropagation()}
-          role="dialog"
-          aria-label={`Choose MG for ${name}`}
-        >
-          <div className="product-mg-selector-head">
-            <div>
-              <p className="product-mg-kicker">Select MG</p>
-              <p className="product-mg-title">Choose your option</p>
-            </div>
-
-            <button
-              type="button"
-              onClick={(event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                closeMgSelector();
-              }}
-              className="product-mg-close"
-              aria-label="Close MG selector"
-            >
-              <X size={13} />
-            </button>
-          </div>
-
-          <div className="product-mg-options">
-            {mgOptions.map((option) => (
-              <button
-                key={`${option.label}-${option.variationId || option.value}`}
-                type="button"
-                onClick={(event) => handleBundleMgSelect(event, option)}
-                className="product-mg-option"
-              >
-                <span>{option.label}</span>
-                <ArrowRight size={12} />
-              </button>
-            ))}
-          </div>
-
-          <p className="product-mg-note">
-            This adds the selected option to your 5-product bundle.
-          </p>
-        </div>
-      )}
-
       <div className="product-float-visual">
         <div className="visual-glow visual-glow-1" />
         <div className="visual-glow visual-glow-2" />
         <div className="visual-grid" />
 
-        <span className="product-float-pill">{category}</span>
+        <div className="product-float-topbar">
+          <span className="product-float-pill">{category}</span>
 
-        <a
-          href={url}
-          onClick={(event) => {
-            event.stopPropagation();
-          }}
-          aria-label={`View details for ${name}`}
-          className="product-float-eye"
-        >
-          <Eye size={15} />
-        </a>
+          <div className="product-float-top-actions">
+            {isUnavailable && (
+              <span className="product-stock-badge">{unavailableLabel}</span>
+            )}
+
+            <a
+              href={url}
+              onClick={(event) => {
+                event.stopPropagation();
+              }}
+              aria-label={`View details for ${name}`}
+              className="product-float-eye"
+            >
+              <Eye size={15} />
+            </a>
+          </div>
+        </div>
 
         <div className="product-float-image-wrap">
           <div className="product-float-shadow" />
@@ -1824,34 +1765,99 @@ const ProductCard = memo(function ProductCard({ item, addToCart, onBundleAdd }) 
           <p className="product-float-price">{formatPrice(price)}</p>
         )}
 
-        {isUnavailable ? (
-          <button
-            type="button"
-            disabled
-            aria-disabled="true"
-            onClick={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-            }}
-            className="product-float-button-disabled"
+        <div className="product-float-actions">
+          {isUnavailable ? (
+            <button
+              type="button"
+              disabled
+              aria-disabled="true"
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+              }}
+              className="product-float-button-disabled"
+            >
+              {unavailableLabel}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleAddToCart}
+              className="product-float-button"
+              aria-label={
+                isVariableProduct
+                  ? `Select options for ${name}`
+                  : `Add ${name} to cart`
+              }
+            >
+              <ShoppingBag size={14} />
+              <span>{actionLabel}</span>
+              <ArrowRight size={14} className="product-float-arrow" />
+            </button>
+          )}
+
+          {showBundleButton && (
+            <button
+              type="button"
+              onClick={handleBundleAdd}
+              disabled={!canSelectBundle}
+              aria-disabled={!canSelectBundle}
+              className={`product-bundle-select ${
+                !canSelectBundle ? "product-bundle-select-disabled" : ""
+              } ${mgSelectorOpen ? "product-bundle-select-active" : ""}`}
+              aria-label={`Add ${name} to bundle and unlock 10% off after 5 products`}
+            >
+              <span />
+              {needsMgSelection ? "Choose MG" : "Add to Bundle"}
+            </button>
+          )}
+        </div>
+
+        {mgSelectorOpen && (
+          <div
+            className="product-mg-selector"
+            onClick={(event) => event.stopPropagation()}
+            role="dialog"
+            aria-label={`Choose MG for ${name}`}
           >
-            {unavailableLabel}
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={handleAddToCart}
-            className="product-float-button"
-            aria-label={
-              isVariableProduct
-                ? `Select options for ${name}`
-                : `Add ${name} to cart`
-            }
-          >
-            <ShoppingBag size={14} />
-            <span>{actionLabel}</span>
-            <ArrowRight size={14} className="product-float-arrow" />
-          </button>
+            <div className="product-mg-selector-head">
+              <div>
+                <p className="product-mg-kicker">Select MG</p>
+                <p className="product-mg-title">Choose your option</p>
+              </div>
+
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  closeMgSelector();
+                }}
+                className="product-mg-close"
+                aria-label="Close MG selector"
+              >
+                <X size={13} />
+              </button>
+            </div>
+
+            <div className="product-mg-options">
+              {mgOptions.map((option) => (
+                <button
+                  key={`${option.label}-${option.variationId || option.value}`}
+                  type="button"
+                  onClick={(event) => handleBundleMgSelect(event, option)}
+                  className="product-mg-option"
+                >
+                  <span>{option.label}</span>
+                  <ArrowRight size={12} />
+                </button>
+              ))}
+            </div>
+
+            <p className="product-mg-note">
+              This adds the selected option to your 5-product bundle.
+            </p>
+          </div>
         )}
       </div>
     </article>
@@ -2403,7 +2409,7 @@ export default function ShopCatalogSection({
               </div>
             ) : (
               <>
-                <div className="grid grid-cols-2 gap-3 sm:gap-5 xl:grid-cols-3">
+                <div className="grid grid-cols-1 items-stretch gap-4 sm:grid-cols-2 sm:gap-5 xl:grid-cols-3">
                   {paginatedItems.map((item) => (
                     <ProductCard
                       key={item.key}
@@ -2561,7 +2567,12 @@ export default function ShopCatalogSection({
 
         .product-float-card {
           position: relative;
+          display: flex;
+          min-width: 0;
+          height: 100%;
+          flex-direction: column;
           overflow: hidden;
+          isolation: isolate;
           border-radius: 28px;
           border: 1px solid rgba(122, 197, 255, 0.12);
           background:
@@ -2577,8 +2588,6 @@ export default function ShopCatalogSection({
             transform 220ms ease,
             border-color 220ms ease,
             box-shadow 220ms ease;
-          content-visibility: auto;
-          contain-intrinsic-size: 430px;
         }
 
         .product-float-card-unavailable {
@@ -2594,37 +2603,33 @@ export default function ShopCatalogSection({
         }
 
         .product-stock-badge {
-          position: absolute;
-          right: 14px;
-          top: 14px;
-          z-index: 20;
           display: inline-flex;
-          min-height: 28px;
+          min-height: 32px;
           align-items: center;
           border-radius: 999px;
           border: 1px solid rgba(255,255,255,0.1);
           background: rgba(2, 6, 23, 0.82);
-          padding: 0 10px;
+          padding: 0 11px;
           color: rgba(226, 232, 240, 0.82);
           font-size: 8px;
           font-weight: 900;
           letter-spacing: 0.14em;
+          line-height: 1;
           text-transform: uppercase;
+          white-space: nowrap;
         }
 
         .product-bundle-select {
-          position: absolute;
-          left: 14px;
-          top: 52px;
-          z-index: 30;
           display: inline-flex;
-          min-height: 30px;
+          width: 100%;
+          min-height: 42px;
           align-items: center;
+          justify-content: center;
           gap: 8px;
-          border-radius: 999px;
+          border-radius: 14px;
           border: 1px solid rgba(165, 243, 252, 0.16);
-          background: rgba(2, 6, 23, 0.82);
-          padding: 0 11px;
+          background: rgba(103, 232, 249, 0.045);
+          padding: 0 14px;
           color: rgba(226, 232, 240, 0.82);
           font-size: 8px;
           font-weight: 900;
@@ -2669,11 +2674,9 @@ export default function ShopCatalogSection({
         }
 
         .product-mg-selector {
-          position: absolute;
-          left: 14px;
-          right: 14px;
-          top: 88px;
-          z-index: 55;
+          position: relative;
+          z-index: 10;
+          margin-top: 10px;
           overflow: hidden;
           border-radius: 18px;
           border: 1px solid rgba(165, 243, 252, 0.18);
@@ -2781,6 +2784,7 @@ export default function ShopCatalogSection({
 
         .product-float-visual {
           position: relative;
+          flex: 0 0 auto;
           height: 250px;
           overflow: hidden;
           border-bottom: 1px solid rgba(122, 197, 255, 0.08);
@@ -2788,6 +2792,26 @@ export default function ShopCatalogSection({
             radial-gradient(circle at 20% 25%, rgba(106, 218, 255, 0.08), transparent 30%),
             radial-gradient(circle at 80% 15%, rgba(79, 120, 255, 0.1), transparent 28%),
             linear-gradient(180deg, rgba(20, 36, 68, 0.96), rgba(10, 18, 37, 0.96));
+        }
+
+        .product-float-topbar {
+          position: absolute;
+          inset: 14px 14px auto;
+          z-index: 12;
+          display: flex;
+          min-width: 0;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 10px;
+          pointer-events: none;
+        }
+
+        .product-float-top-actions {
+          display: flex;
+          flex-shrink: 0;
+          align-items: center;
+          gap: 7px;
+          pointer-events: auto;
         }
 
         .visual-grid {
@@ -2827,13 +2851,11 @@ export default function ShopCatalogSection({
         }
 
         .product-float-pill {
-          position: absolute;
-          left: 16px;
-          top: 16px;
-          z-index: 5;
           display: inline-flex;
+          min-width: 0;
           align-items: center;
           min-height: 28px;
+          max-width: 62%;
           padding: 0 10px;
           border-radius: 999px;
           border: 1px solid rgba(122, 197, 255, 0.14);
@@ -2843,13 +2865,13 @@ export default function ShopCatalogSection({
           font-weight: 900;
           letter-spacing: 0.16em;
           text-transform: uppercase;
+          overflow: hidden;
+          white-space: nowrap;
+          text-overflow: ellipsis;
+          pointer-events: auto;
         }
 
         .product-float-eye {
-          position: absolute;
-          right: 16px;
-          top: 16px;
-          z-index: 6;
           display: grid;
           height: 38px;
           width: 38px;
@@ -2920,19 +2942,29 @@ export default function ShopCatalogSection({
         }
 
         .product-float-body {
+          display: flex;
+          min-width: 0;
+          flex: 1;
+          flex-direction: column;
           padding: 18px;
         }
 
         .product-float-title {
+          display: -webkit-box;
+          min-height: 53px;
+          overflow: hidden;
           margin: 0;
           color: #f8fbff;
           font-size: 24px;
           line-height: 1.1;
           letter-spacing: -0.045em;
           font-weight: 750;
+          -webkit-box-orient: vertical;
+          -webkit-line-clamp: 2;
         }
 
         .product-float-subtitle {
+          min-height: 34px;
           margin: 8px 0 0;
           color: rgba(148, 163, 184, 0.62);
           font-size: 11px;
@@ -2943,6 +2975,9 @@ export default function ShopCatalogSection({
         }
 
         .product-float-price {
+          display: flex;
+          min-height: 32px;
+          align-items: center;
           margin: 10px 0 0;
           color: #7ee3ff;
           font-size: 22px;
@@ -2951,7 +2986,6 @@ export default function ShopCatalogSection({
         }
 
         .product-float-price-discounted {
-          display: flex;
           flex-wrap: wrap;
           align-items: center;
           gap: 7px;
@@ -2998,13 +3032,20 @@ export default function ShopCatalogSection({
           justify-content: center;
           gap: 10px;
           min-height: 46px;
-          margin-top: 16px;
+          margin-top: 0;
           padding: 0 16px;
           border-radius: 16px;
           font-size: 10px;
           font-weight: 900;
           letter-spacing: 0.18em;
           text-transform: uppercase;
+        }
+
+        .product-float-actions {
+          display: grid;
+          gap: 8px;
+          margin-top: auto;
+          padding-top: 16px;
         }
 
         .product-float-button {
@@ -3050,8 +3091,6 @@ export default function ShopCatalogSection({
         @media (max-width: 768px) {
           .product-float-card {
             border-radius: 20px;
-            content-visibility: visible;
-            contain-intrinsic-size: auto;
           }
 
           .product-float-card:hover {
@@ -3059,14 +3098,21 @@ export default function ShopCatalogSection({
           }
 
           .product-float-visual {
-            height: 165px;
+            height: 190px;
+          }
+
+          .product-float-topbar {
+            inset: 10px 10px auto;
+            gap: 7px;
+          }
+
+          .product-float-top-actions {
+            gap: 6px;
           }
 
           .product-float-pill {
-            left: 10px;
-            top: 10px;
             min-height: 23px;
-            max-width: calc(100% - 58px);
+            max-width: 58%;
             padding: 0 7px;
             font-size: 7px;
             letter-spacing: 0.1em;
@@ -3076,8 +3122,6 @@ export default function ShopCatalogSection({
           }
 
           .product-stock-badge {
-            right: 10px;
-            top: 48px;
             min-height: 23px;
             padding: 0 8px;
             font-size: 7px;
@@ -3085,18 +3129,15 @@ export default function ShopCatalogSection({
           }
 
           .product-bundle-select {
-            left: 10px;
-            top: 42px;
-            min-height: 24px;
-            padding: 0 8px;
-            font-size: 7px;
-            letter-spacing: 0.1em;
+            min-height: 38px;
+            border-radius: 13px;
+            padding: 0 10px;
+            font-size: 8px;
+            letter-spacing: 0.11em;
           }
 
           .product-mg-selector {
-            left: 10px;
-            right: 10px;
-            top: 72px;
+            margin-top: 8px;
             border-radius: 15px;
             padding: 10px;
           }
@@ -3122,8 +3163,6 @@ export default function ShopCatalogSection({
           }
 
           .product-float-eye {
-            right: 10px;
-            top: 10px;
             width: 32px;
             height: 32px;
             border-radius: 12px;
@@ -3170,7 +3209,7 @@ export default function ShopCatalogSection({
           }
 
           .product-float-body {
-            padding: 12px;
+            padding: 14px;
           }
 
           .product-float-title {
@@ -3215,12 +3254,16 @@ export default function ShopCatalogSection({
           .product-float-button,
           .product-float-button-disabled {
             min-height: 38px;
-            margin-top: 11px;
             gap: 7px;
             border-radius: 13px;
             padding: 0 10px;
             font-size: 8px;
             letter-spacing: 0.12em;
+          }
+
+          .product-float-actions {
+            gap: 7px;
+            padding-top: 12px;
           }
 
           .product-float-button svg,
@@ -3232,7 +3275,7 @@ export default function ShopCatalogSection({
 
         @media (max-width: 420px) {
           .product-float-visual {
-            height: 152px;
+            height: 180px;
           }
 
           .product-float-image {

@@ -1,25 +1,28 @@
 import { CartProvider } from "../cart/CartContext";
 
 import Header from "../nav/Navbar.jsx";
-import ProductCatalog from "../catalog/ShopCatalogSection.jsx"
 import CartDrawer from "../cart/CartDrawer.jsx";
-import Coa from "../data/COAPageExperience.jsx"
+import Coa from "../data/COAPageExperience.jsx";
 import SiteFooter from "../footer/SiteFooter.jsx";
-import New from "../footer/NewsletterSection.jsx"
+import NewsletterSection from "../footer/NewsletterSection.jsx";
 
 export default function ShopExperience({ products = [] }) {
   return (
     <CartProvider>
+      <div className="min-h-screen bg-[#050b18] text-white">
+        <Header
+          logoSrc="/TRANSPARENCIA-03.webp"
+          transparentOnTop={false}
+        />
 
-      <Header logoSrc="/TRANSPARENCIA-03.webp" transparentOnTop={true} />
+        <main className="min-h-screen bg-[#050b18] pt-[118px]">
+          <Coa />
+          <NewsletterSection />
+          <SiteFooter />
+        </main>
 
-      <main className="pt-[118px]">
-        <Coa/>
-        <New/>
-        <SiteFooter />
-      </main> 
-
-      <CartDrawer />
+        <CartDrawer />
+      </div>
     </CartProvider>
   );
 }
