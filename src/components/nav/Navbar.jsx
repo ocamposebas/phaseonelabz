@@ -238,11 +238,11 @@ function AnnouncementLoop() {
 export default function SiteHeader({
   logoSrc = "/TRANSPARENCIA-03.png",
   logoAlt = "Research Lab Logo",
-  transparentOnTop = false,
   isHome = false,
 }) {
   const [mode, setMode] = useState("top");
   const [isHomePage, setIsHomePage] = useState(Boolean(isHome));
+  const [currentPath, setCurrentPath] = useState("");
   const [mobileOpen, setMobileOpen] = useState(false);
   const [account, setAccount] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
@@ -279,7 +279,9 @@ export default function SiteHeader({
     setMounted(true);
 
     if (typeof window !== "undefined") {
-      setIsHomePage(window.location.pathname === "/");
+      const pathname = window.location.pathname || "/";
+      setIsHomePage(pathname === "/");
+      setCurrentPath(pathname);
     }
   }, []);
 
@@ -591,11 +593,23 @@ export default function SiteHeader({
               </a>
 
               <div className="sh-links">
-                {navItems.map((item) => (
-                  <a href={item.href} className="sh-link" key={item.label}>
-                    {item.label}
-                  </a>
-                ))}
+                {navItems.map((item) => {
+                  const isActive =
+                    currentPath === item.href ||
+                    (item.href !== "/" &&
+                      currentPath.startsWith(item.href + "/"));
+
+                  return (
+                    <a
+                      href={item.href}
+                      className={`sh-link ${isActive ? "is-active" : ""}`}
+                      key={item.label}
+                      aria-current={isActive ? "page" : undefined}
+                    >
+                      {item.label}
+                    </a>
+                  );
+                })}
               </div>
 
               <div className="sh-actions">
@@ -830,17 +844,26 @@ export default function SiteHeader({
             </div>
 
             <div className="sh-mobile-links">
-              {navItems.map((item, index) => (
-                <a
-                  href={item.href}
-                  key={item.label}
-                  onClick={() => setMobileOpen(false)}
-                  style={{ "--delay": `${index * 45}ms` }}
-                >
-                  <span>{String(index + 1).padStart(2, "0")}</span>
-                  {item.label}
-                </a>
-              ))}
+              {navItems.map((item, index) => {
+                const isActive =
+                  currentPath === item.href ||
+                  (item.href !== "/" &&
+                    currentPath.startsWith(item.href + "/"));
+
+                return (
+                  <a
+                    href={item.href}
+                    key={item.label}
+                    className={isActive ? "is-active" : ""}
+                    aria-current={isActive ? "page" : undefined}
+                    onClick={() => setMobileOpen(false)}
+                    style={{ "--delay": `${index * 45}ms` }}
+                  >
+                    <span>{String(index + 1).padStart(2, "0")}</span>
+                    {item.label}
+                  </a>
+                );
+              })}
 
               {isLoggedIn ? (
                 <>
@@ -981,6 +1004,9 @@ export default function SiteHeader({
         }
 
         .sh-header {
+          --sh-surface: #050b18;
+          --sh-surface-raised: #07111f;
+          --sh-border: rgba(165, 243, 252, 0.11);
           position: fixed;
           inset: 0 0 auto 0;
           z-index: 100;
@@ -1021,23 +1047,11 @@ export default function SiteHeader({
         }
 
         .sh-header-home .sh-announcement {
-          background: linear-gradient(
-            90deg,
-            rgba(2, 6, 23, 0.18),
-            rgba(2, 6, 23, 0.08),
-            rgba(2, 6, 23, 0.18)
-          );
-          backdrop-filter: blur(8px);
-          -webkit-backdrop-filter: blur(8px);
+          background: var(--sh-surface);
         }
 
         .sh-header-inner .sh-announcement {
-          background: linear-gradient(
-            90deg,
-            rgba(7, 25, 38, 0.92),
-            rgba(2, 6, 23, 0.92),
-            rgba(7, 25, 38, 0.92)
-          );
+          background: var(--sh-surface);
         }
 
         .sh-announcement.is-visible {
@@ -1086,7 +1100,7 @@ export default function SiteHeader({
           display: inline-flex;
           align-items: center;
           gap: 14px;
-          padding: 9px 42px;
+          padding: 9px 36px;
           flex-shrink: 0;
           font-family: "Orbitron", sans-serif;
           font-size: 10px;
@@ -1124,8 +1138,8 @@ export default function SiteHeader({
           left: 0;
           background: linear-gradient(
             90deg,
-            rgba(2, 6, 23, 0.96),
-            rgba(2, 6, 23, 0)
+            var(--sh-surface),
+            rgba(5, 11, 24, 0)
           );
         }
 
@@ -1133,8 +1147,8 @@ export default function SiteHeader({
           right: 0;
           background: linear-gradient(
             270deg,
-            rgba(2, 6, 23, 0.96),
-            rgba(2, 6, 23, 0)
+            var(--sh-surface),
+            rgba(5, 11, 24, 0)
           );
         }
 
@@ -1149,9 +1163,9 @@ export default function SiteHeader({
         }
 
         .sh-nav-card {
-          max-width: 1280px;
+          max-width: 1340px;
           margin-inline: auto;
-          border-radius: 24px;
+          border-radius: 20px;
           overflow: visible;
           transform: translate3d(0, 0, 0);
           transition:
@@ -1166,7 +1180,7 @@ export default function SiteHeader({
 
         .sh-nav-top,
         .sh-nav-compact {
-          margin-top: 12px;
+          margin-top: 4px;
         }
 
         .sh-header-home .sh-nav-clear {
@@ -1186,36 +1200,33 @@ export default function SiteHeader({
         }
 
         .sh-nav-glass {
-          border: 1px solid rgba(165, 243, 252, 0.12);
-          background: linear-gradient(
-            135deg,
-            rgba(6, 17, 29, 0.98) 0%,
-            rgba(3, 8, 18, 0.98) 52%,
-            rgba(7, 20, 33, 0.98) 100%
-          );
-          box-shadow: 0 18px 70px rgba(0, 0, 0, 0.28);
-          backdrop-filter: none;
-          -webkit-backdrop-filter: none;
+          border: 1px solid var(--sh-border);
+          background: rgba(5, 11, 24, 0.96);
+          box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.025),
+            0 14px 48px rgba(0, 0, 0, 0.22);
+          backdrop-filter: blur(18px);
+          -webkit-backdrop-filter: blur(18px);
         }
 
         .sh-nav {
           display: flex;
-          height: 78px;
+          height: 76px;
           align-items: center;
           justify-content: space-between;
-          padding: 0 28px;
+          padding: 0 22px;
         }
 
         .sh-logo {
           display: flex;
-          min-width: 130px;
+          min-width: 150px;
           align-items: center;
         }
 
         .sh-logo img {
           width: auto;
-          max-width: 176px;
-          max-height: 54px;
+          max-width: 164px;
+          max-height: 50px;
           object-fit: contain;
           transition: transform 280ms ease;
         }
@@ -1227,7 +1238,7 @@ export default function SiteHeader({
         .sh-links {
           display: flex;
           align-items: center;
-          gap: 4px;
+          gap: 2px;
         }
 
         .sh-link {
@@ -1236,15 +1247,21 @@ export default function SiteHeader({
           align-items: center;
           gap: 8px;
           border-radius: 999px;
-          padding: 12px 20px;
+          padding: 11px 16px;
           font-size: 15px;
-          font-weight: 800;
-          color: rgba(255, 255, 255, 0.84);
-          transition: color 260ms ease;
+          font-weight: 850;
+          letter-spacing: 0.055em;
+          text-transform: uppercase;
+          color: rgba(226, 232, 240, 0.76);
+          transition: color 220ms ease;
         }
 
         .sh-link:hover {
           color: white;
+        }
+
+        .sh-link.is-active {
+          color: #ecfeff;
         }
 
         .sh-link::before {
@@ -1271,6 +1288,13 @@ export default function SiteHeader({
           background: rgba(34, 211, 238, 0.055);
         }
 
+        .sh-link.is-active::before {
+          opacity: 1;
+          transform: scale(1);
+          border-color: rgba(165, 243, 252, 0.14);
+          background: rgba(103, 232, 249, 0.075);
+        }
+
         .sh-link::after {
           content: "";
           position: absolute;
@@ -1288,10 +1312,14 @@ export default function SiteHeader({
           width: 32px;
         }
 
+        .sh-link.is-active::after {
+          width: 24px;
+        }
+
         .sh-actions {
           display: flex;
           align-items: center;
-          gap: 24px;
+          gap: 9px;
         }
 
         .sh-icon,
@@ -1310,6 +1338,11 @@ export default function SiteHeader({
 
         .sh-icon {
           display: inline-flex;
+          width: 42px;
+          height: 42px;
+          border: 1px solid rgba(165, 243, 252, 0.08);
+          border-radius: 14px;
+          background: rgba(255, 255, 255, 0.02);
         }
 
         .sh-mobile-toggle,
@@ -1322,13 +1355,15 @@ export default function SiteHeader({
         .sh-mobile-cart:hover {
           color: rgb(165, 243, 252);
           transform: translateY(-1px);
+          border-color: rgba(165, 243, 252, 0.18);
+          background: rgba(103, 232, 249, 0.055);
         }
 
         .sh-cart span,
         .sh-mobile-cart span {
           position: absolute;
-          top: -12px;
-          right: -12px;
+          top: -6px;
+          right: -6px;
           display: grid;
           min-width: 17px;
           height: 17px;
@@ -1350,8 +1385,8 @@ export default function SiteHeader({
 
         .sh-user-dropdown {
           position: absolute;
-          top: calc(100% + 18px);
-          right: -18px;
+          top: calc(100% + 12px);
+          right: 0;
           width: 278px;
           padding: 8px;
           border: 1px solid rgba(165, 243, 252, 0.1);
@@ -1489,8 +1524,11 @@ export default function SiteHeader({
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          border: 0;
-          background: transparent;
+          width: 42px;
+          height: 42px;
+          border: 1px solid rgba(165, 243, 252, 0.08);
+          border-radius: 14px;
+          background: rgba(255, 255, 255, 0.02);
           padding: 0;
           color: rgba(255, 255, 255, 0.78);
           cursor: pointer;
@@ -1503,12 +1541,17 @@ export default function SiteHeader({
         .sh-inline-search-trigger:hover {
           color: rgb(165, 243, 252);
           transform: translateY(-1px);
+          border-color: rgba(165, 243, 252, 0.18);
+          background: rgba(103, 232, 249, 0.055);
         }
 
         .sh-inline-search.is-open .sh-inline-search-trigger {
           opacity: 0;
           pointer-events: none;
           width: 0;
+          height: 0;
+          overflow: hidden;
+          border: 0;
         }
 
         .sh-inline-search-form {
@@ -1712,12 +1755,13 @@ export default function SiteHeader({
           height: 100%;
           width: min(88%, 410px);
           flex-direction: column;
-          overflow: hidden;
+          overflow-x: hidden;
+          overflow-y: auto;
+          overscroll-behavior: contain;
           border-right: 1px solid rgba(165, 243, 252, 0.13);
-          background:
-            linear-gradient(145deg, rgba(8, 28, 42, 0.98), rgba(2, 6, 23, 0.98)),
-            #061522;
-          padding: 20px;
+          background: var(--sh-surface, #050b18);
+          padding: max(20px, env(safe-area-inset-top)) 20px
+            max(20px, env(safe-area-inset-bottom));
           box-shadow: 24px 0 100px rgba(0, 0, 0, 0.56);
           animation: shPanelIn 520ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
         }
@@ -1810,6 +1854,8 @@ export default function SiteHeader({
           font-family: inherit;
           font-size: 16px;
           font-weight: 800;
+          letter-spacing: 0.045em;
+          text-transform: uppercase;
           color: white;
           cursor: pointer;
           opacity: 0;
@@ -1827,6 +1873,12 @@ export default function SiteHeader({
           border-color: rgba(103, 232, 249, 0.24);
           background: rgba(103, 232, 249, 0.075);
           transform: translateX(4px);
+        }
+
+        .sh-mobile-links a.is-active {
+          border-color: rgba(103, 232, 249, 0.28);
+          background: rgba(103, 232, 249, 0.09);
+          color: #ecfeff;
         }
 
         .sh-mobile-links span {
@@ -2066,6 +2118,11 @@ export default function SiteHeader({
           .sh-mobile-toggle,
           .sh-mobile-cart {
             display: inline-flex;
+            width: 40px;
+            height: 40px;
+            border: 1px solid rgba(165, 243, 252, 0.09);
+            border-radius: 13px;
+            background: rgba(255, 255, 255, 0.025);
           }
 
           .sh-nav {
@@ -2073,7 +2130,7 @@ export default function SiteHeader({
             grid-template-columns: 44px 1fr 44px;
             height: 72px;
             align-items: center;
-            padding-inline: 16px;
+            padding-inline: 12px;
           }
 
           .sh-mobile-toggle {
@@ -2096,8 +2153,8 @@ export default function SiteHeader({
           }
 
           .sh-mobile-cart span {
-            top: -9px;
-            right: -9px;
+            top: -6px;
+            right: -6px;
           }
         }
 
@@ -2132,7 +2189,7 @@ export default function SiteHeader({
           }
 
           .sh-nav-card {
-            border-radius: 22px;
+            border-radius: 17px;
           }
 
           .sh-nav {
