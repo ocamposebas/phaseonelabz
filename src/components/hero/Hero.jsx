@@ -276,61 +276,63 @@ export default function Hero({
         @media (max-width: 768px) {
           .hero-section,
           .hero-inner {
-            min-height: 100svh !important;
+            min-height: clamp(600px, 92svh, 700px) !important;
           }
 
           .hero-bg-video {
-            object-position: 50% 38%;
-            transform: translate3d(0, 0, 0) scale(1.025);
-            filter: saturate(0.82) contrast(1.04);
+            object-position: 50% 42%;
+            transform: translate3d(0, 0, 0) scale(1.015);
+            filter: saturate(0.88) contrast(1.06);
           }
 
           .hero-overlay {
             background:
               linear-gradient(
                 180deg,
-                rgba(2, 6, 23, 0.94) 0%,
-                rgba(2, 6, 23, 0.73) 24%,
-                rgba(2, 6, 23, 0.58) 52%,
-                rgba(2, 6, 23, 0.82) 78%,
-                rgba(2, 6, 23, 0.99) 100%
+                rgba(2, 6, 23, 0.88) 0%,
+                rgba(2, 6, 23, 0.54) 25%,
+                rgba(2, 6, 23, 0.42) 48%,
+                rgba(2, 6, 23, 0.79) 77%,
+                rgba(2, 6, 23, 0.97) 100%
               ),
               radial-gradient(
-                circle at 50% 34%,
-                rgba(34, 211, 238, 0.08),
-                rgba(2, 6, 23, 0.2) 48%,
-                rgba(2, 6, 23, 0.74) 100%
+                ellipse at 50% 47%,
+                rgba(34, 211, 238, 0.07),
+                rgba(2, 6, 23, 0.1) 38%,
+                rgba(2, 6, 23, 0.7) 100%
               );
           }
 
           .hero-inner {
             justify-content: center !important;
             box-sizing: border-box;
-            padding-top: calc(96px + env(safe-area-inset-top)) !important;
-            padding-right: max(20px, env(safe-area-inset-right)) !important;
-            padding-bottom: calc(66px + env(safe-area-inset-bottom)) !important;
-            padding-left: max(20px, env(safe-area-inset-left)) !important;
+            padding-top: calc(112px + env(safe-area-inset-top)) !important;
+            padding-right: max(16px, env(safe-area-inset-right)) !important;
+            padding-bottom: calc(30px + env(safe-area-inset-bottom)) !important;
+            padding-left: max(16px, env(safe-area-inset-left)) !important;
           }
 
           .hero-content {
-            width: min(100%, 390px) !important;
-            max-width: 390px !important;
+            width: min(100%, 420px) !important;
+            max-width: 420px !important;
             margin-inline: auto !important;
             box-sizing: border-box;
-            transform: translate3d(0, clamp(34px, 5vh, 50px), 0) !important;
+            transform: translate3d(0, 8px, 0) !important;
           }
 
           .hero-eyebrow {
             display: inline-flex !important;
-            margin: 0 auto 18px !important;
+            margin: 0 auto 15px !important;
             gap: 8px !important;
-            padding: 7px 12px !important;
-            border: 1px solid rgba(165, 243, 252, 0.2) !important;
+            padding: 7px 13px !important;
+            border: 1px solid rgba(165, 243, 252, 0.24) !important;
             border-radius: 999px !important;
-            background: rgba(2, 6, 23, 0.34) !important;
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+            background: rgba(2, 6, 23, 0.46) !important;
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            box-shadow:
+              inset 0 1px 0 rgba(255,255,255,0.05),
+              0 10px 26px rgba(0, 0, 0, 0.16);
           }
 
           .hero-eyebrow > span:first-child,
@@ -339,19 +341,20 @@ export default function Hero({
           }
 
           .hero-eyebrow > span:nth-child(2) {
-            font-size: 8px !important;
-            letter-spacing: 0.18em !important;
+            font-size: 8.5px !important;
+            letter-spacing: 0.2em !important;
           }
 
           .hero-title {
             width: 100% !important;
-            max-width: 330px !important;
+            max-width: 370px !important;
             margin-inline: auto !important;
-            font-size: clamp(31px, 8.8vw, 39px) !important;
-            line-height: 0.95 !important;
-            letter-spacing: -0.045em !important;
+            font-size: clamp(32px, 9.6vw, 43px) !important;
+            line-height: 0.97 !important;
+            letter-spacing: -0.05em !important;
             text-align: center !important;
-            text-shadow: 0 10px 34px rgba(0,0,0,0.34);
+            text-wrap: balance;
+            text-shadow: 0 12px 38px rgba(0,0,0,0.42);
           }
 
           .hero-title-desktop {
@@ -363,13 +366,13 @@ export default function Hero({
             width: 100%;
             flex-direction: column;
             align-items: center;
-            gap: 3px;
+            gap: 2px;
           }
 
           .hero-title-line {
             display: block;
             max-width: 100%;
-            white-space: nowrap;
+            text-wrap: balance;
           }
 
           .hero-title-accent {
@@ -381,11 +384,12 @@ export default function Hero({
 
           .hero-copy {
             width: 100% !important;
-            max-width: 250px !important;
-            margin-top: 16px !important;
-            font-size: 10.5px !important;
-            line-height: 1.45 !important;
-            color: rgba(241, 245, 249, 0.68) !important;
+            max-width: 310px !important;
+            margin-top: 14px !important;
+            font-size: 12px !important;
+            line-height: 1.55 !important;
+            color: rgba(241, 245, 249, 0.78) !important;
+            text-shadow: 0 5px 18px rgba(0,0,0,0.48);
           }
 
           .hero-copy-desktop {
@@ -395,36 +399,35 @@ export default function Hero({
           .hero-copy-mobile {
             display: grid !important;
             justify-items: center;
-            gap: 1px;
+            gap: 0;
           }
 
           .hero-copy-mobile > span {
             display: block;
-            white-space: nowrap;
           }
 
-          
           .hero-actions {
+            display: grid !important;
             width: 100% !important;
-            max-width: 286px !important;
-            margin: 22px auto 0 !important;
-            flex-direction: column !important;
-            align-items: center !important;
+            max-width: 350px !important;
+            grid-template-columns: minmax(0, 1.25fr) minmax(116px, 0.85fr) !important;
+            margin: 20px auto 0 !important;
             gap: 9px !important;
           }
 
           .hero-primary-cta {
             width: 100% !important;
-            min-height: 49px !important;
-            padding: 0 18px !important;
+            min-width: 0 !important;
+            min-height: 48px !important;
+            padding: 0 14px !important;
             border: 1px solid rgba(207, 250, 254, 0.62);
-            font-size: 11px !important;
+            font-size: 10px !important;
             font-weight: 900 !important;
-            letter-spacing: 0.08em !important;
+            letter-spacing: 0.09em !important;
             color: #082f49 !important;
             box-shadow:
               inset 0 1px 0 rgba(255,255,255,0.5),
-              0 16px 34px rgba(34, 211, 238, 0.22);
+              0 15px 32px rgba(34, 211, 238, 0.2);
           }
 
           .hero-primary-cta svg {
@@ -433,17 +436,18 @@ export default function Hero({
           }
 
           .hero-secondary-cta {
-            width: auto !important;
-            min-width: 170px !important;
-            min-height: 36px !important;
-            padding: 0 15px !important;
+            width: 100% !important;
+            min-width: 0 !important;
+            min-height: 48px !important;
+            gap: 7px !important;
+            padding: 0 10px !important;
             border: 1px solid rgba(165, 243, 252, 0.3) !important;
             border-radius: 999px !important;
             background:
               linear-gradient(180deg, rgba(15, 23, 42, 0.82), rgba(2, 6, 23, 0.74)) !important;
-            font-size: 9.4px !important;
+            font-size: 8.7px !important;
             font-weight: 900 !important;
-            letter-spacing: 0.08em !important;
+            letter-spacing: 0.075em !important;
             color: rgba(240, 249, 255, 0.98) !important;
             box-shadow:
               inset 0 1px 0 rgba(255, 255, 255, 0.08),
@@ -453,20 +457,28 @@ export default function Hero({
           }
 
           .hero-secondary-cta svg {
-            width: 16px;
-            height: 16px;
+            width: 14px;
+            height: 14px;
             flex: 0 0 auto;
             color: #a5f3fc;
           }
 
           .hero-feature-row {
             width: 100% !important;
-            max-width: 314px !important;
+            max-width: 350px !important;
             grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-            gap: 8px !important;
-            margin-top: 22px !important;
-            padding-top: 0 !important;
-            border-top: 0 !important;
+            gap: 0 !important;
+            margin-top: 18px !important;
+            overflow: hidden;
+            padding: 7px 5px !important;
+            border: 1px solid rgba(165, 243, 252, 0.12) !important;
+            border-radius: 20px !important;
+            background: rgba(2, 6, 23, 0.42) !important;
+            box-shadow:
+              inset 0 1px 0 rgba(255,255,255,0.045),
+              0 18px 38px rgba(0,0,0,0.18);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
           }
 
           .hero-feature-card {
@@ -477,19 +489,25 @@ export default function Hero({
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            gap: 8px;
+            gap: 7px;
             overflow: hidden !important;
-            border: 1px solid rgba(165, 243, 252, 0.1) !important;
-            border-radius: 16px !important;
-            background: rgba(2, 6, 23, 0.26) !important;
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            padding: 12px 8px !important;
-            box-shadow: inset 0 1px 0 rgba(255,255,255,0.04) !important;
+            border: 0 !important;
+            border-radius: 0 !important;
+            background: transparent !important;
+            padding: 8px 4px !important;
+            box-shadow: none !important;
             contain: paint !important;
           }
+
           .hero-feature-card:not(:last-child)::after {
-            display: none !important;
+            content: "";
+            position: absolute;
+            top: 13%;
+            right: 0;
+            display: block !important;
+            width: 1px;
+            height: 74%;
+            background: rgba(165, 243, 252, 0.12);
           }
 
           .hero-feature-card::before {
@@ -497,10 +515,10 @@ export default function Hero({
           }
 
           .hero-feature-icon {
-            width: 34px !important;
-            height: 34px !important;
+            width: 32px !important;
+            height: 32px !important;
             margin: 0 !important;
-            border-radius: 12px !important;
+            border-radius: 11px !important;
             background: rgba(34, 211, 238, 0.08) !important;
           }
 
@@ -511,9 +529,9 @@ export default function Hero({
 
           .hero-feature-title {
             margin: 0 !important;
-            font-size: 8.8px !important;
+            font-size: 8.5px !important;
             line-height: 1.2 !important;
-            letter-spacing: 0.08em !important;
+            letter-spacing: 0.07em !important;
             white-space: nowrap;
           }
 
@@ -523,65 +541,54 @@ export default function Hero({
         }
 
         @media (max-width: 390px) {
-          .hero-content {
-            transform: translate3d(0, 28px, 0) !important;
-          }
-
           .hero-inner {
-            padding-top: calc(92px + env(safe-area-inset-top)) !important;
-            padding-right: max(18px, env(safe-area-inset-right)) !important;
-            padding-bottom: calc(58px + env(safe-area-inset-bottom)) !important;
-            padding-left: max(18px, env(safe-area-inset-left)) !important;
+            padding-top: calc(106px + env(safe-area-inset-top)) !important;
+            padding-right: max(14px, env(safe-area-inset-right)) !important;
+            padding-bottom: calc(24px + env(safe-area-inset-bottom)) !important;
+            padding-left: max(14px, env(safe-area-inset-left)) !important;
           }
 
           .hero-title {
-            max-width: 316px !important;
-            font-size: clamp(28px, 8.1vw, 34px) !important;
+            max-width: 346px !important;
+            font-size: clamp(30px, 9.2vw, 36px) !important;
           }
 
           .hero-copy {
-            max-width: 246px !important;
-            font-size: 10px !important;
+            max-width: 292px !important;
+            font-size: 11.3px !important;
           }
 
-          .hero-actions {
-            max-width: 274px !important;
-          }
-
-          .hero-feature-row {
-            max-width: 298px !important;
+          .hero-primary-cta,
+          .hero-secondary-cta {
+            min-height: 46px !important;
           }
         }
 
         @media (max-width: 340px) {
-          .hero-content {
-            transform: translate3d(0, 18px, 0) !important;
-          }
-
           .hero-title {
-            max-width: 282px !important;
-            font-size: 25px !important;
+            max-width: 300px !important;
+            font-size: 28px !important;
           }
 
           .hero-copy {
-            max-width: 232px !important;
-            font-size: 9.7px !important;
+            max-width: 272px !important;
+            font-size: 10.8px !important;
           }
 
           .hero-actions {
-            max-width: 258px !important;
+            grid-template-columns: minmax(0, 1.18fr) minmax(110px, 0.82fr) !important;
           }
 
-          .hero-feature-row {
-            max-width: 286px !important;
+          .hero-primary-cta {
+            padding-inline: 10px !important;
           }
 
-          .hero-feature-card {
-            padding-inline: 5px !important;
+          .hero-secondary-cta {
+            padding-inline: 7px !important;
           }
 
           .hero-feature-title {
-            font-size: 8.7px !important;
+            font-size: 8px !important;
           }
         }
 
