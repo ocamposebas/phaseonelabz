@@ -20,7 +20,7 @@ import {
 
 const GROUPS_PER_PAGE = 12;
 const COA_REQUEST_TIMEOUT_MS = 10000;
-const COA_CACHE_KEY = "phaseone-coa-records-v1";
+const COA_CACHE_KEY = "phaseone-coa-manager-aliases-v3";
 
 const DEFAULT_COA_API_URL =
   import.meta.env.PUBLIC_WP_COA_API_URL ||
@@ -30,17 +30,6 @@ const FILTERS = [
   { label: "All families", value: "All" },
   { label: "Current lots", value: "Current Shipping Lot" },
   { label: "With history", value: "Has History" },
-];
-
-const QUICK_FILTERS = [
-  "PL-Rt",
-  "PL-Sm",
-  "PL-Tes",
-  "BPC",
-  "GHK",
-  "MOTS-c",
-  "NAD+",
-  "TB-500",
 ];
 
 function cx(...classes) {
@@ -416,32 +405,40 @@ function strengthSortValue(value) {
 }
 
 function deriveFamilyName(record) {
-  if (String(record.familyName || "").trim()) {
-    return String(record.familyName).trim();
-  }
+  const primaryAlias = toArray(record.aliases)
+    .map((alias) => String(alias || "").trim())
+    .find(Boolean);
 
-  const source = String(
-    record.compound || record.productName || record.coaNumber || "COA Family"
-  ).trim();
+  const managerName = [
+    primaryAlias,
+    record.compound,
+    record.productName,
+    record.familyName,
+    record.coaNumber,
+  ].find((value) => String(value || "").trim());
 
-  const cleaned = source
-    .replace(
-      /\b\d+(?:\.\d+)?\s*(?:mcg|mg|g|ml|iu)(?:\s*\/\s*\d+(?:\.\d+)?\s*(?:mcg|mg|g|ml|iu))?\b/gi,
-      " "
-    )
-    .replace(/\b(?:single\s+vial|vials?|kit|packs?)\b/gi, " ")
-    .replace(/\(\s*\)/g, " ")
-    .replace(/\s*[-\u2013\u2014|:]\s*$/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-
-  return cleaned || source || "COA Family";
+  return String(managerName || "COA Record").trim();
 }
 
 function deriveFamilyKey(record, familyName) {
   const manual = normalizeText(record.familyKey).replace(/\s+/g, "-");
   if (manual) return manual;
-  return normalizeText(familyName).replace(/\s+/g, "-") || record.id;
+
+  const managerGroupingName = String(
+    record.familyName || record.compound || record.productName || familyName
+  )
+    .replace(
+      /\b\d+(?:\.\d+)?\s*(?:mcg|mg|g|ml|iu)(?:\s*\/\s*\d+(?:\.\d+)?\s*(?:mcg|mg|g|ml|iu))?\b/gi,
+      " "
+    )
+    .replace(/\b(?:single\s+vial|vials?|kit|packs?)\b/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return (
+    normalizeText(managerGroupingName || familyName).replace(/\s+/g, "-") ||
+    record.id
+  );
 }
 
 function scoreRecord(record, query) {
@@ -885,7 +882,11 @@ function FamilyModal({ group, onClose }) {
 
   const productLabel = primaryRecord
     ? cleanDisplayText(
-        primaryRecord.productName || primaryRecord.compound,
+        toArray(primaryRecord.aliases)
+          .map((alias) => String(alias || "").trim())
+          .find(Boolean) ||
+          primaryRecord.compound ||
+          primaryRecord.productName,
         group.name
       )
     : cleanDisplayText(group.name, "COA Family");
@@ -1337,6 +1338,16 @@ export default function COALookupSection({
 
   const allGroups = useMemo(() => groupCoaRecords(coaRecords), [coaRecords]);
 
+  const quickFilters = useMemo(() => {
+    return Array.from(
+      new Set(
+        allGroups
+          .map((group) => cleanDisplayText(group.name, ""))
+          .filter(Boolean)
+      )
+    );
+  }, [allGroups]);
+
   const filteredGroups = useMemo(() => {
     const cleanQuery = query.trim();
 
@@ -1478,7 +1489,7 @@ export default function COALookupSection({
               Quick compound filters
             </p>
             <div className="coa-scroll-row flex gap-1.5 overflow-x-auto pb-0.5">
-              {QUICK_FILTERS.map((item) => {
+              {quickFilters.map((item) => {
                 const active = normalizeText(query) === normalizeText(item);
 
                 return (
