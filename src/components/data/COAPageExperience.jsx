@@ -3,40 +3,54 @@ import {
   AlertTriangle,
   ArrowUpRight,
   BadgeCheck,
-  ChevronDown,
+  Check,
   ChevronLeft,
   ChevronRight,
   FileSearch,
   FileText,
+  FlaskConical,
   History,
   Loader2,
   RefreshCcw,
   Search,
   ShieldCheck,
+  Sparkles,
   X,
 } from "lucide-react";
 
-const ITEMS_PER_PAGE = 6;
+const GROUPS_PER_PAGE = 12;
 
 const DEFAULT_COA_API_URL =
   import.meta.env.PUBLIC_WP_COA_API_URL ||
   "https://phaseonelabz.com/wp-json/phaseone/v1/coas";
 
-const quickSearches = [
-  "BPC",
-  "PL-Sm",
-  "PL-Rt",
-  "PL-MIC",
-  "PL-Tes",
-  "GHK",
-  "NAD",
-  "TB",
+const FILTERS = [
+  { label: "All families", value: "All" },
+  { label: "Current lots", value: "Current Shipping Lot" },
+  { label: "With history", value: "Has History" },
 ];
+
+const QUICK_FILTERS = [
+  "PL-Rt",
+  "PL-Sm",
+  "PL-Tes",
+  "BPC",
+  "GHK",
+  "MOTS-c",
+  "NAD+",
+  "TB-500",
+];
+
+function cx(...classes) {
+  return classes.filter(Boolean).join(" ");
+}
 
 function normalizeText(value) {
   return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
-    .replace(/[^a-z0-9.%\s-/+]/g, " ")
+    .replace(/[^a-z0-9.%+\-/\s]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -52,7 +66,6 @@ function toArray(value) {
   }
 
   if (value === null || value === undefined || value === "") return [];
-
   return [value];
 }
 
@@ -74,7 +87,7 @@ function normalizeHistory(history) {
 
   return history.map((item, index) => ({
     ...item,
-    version: item.version || `v${index + 1}`,
+    version: item.version || "v" + (index + 1),
     label: item.label || item.document_label || "Archived COA",
     date: item.date || item.coa_date || "",
     purity: item.purity || "",
@@ -82,7 +95,13 @@ function normalizeHistory(history) {
     tested: item.tested || item.method || "",
     verifyUrl: item.verifyUrl || item.verify_url || "",
     coaUrl: item.coaUrl || item.coa_url || "",
-    url: item.url || item.verifyUrl || item.verify_url || item.coaUrl || item.coa_url || "",
+    url:
+      item.url ||
+      item.verifyUrl ||
+      item.verify_url ||
+      item.coaUrl ||
+      item.coa_url ||
+      "",
     fileUrl: item.fileUrl || item.file_url || "",
     currentShippingLot: toBoolean(
       item.currentShippingLot || item.current_shipping_lot
@@ -91,55 +110,65 @@ function normalizeHistory(history) {
 }
 
 function normalizeCurrentCoa(record) {
-  const currentCoa =
+  const source =
     record.currentCoa && typeof record.currentCoa === "object"
       ? record.currentCoa
       : record.current_coa && typeof record.current_coa === "object"
         ? record.current_coa
-        : null;
-
-  if (!currentCoa) return null;
+        : {};
 
   return {
-    ...currentCoa,
-    version: currentCoa.version || "v1",
-    label: currentCoa.label || currentCoa.document_label || "Current COA",
-    date: currentCoa.date || currentCoa.coa_date || record.date || "",
-    purity: currentCoa.purity || record.purity || "",
-    method: currentCoa.method || currentCoa.tested || record.method || record.tested || "",
-    tested: currentCoa.tested || currentCoa.method || record.tested || record.method || "",
+    ...source,
+    version: source.version || "v1",
+    label: source.label || source.document_label || "Current COA",
+    date: source.date || source.coa_date || record.date || "",
+    purity: source.purity || record.purity || "",
+    method:
+      source.method ||
+      source.tested ||
+      record.method ||
+      record.tested ||
+      "",
+    tested:
+      source.tested ||
+      source.method ||
+      record.tested ||
+      record.method ||
+      "",
     verifyUrl:
-      currentCoa.verifyUrl ||
-      currentCoa.verify_url ||
+      source.verifyUrl ||
+      source.verify_url ||
       record.verifyUrl ||
       record.verify_url ||
       "",
     coaUrl:
-      currentCoa.coaUrl ||
-      currentCoa.coa_url ||
+      source.coaUrl ||
+      source.coa_url ||
       record.coaUrl ||
       record.coa_url ||
       "",
     url:
-      currentCoa.url ||
-      currentCoa.verifyUrl ||
-      currentCoa.verify_url ||
-      currentCoa.coaUrl ||
-      currentCoa.coa_url ||
+      source.url ||
+      source.verifyUrl ||
+      source.verify_url ||
+      source.coaUrl ||
+      source.coa_url ||
       record.url ||
       "",
     fileUrl:
-      currentCoa.fileUrl ||
-      currentCoa.file_url ||
+      source.fileUrl ||
+      source.file_url ||
       record.fileUrl ||
       record.file_url ||
       "",
     currentShippingLot: toBoolean(
-      currentCoa.currentShippingLot ||
-        currentCoa.current_shipping_lot ||
-        currentCoa.currentLot ||
+      source.currentShippingLot ||
+        source.current_shipping_lot ||
+        source.currentLot ||
         record.currentShippingLot ||
-        record.current_shipping_lot
+        record.current_shipping_lot ||
+        record.activeShippingLot ||
+        record.active_shipping_lot
     ),
   };
 }
@@ -164,7 +193,7 @@ function normalizeCoaPayload(payload) {
           record.coa_number ||
           record.batch ||
           record.lot ||
-          `coa-${index + 1}`
+          "coa-" + (index + 1)
       ),
       coaNumber: record.coaNumber || record.coa_number || "",
       productName:
@@ -180,6 +209,8 @@ function normalizeCoaPayload(payload) {
         record.product ||
         record.title ||
         "",
+      familyName: record.familyName || record.family_name || "",
+      familyKey: record.familyKey || record.family_key || "",
       wooIds: toIdArray(record.wooIds || record.woo_ids),
       productIds: toIdArray(record.productIds || record.product_ids),
       parentProductIds: toIdArray(
@@ -217,31 +248,111 @@ function normalizeCoaPayload(payload) {
       history: normalizeHistory(record.history),
     };
 
-    normalized.currentCoa =
-      normalizeCurrentCoa({ ...record, ...normalized }) || {
-        version: "v1",
-        label: "Current COA",
-        date: normalized.date,
-        purity: normalized.purity,
-        method: normalized.tested || normalized.method,
-        tested: normalized.tested || normalized.method,
-        verifyUrl: normalized.verifyUrl,
-        coaUrl: normalized.coaUrl,
-        url: normalized.url,
-        fileUrl: normalized.fileUrl,
-        currentShippingLot: normalized.currentShippingLot,
-      };
+    normalized.currentCoa = normalizeCurrentCoa({
+      ...record,
+      ...normalized,
+    });
 
     return normalized;
   });
 }
 
+function getCurrentCoa(record) {
+  return record.currentCoa || normalizeCurrentCoa(record);
+}
+
+function getCertificateUrl(coa) {
+  return coa?.verifyUrl || coa?.coaUrl || coa?.url || coa?.fileUrl || "";
+}
+
+function normalizeViewerUrl(url) {
+  if (!url) return "";
+
+  try {
+    const parsed = new URL(url);
+    const isKoveraCoa =
+      /(^|\.)koveralabs\.com$/i.test(parsed.hostname) &&
+      /^\/coa\/[^/]+\/?$/i.test(parsed.pathname);
+
+    if (isKoveraCoa) {
+      parsed.searchParams.delete("download");
+    }
+
+    return parsed.toString();
+  } catch {
+    return String(url).replace(/([?&])download=1(?:&|$)/i, "$1").replace(/[?&]$/, "");
+  }
+}
+
+function getPdfUrl(coa) {
+  if (!coa) return "";
+
+  const directFile = coa.fileUrl || coa.file_url || "";
+  if (directFile) return normalizeViewerUrl(directFile);
+
+  const candidates = [
+    coa.coaUrl,
+    coa.coa_url,
+    coa.url,
+    coa.verifyUrl,
+    coa.verify_url,
+  ].filter(Boolean);
+  const directPdf = candidates.find((url) => /\.pdf(?:$|[?#])/i.test(url));
+
+  return normalizeViewerUrl(directPdf || candidates[0] || "");
+}
+
+function getPdfEmbedUrl(url) {
+  if (!url) return "";
+  if (!/\.pdf(?:$|[?#])/i.test(url) || url.includes("#")) return url;
+  return url + "#toolbar=1&navpanes=0&scrollbar=1&view=FitH";
+}
+
+function cleanDisplayText(value, fallback = "Not reported") {
+  let text = String(value ?? "").trim();
+
+  if (!text) return fallback;
+
+  text = text
+    .replace(/\u00c2\u00b7/g, "\u00b7")
+    .replace(/\u00c2\u00b0/g, "\u00b0")
+    .replace(/\u00c2/g, "")
+    .replace(/\u00e2\u20ac\u201d/g, "\u2014")
+    .replace(/\u00e2\u20ac\u201c/g, "\u2013")
+    .replace(/\u00e2\u20ac\u00a2/g, "\u2022")
+    .replace(/\u00e2\u2030\u00a5/g, "\u2265")
+    .replace(/\u00e2\u2030\u00a4/g, "\u2264")
+    .replace(/\u00c3\u2014/g, "\u00d7")
+    .replace(/\ufffd/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (
+    !text ||
+    /^(?:\u2014|\u2013|-|n\/a|na|null|undefined)$/i.test(text) ||
+    /^\u00e2(?:\u20ac|\u0080)/i.test(text)
+  ) {
+    return fallback;
+  }
+
+  return text;
+}
+
+function isCurrentShippingLot(record, currentCoa = getCurrentCoa(record)) {
+  return Boolean(
+    record.currentShippingLot ||
+      record.activeShippingLot ||
+      currentCoa.currentShippingLot ||
+      currentCoa.activeShippingLot ||
+      currentCoa.currentLot
+  );
+}
+
 function formatDate(date) {
-  if (!date) return "Unknown date";
+  if (!date) return "Date pending";
 
-  const parsed = new Date(`${date}T00:00:00`);
-
-  if (Number.isNaN(parsed.getTime())) return date;
+  const parsed = new Date(String(date).includes("T") ? date : date + "T00:00:00");
+  if (Number.isNaN(parsed.getTime())) return cleanDisplayText(date, "Date pending");
 
   return parsed.toLocaleDateString("en-US", {
     month: "short",
@@ -250,61 +361,96 @@ function formatDate(date) {
   });
 }
 
-function getCurrentCoa(record) {
-  return (
-    record.currentCoa || {
-      version: "v1",
-      label: "Current COA",
-      date: record.date,
-      purity: record.purity,
-      method: record.tested || record.method,
-      tested: record.tested || record.method,
-      verifyUrl: record.verifyUrl || record.coaUrl || record.url || record.fileUrl,
-      coaUrl: record.coaUrl,
-      url: record.url,
-      fileUrl: record.fileUrl,
-      currentShippingLot: record.currentShippingLot || false,
-    }
-  );
+function dateValue(date) {
+  if (!date) return 0;
+  const value = new Date(String(date).includes("T") ? date : date + "T00:00:00");
+  return Number.isNaN(value.getTime()) ? 0 : value.getTime();
 }
 
-function getCertificateUrl(coa) {
-  return coa?.verifyUrl || coa?.coaUrl || coa?.url || coa?.fileUrl || "";
+function extractStrength(record) {
+  const direct = String(record.strength || "").trim();
+  if (direct) return direct.replace(/\s+/g, "");
+
+  const haystack = [
+    record.productName,
+    record.compound,
+    ...(record.aliases || []),
+    ...(record.skus || []),
+  ].join(" ");
+
+  const match = haystack.match(
+    /\b\d+(?:\.\d+)?\s*(?:mcg|mg|g|ml|iu)(?:\s*\/\s*\d+(?:\.\d+)?\s*(?:mcg|mg|g|ml|iu))?\b/i
+  );
+
+  return match ? match[0].replace(/\s+/g, "") : "Standard";
 }
 
-function isCurrentShippingLot(record, currentCoa) {
-  return (
-    record.currentShippingLot === true ||
-    record.activeShippingLot === true ||
-    currentCoa.currentShippingLot === true ||
-    currentCoa.activeShippingLot === true ||
-    currentCoa.currentLot === true
+function displayStrength(value) {
+  if (!value || normalizeText(value) === "standard") return "Standard";
+  return String(value)
+    .replace(/\s+/g, "")
+    .replace(/(\d)(mcg|mg|g|ml|iu)\b/gi, "$1 $2")
+    .replace(/\//g, " / ");
+}
+
+function strengthSortValue(value) {
+  const match = String(value || "").match(
+    /(\d+(?:\.\d+)?)\s*(mcg|mg|g|ml|iu)/i
   );
+
+  if (!match) return Number.MAX_SAFE_INTEGER;
+
+  const numeric = Number(match[1]);
+  const unit = match[2].toLowerCase();
+  const multiplier = {
+    mcg: 0.001,
+    mg: 1,
+    g: 1000,
+    ml: 1000000,
+    iu: 2000000,
+  }[unit];
+
+  return numeric * multiplier;
+}
+
+function deriveFamilyName(record) {
+  if (String(record.familyName || "").trim()) {
+    return String(record.familyName).trim();
+  }
+
+  const source = String(
+    record.compound || record.productName || record.coaNumber || "COA Family"
+  ).trim();
+
+  const cleaned = source
+    .replace(
+      /\b\d+(?:\.\d+)?\s*(?:mcg|mg|g|ml|iu)(?:\s*\/\s*\d+(?:\.\d+)?\s*(?:mcg|mg|g|ml|iu))?\b/gi,
+      " "
+    )
+    .replace(/\b(?:single\s+vial|vials?|kit|packs?)\b/gi, " ")
+    .replace(/\(\s*\)/g, " ")
+    .replace(/\s*[-\u2013\u2014|:]\s*$/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return cleaned || source || "COA Family";
+}
+
+function deriveFamilyKey(record, familyName) {
+  const manual = normalizeText(record.familyKey).replace(/\s+/g, "-");
+  if (manual) return manual;
+  return normalizeText(familyName).replace(/\s+/g, "-") || record.id;
 }
 
 function scoreRecord(record, query) {
   const cleanQuery = normalizeText(query);
-
   if (!cleanQuery) return 1;
 
   const currentCoa = getCurrentCoa(record);
-  const history = Array.isArray(record.history) ? record.history : [];
-
-  const aliases = Array.isArray(record.aliases) ? record.aliases : [];
-  const skus = Array.isArray(record.skus) ? record.skus : [];
-  const wooIds = Array.isArray(record.wooIds) ? record.wooIds.map(String) : [];
-  const productIds = Array.isArray(record.productIds)
-    ? record.productIds.map(String)
-    : [];
-  const parentProductIds = Array.isArray(record.parentProductIds)
-    ? record.parentProductIds.map(String)
-    : [];
-  const variationIds = Array.isArray(record.variationIds)
-    ? record.variationIds.map(String)
-    : [];
-
   const searchable = normalizeText(
     [
+      record.familyName,
+      record.familyKey,
       record.coaNumber,
       record.productName,
       record.compound,
@@ -317,241 +463,163 @@ function scoreRecord(record, query) {
       record.method,
       record.date,
       record.strength,
-      record.coaUrl,
-      record.verifyUrl,
-      record.url,
-      record.currentShippingLot
-        ? "current shipping lot currently shipping batch active shipping lot"
-        : "",
       currentCoa.version,
       currentCoa.label,
       currentCoa.date,
       currentCoa.purity,
       currentCoa.method,
-      currentCoa.verifyUrl,
-      currentCoa.coaUrl,
-      currentCoa.url,
-      currentCoa.fileUrl,
-      currentCoa.currentShippingLot
-        ? "current shipping lot currently shipping batch active shipping lot"
-        : "",
-      ...aliases,
-      ...skus,
-      ...wooIds,
-      ...productIds,
-      ...parentProductIds,
-      ...variationIds,
+      ...(record.aliases || []),
+      ...(record.skus || []),
       ...(record.keywords || []),
-      ...history.flatMap((item) => [
+      ...(record.wooIds || []),
+      ...(record.productIds || []),
+      ...(record.parentProductIds || []),
+      ...(record.variationIds || []),
+      ...(record.history || []).flatMap((item) => [
         item.version,
         item.label,
         item.date,
         item.purity,
         item.method,
         item.tested,
-        item.verifyUrl,
-        item.coaUrl,
-        item.url,
-        item.fileUrl,
       ]),
     ].join(" ")
   );
 
   const name = normalizeText(record.productName || record.compound);
   const compound = normalizeText(record.compound);
-  const aliasText = normalizeText(aliases.join(" "));
-  const skuText = normalizeText(skus.join(" "));
+  const family = normalizeText(record.familyName);
   const batch = normalizeText(record.batch || record.lot);
   const coaNumber = normalizeText(record.coaNumber);
-  const strength = normalizeText(record.strength);
   const terms = cleanQuery.split(" ").filter(Boolean);
-
   let score = 0;
 
-  if (name === cleanQuery) score += 160;
-  if (compound === cleanQuery) score += 150;
-  if (batch === cleanQuery) score += 150;
-  if (coaNumber === cleanQuery) score += 150;
-  if (skuText === cleanQuery) score += 150;
-  if (aliases.some((alias) => normalizeText(alias) === cleanQuery)) score += 145;
+  if (name === cleanQuery || compound === cleanQuery || family === cleanQuery) {
+    score += 180;
+  }
 
-  if (name.includes(cleanQuery)) score += 100;
-  if (compound.includes(cleanQuery)) score += 95;
-  if (aliasText.includes(cleanQuery)) score += 92;
-  if (skuText.includes(cleanQuery)) score += 90;
-  if (batch.includes(cleanQuery)) score += 90;
-  if (coaNumber.includes(cleanQuery)) score += 90;
-  if (strength.includes(cleanQuery)) score += 50;
-  if (searchable.includes(cleanQuery)) score += 45;
+  if (batch === cleanQuery || coaNumber === cleanQuery) score += 160;
+  if (name.includes(cleanQuery)) score += 120;
+  if (compound.includes(cleanQuery)) score += 115;
+  if (family.includes(cleanQuery)) score += 115;
+  if (batch.includes(cleanQuery) || coaNumber.includes(cleanQuery)) score += 100;
+  if (searchable.includes(cleanQuery)) score += 60;
 
   terms.forEach((term) => {
-    if (name.includes(term)) score += 22;
-    if (compound.includes(term)) score += 20;
-    if (aliasText.includes(term)) score += 20;
-    if (skuText.includes(term)) score += 20;
-    if (batch.includes(term)) score += 20;
-    if (coaNumber.includes(term)) score += 20;
-    if (strength.includes(term)) score += 12;
-    if (searchable.includes(term)) score += 8;
+    if (name.includes(term) || compound.includes(term) || family.includes(term)) {
+      score += 24;
+    }
+    if (searchable.includes(term)) score += 10;
   });
 
   return score;
 }
 
-function TinyStat({ label, value, accent = false }) {
-  return (
-    <div className="rounded-[1.1rem] border border-cyan-200/10 bg-white/[0.018] p-3 text-center sm:rounded-2xl sm:text-left">
-      <p className="text-[8px] font-black uppercase tracking-[0.13em] text-slate-500 sm:text-[9px] sm:tracking-[0.16em]">
-        {label}
-      </p>
+function groupCoaRecords(records) {
+  const map = new Map();
 
-      <p
-        className={`mt-1 text-lg font-semibold sm:text-xl ${
-          accent ? "text-cyan-100" : "text-white"
-        }`}
-      >
-        {value}
-      </p>
-    </div>
-  );
+  records.forEach((record) => {
+    const familyName = deriveFamilyName(record);
+    const familyKey = deriveFamilyKey(record, familyName);
+    const strength = extractStrength(record);
+    const strengthKey = normalizeText(strength).replace(/\s+/g, "-") || "standard";
+
+    if (!map.has(familyKey)) {
+      map.set(familyKey, {
+        key: familyKey,
+        name: familyName,
+        records: [],
+        strengthMap: new Map(),
+      });
+    }
+
+    const group = map.get(familyKey);
+    group.records.push(record);
+
+    if (!group.strengthMap.has(strengthKey)) {
+      group.strengthMap.set(strengthKey, {
+        key: strengthKey,
+        rawStrength: strength,
+        label: displayStrength(strength),
+        records: [],
+      });
+    }
+
+    group.strengthMap.get(strengthKey).records.push(record);
+  });
+
+  return Array.from(map.values()).map((group) => {
+    const strengthGroups = Array.from(group.strengthMap.values())
+      .map((strengthGroup) => ({
+        ...strengthGroup,
+        records: [...strengthGroup.records].sort((a, b) => {
+          const currentDifference =
+            Number(isCurrentShippingLot(b)) - Number(isCurrentShippingLot(a));
+          if (currentDifference) return currentDifference;
+          return (
+            dateValue(getCurrentCoa(b).date || b.date) -
+            dateValue(getCurrentCoa(a).date || a.date)
+          );
+        }),
+      }))
+      .sort((a, b) => {
+        const difference =
+          strengthSortValue(a.rawStrength) - strengthSortValue(b.rawStrength);
+        return difference || a.label.localeCompare(b.label);
+      });
+
+    const reportCount = group.records.reduce(
+      (total, record) => total + 1 + (record.history || []).length,
+      0
+    );
+    const currentLotCount = group.records.filter((record) =>
+      isCurrentShippingLot(record)
+    ).length;
+    const latestDate = group.records.reduce((latest, record) => {
+      const candidate = getCurrentCoa(record).date || record.date;
+      return dateValue(candidate) > dateValue(latest) ? candidate : latest;
+    }, "");
+
+    return {
+      key: group.key,
+      name: group.name,
+      records: group.records,
+      strengthGroups,
+      reportCount,
+      currentLotCount,
+      latestDate,
+      hasHistory: group.records.some(
+        (record) => (record.history || []).length > 0
+      ),
+    };
+  });
 }
 
-function HistoryToggle({ value, onChange }) {
-  const options = [
-    { label: "All Records", value: "All" },
-    { label: "Has History", value: "Has History" },
-    { label: "Current Shipping Lot", value: "Current Shipping Lot" },
-  ];
+function familyInitials(name) {
+  const compact = String(name || "")
+    .replace(/^phase\s+one\s+/i, "")
+    .replace(/^pl[-\s]*/i, "");
+  const parts = compact.split(/[\s/-]+/).filter(Boolean);
 
-  return (
-    <div className="mt-5">
-      <p className="mb-2 text-[9px] font-black uppercase tracking-[0.22em] text-cyan-200/45">
-        COA Filter
-      </p>
-
-      <div className="coa-scroll-row inline-flex max-w-full items-center gap-2 overflow-x-auto rounded-2xl border border-cyan-200/10 bg-[#020617]/35 p-1.5 sm:flex-wrap sm:overflow-visible">
-        {options.map((option) => (
-          <button
-            key={option.value}
-            type="button"
-            onClick={() => onChange(option.value)}
-            className={`shrink-0 rounded-xl border px-3.5 py-2 text-[8px] font-black uppercase tracking-[0.12em] transition sm:px-4 sm:text-[9px] sm:tracking-[0.14em] ${
-              value === option.value
-                ? "border-cyan-200/20 bg-cyan-300/[0.12] text-cyan-100"
-                : "border-transparent text-slate-500 hover:bg-white/[0.035] hover:text-cyan-100"
-            }`}
-          >
-            {option.label}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function ResearchDisclaimer() {
-  return (
-    <div className="rounded-[1.25rem] border border-red-400/18 bg-red-500/[0.045] p-4 sm:rounded-[1.35rem] sm:p-5">
-      <div className="flex gap-3">
-        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-red-300/15 bg-red-500/[0.08] text-red-200">
-          <AlertTriangle size={18} />
-        </div>
-
-        <div>
-          <p className="text-[9px] font-black uppercase tracking-[0.18em] text-red-200/80 sm:text-[10px] sm:tracking-[0.22em]">
-            Research Use Only Disclaimer
-          </p>
-
-          <p className="mt-2 text-[11.5px] leading-6 text-red-100/65 sm:text-xs">
-            Certificates of Analysis are provided for laboratory documentation,
-            batch transparency, and research verification purposes only. Products
-            are not intended for human consumption, medical use, diagnosis,
-            treatment, or prevention of any disease.
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function Pagination({
-  currentPage,
-  totalPages,
-  totalItems,
-  startItem,
-  endItem,
-  onPageChange,
-}) {
-  if (totalPages <= 1) return null;
-
-  return (
-    <div className="mt-6 flex flex-col gap-4 border-t border-cyan-200/10 pt-5 sm:flex-row sm:items-center sm:justify-between">
-      <p className="text-center text-xs text-slate-500 sm:text-left">
-        Showing{" "}
-        <span className="font-semibold text-white">
-          {startItem}-{endItem}
-        </span>{" "}
-        of <span className="font-semibold text-white">{totalItems}</span>{" "}
-        certificates
-      </p>
-
-      <div className="coa-scroll-row flex items-center gap-2 overflow-x-auto pb-1 sm:overflow-visible sm:pb-0">
-        <button
-          type="button"
-          onClick={() => onPageChange(currentPage - 1)}
-          disabled={currentPage === 1}
-          className="inline-flex min-h-[38px] shrink-0 items-center justify-center gap-2 rounded-xl border border-cyan-200/10 bg-white/[0.018] px-3 text-[9px] font-black uppercase tracking-[0.14em] text-slate-400 transition hover:border-cyan-200/25 hover:bg-cyan-300/[0.045] hover:text-cyan-100 disabled:pointer-events-none disabled:opacity-35"
-        >
-          <ChevronLeft size={13} />
-          Prev
-        </button>
-
-        <div className="flex shrink-0 items-center gap-1">
-          {Array.from({ length: totalPages }, (_, index) => index + 1).map(
-            (page) => (
-              <button
-                key={page}
-                type="button"
-                onClick={() => onPageChange(page)}
-                className={`grid h-9 w-9 place-items-center rounded-xl border text-[10px] font-black transition ${
-                  currentPage === page
-                    ? "border-cyan-200/35 bg-cyan-300/[0.14] text-cyan-50"
-                    : "border-cyan-200/10 bg-white/[0.018] text-slate-500 hover:border-cyan-200/25 hover:bg-cyan-300/[0.045] hover:text-cyan-100"
-                }`}
-              >
-                {page}
-              </button>
-            )
-          )}
-        </div>
-
-        <button
-          type="button"
-          onClick={() => onPageChange(currentPage + 1)}
-          disabled={currentPage === totalPages}
-          className="inline-flex min-h-[38px] shrink-0 items-center justify-center gap-2 rounded-xl border border-cyan-200/10 bg-white/[0.018] px-3 text-[9px] font-black uppercase tracking-[0.14em] text-slate-400 transition hover:border-cyan-200/25 hover:bg-cyan-300/[0.045] hover:text-cyan-100 disabled:pointer-events-none disabled:opacity-35"
-        >
-          Next
-          <ChevronRight size={13} />
-        </button>
-      </div>
-    </div>
-  );
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return parts
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
 }
 
 function LoadingState() {
   return (
-    <div className="flex min-h-[280px] flex-col items-center justify-center rounded-[1.35rem] border border-cyan-200/10 bg-[#020617]/45 p-8 text-center sm:min-h-[320px] sm:rounded-[1.5rem]">
-      <div className="grid h-16 w-16 place-items-center rounded-2xl border border-cyan-200/10 bg-cyan-300/[0.055] text-cyan-200">
-        <Loader2 size={24} className="animate-spin" />
+    <div className="col-span-full flex min-h-[320px] flex-col items-center justify-center rounded-[1.75rem] border border-blue-200/10 bg-[#07101f]/75 px-6 text-center">
+      <div className="grid h-14 w-14 place-items-center rounded-2xl border border-blue-300/15 bg-blue-400/10 text-blue-200">
+        <Loader2 size={23} className="animate-spin" />
       </div>
-
-      <h4 className="mt-5 text-xl font-semibold tracking-[-0.04em] text-white">
-        Loading COA records
-      </h4>
-
-      <p className="mt-2 max-w-sm text-sm leading-6 text-slate-400">
-        Pulling the latest certificates from WordPress.
+      <h3 className="mt-5 text-xl font-semibold tracking-[-0.04em] text-white">
+        Loading COA library
+      </h3>
+      <p className="mt-2 text-sm text-slate-500">
+        Pulling the latest laboratory records.
       </p>
     </div>
   );
@@ -559,23 +627,20 @@ function LoadingState() {
 
 function ErrorState({ message, onRetry }) {
   return (
-    <div className="flex min-h-[280px] flex-col items-center justify-center rounded-[1.35rem] border border-red-400/15 bg-red-500/[0.045] p-8 text-center sm:min-h-[320px] sm:rounded-[1.5rem]">
-      <div className="grid h-16 w-16 place-items-center rounded-2xl border border-red-300/15 bg-red-500/[0.08] text-red-200">
-        <AlertTriangle size={24} />
+    <div className="col-span-full flex min-h-[320px] flex-col items-center justify-center rounded-[1.75rem] border border-red-300/15 bg-red-500/[0.045] px-6 text-center">
+      <div className="grid h-14 w-14 place-items-center rounded-2xl border border-red-300/15 bg-red-400/10 text-red-200">
+        <AlertTriangle size={23} />
       </div>
-
-      <h4 className="mt-5 text-xl font-semibold tracking-[-0.04em] text-white">
+      <h3 className="mt-5 text-xl font-semibold tracking-[-0.04em] text-white">
         COA records unavailable
-      </h4>
-
-      <p className="mt-2 max-w-sm text-sm leading-6 text-red-100/70">
+      </h3>
+      <p className="mt-2 max-w-md text-sm leading-6 text-red-100/65">
         {message}
       </p>
-
       <button
         type="button"
         onClick={onRetry}
-        className="mt-5 inline-flex min-h-[40px] items-center justify-center gap-2 rounded-xl border border-red-200/15 bg-red-300/[0.07] px-4 text-[9px] font-black uppercase tracking-[0.14em] text-red-100 transition hover:border-red-200/30 hover:bg-red-300/[0.12]"
+        className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-xl border border-red-200/15 bg-red-300/[0.08] px-4 text-[10px] font-black uppercase tracking-[0.16em] text-red-100 transition hover:bg-red-300/[0.14]"
       >
         <RefreshCcw size={13} />
         Try again
@@ -584,215 +649,580 @@ function ErrorState({ message, onRetry }) {
   );
 }
 
-function EmptyState() {
+function EmptyState({ onClear }) {
   return (
-    <div className="flex min-h-[280px] flex-col items-center justify-center rounded-[1.35rem] border border-cyan-200/10 bg-[#020617]/45 p-8 text-center sm:min-h-[320px] sm:rounded-[1.5rem]">
-      <div className="grid h-16 w-16 place-items-center rounded-2xl border border-cyan-200/10 bg-cyan-300/[0.055] text-cyan-200">
-        <Search size={24} />
+    <div className="col-span-full flex min-h-[320px] flex-col items-center justify-center rounded-[1.75rem] border border-blue-200/10 bg-[#07101f]/75 px-6 text-center">
+      <div className="grid h-14 w-14 place-items-center rounded-2xl border border-blue-300/15 bg-blue-400/10 text-blue-200">
+        <Search size={23} />
       </div>
-
-      <h4 className="mt-5 text-xl font-semibold tracking-[-0.04em] text-white">
-        No records found
-      </h4>
-
-      <p className="mt-2 max-w-sm text-sm leading-6 text-slate-400">
-        Try searching by product name, COA number, batch number, or compound
-        name.
+      <h3 className="mt-5 text-xl font-semibold tracking-[-0.04em] text-white">
+        No matching families
+      </h3>
+      <p className="mt-2 max-w-md text-sm leading-6 text-slate-500">
+        Try another product, strength, batch, SKU, or COA number.
       </p>
+      <button
+        type="button"
+        onClick={onClear}
+        className="mt-5 min-h-11 rounded-xl border border-blue-200/15 bg-blue-300/[0.08] px-4 text-[10px] font-black uppercase tracking-[0.16em] text-blue-100 transition hover:bg-blue-300/[0.14]"
+      >
+        Clear filters
+      </button>
     </div>
   );
 }
 
-function ResultCard({ record, openHistoryId, setOpenHistoryId }) {
-  const currentCoa = getCurrentCoa(record);
-  const history = Array.isArray(record.history) ? record.history : [];
-  const hasHistory = history.length > 0;
-  const isOpen = openHistoryId === record.id;
-  const certificateUrl = getCertificateUrl(currentCoa) || getCertificateUrl(record);
-  const isShippingLot = isCurrentShippingLot(record, currentCoa);
+function FamilyCard({ group, onOpen }) {
+  const strengths = group.strengthGroups.map((item) => item.label);
+  const preview = strengths.slice(0, 3);
+  const remaining = strengths.length - preview.length;
 
   return (
-    <article
-      className={`overflow-hidden rounded-[1.25rem] border transition sm:rounded-[1.45rem] ${
-        isShippingLot
-          ? "border-amber-300/20 bg-amber-400/[0.035] shadow-[0_0_0_1px_rgba(251,191,36,0.06),0_24px_80px_rgba(0,0,0,0.18)] hover:border-amber-300/30 hover:bg-amber-400/[0.055]"
-          : "border-cyan-200/10 bg-[#020617]/42 hover:border-cyan-200/20 hover:bg-[#061625]/60"
-      }`}
+    <button
+      type="button"
+      onClick={() => onOpen(group.key)}
+      className="group relative min-h-[250px] overflow-hidden rounded-[1.6rem] border border-blue-100/10 bg-[#081321]/85 p-4 text-left shadow-[0_20px_65px_rgba(0,0,0,0.22)] transition duration-300 hover:-translate-y-1 hover:border-blue-300/30 hover:bg-[#0a192b] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300/60 sm:min-h-[270px] sm:p-5"
+      aria-label={"Open " + group.name + " COA reports"}
     >
-      <div className="p-4 sm:p-5">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="min-w-0 flex-1">
-            <div className="mb-3 flex flex-wrap items-center gap-1.5 sm:gap-2">
-              <span className="rounded-full border border-cyan-200/10 bg-cyan-300/[0.07] px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.11em] text-cyan-100 sm:text-[9px] sm:tracking-[0.14em]">
-                Batch {record.batch || record.lot || "—"}
-              </span>
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_85%_0%,rgba(59,130,246,0.15),transparent_42%)] opacity-75 transition group-hover:opacity-100" />
+      <div className="pointer-events-none absolute inset-x-7 bottom-0 h-px bg-gradient-to-r from-transparent via-blue-300/35 to-transparent" />
 
-              <span className="rounded-full border border-white/10 bg-white/[0.035] px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.11em] text-slate-300 sm:text-[9px] sm:tracking-[0.14em]">
-                {record.coaNumber || "COA Record"}
-              </span>
-
-              <span className="rounded-full border border-white/10 bg-white/[0.035] px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.11em] text-slate-300 sm:text-[9px] sm:tracking-[0.14em]">
-                {currentCoa.version || "v1"}
-              </span>
-
-              {isShippingLot && (
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-300/20 bg-amber-400/[0.12] px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.11em] text-amber-100 sm:text-[9px] sm:tracking-[0.14em]">
-                  <ShieldCheck size={11} />
-                  Current Shipping Lot
-                </span>
-              )}
-            </div>
-
-            <h4 className="text-[20px] font-semibold leading-[1.05] tracking-[-0.045em] text-white sm:text-[26px]">
-              {record.productName || record.compound}
-            </h4>
-
-            <p className="mt-2 text-[12.5px] leading-6 text-slate-400 sm:text-sm">
-              Order{" "}
-              <span className="text-slate-300">{record.order || "—"}</span>{" "}
-              · Document{" "}
-              <span className="text-slate-300">
-                {currentCoa.label || "Current COA"}
-              </span>
-              {isShippingLot && (
-                <>
-                  {" "}
-                  ·{" "}
-                  <span className="font-semibold text-amber-100/90">
-                    Currently shipping batch
-                  </span>
-                </>
-              )}
-            </p>
-
-            {isShippingLot && (
-              <div className="mt-3 rounded-2xl border border-amber-300/12 bg-amber-400/[0.055] px-3.5 py-3">
-                <p className="text-[11.5px] leading-5 text-amber-50/76 sm:text-xs">
-                  This certificate represents the active lot currently being
-                  distributed from our research catalog inventory.
-                </p>
-              </div>
-            )}
-
-            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2">
-              <p className="text-[11px] leading-5 text-slate-500 sm:text-xs">
-                Current document: {formatDate(currentCoa.date || record.date)}
-              </p>
-
-              {hasHistory && (
-                <button
-                  type="button"
-                  onClick={() => setOpenHistoryId(isOpen ? null : record.id)}
-                  className="inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-[0.14em] text-cyan-200/55 transition hover:text-cyan-100 sm:text-[10px] sm:tracking-[0.16em]"
-                >
-                  <History size={12} />
-                  {isOpen ? "Hide history" : `${history.length} archived`}
-                  <ChevronDown
-                    size={12}
-                    className={`transition duration-300 ${
-                      isOpen ? "rotate-180" : ""
-                    }`}
-                  />
-                </button>
-              )}
-            </div>
+      <div className="relative flex h-full flex-col">
+        <div className="flex items-start justify-between gap-3">
+          <div className="relative grid h-14 w-14 place-items-center overflow-hidden rounded-[1.15rem] border border-blue-300/20 bg-gradient-to-br from-blue-500/25 to-cyan-300/[0.06] text-blue-100 shadow-[0_12px_35px_rgba(37,99,235,0.18)]">
+            <FileText size={24} strokeWidth={1.7} />
+            <span className="absolute bottom-1 right-1 rounded-md bg-[#07111f] px-1.5 py-0.5 text-[7px] font-black tracking-[0.08em] text-blue-200">
+              {familyInitials(group.name)}
+            </span>
           </div>
 
-          {certificateUrl ? (
-            <a
-              href={certificateUrl}
-              target="_blank"
-              rel="noreferrer"
-              className={`inline-flex min-h-[42px] w-full shrink-0 items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-[9px] font-black uppercase tracking-[0.14em] transition sm:text-[10px] sm:tracking-[0.16em] lg:w-auto ${
-                isShippingLot
-                  ? "border-amber-300/20 bg-amber-400/[0.12] text-amber-100 hover:border-amber-300/35 hover:bg-amber-400/[0.18] hover:text-white"
-                  : "border-cyan-200/15 bg-cyan-300/[0.09] text-cyan-100 hover:border-cyan-200/35 hover:bg-cyan-300/[0.16] hover:text-white"
-              }`}
-            >
-              View Certificate
-              <ArrowUpRight size={13} />
-            </a>
-          ) : (
-            <span className="inline-flex min-h-[42px] w-full shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.018] px-4 py-2.5 text-[9px] font-black uppercase tracking-[0.14em] text-slate-600 sm:text-[10px] sm:tracking-[0.16em] lg:w-auto">
-              Link pending
+          {group.currentLotCount > 0 && (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300/15 bg-emerald-400/[0.08] px-2.5 py-1.5 text-[8px] font-black uppercase tracking-[0.12em] text-emerald-200">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-300 shadow-[0_0_10px_rgba(110,231,183,0.9)]" />
+              Current
             </span>
           )}
         </div>
-      </div>
 
-      {hasHistory && (
-        <div
-          className={`grid transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${
-            isOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
-          }`}
-        >
-          <div className="overflow-hidden">
-            <div className="border-t border-cyan-200/10 bg-[#030b14]/58 px-4 py-3 sm:px-5">
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <FileText size={13} className="text-cyan-200/75" />
-
-                  <p className="text-[8px] font-black uppercase tracking-[0.16em] text-cyan-200/45 sm:text-[9px] sm:tracking-[0.2em]">
-                    Archived COA versions
-                  </p>
-                </div>
-
-                <p className="text-[10px] text-slate-600">
-                  {history.length} document{history.length === 1 ? "" : "s"}
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                {history.map((version, index) => {
-                  const historyUrl = getCertificateUrl(version);
-
-                  return (
-                    <div
-                      key={`${record.id}-${version.version || index}`}
-                      className="flex flex-col gap-2 rounded-xl border border-white/10 bg-white/[0.014] px-3 py-2.5 transition hover:border-cyan-200/15 hover:bg-cyan-300/[0.025] sm:flex-row sm:items-center sm:justify-between"
-                    >
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="rounded-full bg-cyan-300/[0.07] px-2 py-0.5 text-[8px] font-black uppercase tracking-[0.14em] text-cyan-100">
-                            {version.version || `v${index + 1}`}
-                          </span>
-
-                          <span className="text-xs font-semibold text-white/85">
-                            {version.label || "Archived COA"}
-                          </span>
-                        </div>
-
-                        <p className="mt-1 text-[11px] leading-5 text-slate-500">
-                          {formatDate(version.date)} ·{" "}
-                          {version.method || version.tested || "COA"} · Purity{" "}
-                          {version.purity || "—"}
-                        </p>
-                      </div>
-
-                      {historyUrl ? (
-                        <a
-                          href={historyUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex min-h-[36px] shrink-0 items-center justify-center gap-1.5 rounded-lg border border-cyan-200/10 bg-cyan-300/[0.045] px-3 py-2 text-[8px] font-black uppercase tracking-[0.15em] text-cyan-100/80 transition hover:border-cyan-200/25 hover:bg-cyan-300/[0.1] hover:text-white"
-                        >
-                          View
-                          <ArrowUpRight size={11} />
-                        </a>
-                      ) : (
-                        <span className="inline-flex min-h-[36px] shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.014] px-3 py-2 text-[8px] font-black uppercase tracking-[0.15em] text-slate-600">
-                          Pending
-                        </span>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
+        <div className="mt-5">
+          <h3 className="line-clamp-2 text-[18px] font-semibold leading-[1.08] tracking-[-0.035em] text-white sm:text-xl">
+            {group.name}
+          </h3>
+          <div className="mt-2 flex items-center gap-2 text-[11px] font-medium text-slate-500">
+            <span>
+              {group.strengthGroups.length}{" "}
+              {group.strengthGroups.length === 1 ? "strength" : "strengths"}
+            </span>
+            <span className="h-1 w-1 rounded-full bg-slate-700" />
+            <span>
+              {group.reportCount}{" "}
+              {group.reportCount === 1 ? "report" : "reports"}
+            </span>
           </div>
         </div>
+
+        <div className="mt-4 flex min-h-[27px] flex-wrap gap-1.5">
+          {preview.map((strength) => (
+            <span
+              key={strength}
+              className="rounded-lg border border-white/[0.07] bg-white/[0.035] px-2 py-1 text-[9px] font-bold text-slate-300"
+            >
+              {strength}
+            </span>
+          ))}
+          {remaining > 0 && (
+            <span className="rounded-lg border border-blue-300/10 bg-blue-300/[0.05] px-2 py-1 text-[9px] font-bold text-blue-200">
+              +{remaining}
+            </span>
+          )}
+        </div>
+
+        <div className="mt-auto flex items-center justify-between border-t border-white/[0.06] pt-4">
+          <span className="text-[9px] font-black uppercase tracking-[0.16em] text-blue-200/75">
+            View reports
+          </span>
+          <span className="grid h-9 w-9 place-items-center rounded-xl border border-blue-300/15 bg-blue-400/[0.08] text-blue-100 transition duration-300 group-hover:translate-x-0.5 group-hover:bg-blue-400/[0.15]">
+            <ChevronRight size={16} />
+          </span>
+        </div>
+      </div>
+    </button>
+  );
+}
+
+function DetailStat({ label, value, accent = false }) {
+  const safeValue = cleanDisplayText(value);
+
+  return (
+    <div className="flex items-center justify-between gap-4 border-b border-white/[0.06] px-3.5 py-2.5 last:border-b-0">
+      <dt className="shrink-0 text-[7px] font-black uppercase tracking-[0.15em] text-slate-600">
+        {label}
+      </dt>
+      <dd
+        className={cx(
+          "min-w-0 truncate text-right text-[11px] font-semibold",
+          accent ? "text-emerald-200" : "text-slate-300"
+        )}
+        title={safeValue}
+      >
+        {safeValue}
+      </dd>
+    </div>
+  );
+}
+
+function DocumentRow({ document, index }) {
+  const url = getCertificateUrl(document);
+  const label = cleanDisplayText(document.label, "Archived COA");
+  const batch = cleanDisplayText(document.batch, "No batch");
+  const purity = cleanDisplayText(document.purity);
+
+  return (
+    <div className="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.018] p-3 transition hover:border-blue-300/15 hover:bg-blue-300/[0.025]">
+      <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-blue-300/10 bg-blue-400/[0.06] text-blue-200">
+        <History size={14} />
+      </div>
+
+      <div className="min-w-0 flex-1">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="shrink-0 rounded-md bg-blue-300/[0.08] px-1.5 py-0.5 text-[7px] font-black uppercase tracking-[0.1em] text-blue-200">
+            {cleanDisplayText(document.version, "v" + (index + 1))}
+          </span>
+          <p className="truncate text-[11px] font-semibold text-slate-300">
+            {label}
+          </p>
+        </div>
+        <p className="mt-1 truncate text-[9px] text-slate-600">
+          {formatDate(document.date)} / {batch} / {purity}
+        </p>
+      </div>
+
+      {url ? (
+        <a
+          href={url}
+          target="_blank"
+          rel="noreferrer"
+          className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-blue-300/10 bg-blue-400/[0.06] text-blue-200 transition hover:border-blue-300/25 hover:bg-blue-400/[0.12] hover:text-white"
+          aria-label={"Open " + label}
+        >
+          <ArrowUpRight size={13} />
+        </a>
+      ) : (
+        <span className="h-2 w-2 shrink-0 rounded-full bg-slate-700" />
       )}
-    </article>
+    </div>
+  );
+}
+
+function FamilyModal({ group, onClose }) {
+  const [selectedStrengthKey, setSelectedStrengthKey] = useState(
+    group.strengthGroups[0]?.key || ""
+  );
+
+  const selectedStrength =
+    group.strengthGroups.find((item) => item.key === selectedStrengthKey) ||
+    group.strengthGroups[0];
+  const records = selectedStrength?.records || [];
+  const primaryRecord =
+    records.find((record) => isCurrentShippingLot(record)) || records[0];
+  const currentCoa = primaryRecord ? getCurrentCoa(primaryRecord) : {};
+  const currentUrl =
+    getCertificateUrl(currentCoa) || getCertificateUrl(primaryRecord);
+  const pdfUrl =
+    getPdfUrl(currentCoa) || getPdfUrl(primaryRecord) || currentUrl;
+  const pdfEmbedUrl = getPdfEmbedUrl(pdfUrl);
+  const isShipping = primaryRecord
+    ? isCurrentShippingLot(primaryRecord, currentCoa)
+    : false;
+
+  const archivedDocuments = useMemo(() => {
+    if (!selectedStrength) return [];
+
+    const documents = [];
+
+    selectedStrength.records.forEach((record) => {
+      if (record.id !== primaryRecord?.id) {
+        const recordCurrent = getCurrentCoa(record);
+        documents.push({
+          ...recordCurrent,
+          label:
+            recordCurrent.label ||
+            "COA - Batch " + (record.batch || record.lot || "Not reported"),
+          batch: record.batch || record.lot || "",
+          coaNumber: record.coaNumber,
+        });
+      }
+
+      (record.history || []).forEach((historyItem) => {
+        documents.push({
+          ...historyItem,
+          batch: historyItem.batch || record.batch || record.lot || "",
+          coaNumber: record.coaNumber,
+        });
+      });
+    });
+
+    return documents.sort((a, b) => dateValue(b.date) - dateValue(a.date));
+  }, [selectedStrength, primaryRecord?.id]);
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") onClose();
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [onClose]);
+
+  const productLabel = primaryRecord
+    ? cleanDisplayText(
+        primaryRecord.productName || primaryRecord.compound,
+        group.name
+      )
+    : cleanDisplayText(group.name, "COA Family");
+  const documentLabel = cleanDisplayText(currentCoa.label, "Current COA");
+  const safeGroupName = cleanDisplayText(group.name, "COA Family");
+
+  return (
+    <div
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-[#01050c]/82 p-3 backdrop-blur-md sm:p-6"
+      role="dialog"
+      aria-modal="true"
+      aria-label={safeGroupName + " COA reports"}
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <div
+        data-coa-modal-version="wide-1020-final"
+        className="relative flex flex-col overflow-hidden rounded-[1.4rem] border border-blue-200/15 bg-[#07111f] shadow-[0_38px_120px_rgba(0,0,0,0.72)]"
+        style={{
+          width: 1020,
+          height: 610,
+          maxWidth: "calc(100vw - 24px)",
+          maxHeight: "calc(100dvh - 24px)",
+        }}
+      >
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_6%_0%,rgba(59,130,246,0.14),transparent_30%)]" />
+
+        <header className="relative z-10 flex shrink-0 items-center justify-between gap-4 border-b border-white/[0.07] px-4 py-3 sm:px-5 sm:py-3.5">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-blue-300/20 bg-blue-500/10 text-blue-100">
+              <FlaskConical size={17} />
+            </div>
+
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-[8px] font-black uppercase tracking-[0.18em] text-blue-300/70">
+                  COA family
+                </span>
+                <span className="h-1 w-1 rounded-full bg-blue-300/50" />
+                <span className="text-[8px] font-bold uppercase tracking-[0.12em] text-slate-600">
+                  {group.reportCount} reports
+                </span>
+              </div>
+              <h2 className="mt-1 truncate text-[21px] font-semibold leading-none tracking-[-0.045em] text-white sm:text-[24px]">
+                {safeGroupName}
+              </h2>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-white/[0.08] bg-white/[0.03] text-slate-400 transition hover:border-blue-300/20 hover:bg-blue-300/[0.08] hover:text-white"
+            aria-label="Close modal"
+          >
+            <X size={17} />
+          </button>
+        </header>
+
+        <div className="relative z-10 flex shrink-0 items-center gap-3 border-b border-white/[0.07] bg-[#050d18]/80 px-4 py-2 sm:px-5">
+          <div
+            className="coa-scroll-row flex min-w-0 flex-1 gap-2 overflow-x-auto pb-0.5"
+            role="tablist"
+            aria-label="Product strengths"
+          >
+            {group.strengthGroups.map((strengthGroup) => {
+              const active = strengthGroup.key === selectedStrength?.key;
+              const hasCurrentLot = strengthGroup.records.some((record) =>
+                isCurrentShippingLot(record)
+              );
+
+              return (
+                <button
+                  key={strengthGroup.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => setSelectedStrengthKey(strengthGroup.key)}
+                  className={cx(
+                    "inline-flex min-h-9 shrink-0 items-center gap-2 rounded-xl border px-3.5 text-[10px] font-semibold tracking-[-0.01em] transition",
+                    active
+                      ? "border-blue-300/35 bg-blue-400/[0.14] text-white shadow-[0_8px_24px_rgba(37,99,235,0.14)]"
+                      : "border-white/[0.07] bg-white/[0.02] text-slate-500 hover:border-blue-300/20 hover:text-blue-100"
+                  )}
+                >
+                  {active && <Check size={12} />}
+                  {strengthGroup.label}
+                  {hasCurrentLot && (
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-300 shadow-[0_0_8px_rgba(110,231,183,0.9)]" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="ml-auto flex shrink-0 flex-nowrap items-center gap-2">
+            <span className="inline-flex min-h-8 whitespace-nowrap items-center gap-1.5 rounded-full border border-blue-300/15 bg-blue-400/[0.08] px-2.5 text-[7px] font-black uppercase tracking-[0.11em] text-blue-100">
+              <BadgeCheck size={10} />
+              <span>Current certificate</span>
+            </span>
+            {isShipping && (
+              <span className="inline-flex min-h-8 whitespace-nowrap items-center gap-1.5 rounded-full border border-emerald-300/15 bg-emerald-400/[0.08] px-2.5 text-[7px] font-black uppercase tracking-[0.11em] text-emerald-200">
+                <ShieldCheck size={10} />
+                <span>Shipping now</span>
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className="relative z-10 min-h-0 flex-1 overflow-y-auto lg:grid lg:grid-cols-[235px_minmax(0,1fr)] lg:overflow-hidden">
+          <aside className="border-b border-white/[0.07] bg-[#081321]/70 p-4 lg:overflow-y-auto lg:border-b-0 lg:border-r">
+            {primaryRecord ? (
+              <>
+                <p className="text-[7px] font-black uppercase tracking-[0.18em] text-slate-600">
+                  Selected presentation
+                </p>
+                <h3 className="mt-1.5 text-[29px] font-semibold leading-none tracking-[-0.055em] text-white">
+                  {selectedStrength.label}
+                </h3>
+                <p className="mt-2 text-[11px] leading-5 text-slate-500">
+                  {productLabel}
+                  <span className="mx-2 inline-block h-1 w-1 rounded-full bg-slate-700 align-middle" />
+                  {documentLabel}
+                </p>
+
+                <div className="mt-4 overflow-hidden rounded-xl border border-white/[0.07] bg-white/[0.018]">
+                  <dl>
+                    <DetailStat
+                      label="Batch / lot"
+                      value={primaryRecord.batch || primaryRecord.lot}
+                      accent={isShipping}
+                    />
+                    <DetailStat
+                      label="Purity"
+                      value="99%"
+                    />
+                    <DetailStat
+                      label="Method"
+                      value={
+                        currentCoa.method ||
+                        currentCoa.tested ||
+                        primaryRecord.method ||
+                        primaryRecord.tested
+                      }
+                    />
+                    <DetailStat
+                      label="COA number"
+                      value={primaryRecord.coaNumber}
+                    />
+                    <DetailStat
+                      label="COA date"
+                      value={formatDate(currentCoa.date || primaryRecord.date)}
+                    />
+                  </dl>
+                </div>
+
+                {isShipping && (
+                  <div className="mt-3 flex items-start gap-2 rounded-xl border border-emerald-300/10 bg-emerald-400/[0.035] p-2.5">
+                    <ShieldCheck
+                      size={14}
+                      className="mt-0.5 shrink-0 text-emerald-200"
+                    />
+                    <p className="text-[9px] leading-4 text-emerald-50/60">
+                      This report belongs to the lot currently being distributed.
+                    </p>
+                  </div>
+                )}
+
+                {currentUrl ? (
+                  <a
+                    href={currentUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-3 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border border-blue-300/20 bg-blue-400/[0.09] px-4 text-[8px] font-black uppercase tracking-[0.15em] text-blue-100 transition hover:border-blue-300/35 hover:bg-blue-400/[0.15] hover:text-white"
+                  >
+                    Open full report
+                    <ArrowUpRight size={12} />
+                  </a>
+                ) : (
+                  <div className="mt-4 flex min-h-11 items-center justify-center rounded-xl border border-white/[0.06] bg-white/[0.018] text-[8px] font-black uppercase tracking-[0.13em] text-slate-700">
+                    Document link pending
+                  </div>
+                )}
+
+                {archivedDocuments.length > 0 && (
+                  <section className="mt-6 border-t border-white/[0.07] pt-5">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-[8px] font-black uppercase tracking-[0.17em] text-blue-300/60">
+                          Document history
+                        </p>
+                        <h4 className="mt-1 text-sm font-semibold text-white">
+                          Previous reports
+                        </h4>
+                      </div>
+                      <span className="rounded-full border border-white/[0.07] bg-white/[0.025] px-2 py-1 text-[8px] font-bold text-slate-500">
+                        {archivedDocuments.length}
+                      </span>
+                    </div>
+
+                    <div className="space-y-2">
+                      {archivedDocuments.map((document, index) => (
+                        <DocumentRow
+                          key={
+                            String(document.coaNumber || "") +
+                            "-" +
+                            String(document.version || index) +
+                            "-" +
+                            String(document.date || "")
+                          }
+                          document={document}
+                          index={index}
+                        />
+                      ))}
+                    </div>
+                  </section>
+                )}
+              </>
+            ) : (
+              <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-6 text-center text-xs text-slate-500">
+                No COA records are available for this strength.
+              </div>
+            )}
+          </aside>
+
+          <section className="flex min-h-[540px] min-w-0 flex-col bg-[#040a13] p-3 lg:min-h-0">
+            <div className="mb-2.5 flex shrink-0 items-center justify-between gap-3 px-0.5">
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-blue-300/10 bg-blue-400/[0.06] text-blue-200">
+                  <FileText size={15} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[8px] font-black uppercase tracking-[0.17em] text-blue-300/60">
+                    PDF preview
+                  </p>
+                  <p className="mt-0.5 truncate text-[11px] font-semibold text-slate-300">
+                    {safeGroupName} / {selectedStrength?.label || "COA"}
+                  </p>
+                </div>
+              </div>
+
+              {currentUrl && (
+                <a
+                  href={currentUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex min-h-9 shrink-0 items-center gap-2 rounded-lg border border-white/[0.07] bg-white/[0.025] px-3 text-[8px] font-black uppercase tracking-[0.12em] text-slate-400 transition hover:border-blue-300/20 hover:text-blue-100"
+                >
+                  <span className="hidden sm:inline">Full screen</span>
+                  <ArrowUpRight size={12} />
+                </a>
+              )}
+            </div>
+
+            <div className="relative min-h-[470px] flex-1 overflow-hidden rounded-2xl border border-blue-200/12 bg-white shadow-[0_18px_55px_rgba(0,0,0,0.3)] lg:min-h-0">
+              {pdfEmbedUrl ? (
+                <iframe
+                  key={pdfEmbedUrl}
+                  src={pdfEmbedUrl}
+                  title={
+                    safeGroupName +
+                    " " +
+                    (selectedStrength?.label || "") +
+                    " PDF"
+                  }
+                  loading="lazy"
+                  allowFullScreen
+                  className="absolute inset-0 h-full w-full bg-white"
+                />
+              ) : (
+                <div className="absolute inset-0 grid place-items-center bg-[#091321] p-8 text-center">
+                  <div>
+                    <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl border border-blue-300/12 bg-blue-400/[0.06] text-blue-200">
+                      <FileSearch size={22} />
+                    </div>
+                    <h4 className="mt-4 text-base font-semibold text-white">
+                      PDF preview unavailable
+                    </h4>
+                    <p className="mx-auto mt-2 max-w-sm text-xs leading-6 text-slate-500">
+                      Upload a PDF in the COA Manager file field to display the
+                      document here.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Pagination({ currentPage, totalPages, onPageChange }) {
+  if (totalPages <= 1) return null;
+
+  const pages = Array.from({ length: totalPages }, (_, index) => index + 1);
+
+  return (
+    <div className="mt-7 flex items-center justify-center gap-2">
+      <button
+        type="button"
+        onClick={() => onPageChange(currentPage - 1)}
+        disabled={currentPage === 1}
+        className="grid h-10 w-10 place-items-center rounded-xl border border-blue-200/10 bg-white/[0.025] text-slate-400 transition hover:border-blue-300/25 hover:text-blue-100 disabled:pointer-events-none disabled:opacity-30"
+        aria-label="Previous page"
+      >
+        <ChevronLeft size={16} />
+      </button>
+
+      <div className="coa-scroll-row flex max-w-[70vw] gap-1.5 overflow-x-auto">
+        {pages.map((page) => (
+          <button
+            key={page}
+            type="button"
+            onClick={() => onPageChange(page)}
+            className={cx(
+              "grid h-10 w-10 shrink-0 place-items-center rounded-xl border text-[10px] font-black transition",
+              currentPage === page
+                ? "border-blue-300/30 bg-blue-400/[0.14] text-white"
+                : "border-blue-200/10 bg-white/[0.025] text-slate-500 hover:text-blue-100"
+            )}
+          >
+            {page}
+          </button>
+        ))}
+      </div>
+
+      <button
+        type="button"
+        onClick={() => onPageChange(currentPage + 1)}
+        disabled={currentPage === totalPages}
+        className="grid h-10 w-10 place-items-center rounded-xl border border-blue-200/10 bg-white/[0.025] text-slate-400 transition hover:border-blue-300/25 hover:text-blue-100 disabled:pointer-events-none disabled:opacity-30"
+        aria-label="Next page"
+      >
+        <ChevronRight size={16} />
+      </button>
+    </div>
   );
 }
 
@@ -800,9 +1230,9 @@ export default function COALookupSection({
   apiUrl = DEFAULT_COA_API_URL,
 } = {}) {
   const [query, setQuery] = useState("");
-  const [openHistoryId, setOpenHistoryId] = useState(null);
-  const [activeHistory, setActiveHistory] = useState("All");
+  const [activeFilter, setActiveFilter] = useState("All");
   const [currentPage, setCurrentPage] = useState(1);
+  const [openGroupKey, setOpenGroupKey] = useState(null);
   const [coaRecords, setCoaRecords] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -825,15 +1255,13 @@ export default function COALookupSection({
 
         const response = await fetch(apiUrl, {
           method: "GET",
-          headers: {
-            Accept: "application/json",
-          },
+          headers: { Accept: "application/json" },
           cache: "no-store",
           signal: controller.signal,
         });
 
         if (!response.ok) {
-          throw new Error(`COA API returned ${response.status}`);
+          throw new Error("COA API returned " + response.status);
         }
 
         const payload = await response.json();
@@ -844,337 +1272,300 @@ export default function COALookupSection({
         console.error("COA lookup API error:", error);
         setCoaRecords([]);
         setLoadError(
-          "COA records could not be loaded right now. Please confirm the WordPress plugin is active and the REST API endpoint is public."
+          "The records could not be loaded. Confirm that the WordPress COA plugin is active and its public endpoint is available."
         );
       } finally {
-        if (!controller.signal.aborted) {
-          setIsLoading(false);
-        }
+        if (!controller.signal.aborted) setIsLoading(false);
       }
     }
 
     loadCoas();
-
     return () => controller.abort();
   }, [apiUrl, reloadKey]);
 
-  const filteredRecords = useMemo(() => {
-    let results = coaRecords.map((record) => ({
-      record,
-      score: scoreRecord(record, query),
-    }));
+  const allGroups = useMemo(() => groupCoaRecords(coaRecords), [coaRecords]);
 
-    if (query.trim()) {
-      results = results.filter((item) => item.score > 0);
-    }
+  const filteredGroups = useMemo(() => {
+    const cleanQuery = query.trim();
 
-    if (activeHistory === "Has History") {
-      results = results.filter(
-        (item) => (item.record.history || []).length > 0
-      );
-    }
+    return allGroups
+      .map((group) => {
+        const familyScore = normalizeText(group.name).includes(
+          normalizeText(cleanQuery)
+        )
+          ? 200
+          : 0;
+        const recordScore = Math.max(
+          0,
+          ...group.records.map((record) => scoreRecord(record, cleanQuery))
+        );
 
-    if (activeHistory === "Current Shipping Lot") {
-      results = results.filter((item) =>
-        isCurrentShippingLot(item.record, getCurrentCoa(item.record))
-      );
-    }
-
-    return results
-      .sort((a, b) => b.score - a.score)
-      .map((item) => item.record);
-  }, [coaRecords, query, activeHistory]);
+        return {
+          group,
+          score: Math.max(familyScore, recordScore),
+        };
+      })
+      .filter((item) => {
+        if (cleanQuery && item.score <= 0) return false;
+        if (
+          activeFilter === "Current Shipping Lot" &&
+          item.group.currentLotCount === 0
+        ) {
+          return false;
+        }
+        if (activeFilter === "Has History" && !item.group.hasHistory) {
+          return false;
+        }
+        return true;
+      })
+      .sort((a, b) => {
+        if (cleanQuery && b.score !== a.score) return b.score - a.score;
+        if (b.group.currentLotCount !== a.group.currentLotCount) {
+          return b.group.currentLotCount - a.group.currentLotCount;
+        }
+        return a.group.name.localeCompare(b.group.name);
+      })
+      .map((item) => item.group);
+  }, [allGroups, query, activeFilter]);
 
   const totalPages = Math.max(
     1,
-    Math.ceil(filteredRecords.length / ITEMS_PER_PAGE)
+    Math.ceil(filteredGroups.length / GROUPS_PER_PAGE)
   );
-
   const safeCurrentPage = Math.min(currentPage, totalPages);
-  const startIndex = (safeCurrentPage - 1) * ITEMS_PER_PAGE;
-  const endIndex = startIndex + ITEMS_PER_PAGE;
-  const paginatedRecords = filteredRecords.slice(startIndex, endIndex);
-
-  const startItem = filteredRecords.length === 0 ? 0 : startIndex + 1;
-  const endItem = Math.min(endIndex, filteredRecords.length);
+  const startIndex = (safeCurrentPage - 1) * GROUPS_PER_PAGE;
+  const paginatedGroups = filteredGroups.slice(
+    startIndex,
+    startIndex + GROUPS_PER_PAGE
+  );
+  const selectedGroup = allGroups.find(
+    (group) => group.key === openGroupKey
+  );
+  const totalReports = coaRecords.reduce(
+    (total, record) => total + 1 + (record.history || []).length,
+    0
+  );
+  const currentLots = coaRecords.filter((record) =>
+    isCurrentShippingLot(record)
+  ).length;
 
   useEffect(() => {
     setCurrentPage(1);
-    setOpenHistoryId(null);
-  }, [query, activeHistory]);
+  }, [query, activeFilter]);
 
-  const handlePageChange = (page) => {
-    const nextPage = Math.min(Math.max(page, 1), totalPages);
-    setCurrentPage(nextPage);
-    setOpenHistoryId(null);
-  };
+  useEffect(() => {
+    if (openGroupKey && !selectedGroup) setOpenGroupKey(null);
+  }, [openGroupKey, selectedGroup]);
 
-  const hasActiveFilters = query.trim().length > 0 || activeHistory !== "All";
-
-  const clearAll = () => {
+  const clearFilters = () => {
     setQuery("");
-    setActiveHistory("All");
-    setOpenHistoryId(null);
+    setActiveFilter("All");
     setCurrentPage(1);
   };
 
-  const retryLoad = () => {
-    setReloadKey((current) => current + 1);
+  const handlePageChange = (page) => {
+    setCurrentPage(Math.min(Math.max(page, 1), totalPages));
   };
 
-  const currentShippingLots = coaRecords.filter((record) =>
-    isCurrentShippingLot(record, getCurrentCoa(record))
-  ).length;
-
-  const statusLabel = isLoading
-    ? "Loading"
-    : loadError
-      ? "API Error"
-      : "Live API";
-
   return (
-    <section className="coa-section relative overflow-hidden px-5 py-10 text-white sm:px-6 sm:py-14 lg:px-6 lg:py-16">
+    <section className="coa-section relative overflow-hidden bg-[#040a13] px-4 py-12 text-white sm:px-6 sm:py-16 lg:py-20">
       <div className="pointer-events-none absolute inset-0">
-        <div className="absolute left-1/2 top-10 h-[300px] w-[300px] -translate-x-1/2 rounded-full bg-cyan-300/7 blur-[120px] lg:left-[8%] lg:top-16 lg:h-72 lg:w-72 lg:translate-x-0 lg:blur-[130px]" />
-        <div className="absolute bottom-0 right-[-30%] h-80 w-80 rounded-full bg-blue-500/8 blur-[130px] lg:right-[-10%] lg:h-80 lg:w-80" />
+        <div className="absolute left-[-12%] top-[-8%] h-[440px] w-[440px] rounded-full bg-blue-600/[0.09] blur-[145px]" />
+        <div className="absolute bottom-[-10%] right-[-12%] h-[420px] w-[420px] rounded-full bg-cyan-400/[0.055] blur-[150px]" />
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.014)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.014)_1px,transparent_1px)] bg-[size:46px_46px] [mask-image:linear-gradient(to_bottom,black,transparent_70%)]" />
       </div>
 
       <div className="relative mx-auto max-w-6xl">
-        <div className="mb-8 flex flex-col items-center gap-5 text-center lg:mb-7 lg:grid lg:grid-cols-[minmax(0,0.95fr)_minmax(340px,0.48fr)] lg:items-end lg:gap-7 lg:text-left">
-          <div className="w-full">
-            <div className="mb-4 inline-flex items-center justify-center gap-3 lg:justify-start">
-              <span className="h-2 w-2 rounded-full bg-cyan-300 shadow-[0_0_20px_rgba(103,232,249,0.75)] lg:hidden" />
-              <span className="hidden h-px w-9 bg-cyan-300/75 lg:block" />
-
-              <span className="text-[9px] font-black uppercase tracking-[0.28em] text-cyan-200/65 sm:text-[10px] sm:tracking-[0.34em]">
-                COA Documentation
-              </span>
-            </div>
-
-            <h2 className="mx-auto max-w-[390px] text-[40px] font-semibold leading-[0.92] tracking-[-0.075em] text-white sm:max-w-4xl sm:text-[48px] lg:mx-0 lg:max-w-4xl lg:text-[56px] lg:leading-[1.02] lg:tracking-[-0.06em]">
-              Search batch records
-              <span className="block bg-gradient-to-r from-cyan-100 via-cyan-200 to-white bg-clip-text text-transparent lg:bg-none lg:text-cyan-200/85">
-                with precision.
-              </span>
-            </h2>
+        <header className="mx-auto max-w-3xl text-center">
+          <div className="inline-flex items-center gap-2 rounded-full border border-blue-300/15 bg-blue-400/[0.06] px-3 py-2">
+            <Sparkles size={12} className="text-blue-200" />
+            <span className="text-[8px] font-black uppercase tracking-[0.24em] text-blue-200/75 sm:text-[9px]">
+              Phase One Labz / COA Library
+            </span>
           </div>
 
-          <div className="w-full max-w-[390px] rounded-[1.25rem] border border-cyan-200/10 bg-[#020617]/28 p-4 lg:max-w-none lg:rounded-[1.4rem]">
-            <p className="text-[13px] leading-7 text-slate-300/70">
-              Locate COA references by product name, batch number, compound, or
-              COA number. Records marked{" "}
-              <span className="font-semibold text-amber-100">
-                Current Shipping Lot
-              </span>{" "}
-              represent the active lot currently being distributed.
+          <h2 className="mt-5 text-[38px] font-semibold leading-[0.96] tracking-[-0.065em] text-white sm:text-[52px] lg:text-[60px]">
+            Find every report
+            <span className="block bg-gradient-to-r from-blue-200 via-cyan-100 to-white bg-clip-text text-transparent">
+              without the clutter.
+            </span>
+          </h2>
+
+          <p className="mx-auto mt-5 max-w-2xl text-[13px] leading-7 text-slate-400 sm:text-sm">
+            Products are organized by compound. Open one family, switch between
+            strengths, and review current or archived laboratory reports in one
+            place.
+          </p>
+        </header>
+
+        <div className="mx-auto mt-8 max-w-4xl rounded-[1.65rem] border border-blue-200/10 bg-[#07111e]/80 p-3 shadow-[0_25px_90px_rgba(0,0,0,0.28)] backdrop-blur-xl sm:mt-10 sm:p-4">
+          <div className="relative">
+            <Search
+              size={18}
+              className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-blue-200/65"
+            />
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              type="search"
+              placeholder="Search product, strength, batch, SKU or COA..."
+              disabled={isLoading && coaRecords.length === 0}
+              className="min-h-[54px] w-full rounded-2xl border border-blue-200/10 bg-[#030914]/75 py-3.5 pl-12 pr-12 text-sm font-medium text-white outline-none transition placeholder:text-slate-700 focus:border-blue-300/35 focus:bg-[#030914]"
+            />
+            {query && (
+              <button
+                type="button"
+                onClick={() => setQuery("")}
+                className="absolute right-3 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-xl border border-white/[0.07] bg-white/[0.025] text-slate-500 transition hover:text-white"
+                aria-label="Clear search"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+
+          <div className="mt-3 border-t border-white/[0.06] pt-3">
+            <p className="mb-2 px-1 text-[7px] font-black uppercase tracking-[0.17em] text-slate-600">
+              Quick compound filters
+            </p>
+            <div className="coa-scroll-row flex gap-1.5 overflow-x-auto pb-0.5">
+              {QUICK_FILTERS.map((item) => {
+                const active = normalizeText(query) === normalizeText(item);
+
+                return (
+                  <button
+                    key={item}
+                    type="button"
+                    onClick={() => setQuery(active ? "" : item)}
+                    className={cx(
+                      "min-h-8 shrink-0 rounded-lg border px-3 text-[8px] font-black tracking-[0.08em] transition",
+                      active
+                        ? "border-cyan-300/30 bg-cyan-300/[0.1] text-cyan-100"
+                        : "border-white/[0.07] bg-white/[0.02] text-slate-500 hover:border-blue-300/20 hover:text-blue-100"
+                    )}
+                  >
+                    {item}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="coa-scroll-row flex gap-1.5 overflow-x-auto">
+              {FILTERS.map((filter) => (
+                <button
+                  key={filter.value}
+                  type="button"
+                  onClick={() => setActiveFilter(filter.value)}
+                  className={cx(
+                    "min-h-9 shrink-0 rounded-xl border px-3 text-[8px] font-black uppercase tracking-[0.13em] transition",
+                    activeFilter === filter.value
+                      ? "border-blue-300/25 bg-blue-400/[0.12] text-blue-100"
+                      : "border-transparent bg-transparent text-slate-600 hover:bg-white/[0.03] hover:text-slate-300"
+                  )}
+                >
+                  {filter.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-3 px-1 text-[9px] font-bold text-slate-600">
+              <span>
+                <strong className="text-slate-300">{allGroups.length}</strong>{" "}
+                families
+              </span>
+              <span className="h-3 w-px bg-white/10" />
+              <span>
+                <strong className="text-slate-300">{totalReports}</strong>{" "}
+                reports
+              </span>
+              <span className="h-3 w-px bg-white/10" />
+              <span>
+                <strong className="text-emerald-200">{currentLots}</strong>{" "}
+                current
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-9 flex items-end justify-between gap-4 sm:mt-11">
+          <div>
+            <p className="text-[8px] font-black uppercase tracking-[0.22em] text-blue-300/55 sm:text-[9px]">
+              Organized catalog
+            </p>
+            <h3 className="mt-1.5 text-[23px] font-semibold tracking-[-0.045em] text-white sm:text-[28px]">
+              Product families
+            </h3>
+            <p className="mt-1 text-[11px] text-slate-600">
+              {filteredGroups.length}{" "}
+              {filteredGroups.length === 1 ? "family found" : "families found"}
             </p>
           </div>
+
+          {(query || activeFilter !== "All") && (
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-white/[0.07] bg-white/[0.025] px-3 text-[8px] font-black uppercase tracking-[0.13em] text-slate-500 transition hover:border-blue-300/15 hover:text-blue-100"
+            >
+              <X size={11} />
+              Clear
+            </button>
+          )}
         </div>
 
-        <div className="relative mb-8 rounded-[1.45rem] border border-cyan-200/10 bg-[#020617]/28 p-4 shadow-[0_24px_90px_rgba(0,0,0,0.14)] backdrop-blur sm:p-5 lg:mb-10 lg:rounded-none lg:border-x-0 lg:border-y lg:bg-transparent lg:p-0 lg:py-6 lg:shadow-none lg:backdrop-blur-none">
-          <div className="pointer-events-none absolute inset-x-0 top-0 hidden h-px bg-gradient-to-r from-transparent via-cyan-200/35 to-transparent lg:block" />
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 hidden h-px bg-gradient-to-r from-transparent via-cyan-200/18 to-transparent lg:block" />
-
-          <div className="relative">
-            <div className="mb-5 flex items-start gap-4">
-              <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-cyan-200/15 bg-cyan-300/[0.08] text-cyan-100 sm:h-12 sm:w-12">
-                <FileSearch size={21} />
-              </div>
-
-              <div>
-                <p className="text-[9px] font-black uppercase tracking-[0.22em] text-cyan-200/60 sm:text-[10px] sm:tracking-[0.26em]">
-                  Batch Lookup
-                </p>
-
-                <h3 className="mt-2 max-w-2xl text-[24px] font-semibold leading-[1.03] tracking-[-0.055em] text-white sm:text-[32px]">
-                  Find the right certificate faster.
-                </h3>
-
-                <p className="mt-2 text-[11px] leading-5 text-slate-500">
-                  Source: <span className="text-cyan-100/75">{statusLabel}</span>
-                </p>
-              </div>
-            </div>
-
-            <div className="relative">
-              <Search
-                size={18}
-                className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-cyan-200/65"
+        <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4">
+          {isLoading && coaRecords.length === 0 ? (
+            <LoadingState />
+          ) : loadError && coaRecords.length === 0 ? (
+            <ErrorState
+              message={loadError}
+              onRetry={() => setReloadKey((value) => value + 1)}
+            />
+          ) : filteredGroups.length === 0 ? (
+            <EmptyState onClear={clearFilters} />
+          ) : (
+            paginatedGroups.map((group) => (
+              <FamilyCard
+                key={group.key}
+                group={group}
+                onOpen={setOpenGroupKey}
               />
+            ))
+          )}
+        </div>
 
-              <input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                type="search"
-                placeholder="Search product, COA number, batch..."
-                disabled={isLoading && coaRecords.length === 0}
-                className="min-h-[52px] w-full rounded-2xl border border-cyan-200/10 bg-[#020617]/65 py-3.5 pl-12 pr-12 text-sm font-medium text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-200/35 focus:bg-[#020617]/85 disabled:cursor-not-allowed disabled:opacity-60 sm:py-4"
-              />
+        <Pagination
+          currentPage={safeCurrentPage}
+          totalPages={totalPages}
+          onPageChange={handlePageChange}
+        />
 
-              {query && (
-                <button
-                  type="button"
-                  onClick={() => setQuery("")}
-                  className="absolute right-4 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-xl border border-white/10 bg-white/[0.025] text-slate-500 transition hover:text-cyan-100"
-                  aria-label="Clear search"
-                >
-                  <X size={14} />
-                </button>
-              )}
-            </div>
-
-            <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1fr)_460px]">
-              <div className="min-w-0">
-                <div className="coa-scroll-row flex gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0">
-                  {quickSearches.map((item) => (
-                    <button
-                      key={item}
-                      type="button"
-                      onClick={() => setQuery(item)}
-                      disabled={isLoading && coaRecords.length === 0}
-                      className="shrink-0 rounded-full border border-cyan-200/10 bg-white/[0.025] px-3 py-2 text-[9px] font-black uppercase tracking-[0.14em] text-slate-400 transition hover:border-cyan-200/25 hover:bg-cyan-300/[0.06] hover:text-cyan-100 disabled:pointer-events-none disabled:opacity-40 sm:text-[10px] sm:tracking-[0.16em]"
-                    >
-                      {item}
-                    </button>
-                  ))}
-                </div>
-
-                <HistoryToggle
-                  value={activeHistory}
-                  onChange={setActiveHistory}
-                />
-
-                {hasActiveFilters && (
-                  <button
-                    type="button"
-                    onClick={clearAll}
-                    className="mt-4 inline-flex items-center gap-2 rounded-xl border border-rose-200/10 bg-rose-300/[0.05] px-4 py-2 text-[9px] font-black uppercase tracking-[0.14em] text-rose-200/75 transition hover:border-rose-200/25 hover:text-rose-100 sm:text-[10px]"
-                  >
-                    <X size={12} />
-                    Clear filters
-                  </button>
-                )}
-              </div>
-
-              <div>
-                <div className="grid grid-cols-3 gap-2">
-                  <TinyStat label="Records" value={coaRecords.length} />
-                  <TinyStat label="Found" value={filteredRecords.length} />
-                  <TinyStat
-                    label="Shipping"
-                    value={currentShippingLots}
-                    accent
-                  />
-                </div>
-
-                <div className="mt-4 flex gap-3 rounded-2xl border border-cyan-200/10 bg-[#020617]/35 p-4">
-                  <ShieldCheck
-                    size={17}
-                    className="mt-0.5 shrink-0 text-cyan-200"
-                  />
-
-                  <p className="text-xs leading-6 text-slate-400">
-                    Laboratory documentation access, batch transparency, current
-                    shipping lot indicators, and historical certificate tracking
-                    in one place.
-                  </p>
-                </div>
-              </div>
-            </div>
+        <div className="mt-8 grid gap-3 rounded-[1.45rem] border border-blue-200/10 bg-white/[0.018] p-4 sm:grid-cols-[auto_1fr] sm:items-start sm:p-5">
+          <div className="grid h-10 w-10 place-items-center rounded-xl border border-blue-300/12 bg-blue-400/[0.06] text-blue-200">
+            <BadgeCheck size={17} />
           </div>
-        </div>
-
-        <div className="relative">
-          <div className="pointer-events-none absolute right-[-10%] top-[-20%] h-80 w-80 rounded-full bg-cyan-300/8 blur-[120px]" />
-
-          <div className="relative z-10">
-            <div className="mb-5 flex flex-row items-end justify-between gap-4">
-              <div>
-                <p className="text-[9px] font-black uppercase tracking-[0.22em] text-cyan-200/55 sm:text-[10px] sm:tracking-[0.26em]">
-                  Available Records
-                </p>
-
-                <h3 className="mt-1 text-[24px] font-semibold tracking-[-0.04em] text-white sm:text-2xl">
-                  COA results
-                </h3>
-
-                <p className="mt-1 text-xs text-slate-500 sm:mt-2">
-                  Showing{" "}
-                  <span className="font-semibold text-white">
-                    {startItem}-{endItem}
-                  </span>{" "}
-                  of{" "}
-                  <span className="font-semibold text-white">
-                    {filteredRecords.length}
-                  </span>{" "}
-                  certificates.
-                </p>
-              </div>
-
-              <div className="hidden items-center gap-2 rounded-full border border-amber-300/15 bg-amber-400/[0.06] px-3 py-2 text-[9px] font-black uppercase tracking-[0.18em] text-amber-100 sm:flex">
-                <ShieldCheck size={13} />
-                Current lots marked
-              </div>
-            </div>
-
-            {isLoading && coaRecords.length === 0 ? (
-              <LoadingState />
-            ) : loadError && coaRecords.length === 0 ? (
-              <ErrorState message={loadError} onRetry={retryLoad} />
-            ) : filteredRecords.length === 0 ? (
-              <EmptyState />
-            ) : (
-              <>
-                <div className="space-y-3">
-                  {paginatedRecords.map((record) => (
-                    <ResultCard
-                      key={record.id}
-                      record={record}
-                      openHistoryId={openHistoryId}
-                      setOpenHistoryId={setOpenHistoryId}
-                    />
-                  ))}
-                </div>
-
-                <Pagination
-                  currentPage={safeCurrentPage}
-                  totalPages={totalPages}
-                  totalItems={filteredRecords.length}
-                  startItem={startItem}
-                  endItem={endItem}
-                  onPageChange={handlePageChange}
-                />
-              </>
-            )}
-
-            <div className="mt-5 flex gap-3 rounded-2xl border border-cyan-200/10 bg-white/[0.018] p-4">
-              <BadgeCheck
-                size={17}
-                className="mt-0.5 shrink-0 text-cyan-200"
-              />
-
-              <p className="text-xs leading-5 text-slate-400">
-                Missing a document? Contact support with the product name and
-                batch number so the team can help locate the right COA.
-              </p>
-            </div>
-
-            <div className="mt-5">
-              <ResearchDisclaimer />
-            </div>
+          <div>
+            <p className="text-[9px] font-black uppercase tracking-[0.17em] text-blue-200/70">
+              Research documentation
+            </p>
+            <p className="mt-1.5 text-[11px] leading-6 text-slate-500 sm:text-xs">
+              Certificates are provided for laboratory documentation, batch
+              transparency, and research verification only. Missing a report?
+              Contact support with the product and batch number.
+            </p>
           </div>
         </div>
       </div>
 
-      <style>{`
-        .coa-scroll-row {
-          scrollbar-width: none;
-        }
-
-        .coa-scroll-row::-webkit-scrollbar {
-          display: none;
-        }
-      `}</style>
+      {selectedGroup && (
+        <FamilyModal
+          key={selectedGroup.key}
+          group={selectedGroup}
+          onClose={() => setOpenGroupKey(null)}
+        />
+      )}
     </section>
   );
 }
