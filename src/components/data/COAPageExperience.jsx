@@ -20,7 +20,7 @@ import {
 
 const GROUPS_PER_PAGE = 12;
 const COA_REQUEST_TIMEOUT_MS = 10000;
-const COA_CACHE_KEY = "phaseone-coa-manager-aliases-v3";
+const COA_CACHE_KEY = "phaseone-coa-manager-product-names-v5";
 
 const DEFAULT_COA_API_URL =
   import.meta.env.PUBLIC_WP_COA_API_URL ||
@@ -71,6 +71,80 @@ function toIdArray(value) {
 
 function toBoolean(value) {
   return value === true || value === 1 || value === "1" || value === "true";
+}
+
+function cleanProductTitleFallback(value) {
+  const text =
+    value && typeof value === "object" && "rendered" in value
+      ? value.rendered
+      : value;
+
+  return String(text || "")
+    .replace(/<[^>]*>/g, " ")
+    .replace(
+      /\b\d+(?:\.\d+)?\s*(?:mcg|mg|g|ml|iu)(?:\s*\/\s*\d+(?:\.\d+)?\s*(?:mcg|mg|g|ml|iu))?\b/gi,
+      " "
+    )
+    .replace(/\b(?:single\s+vial|vials?|kits?|packs?)\b/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function getManagerProductName(record) {
+  if (!record || typeof record !== "object") return "";
+
+  const nestedContainers = [
+    record.fields,
+    record.meta,
+    record.acf,
+    record.coaRecordDetails,
+    record.coa_record_details,
+  ].filter((container) => container && typeof container === "object");
+  const nestedKeys = [
+    "product_name",
+    "productName",
+    "coa_product_name",
+    "pol_product_name",
+    "_pol_product_name",
+  ];
+
+  for (const container of nestedContainers) {
+    for (const key of nestedKeys) {
+      const value = String(container[key] || "").trim();
+      if (value) return value;
+    }
+  }
+
+  const directName = String(
+    record.product_name ||
+      record.productName ||
+      record.managerProductName ||
+      record.product ||
+      ""
+  ).trim();
+  const titleFallback = cleanProductTitleFallback(record.title);
+
+  if (directName) {
+    const genericNames = [
+      record.compound,
+      record.familyName,
+      ...toArray(record.aliases),
+    ]
+      .map(normalizeText)
+      .filter(Boolean);
+
+    if (
+      titleFallback &&
+      normalizeText(titleFallback) !== normalizeText(directName) &&
+      genericNames.includes(normalizeText(directName))
+    ) {
+      return titleFallback;
+    }
+
+    return directName;
+  }
+
+  return titleFallback;
 }
 
 function normalizeHistory(history) {
@@ -176,6 +250,7 @@ function normalizeCoaPayload(payload) {
           : [];
 
   return records.map((record, index) => {
+    const managerProductName = getManagerProductName(record);
     const normalized = {
       ...record,
       id: String(
@@ -187,12 +262,8 @@ function normalizeCoaPayload(payload) {
           "coa-" + (index + 1)
       ),
       coaNumber: record.coaNumber || record.coa_number || "",
-      productName:
-        record.productName ||
-        record.product_name ||
-        record.product ||
-        record.title ||
-        "",
+      productName: managerProductName,
+      managerProductName,
       compound:
         record.compound ||
         record.productName ||
@@ -405,19 +476,7 @@ function strengthSortValue(value) {
 }
 
 function deriveFamilyName(record) {
-  const primaryAlias = toArray(record.aliases)
-    .map((alias) => String(alias || "").trim())
-    .find(Boolean);
-
-  const managerName = [
-    primaryAlias,
-    record.compound,
-    record.productName,
-    record.familyName,
-    record.coaNumber,
-  ].find((value) => String(value || "").trim());
-
-  return String(managerName || "COA Record").trim();
+  return getManagerProductName(record) || "Product name pending";
 }
 
 function deriveFamilyKey(record, familyName) {
@@ -579,9 +638,24 @@ function groupCoaRecords(records) {
       return dateValue(candidate) > dateValue(latest) ? candidate : latest;
     }, "");
 
+    const preferredNameRecord = [...group.records]
+      .sort((a, b) => {
+        const currentDifference =
+          Number(isCurrentShippingLot(b)) - Number(isCurrentShippingLot(a));
+        if (currentDifference) return currentDifference;
+
+        return (
+          dateValue(getCurrentCoa(b).date || b.date) -
+          dateValue(getCurrentCoa(a).date || a.date)
+        );
+      })
+      .find((record) => getManagerProductName(record));
+
     return {
       key: group.key,
-      name: group.name,
+      name: preferredNameRecord
+        ? getManagerProductName(preferredNameRecord)
+        : "Product name pending",
       records: group.records,
       strengthGroups,
       reportCount,
@@ -882,12 +956,8 @@ function FamilyModal({ group, onClose }) {
 
   const productLabel = primaryRecord
     ? cleanDisplayText(
-        toArray(primaryRecord.aliases)
-          .map((alias) => String(alias || "").trim())
-          .find(Boolean) ||
-          primaryRecord.compound ||
-          primaryRecord.productName,
-        group.name
+        getManagerProductName(primaryRecord),
+        "Product name pending"
       )
     : cleanDisplayText(group.name, "COA Family");
   const documentLabel = cleanDisplayText(currentCoa.label, "Current COA");
@@ -1285,7 +1355,7 @@ export default function COALookupSection({
         const response = await fetch(apiUrl, {
           method: "GET",
           headers: { Accept: "application/json" },
-          cache: "default",
+          cache: "no-store",
           credentials: "same-origin",
           signal: controller.signal,
         });
