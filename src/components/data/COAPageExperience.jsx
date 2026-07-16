@@ -19,10 +19,12 @@ import {
 } from "lucide-react";
 
 const GROUPS_PER_PAGE = 12;
+const COA_REQUEST_TIMEOUT_MS = 10000;
+const COA_CACHE_KEY = "phaseone-coa-manager-report-signals-v7";
 
 const DEFAULT_COA_API_URL =
   import.meta.env.PUBLIC_WP_COA_API_URL ||
-  "https://phaseonelabz.com/wp-json/phaseone/v1/coas";
+  "/wp-json/phaseone/v1/coas";
 
 const FILTERS = [
   { label: "All families", value: "All" },
@@ -30,16 +32,67 @@ const FILTERS = [
   { label: "With history", value: "Has History" },
 ];
 
-const QUICK_FILTERS = [
-  "PL-Rt",
-  "PL-Sm",
-  "PL-Tes",
-  "BPC",
-  "GHK",
-  "MOTS-c",
-  "NAD+",
-  "TB-500",
+const REPORT_SIGNALS = [
+  {
+    id: "current",
+    label: "Current",
+    cardLabel: "Current",
+    description: "Active batch currently in distribution.",
+    border: "border-emerald-300/25",
+    background: "bg-emerald-400/[0.075]",
+    text: "text-emerald-200",
+    glow: "shadow-[0_0_22px_rgba(52,211,153,0.08)]",
+    dot: "bg-emerald-300 shadow-[0_0_10px_rgba(110,231,183,0.95)]",
+  },
+  {
+    id: "3x",
+    label: "3X Tested Panel",
+    cardLabel: "3X Tested",
+    description: "Three key analytical checks documented.",
+    border: "border-amber-300/25",
+    background: "bg-amber-400/[0.07]",
+    text: "text-amber-200",
+    glow: "shadow-[0_0_22px_rgba(251,191,36,0.07)]",
+    dot: "bg-amber-300 shadow-[0_0_10px_rgba(252,211,77,0.9)]",
+  },
+  {
+    id: "standard",
+    label: "Standard Panel",
+    cardLabel: "Standard Panel",
+    description: "Core identity and quality panel documented.",
+    border: "border-cyan-300/25",
+    background: "bg-cyan-400/[0.07]",
+    text: "text-cyan-200",
+    glow: "shadow-[0_0_22px_rgba(34,211,238,0.07)]",
+    dot: "bg-cyan-300 shadow-[0_0_10px_rgba(103,232,249,0.9)]",
+  },
+  {
+    id: "full",
+    label: "Full Panel",
+    cardLabel: "Full Panel",
+    description: "Complete analytical panel documentation.",
+    border: "border-fuchsia-300/25",
+    background: "bg-fuchsia-400/[0.07]",
+    text: "text-fuchsia-200",
+    glow: "shadow-[0_0_22px_rgba(232,121,249,0.07)]",
+    dot: "bg-fuchsia-300 shadow-[0_0_10px_rgba(240,171,252,0.9)]",
+  },
+  {
+    id: "8x",
+    label: "8X Tested Panel",
+    cardLabel: "8X Tested",
+    description: "Eight key analytical checks documented.",
+    border: "border-blue-300/25",
+    background: "bg-blue-400/[0.08]",
+    text: "text-blue-200",
+    glow: "shadow-[0_0_22px_rgba(96,165,250,0.08)]",
+    dot: "bg-blue-300 shadow-[0_0_10px_rgba(147,197,253,0.9)]",
+  },
 ];
+
+const REPORT_SIGNAL_MAP = Object.fromEntries(
+  REPORT_SIGNALS.map((signal) => [signal.id, signal])
+);
 
 function cx(...classes) {
   return classes.filter(Boolean).join(" ");
@@ -80,6 +133,134 @@ function toIdArray(value) {
 
 function toBoolean(value) {
   return value === true || value === 1 || value === "1" || value === "true";
+}
+
+function normalizePanelType(value) {
+  const normalized = normalizeText(value).replace(/\s+/g, "");
+
+  if (!normalized) return "";
+  if (normalized === "full" || normalized.includes("fullpanel")) return "full";
+  if (normalized === "standard" || normalized.includes("standardpanel")) {
+    return "standard";
+  }
+  if (/^(?:3x|x3|3)$/.test(normalized) || normalized.includes("3xtested")) {
+    return "3x";
+  }
+  if (/^(?:8x|x8|8)$/.test(normalized) || normalized.includes("8xtested")) {
+    return "8x";
+  }
+
+  return "";
+}
+
+function getRecordPanelTypes(record) {
+  if (!record || typeof record !== "object") return [];
+
+  const explicit = toArray(
+    record.panelTypes ||
+      record.panel_types ||
+      record.reportPanels ||
+      record.report_panels ||
+      record.panelType ||
+      record.panel_type
+  );
+
+  const inferredSources = explicit.length
+    ? explicit
+    : [
+        record.currentCoa?.label,
+        record.current_coa?.label,
+        record.tested,
+        record.method,
+        ...toArray(record.keywords),
+      ];
+
+  return Array.from(
+    new Set(inferredSources.map(normalizePanelType).filter(Boolean))
+  );
+}
+
+function cleanProductTitleFallback(value) {
+  const text =
+    value && typeof value === "object" && "rendered" in value
+      ? value.rendered
+      : value;
+
+  return String(text || "")
+    .replace(/<[^>]*>/g, " ")
+    .replace(
+      /\b\d+(?:\.\d+)?\s*(?:mcg|mg|g|ml|iu)(?:\s*\/\s*\d+(?:\.\d+)?\s*(?:mcg|mg|g|ml|iu))?\b/gi,
+      " "
+    )
+    .replace(/\b(?:single\s+vial|vials?|kits?|packs?)\b/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function getManagerProductName(record) {
+  if (!record || typeof record !== "object") return "";
+
+  const nestedContainers = [
+    record.fields,
+    record.meta,
+    record.acf,
+    record.coaRecordDetails,
+    record.coa_record_details,
+  ].filter((container) => container && typeof container === "object");
+  const nestedKeys = [
+    "product_name",
+    "productName",
+    "coa_product_name",
+    "pol_product_name",
+    "_pol_product_name",
+  ];
+
+  for (const container of nestedContainers) {
+    for (const key of nestedKeys) {
+      const value = String(container[key] || "").trim();
+      if (value) return value;
+    }
+  }
+
+  const directName = String(
+    record.product_name ||
+      record.productName ||
+      record.managerProductName ||
+      record.product ||
+      ""
+  ).trim();
+  const titleFallback = cleanProductTitleFallback(record.title);
+
+  if (directName) {
+    const genericNames = [
+      record.compound,
+      record.familyName,
+      ...toArray(record.aliases),
+    ]
+      .map(normalizeText)
+      .filter(Boolean);
+
+    if (
+      titleFallback &&
+      normalizeText(titleFallback) !== normalizeText(directName) &&
+      genericNames.includes(normalizeText(directName))
+    ) {
+      return titleFallback;
+    }
+
+    return directName;
+  }
+
+  return titleFallback;
+}
+
+function getCustomFamilyName(record) {
+  if (!record || typeof record !== "object") return "";
+
+  return cleanDisplayText(
+    record.familyName || record.family_name || "",
+    ""
+  );
 }
 
 function normalizeHistory(history) {
@@ -185,6 +366,7 @@ function normalizeCoaPayload(payload) {
           : [];
 
   return records.map((record, index) => {
+    const managerProductName = getManagerProductName(record);
     const normalized = {
       ...record,
       id: String(
@@ -196,12 +378,8 @@ function normalizeCoaPayload(payload) {
           "coa-" + (index + 1)
       ),
       coaNumber: record.coaNumber || record.coa_number || "",
-      productName:
-        record.productName ||
-        record.product_name ||
-        record.product ||
-        record.title ||
-        "",
+      productName: managerProductName,
+      managerProductName,
       compound:
         record.compound ||
         record.productName ||
@@ -220,6 +398,7 @@ function normalizeCoaPayload(payload) {
       skus: toArray(record.skus || record.sku),
       aliases: toArray(record.aliases || record.alias),
       keywords: toArray(record.keywords || record.search_keywords),
+      panelTypes: getRecordPanelTypes(record),
       strength: record.strength || "",
       batch: record.batch || record.lot || "",
       lot: record.lot || record.batch || "",
@@ -414,32 +593,33 @@ function strengthSortValue(value) {
 }
 
 function deriveFamilyName(record) {
-  if (String(record.familyName || "").trim()) {
-    return String(record.familyName).trim();
-  }
-
-  const source = String(
-    record.compound || record.productName || record.coaNumber || "COA Family"
-  ).trim();
-
-  const cleaned = source
-    .replace(
-      /\b\d+(?:\.\d+)?\s*(?:mcg|mg|g|ml|iu)(?:\s*\/\s*\d+(?:\.\d+)?\s*(?:mcg|mg|g|ml|iu))?\b/gi,
-      " "
-    )
-    .replace(/\b(?:single\s+vial|vials?|kit|packs?)\b/gi, " ")
-    .replace(/\(\s*\)/g, " ")
-    .replace(/\s*[-\u2013\u2014|:]\s*$/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-
-  return cleaned || source || "COA Family";
+  return (
+    getCustomFamilyName(record) ||
+    getManagerProductName(record) ||
+    toArray(record.aliases)[0] ||
+    "Product name pending"
+  );
 }
 
 function deriveFamilyKey(record, familyName) {
   const manual = normalizeText(record.familyKey).replace(/\s+/g, "-");
   if (manual) return manual;
-  return normalizeText(familyName).replace(/\s+/g, "-") || record.id;
+
+  const managerGroupingName = String(
+    record.familyName || record.compound || record.productName || familyName
+  )
+    .replace(
+      /\b\d+(?:\.\d+)?\s*(?:mcg|mg|g|ml|iu)(?:\s*\/\s*\d+(?:\.\d+)?\s*(?:mcg|mg|g|ml|iu))?\b/gi,
+      " "
+    )
+    .replace(/\b(?:single\s+vial|vials?|kit|packs?)\b/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return (
+    normalizeText(managerGroupingName || familyName).replace(/\s+/g, "-") ||
+    record.id
+  );
 }
 
 function scoreRecord(record, query) {
@@ -471,6 +651,7 @@ function scoreRecord(record, query) {
       ...(record.aliases || []),
       ...(record.skus || []),
       ...(record.keywords || []),
+      ...(record.panelTypes || []),
       ...(record.wooIds || []),
       ...(record.productIds || []),
       ...(record.parentProductIds || []),
@@ -580,13 +761,44 @@ function groupCoaRecords(records) {
       return dateValue(candidate) > dateValue(latest) ? candidate : latest;
     }, "");
 
+    const preferredRecords = [...group.records]
+      .sort((a, b) => {
+        const currentDifference =
+          Number(isCurrentShippingLot(b)) - Number(isCurrentShippingLot(a));
+        if (currentDifference) return currentDifference;
+
+        return (
+          dateValue(getCurrentCoa(b).date || b.date) -
+          dateValue(getCurrentCoa(a).date || a.date)
+        );
+      });
+
+    const customFamilyName = preferredRecords
+      .map((record) => getCustomFamilyName(record))
+      .find(Boolean);
+    const preferredNameRecord = preferredRecords.find((record) =>
+      getManagerProductName(record)
+    );
+    const panelTypes = Array.from(
+      new Set(group.records.flatMap((record) => getRecordPanelTypes(record)))
+    ).sort(
+      (a, b) =>
+        REPORT_SIGNALS.findIndex((signal) => signal.id === a) -
+        REPORT_SIGNALS.findIndex((signal) => signal.id === b)
+    );
+
     return {
       key: group.key,
-      name: group.name,
+      name:
+        customFamilyName ||
+        (preferredNameRecord
+          ? getManagerProductName(preferredNameRecord)
+          : group.name || "Product name pending"),
       records: group.records,
       strengthGroups,
       reportCount,
       currentLotCount,
+      panelTypes,
       latestDate,
       hasHistory: group.records.some(
         (record) => (record.history || []).length > 0
@@ -672,6 +884,159 @@ function EmptyState({ onClear }) {
   );
 }
 
+function ReportSignalBadge({ signalId, compact = false }) {
+  const signal = REPORT_SIGNAL_MAP[signalId];
+  if (!signal) return null;
+
+  return (
+    <span
+      title={signal.label}
+      className={cx(
+        "inline-flex max-w-full shrink-0 items-center rounded-full border font-black uppercase leading-none",
+        signal.border,
+        signal.background,
+        signal.text,
+        signal.glow,
+        compact
+          ? "min-h-6 gap-1 px-2 text-[6px] tracking-[0.08em] sm:min-h-7 sm:gap-1.5 sm:px-2.5 sm:text-[7px] sm:tracking-[0.1em]"
+          : "min-h-8 gap-2 px-3 text-[8px] tracking-[0.13em]"
+      )}
+    >
+      <span
+        className={cx(
+          "shrink-0 rounded-full",
+          compact ? "h-1.5 w-1.5" : "h-2 w-2",
+          signal.dot
+        )}
+      />
+      <span className="truncate">{compact ? signal.cardLabel : signal.label}</span>
+    </span>
+  );
+}
+
+function ReportSignalDeck({ activeSignal, onChange }) {
+  return (
+    <div className="mx-auto mt-8 max-w-5xl overflow-hidden rounded-[1.7rem] border border-blue-200/10 bg-[#06101d]/82 p-3 shadow-[0_24px_80px_rgba(0,0,0,0.2)] sm:mt-10 sm:p-4">
+      <div className="flex items-center justify-between gap-4 px-1 pb-3">
+        <div>
+          <p className="text-[7px] font-black uppercase tracking-[0.22em] text-blue-300/60 sm:text-[8px]">
+            Verification spectrum
+          </p>
+          <p className="mt-1 text-[10px] text-slate-500 sm:text-[11px]">
+            Tap a signal to view only matching families.
+          </p>
+        </div>
+        {activeSignal && (
+          <button
+            type="button"
+            onClick={() => onChange("")}
+            className="inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-xl border border-white/[0.07] bg-white/[0.025] px-2.5 text-[7px] font-black uppercase tracking-[0.12em] text-slate-500 transition hover:text-white"
+          >
+            <X size={10} />
+            Reset
+          </button>
+        )}
+      </div>
+
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-5">
+        {REPORT_SIGNALS.map((signal, index) => {
+          const active = activeSignal === signal.id;
+
+          return (
+            <button
+              key={signal.id}
+              type="button"
+              onClick={() => onChange(active ? "" : signal.id)}
+              aria-pressed={active}
+              className={cx(
+                "group/signal relative min-h-[98px] overflow-hidden rounded-2xl border p-3 text-left transition duration-300 sm:min-h-[108px] sm:p-3.5",
+                signal.border,
+                signal.background,
+                active
+                  ? cx(signal.glow, "ring-1 ring-white/15")
+                  : "opacity-75 hover:-translate-y-0.5 hover:opacity-100",
+                index === REPORT_SIGNALS.length - 1
+                  ? "col-span-2 lg:col-span-1"
+                  : ""
+              )}
+            >
+              <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(115deg,transparent_15%,rgba(255,255,255,0.045)_48%,transparent_72%)] opacity-0 transition duration-500 group-hover/signal:opacity-100" />
+              <div className="relative flex items-center justify-between gap-2">
+                <ReportSignalBadge signalId={signal.id} compact />
+                <span className="text-[7px] font-black tracking-[0.15em] text-white/20">
+                  0{index + 1}
+                </span>
+              </div>
+              <p className="relative mt-3 max-w-[19rem] text-[9px] leading-4 text-slate-500 sm:text-[10px]">
+                {signal.description}
+              </p>
+              <span
+                className={cx(
+                  "absolute inset-x-3 bottom-0 h-px opacity-60",
+                  signal.dot.split(" ")[0]
+                )}
+              />
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function CardTestingMatrix({ panelTypes }) {
+  const available = REPORT_SIGNALS.filter(
+    (signal) => signal.id !== "current" && (panelTypes || []).includes(signal.id)
+  );
+
+  if (available.length === 0) return null;
+
+  return (
+    <div className="mt-3 min-w-0 border-t border-white/[0.055] pt-3">
+      <div className="mb-2 flex min-w-0 items-center justify-between gap-2">
+        <span className="truncate text-[6px] font-black uppercase tracking-[0.17em] text-slate-600 sm:text-[7px]">
+          Testing coverage
+        </span>
+        <span className="shrink-0 text-[6px] font-black uppercase tracking-[0.11em] text-blue-200/45 sm:text-[7px]">
+          {available.length} {available.length === 1 ? "panel" : "panels"}
+        </span>
+      </div>
+
+      <div
+        className={cx(
+          "grid min-w-0 gap-1.5",
+          available.length === 1 ? "grid-cols-1" : "grid-cols-2"
+        )}
+      >
+        {available.map((signal) => (
+          <div
+            key={signal.id}
+            title={signal.label}
+            className={cx(
+              "relative flex min-h-8 min-w-0 items-center gap-1.5 overflow-hidden rounded-lg border px-2",
+              signal.border,
+              signal.background
+            )}
+          >
+            <span
+              className={cx("h-1.5 w-1.5 shrink-0 rounded-full", signal.dot)}
+            />
+            <span
+              className={cx(
+                "min-w-0 truncate text-[6px] font-black uppercase tracking-[0.065em] sm:text-[7px]",
+                signal.text
+              )}
+            >
+              {signal.cardLabel}
+            </span>
+            <span className="pointer-events-none absolute inset-x-2 bottom-0 h-px bg-white/[0.04]" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function FamilyCard({ group, onOpen }) {
   const strengths = group.strengthGroups.map((item) => item.label);
   const preview = strengths.slice(0, 3);
@@ -681,7 +1046,7 @@ function FamilyCard({ group, onOpen }) {
     <button
       type="button"
       onClick={() => onOpen(group.key)}
-      className="group relative min-h-[250px] overflow-hidden rounded-[1.6rem] border border-blue-100/10 bg-[#081321]/85 p-4 text-left shadow-[0_20px_65px_rgba(0,0,0,0.22)] transition duration-300 hover:-translate-y-1 hover:border-blue-300/30 hover:bg-[#0a192b] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300/60 sm:min-h-[270px] sm:p-5"
+      className="group relative min-h-[290px] w-full min-w-0 overflow-hidden rounded-[1.6rem] border border-blue-100/10 bg-[#081321]/85 p-4 text-left shadow-[0_8px_24px_rgba(0,0,0,0.18)] transition duration-300 hover:border-blue-300/30 hover:bg-[#0a192b] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300/60 sm:min-h-[305px] sm:p-5 lg:shadow-[0_20px_65px_rgba(0,0,0,0.22)] lg:hover:-translate-y-1"
       aria-label={"Open " + group.name + " COA reports"}
     >
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_85%_0%,rgba(59,130,246,0.15),transparent_42%)] opacity-75 transition group-hover:opacity-100" />
@@ -697,14 +1062,14 @@ function FamilyCard({ group, onOpen }) {
           </div>
 
           {group.currentLotCount > 0 && (
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300/15 bg-emerald-400/[0.08] px-2.5 py-1.5 text-[8px] font-black uppercase tracking-[0.12em] text-emerald-200">
+            <span className="inline-flex min-h-7 items-center gap-1.5 text-[7px] font-black uppercase tracking-[0.13em] text-emerald-200 sm:text-[8px]">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-300 shadow-[0_0_10px_rgba(110,231,183,0.9)]" />
-              Current
+              Current lot
             </span>
           )}
         </div>
 
-        <div className="mt-5">
+        <div className="mt-4">
           <h3 className="line-clamp-2 text-[18px] font-semibold leading-[1.08] tracking-[-0.035em] text-white sm:text-xl">
             {group.name}
           </h3>
@@ -721,7 +1086,7 @@ function FamilyCard({ group, onOpen }) {
           </div>
         </div>
 
-        <div className="mt-4 flex min-h-[27px] flex-wrap gap-1.5">
+        <div className="mt-3 flex min-h-[27px] flex-wrap gap-1.5">
           {preview.map((strength) => (
             <span
               key={strength}
@@ -736,6 +1101,8 @@ function FamilyCard({ group, onOpen }) {
             </span>
           )}
         </div>
+
+        <CardTestingMatrix panelTypes={group.panelTypes || []} />
 
         <div className="mt-auto flex items-center justify-between border-t border-white/[0.06] pt-4">
           <span className="text-[9px] font-black uppercase tracking-[0.16em] text-blue-200/75">
@@ -754,13 +1121,13 @@ function DetailStat({ label, value, accent = false }) {
   const safeValue = cleanDisplayText(value);
 
   return (
-    <div className="flex items-center justify-between gap-4 border-b border-white/[0.06] px-3.5 py-2.5 last:border-b-0">
+    <div className="min-w-0 rounded-xl border border-white/[0.06] bg-white/[0.018] px-3 py-3 lg:flex lg:items-center lg:justify-between lg:gap-4 lg:rounded-none lg:border-x-0 lg:border-t-0 lg:bg-transparent lg:px-3.5 lg:py-2.5 lg:last:border-b-0">
       <dt className="shrink-0 text-[7px] font-black uppercase tracking-[0.15em] text-slate-600">
         {label}
       </dt>
       <dd
         className={cx(
-          "min-w-0 truncate text-right text-[11px] font-semibold",
+          "mt-1.5 min-w-0 truncate text-left text-[11px] font-semibold lg:mt-0 lg:text-right",
           accent ? "text-emerald-200" : "text-slate-300"
         )}
         title={safeValue}
@@ -883,8 +1250,8 @@ function FamilyModal({ group, onClose }) {
 
   const productLabel = primaryRecord
     ? cleanDisplayText(
-        primaryRecord.productName || primaryRecord.compound,
-        group.name
+        getCustomFamilyName(primaryRecord) || group.name,
+        getManagerProductName(primaryRecord) || "Product name pending"
       )
     : cleanDisplayText(group.name, "COA Family");
   const documentLabel = cleanDisplayText(currentCoa.label, "Current COA");
@@ -892,7 +1259,7 @@ function FamilyModal({ group, onClose }) {
 
   return (
     <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center bg-[#01050c]/82 p-3 backdrop-blur-md sm:p-6"
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-[#01050c]/88 p-3 backdrop-blur-none sm:p-6 lg:bg-[#01050c]/82 lg:backdrop-blur-md"
       role="dialog"
       aria-modal="true"
       aria-label={safeGroupName + " COA reports"}
@@ -901,8 +1268,8 @@ function FamilyModal({ group, onClose }) {
       }}
     >
       <div
-        data-coa-modal-version="wide-1020-final"
-        className="relative flex flex-col overflow-hidden rounded-[1.4rem] border border-blue-200/15 bg-[#07111f] shadow-[0_38px_120px_rgba(0,0,0,0.72)]"
+        data-coa-modal-version="mobile-pdf-first-v2"
+        className="relative flex flex-col overflow-hidden rounded-[1.4rem] border border-blue-200/15 bg-[#07111f] shadow-[0_14px_45px_rgba(0,0,0,0.5)] lg:shadow-[0_38px_120px_rgba(0,0,0,0.72)]"
         style={{
           width: 1020,
           height: 610,
@@ -944,9 +1311,9 @@ function FamilyModal({ group, onClose }) {
           </button>
         </header>
 
-        <div className="relative z-10 flex shrink-0 items-center gap-3 border-b border-white/[0.07] bg-[#050d18]/80 px-4 py-2 sm:px-5">
+        <div className="relative z-10 flex shrink-0 items-center gap-2 border-b border-white/[0.07] bg-[#050d18]/80 px-3 py-2 sm:gap-3 sm:px-5">
           <div
-            className="coa-scroll-row flex min-w-0 flex-1 gap-2 overflow-x-auto pb-0.5"
+            className="coa-scroll-row flex min-w-0 flex-1 gap-1.5 overflow-x-auto pb-0.5 sm:gap-2"
             role="tablist"
             aria-label="Product strengths"
           >
@@ -964,7 +1331,7 @@ function FamilyModal({ group, onClose }) {
                   aria-selected={active}
                   onClick={() => setSelectedStrengthKey(strengthGroup.key)}
                   className={cx(
-                    "inline-flex min-h-9 shrink-0 items-center gap-2 rounded-xl border px-3.5 text-[10px] font-semibold tracking-[-0.01em] transition",
+                    "inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-xl border px-2.5 text-[9px] font-semibold tracking-[-0.01em] transition sm:min-h-9 sm:gap-2 sm:px-3.5 sm:text-[10px]",
                     active
                       ? "border-blue-300/35 bg-blue-400/[0.14] text-white shadow-[0_8px_24px_rgba(37,99,235,0.14)]"
                       : "border-white/[0.07] bg-white/[0.02] text-slate-500 hover:border-blue-300/20 hover:text-blue-100"
@@ -980,22 +1347,24 @@ function FamilyModal({ group, onClose }) {
             })}
           </div>
 
-          <div className="ml-auto flex shrink-0 flex-nowrap items-center gap-2">
-            <span className="inline-flex min-h-8 whitespace-nowrap items-center gap-1.5 rounded-full border border-blue-300/15 bg-blue-400/[0.08] px-2.5 text-[7px] font-black uppercase tracking-[0.11em] text-blue-100">
+          <div className="ml-auto flex shrink-0 flex-nowrap items-center gap-1 sm:gap-2">
+            <span className="inline-flex min-h-8 whitespace-nowrap items-center gap-1 rounded-full border border-blue-300/15 bg-blue-400/[0.08] px-2 text-[6px] font-black uppercase tracking-[0.08em] text-blue-100 sm:gap-1.5 sm:px-2.5 sm:text-[7px] sm:tracking-[0.11em]">
               <BadgeCheck size={10} />
-              <span>Current certificate</span>
+              <span className="sm:hidden">Current</span>
+              <span className="hidden sm:inline">Current certificate</span>
             </span>
             {isShipping && (
-              <span className="inline-flex min-h-8 whitespace-nowrap items-center gap-1.5 rounded-full border border-emerald-300/15 bg-emerald-400/[0.08] px-2.5 text-[7px] font-black uppercase tracking-[0.11em] text-emerald-200">
+              <span className="inline-flex min-h-8 whitespace-nowrap items-center gap-1 rounded-full border border-emerald-300/15 bg-emerald-400/[0.08] px-2 text-[6px] font-black uppercase tracking-[0.08em] text-emerald-200 sm:gap-1.5 sm:px-2.5 sm:text-[7px] sm:tracking-[0.11em]">
                 <ShieldCheck size={10} />
-                <span>Shipping now</span>
+                <span className="sm:hidden">Shipping</span>
+                <span className="hidden sm:inline">Shipping now</span>
               </span>
             )}
           </div>
         </div>
 
-        <div className="relative z-10 min-h-0 flex-1 overflow-y-auto lg:grid lg:grid-cols-[235px_minmax(0,1fr)] lg:overflow-hidden">
-          <aside className="border-b border-white/[0.07] bg-[#081321]/70 p-4 lg:overflow-y-auto lg:border-b-0 lg:border-r">
+        <div className="relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch] lg:grid lg:grid-cols-[235px_minmax(0,1fr)] lg:overflow-hidden">
+          <aside className="order-2 border-t border-white/[0.07] bg-[#081321]/70 p-4 lg:order-1 lg:overflow-y-auto lg:border-b-0 lg:border-r lg:border-t-0">
             {primaryRecord ? (
               <>
                 <p className="text-[7px] font-black uppercase tracking-[0.18em] text-slate-600">
@@ -1010,8 +1379,8 @@ function FamilyModal({ group, onClose }) {
                   {documentLabel}
                 </p>
 
-                <div className="mt-4 overflow-hidden rounded-xl border border-white/[0.07] bg-white/[0.018]">
-                  <dl>
+                <div className="mt-4 lg:overflow-hidden lg:rounded-xl lg:border lg:border-white/[0.07] lg:bg-white/[0.018]">
+                  <dl className="grid grid-cols-2 gap-2 lg:block lg:gap-0">
                     <DetailStat
                       label="Batch / lot"
                       value={primaryRecord.batch || primaryRecord.lot}
@@ -1110,7 +1479,7 @@ function FamilyModal({ group, onClose }) {
             )}
           </aside>
 
-          <section className="flex min-h-[540px] min-w-0 flex-col bg-[#040a13] p-3 lg:min-h-0">
+          <section className="order-1 flex min-h-[500px] min-w-0 flex-col bg-[#040a13] p-2.5 sm:min-h-[540px] sm:p-3 lg:order-2 lg:min-h-0">
             <div className="mb-2.5 flex shrink-0 items-center justify-between gap-3 px-0.5">
               <div className="flex min-w-0 items-center gap-3">
                 <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-blue-300/10 bg-blue-400/[0.06] text-blue-200">
@@ -1139,7 +1508,7 @@ function FamilyModal({ group, onClose }) {
               )}
             </div>
 
-            <div className="relative min-h-[470px] flex-1 overflow-hidden rounded-2xl border border-blue-200/12 bg-white shadow-[0_18px_55px_rgba(0,0,0,0.3)] lg:min-h-0">
+            <div className="relative min-h-[430px] flex-1 overflow-hidden rounded-xl border border-blue-200/12 bg-white shadow-none sm:min-h-[470px] sm:rounded-2xl lg:min-h-0 lg:shadow-[0_18px_55px_rgba(0,0,0,0.3)]">
               {pdfEmbedUrl ? (
                 <iframe
                   key={pdfEmbedUrl}
@@ -1152,7 +1521,7 @@ function FamilyModal({ group, onClose }) {
                   }
                   loading="lazy"
                   allowFullScreen
-                  className="absolute inset-0 h-full w-full bg-white"
+                  className="pointer-events-none absolute inset-0 h-full w-full bg-white lg:pointer-events-auto"
                 />
               ) : (
                 <div className="absolute inset-0 grid place-items-center bg-[#091321] p-8 text-center">
@@ -1231,6 +1600,8 @@ export default function COALookupSection({
 } = {}) {
   const [query, setQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState("All");
+  const [selectedFamilyKey, setSelectedFamilyKey] = useState("");
+  const [activeSignal, setActiveSignal] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [openGroupKey, setOpenGroupKey] = useState(null);
   const [coaRecords, setCoaRecords] = useState([]);
@@ -1247,16 +1618,41 @@ export default function COALookupSection({
     }
 
     const controller = new AbortController();
+    let isMounted = true;
+    let didTimeout = false;
+    let hasCachedRecords = false;
+
+    try {
+      const cachedPayload = window.localStorage.getItem(COA_CACHE_KEY);
+
+      if (cachedPayload) {
+        const cachedRecords = normalizeCoaPayload(JSON.parse(cachedPayload));
+
+        if (cachedRecords.length > 0) {
+          hasCachedRecords = true;
+          setCoaRecords(cachedRecords);
+          setIsLoading(false);
+        }
+      }
+    } catch (cacheError) {
+      console.warn("COA cache could not be read:", cacheError);
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      didTimeout = true;
+      controller.abort();
+    }, COA_REQUEST_TIMEOUT_MS);
 
     async function loadCoas() {
       try {
-        setIsLoading(true);
+        if (!hasCachedRecords) setIsLoading(true);
         setLoadError("");
 
         const response = await fetch(apiUrl, {
           method: "GET",
           headers: { Accept: "application/json" },
           cache: "no-store",
+          credentials: "same-origin",
           signal: controller.signal,
         });
 
@@ -1265,25 +1661,58 @@ export default function COALookupSection({
         }
 
         const payload = await response.json();
-        setCoaRecords(normalizeCoaPayload(payload));
+        const normalizedRecords = normalizeCoaPayload(payload);
+
+        if (!isMounted) return;
+
+        setCoaRecords(normalizedRecords);
+
+        try {
+          window.localStorage.setItem(
+            COA_CACHE_KEY,
+            JSON.stringify(normalizedRecords)
+          );
+        } catch (cacheError) {
+          console.warn("COA cache could not be updated:", cacheError);
+        }
       } catch (error) {
-        if (error.name === "AbortError") return;
+        if (!isMounted) return;
 
         console.error("COA lookup API error:", error);
-        setCoaRecords([]);
-        setLoadError(
-          "The records could not be loaded. Confirm that the WordPress COA plugin is active and its public endpoint is available."
-        );
+
+        if (!hasCachedRecords) {
+          setCoaRecords([]);
+          setLoadError(
+            didTimeout
+              ? "The COA server took too long to respond. Please try again."
+              : "The records could not be loaded. Confirm that the WordPress COA plugin is active and its public endpoint is available."
+          );
+        }
       } finally {
-        if (!controller.signal.aborted) setIsLoading(false);
+        window.clearTimeout(timeoutId);
+        if (isMounted) setIsLoading(false);
       }
     }
 
     loadCoas();
-    return () => controller.abort();
+    return () => {
+      isMounted = false;
+      window.clearTimeout(timeoutId);
+      controller.abort();
+    };
   }, [apiUrl, reloadKey]);
 
   const allGroups = useMemo(() => groupCoaRecords(coaRecords), [coaRecords]);
+
+  const quickFilters = useMemo(() => {
+    return allGroups
+      .map((group) => ({
+        key: group.key,
+        label: cleanDisplayText(group.name, ""),
+      }))
+      .filter((item) => item.key && item.label)
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [allGroups]);
 
   const filteredGroups = useMemo(() => {
     const cleanQuery = query.trim();
@@ -1306,6 +1735,9 @@ export default function COALookupSection({
         };
       })
       .filter((item) => {
+        if (selectedFamilyKey && item.group.key !== selectedFamilyKey) {
+          return false;
+        }
         if (cleanQuery && item.score <= 0) return false;
         if (
           activeFilter === "Current Shipping Lot" &&
@@ -1314,6 +1746,19 @@ export default function COALookupSection({
           return false;
         }
         if (activeFilter === "Has History" && !item.group.hasHistory) {
+          return false;
+        }
+        if (
+          activeSignal === "current" &&
+          item.group.currentLotCount === 0
+        ) {
+          return false;
+        }
+        if (
+          activeSignal &&
+          activeSignal !== "current" &&
+          !(item.group.panelTypes || []).includes(activeSignal)
+        ) {
           return false;
         }
         return true;
@@ -1326,7 +1771,7 @@ export default function COALookupSection({
         return a.group.name.localeCompare(b.group.name);
       })
       .map((item) => item.group);
-  }, [allGroups, query, activeFilter]);
+  }, [allGroups, query, activeFilter, selectedFamilyKey, activeSignal]);
 
   const totalPages = Math.max(
     1,
@@ -1351,7 +1796,7 @@ export default function COALookupSection({
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [query, activeFilter]);
+  }, [query, activeFilter, selectedFamilyKey, activeSignal]);
 
   useEffect(() => {
     if (openGroupKey && !selectedGroup) setOpenGroupKey(null);
@@ -1360,6 +1805,8 @@ export default function COALookupSection({
   const clearFilters = () => {
     setQuery("");
     setActiveFilter("All");
+    setSelectedFamilyKey("");
+    setActiveSignal("");
     setCurrentPage(1);
   };
 
@@ -1368,13 +1815,10 @@ export default function COALookupSection({
   };
 
   return (
-    <section className="coa-section relative overflow-hidden bg-[#040a13] px-4 py-12 text-white sm:px-6 sm:py-16 lg:py-20">
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute left-[-12%] top-[-8%] h-[440px] w-[440px] rounded-full bg-blue-600/[0.09] blur-[145px]" />
-        <div className="absolute bottom-[-10%] right-[-12%] h-[420px] w-[420px] rounded-full bg-cyan-400/[0.055] blur-[150px]" />
-        <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.014)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.014)_1px,transparent_1px)] bg-[size:46px_46px] [mask-image:linear-gradient(to_bottom,black,transparent_70%)]" />
-      </div>
-
+    <section
+      className="relative px-4 py-12 text-white sm:px-6 sm:py-16 lg:py-20"
+      style={{ background: "transparent", backgroundImage: "none" }}
+    >
       <div className="relative mx-auto max-w-6xl">
         <header className="mx-auto max-w-3xl text-center">
           <div className="inline-flex items-center gap-2 rounded-full border border-blue-300/15 bg-blue-400/[0.06] px-3 py-2">
@@ -1398,7 +1842,12 @@ export default function COALookupSection({
           </p>
         </header>
 
-        <div className="mx-auto mt-8 max-w-4xl rounded-[1.65rem] border border-blue-200/10 bg-[#07111e]/80 p-3 shadow-[0_25px_90px_rgba(0,0,0,0.28)] backdrop-blur-xl sm:mt-10 sm:p-4">
+        <ReportSignalDeck
+          activeSignal={activeSignal}
+          onChange={setActiveSignal}
+        />
+
+        <div className="mx-auto mt-4 max-w-5xl rounded-[1.65rem] border border-blue-200/10 bg-[#07111e]/95 p-3 shadow-[0_10px_34px_rgba(0,0,0,0.2)] backdrop-blur-none sm:mt-5 sm:p-4 lg:bg-[#07111e]/80 lg:shadow-[0_25px_90px_rgba(0,0,0,0.28)] lg:backdrop-blur-xl">
           <div className="relative">
             <Search
               size={18}
@@ -1429,14 +1878,18 @@ export default function COALookupSection({
               Quick compound filters
             </p>
             <div className="coa-scroll-row flex gap-1.5 overflow-x-auto pb-0.5">
-              {QUICK_FILTERS.map((item) => {
-                const active = normalizeText(query) === normalizeText(item);
+              {quickFilters.map((item) => {
+                const active = selectedFamilyKey === item.key;
 
                 return (
                   <button
-                    key={item}
+                    key={item.key}
                     type="button"
-                    onClick={() => setQuery(active ? "" : item)}
+                    onClick={() => {
+                      setSelectedFamilyKey(active ? "" : item.key);
+                      setQuery("");
+                    }}
+                    aria-pressed={active}
                     className={cx(
                       "min-h-8 shrink-0 rounded-lg border px-3 text-[8px] font-black tracking-[0.08em] transition",
                       active
@@ -1444,7 +1897,7 @@ export default function COALookupSection({
                         : "border-white/[0.07] bg-white/[0.02] text-slate-500 hover:border-blue-300/20 hover:text-blue-100"
                     )}
                   >
-                    {item}
+                    {item.label}
                   </button>
                 );
               })}
@@ -1457,7 +1910,13 @@ export default function COALookupSection({
                 <button
                   key={filter.value}
                   type="button"
-                  onClick={() => setActiveFilter(filter.value)}
+                  onClick={() => {
+                    setActiveFilter(filter.value);
+                    if (filter.value === "All") {
+                      setSelectedFamilyKey("");
+                      setActiveSignal("");
+                    }
+                  }}
                   className={cx(
                     "min-h-9 shrink-0 rounded-xl border px-3 text-[8px] font-black uppercase tracking-[0.13em] transition",
                     activeFilter === filter.value
@@ -1503,7 +1962,10 @@ export default function COALookupSection({
             </p>
           </div>
 
-          {(query || activeFilter !== "All") && (
+          {(query ||
+            activeFilter !== "All" ||
+            selectedFamilyKey ||
+            activeSignal) && (
             <button
               type="button"
               onClick={clearFilters}
