@@ -1422,6 +1422,154 @@ function getWooProductId(product = {}) {
   );
 }
 
+const variationOptionsRequestCache = new Map();
+
+function getStoreProductsEndpoint(value = "") {
+  const rawValue = String(value || "").trim();
+
+  if (!rawValue) return "";
+
+  try {
+    const fallbackOrigin =
+      typeof window !== "undefined" ? window.location.origin : "http://localhost";
+    const url = new URL(rawValue, fallbackOrigin);
+    const productsPathMatch = url.pathname.match(
+      /^(.*\/wp-json\/wc\/store\/v\d+\/products)(?:\/.*)?$/i
+    );
+
+    if (productsPathMatch) {
+      url.pathname = productsPathMatch[1];
+    } else {
+      const storeVersionPathMatch = url.pathname.match(
+        /^(.*\/wp-json\/wc\/store\/v\d+)(?:\/.*)?$/i
+      );
+
+      url.pathname = storeVersionPathMatch
+        ? `${storeVersionPathMatch[1]}/products`
+        : "/wp-json/wc/store/v1/products";
+    }
+
+    url.search = "";
+    url.hash = "";
+
+    return url.toString();
+  } catch {
+    return "";
+  }
+}
+
+function getVariationRequestUrls(product = {}, productId = 0) {
+  if (!productId) return [];
+
+  const publicWordPressUrl =
+    import.meta.env.PUBLIC_WP_URL ||
+    import.meta.env.PUBLIC_WC_STORE_URL ||
+    import.meta.env.PUBLIC_WOOCOMMERCE_URL ||
+    "";
+  const candidates = [
+    product?._links?.collection?.[0]?.href,
+    product?._links?.self?.[0]?.href,
+    product?.store_api_url,
+    product?.storeApiUrl,
+    product?.api_url,
+    product?.apiUrl,
+    publicWordPressUrl,
+    product?.permalink,
+    typeof window !== "undefined" ? window.location.origin : "",
+  ];
+  const uniqueEndpoints = [
+    ...new Set(candidates.map(getStoreProductsEndpoint).filter(Boolean)),
+  ];
+
+  return uniqueEndpoints.map((endpoint) => {
+    const url = new URL(endpoint);
+
+    url.searchParams.set("type", "variation");
+    url.searchParams.set("parent", String(productId));
+    url.searchParams.set("per_page", "100");
+    url.searchParams.set("orderby", "menu_order");
+    url.searchParams.set("order", "asc");
+
+    return url.toString();
+  });
+}
+
+async function fetchWooVariationOptions(product = {}) {
+  const productId = getWooProductId(product);
+
+  if (!productId) {
+    throw new Error("This product is missing its WooCommerce ID.");
+  }
+
+  if (variationOptionsRequestCache.has(productId)) {
+    return variationOptionsRequestCache.get(productId);
+  }
+
+  const request = (async () => {
+    const requestUrls = getVariationRequestUrls(product, productId);
+    let lastError = null;
+
+    for (const requestUrl of requestUrls) {
+      try {
+        const response = await fetch(requestUrl, {
+          method: "GET",
+          headers: { Accept: "application/json" },
+          credentials: "omit",
+        });
+
+        if (!response.ok) {
+          throw new Error(`WooCommerce returned ${response.status}.`);
+        }
+
+        const payload = await response.json();
+        const variations = Array.isArray(payload)
+          ? payload
+          : Array.isArray(payload?.products)
+            ? payload.products
+            : Array.isArray(payload?.data)
+              ? payload.data
+              : [];
+        const availableVariations = variations.filter((variation) => {
+          const variationId = getPositiveWooId(
+            variation?.variation_id,
+            variation?.variationId,
+            variation?.id
+          );
+
+          return variationId && !getProductAvailability(variation).isUnavailable;
+        });
+        const options = getProductMgOptions({
+          ...product,
+          variations: availableVariations,
+          variation_objects: availableVariations,
+          variationObjects: availableVariations,
+          available_variations: availableVariations,
+          availableVariations,
+          children: [],
+          attributes: [],
+        }).filter((option) => option.variationId);
+
+        if (options.length > 0) return options;
+
+        lastError = new Error("WooCommerce returned no available variations.");
+      } catch (error) {
+        lastError = error;
+      }
+    }
+
+    throw lastError || new Error("The MG options could not be loaded.");
+  })();
+
+  variationOptionsRequestCache.set(productId, request);
+
+  try {
+    return await request;
+  } catch (error) {
+    variationOptionsRequestCache.delete(productId);
+    throw error;
+  }
+}
+
 function getVariationSelection(variation = {}, fallbackLabel = "") {
   const attributes = Array.isArray(variation?.attributes)
     ? variation.attributes
@@ -1555,8 +1703,13 @@ function getVariationLabel(variation = {}) {
     .filter(Boolean)
     .join(" ");
 
+  const storeApiVariationLabel =
+    typeof variation?.variation === "string" ? variation.variation : "";
+
   return normalizeOptionText(
-    variation?.name ||
+    attributeText ||
+      storeApiVariationLabel ||
+      variation?.name ||
       variation?.title ||
       variation?.label ||
       variation?.option ||
@@ -1622,7 +1775,8 @@ function getProductMgOptions(product = {}) {
       variation?.sale_price ||
       variation?.salePrice ||
       variation?.regular_price ||
-      variation?.regularPrice;
+      variation?.regularPrice ||
+      getProductPrice(variation);
 
     const variationImage =
       variation?.image?.src ||
@@ -1712,8 +1866,13 @@ const ProductCard = memo(function ProductCard({ item, addToCart, onBundleAdd }) 
   const canSelectBundle = !isUnavailable;
   const showBundleButton = true;
   const actionLabel = isVariableProduct ? "Select Options" : "Add to cart";
-  const mgOptions = useMemo(() => getProductMgOptions(product), [product]);
-  const needsMgSelection = mgOptions.length > 0;
+  const initialMgOptions = useMemo(() => getProductMgOptions(product), [product]);
+  const [resolvedMgOptions, setResolvedMgOptions] = useState(null);
+  const [mgOptionsLoading, setMgOptionsLoading] = useState(false);
+  const [mgOptionsError, setMgOptionsError] = useState("");
+  const mgOptions = resolvedMgOptions || initialMgOptions;
+  const selectableMgOptions = mgOptions.filter((option) => option.variationId);
+  const needsMgSelection = isVariableProduct || initialMgOptions.length > 0;
   const [mgSelectorOpen, setMgSelectorOpen] = useState(false);
 
   const goToProduct = useCallback(() => {
@@ -1722,7 +1881,50 @@ const ProductCard = memo(function ProductCard({ item, addToCart, onBundleAdd }) 
 
   const closeMgSelector = useCallback(() => {
     setMgSelectorOpen(false);
+    setMgOptionsError("");
   }, []);
+
+  const loadMgOptions = useCallback(async () => {
+    const embeddedOptions = initialMgOptions.filter(
+      (option) => option.variationId
+    );
+    const embeddedOptionsAreComplete =
+      embeddedOptions.length > 0 &&
+      embeddedOptions.length === initialMgOptions.length;
+
+    if (embeddedOptionsAreComplete) {
+      setResolvedMgOptions(embeddedOptions);
+      setMgOptionsError("");
+      return embeddedOptions;
+    }
+
+    setMgOptionsLoading(true);
+    setMgOptionsError("");
+
+    try {
+      const liveOptions = await fetchWooVariationOptions(product);
+
+      if (!liveOptions.length) {
+        throw new Error("No available MG options were found.");
+      }
+
+      setResolvedMgOptions(liveOptions);
+      return liveOptions;
+    } catch (error) {
+      if (embeddedOptions.length > 0) {
+        setResolvedMgOptions(embeddedOptions);
+        return embeddedOptions;
+      }
+
+      setResolvedMgOptions([]);
+      setMgOptionsError(
+        "We couldn't load the MG options. Please try again."
+      );
+      return [];
+    } finally {
+      setMgOptionsLoading(false);
+    }
+  }, [initialMgOptions, product]);
 
   const handleCardKeyDown = useCallback(
     (event) => {
@@ -1794,14 +1996,21 @@ const ProductCard = memo(function ProductCard({ item, addToCart, onBundleAdd }) 
   );
 
   const handleBundleAdd = useCallback(
-    (event) => {
+    async (event) => {
       event.preventDefault();
       event.stopPropagation();
 
       if (isUnavailable) return;
 
       if (needsMgSelection) {
-        setMgSelectorOpen((current) => !current);
+        const shouldOpen = !mgSelectorOpen;
+
+        setMgSelectorOpen(shouldOpen);
+
+        if (shouldOpen && isVariableProduct) {
+          await loadMgOptions();
+        }
+
         return;
       }
 
@@ -1816,6 +2025,8 @@ const ProductCard = memo(function ProductCard({ item, addToCart, onBundleAdd }) 
       goToProduct,
       isUnavailable,
       isVariableProduct,
+      loadMgOptions,
+      mgSelectorOpen,
       needsMgSelection,
       onBundleAdd,
       product,
@@ -1823,24 +2034,21 @@ const ProductCard = memo(function ProductCard({ item, addToCart, onBundleAdd }) 
   );
 
   const handleBundleMgSelect = useCallback(
-    (event, option) => {
+    async (event, option) => {
       event.preventDefault();
       event.stopPropagation();
 
       if (isUnavailable) return;
 
-      // Never put a variable product in the cart without its real variation
-      // ID. The product page can resolve it safely when the catalog payload
-      // only includes parent attributes.
       if (!option?.variationId) {
-        goToProduct();
+        await loadMgOptions();
         return;
       }
 
       onBundleAdd(product, option);
       setMgSelectorOpen(false);
     },
-    [goToProduct, isUnavailable, onBundleAdd, product]
+    [isUnavailable, loadMgOptions, onBundleAdd, product]
   );
 
   return (
@@ -1994,17 +2202,39 @@ const ProductCard = memo(function ProductCard({ item, addToCart, onBundleAdd }) 
             </div>
 
             <div className="product-mg-options">
-              {mgOptions.map((option) => (
-                <button
-                  key={`${option.label}-${option.variationId || option.value}`}
-                  type="button"
-                  onClick={(event) => handleBundleMgSelect(event, option)}
-                  className="product-mg-option"
-                >
-                  <span>{option.label}</span>
-                  <ArrowRight size={12} />
-                </button>
-              ))}
+              {mgOptionsLoading ? (
+                <div className="product-mg-status" aria-live="polite">
+                  <span className="product-mg-spinner" aria-hidden="true" />
+                  <span>Loading MG options...</span>
+                </div>
+              ) : mgOptionsError ? (
+                <div className="product-mg-status product-mg-status-error">
+                  <span>{mgOptionsError}</span>
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      loadMgOptions();
+                    }}
+                    className="product-mg-retry"
+                  >
+                    Try again
+                  </button>
+                </div>
+              ) : (
+                selectableMgOptions.map((option) => (
+                  <button
+                    key={`${option.label}-${option.variationId}`}
+                    type="button"
+                    onClick={(event) => handleBundleMgSelect(event, option)}
+                    className="product-mg-option"
+                  >
+                    <span>{option.label}</span>
+                    <ArrowRight size={12} />
+                  </button>
+                ))
+              )}
             </div>
 
             <p className="product-mg-note">
@@ -2744,6 +2974,12 @@ export default function ShopCatalogSection({
           }
         }
 
+        @keyframes productMgSpin {
+          to {
+            transform: rotate(360deg);
+          }
+        }
+
         .product-float-card {
           position: relative;
           display: flex;
@@ -2951,6 +3187,54 @@ export default function ShopCatalogSection({
           border-color: rgba(103, 232, 249, 0.32);
           background: rgba(103, 232, 249, 0.1);
           color: white;
+        }
+
+        .product-mg-status {
+          display: flex;
+          width: 100%;
+          min-height: 40px;
+          align-items: center;
+          justify-content: center;
+          gap: 9px;
+          border-radius: 13px;
+          border: 1px solid rgba(165, 243, 252, 0.1);
+          background: rgba(255,255,255,0.025);
+          padding: 9px 11px;
+          color: rgba(207, 250, 254, 0.76);
+          font-size: 9px;
+          font-weight: 800;
+          letter-spacing: 0.06em;
+          text-align: center;
+          text-transform: uppercase;
+        }
+
+        .product-mg-status-error {
+          flex-wrap: wrap;
+          border-color: rgba(248, 113, 113, 0.16);
+          color: rgba(254, 202, 202, 0.84);
+        }
+
+        .product-mg-spinner {
+          width: 14px;
+          height: 14px;
+          flex: 0 0 auto;
+          border: 2px solid rgba(103, 232, 249, 0.18);
+          border-top-color: rgba(103, 232, 249, 0.9);
+          border-radius: 999px;
+          animation: productMgSpin 650ms linear infinite;
+        }
+
+        .product-mg-retry {
+          min-height: 28px;
+          border-radius: 999px;
+          border: 1px solid rgba(165, 243, 252, 0.2);
+          background: rgba(103, 232, 249, 0.08);
+          padding: 0 10px;
+          color: #cffafe;
+          font-size: 8px;
+          font-weight: 900;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
         }
 
         .product-mg-note {
