@@ -1396,6 +1396,104 @@ function getCartItemQuantity(item) {
 }
 
 
+function getPositiveWooId(...values) {
+  for (const value of values) {
+    if (value === null || value === undefined || value === "") continue;
+
+    const normalizedValue =
+      typeof value === "string" ? value.trim() : value;
+    const numericValue = Number(normalizedValue);
+
+    if (Number.isInteger(numericValue) && numericValue > 0) {
+      return numericValue;
+    }
+  }
+
+  return 0;
+}
+
+function getWooProductId(product = {}) {
+  return getPositiveWooId(
+    product?.parent_id,
+    product?.parentId,
+    product?.product_id,
+    product?.productId,
+    product?.id
+  );
+}
+
+function getVariationSelection(variation = {}, fallbackLabel = "") {
+  const attributes = Array.isArray(variation?.attributes)
+    ? variation.attributes
+    : [];
+
+  if (attributes.length > 0) {
+    return attributes.reduce((selection, attribute) => {
+      if (!attribute || typeof attribute !== "object") return selection;
+
+      const rawName =
+        attribute?.slug ||
+        attribute?.taxonomy ||
+        attribute?.attribute ||
+        attribute?.name ||
+        attribute?.label ||
+        "";
+      const rawValue =
+        attribute?.option ?? attribute?.value ?? attribute?.term ?? "";
+
+      if (!rawName || rawValue === "") return selection;
+
+      const cleanName = String(rawName)
+        .trim()
+        .toLowerCase()
+        .replace(/^attribute_/, "")
+        .replace(/\s+/g, "-");
+      const key = cleanName.startsWith("pa_")
+        ? `attribute_${cleanName}`
+        : `attribute_${cleanName}`;
+
+      selection[key] = String(rawValue).trim();
+      return selection;
+    }, {});
+  }
+
+  const embeddedSelection =
+    variation?.variation ||
+    variation?.variation_data ||
+    variation?.variationData;
+
+  if (
+    embeddedSelection &&
+    typeof embeddedSelection === "object" &&
+    !Array.isArray(embeddedSelection)
+  ) {
+    return { ...embeddedSelection };
+  }
+
+  if (
+    variation &&
+    typeof variation === "object" &&
+    !Array.isArray(variation)
+  ) {
+    const directAttributes = Object.entries(variation).reduce(
+      (selection, [key, value]) => {
+        if (!key.startsWith("attribute_") || value === "") return selection;
+
+        selection[key] = value;
+        return selection;
+      },
+      {}
+    );
+
+    if (Object.keys(directAttributes).length > 0) {
+      return directAttributes;
+    }
+  }
+
+  return fallbackLabel ? { selected_option: fallbackLabel } : {};
+}
+
+
 function normalizeOptionText(value = "") {
   return String(value || "")
     .replace(/&amp;/g, "&")
@@ -1471,31 +1569,47 @@ function getVariationLabel(variation = {}) {
 }
 
 function getProductMgOptions(product = {}) {
-  const options = [];
-  const seen = new Set();
+  const optionsByKey = new Map();
 
   const pushOption = (option) => {
     const label = normalizeOptionText(option?.label || option?.name || option?.value);
 
     if (!label) return;
 
-    const key = normalizeCatalogFilterText(
-      `${label} ${option?.variationId || option?.variation_id || ""}`
+    const variationId = getPositiveWooId(
+      option?.variationId,
+      option?.variation_id,
+      option?.variation?.variation_id,
+      option?.variation?.variationId,
+      option?.variation?.id
     );
-
-    if (seen.has(key)) return;
-
-    seen.add(key);
-
-    options.push({
+    const mgValue = getOptionMgValue(label);
+    const key =
+      mgValue !== 999999
+        ? `mg:${mgValue}`
+        : normalizeCatalogFilterText(label);
+    const nextOption = {
       label,
       value: option?.value || label,
-      variationId: option?.variationId || option?.variation_id || 0,
+      variationId,
       variation: option?.variation || null,
+      variationSelection: getVariationSelection(
+        option?.variation || {},
+        label
+      ),
       price: option?.price,
       image: option?.image,
-      mgValue: getOptionMgValue(label),
-    });
+      mgValue,
+    };
+    const currentOption = optionsByKey.get(key);
+
+    // WooCommerce exposes variation objects and parent attributes separately.
+    // Keep only one option per MG and always prefer the option that carries the
+    // real numeric variation ID. This prevents an ID-less attribute option from
+    // replacing/duplicating the valid variation.
+    if (!currentOption || (!currentOption.variationId && variationId)) {
+      optionsByKey.set(key, nextOption);
+    }
   };
 
   getProductVariationObjects(product).forEach((variation) => {
@@ -1511,8 +1625,9 @@ function getProductMgOptions(product = {}) {
       variation?.regularPrice;
 
     const variationImage =
-      variation?.image ||
       variation?.image?.src ||
+      variation?.image?.url ||
+      (typeof variation?.image === "string" ? variation.image : "") ||
       variation?.images?.[0]?.src ||
       variation?.images?.[0]?.url;
 
@@ -1562,6 +1677,14 @@ function getProductMgOptions(product = {}) {
         pushOption({
           label,
           value: label,
+          variationId:
+            typeof rawOption === "object"
+              ? getPositiveWooId(
+                  rawOption?.variation_id,
+                  rawOption?.variationId,
+                  rawOption?.id
+                )
+              : 0,
           variation: {
             [attribute?.slug || attribute?.name || "mg"]: label,
           },
@@ -1570,7 +1693,7 @@ function getProductMgOptions(product = {}) {
     });
   }
 
-  return options.sort((a, b) => {
+  return [...optionsByKey.values()].sort((a, b) => {
     if (a.mgValue !== b.mgValue) return a.mgValue - b.mgValue;
 
     return a.label.localeCompare(b.label);
@@ -1627,12 +1750,22 @@ const ProductCard = memo(function ProductCard({ item, addToCart, onBundleAdd }) 
         return;
       }
 
+      const productId = getWooProductId(product);
+
+      if (!productId) {
+        console.error("Cannot add product: missing numeric WooCommerce ID", product);
+        return;
+      }
+
       addToCart({
         ...product,
-        id: product.id,
-        product_id: product.product_id || product.id,
-        parent_id: product.parent_id || product.product_id || product.id,
-        variation_id: product.variation_id || product.variationId || 0,
+        id: productId,
+        cartItemId: `wc:${productId}:0`,
+        product_id: productId,
+        parent_id: productId,
+        variation_id: 0,
+        woo_product_id: productId,
+        woo_variation_id: 0,
         variation: product.variation || {},
         name,
         price,
@@ -1672,9 +1805,21 @@ const ProductCard = memo(function ProductCard({ item, addToCart, onBundleAdd }) 
         return;
       }
 
+      if (isVariableProduct) {
+        goToProduct();
+        return;
+      }
+
       onBundleAdd(product);
     },
-    [isUnavailable, needsMgSelection, onBundleAdd, product]
+    [
+      goToProduct,
+      isUnavailable,
+      isVariableProduct,
+      needsMgSelection,
+      onBundleAdd,
+      product,
+    ]
   );
 
   const handleBundleMgSelect = useCallback(
@@ -1684,10 +1829,18 @@ const ProductCard = memo(function ProductCard({ item, addToCart, onBundleAdd }) 
 
       if (isUnavailable) return;
 
+      // Never put a variable product in the cart without its real variation
+      // ID. The product page can resolve it safely when the catalog payload
+      // only includes parent attributes.
+      if (!option?.variationId) {
+        goToProduct();
+        return;
+      }
+
       onBundleAdd(product, option);
       setMgSelectorOpen(false);
     },
-    [isUnavailable, onBundleAdd, product]
+    [goToProduct, isUnavailable, onBundleAdd, product]
   );
 
   return (
@@ -2011,19 +2164,45 @@ export default function ShopCatalogSection({
       const basePrice = getProductPrice(product);
       const finalPrice = selectedPrice > 0 ? selectedPrice : basePrice;
       const image = selectedOption?.image || getProductImage(product);
-      const variationId =
-        selectedOption?.variationId ||
-        product.variation_id ||
-        product.variationId ||
-        0;
+      const productId = getWooProductId(product);
+      const variationId = getPositiveWooId(
+        selectedOption?.variationId,
+        product?.variation_id,
+        product?.variationId
+      );
+      const isVariableProduct = isVariableCatalogProduct(product);
+
+      if (!productId) {
+        console.error("Cannot add bundle item: missing numeric WooCommerce product ID", product);
+        return;
+      }
+
+      if (isVariableProduct && !variationId) {
+        console.error(
+          "Cannot add bundle item: missing numeric WooCommerce variation ID",
+          { productId, selectedOption }
+        );
+        return;
+      }
+
+      const variationSelection = variationId
+        ? selectedOption?.variationSelection ||
+          getVariationSelection(selectedOption?.variation || {}, selectedLabel)
+        : {};
 
       addToCart({
         ...product,
-        id: variationId ? `${product.id}-${variationId}-${selectedLabel}` : product.id,
-        product_id: product.product_id || product.id,
-        parent_id: product.parent_id || product.product_id || product.id,
+        // `id` must remain a real WooCommerce ID. The old composite string
+        // (`product-variation-label`) was later sent to Tagada as a product ID.
+        id: variationId || productId,
+        cartItemId: `wc:${productId}:${variationId || 0}`,
+        product_id: productId,
+        parent_id: productId,
         variation_id: variationId,
-        variation: selectedOption?.variation || product.variation || {},
+        woo_product_id: productId,
+        woo_variation_id: variationId,
+        variation: variationSelection,
+        variation_data: variationSelection,
         selectedOption: selectedLabel,
         selectedMg: selectedLabel,
         name: selectedLabel ? `${productName} - ${selectedLabel}` : productName,
