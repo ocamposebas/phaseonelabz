@@ -26,7 +26,38 @@ import {
   X,
 } from "lucide-react";
 import { useCart } from "../cart/CartContext";
-import { coaRecords } from "../data/coaRecords";
+
+const COA_LIBRARY_PATH = "/wp-json/phaseone/v1/coas";
+
+function getCoaLibraryEndpoint() {
+  const explicitEndpoint =
+    import.meta.env.PUBLIC_COA_API_URL ||
+    import.meta.env.PUBLIC_COA_ENDPOINT;
+
+  if (explicitEndpoint) {
+    return String(explicitEndpoint).trim();
+  }
+
+  const wpSiteUrl = import.meta.env.PUBLIC_WP_SITE_URL;
+
+  if (wpSiteUrl) {
+    return `${String(wpSiteUrl).replace(/\/$/, "")}${COA_LIBRARY_PATH}`;
+  }
+
+  if (typeof window !== "undefined") {
+    return new URL(COA_LIBRARY_PATH, window.location.origin).toString();
+  }
+
+  return COA_LIBRARY_PATH;
+}
+
+function normalizeCoaLibraryPayload(payload) {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.records)) return payload.records;
+  if (Array.isArray(payload?.coas)) return payload.coas;
+  if (Array.isArray(payload?.data)) return payload.data;
+  return [];
+}
 
 function formatMoney(value) {
   const number = Number(value || 0);
@@ -2484,6 +2515,8 @@ export default function ProductDetailSection({
   const [quantity, setQuantity] = useState(1);
   const [cartMessage, setCartMessage] = useState("");
   const [customOrderOpen, setCustomOrderOpen] = useState(false);
+  const [liveCoaRecords, setLiveCoaRecords] = useState([]);
+  const [coaLibraryStatus, setCoaLibraryStatus] = useState("loading");
 
   const attributeGroups = useMemo(() => getAttributeGroups(product), [product]);
 
@@ -2495,6 +2528,57 @@ export default function ProductDetailSection({
     () => getSelectedVariation(product, selectedAttributes),
     [product, selectedAttributes]
   );
+
+  useEffect(() => {
+    const controller = new AbortController();
+    let active = true;
+
+    async function loadLiveCoaLibrary() {
+      const endpoint = getCoaLibraryEndpoint();
+      const separator = endpoint.includes("?") ? "&" : "?";
+      const requestUrl = `${endpoint}${separator}currentShippingLot=true&_=${Date.now()}`;
+
+      setCoaLibraryStatus("loading");
+
+      try {
+        const response = await fetch(requestUrl, {
+          method: "GET",
+          mode: "cors",
+          credentials: "omit",
+          cache: "no-store",
+          headers: {
+            Accept: "application/json",
+          },
+          signal: controller.signal,
+        });
+
+        if (!response.ok) {
+          throw new Error(`COA endpoint returned HTTP ${response.status}`);
+        }
+
+        const payload = await response.json();
+        const records = normalizeCoaLibraryPayload(payload);
+
+        if (!active) return;
+
+        setLiveCoaRecords(records);
+        setCoaLibraryStatus("ready");
+      } catch (error) {
+        if (!active || error?.name === "AbortError") return;
+
+        setLiveCoaRecords([]);
+        setCoaLibraryStatus("error");
+        console.error("Could not load the live COA library:", error);
+      }
+    }
+
+    loadLiveCoaLibrary();
+
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, []);
 
   useEffect(() => {
     const variationImage = getVariationImage(selectedVariation);
@@ -2567,7 +2651,7 @@ export default function ProductDetailSection({
   const currentCoaRecord = !productIsAccessory
     ? findCurrentCoaRecord(
         product,
-        coaRecords,
+        liveCoaRecords,
         selectedVariation,
         selectedOptionLabel,
         selectedAttributes
@@ -2770,7 +2854,7 @@ export default function ProductDetailSection({
                     <span>
                       {currentCoaDate
                         ? `Current COA record · ${currentCoaDate}`
-                        : "Current COA record matched from coaRecords"}
+                        : "Current COA matched from the live WordPress library"}
                     </span>
                   </div>
 
@@ -2794,6 +2878,20 @@ export default function ProductDetailSection({
                       COA link missing
                     </button>
                   )}
+                </div>
+              )}
+
+              {!productIsAccessory && coaLibraryStatus === "loading" && (
+                <div className="pdp-file-row is-loading">
+                  <div className="pdp-file-mark">
+                    <Loader2 size={20} className="pdp-spin" />
+                  </div>
+
+                  <div className="pdp-file-copy">
+                    <small>Live COA library</small>
+                    <strong>Checking the current shipping lot…</strong>
+                    <span>Reading the WordPress COA endpoint</span>
+                  </div>
                 </div>
               )}
 
