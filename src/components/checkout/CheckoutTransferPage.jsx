@@ -23,7 +23,8 @@ import { useCart } from "../cart/CartContext";
 const ACCOUNT_ENDPOINT = "/api/account/me";
 const VALIDATE_COUPON_ENDPOINT =
   "https://staging.phaseonelabz.com/wp-json/phaseone/v1/validate-coupon";
-const WOO_URL = import.meta.env.PUBLIC_WOOCOMMERCE_URL || "https://staging.phaseonelabz.com";
+const WOO_URL =
+  import.meta.env.PUBLIC_WOOCOMMERCE_URL || "https://staging.phaseonelabz.com";
 const PAYMENT_DISCOUNT_RATE = 0.05;
 const FREE_SHIPPING_MINIMUM = 100;
 const MANUAL_PAYMENT_SHIPPING_COST = 13;
@@ -47,7 +48,8 @@ const MANUAL_PAYMENT_DETAILS = {
     title: "Venmo",
     recipientLabel: "Venmo",
     recipientValue: VENMO_PAYMENT_HANDLE,
-    extraRecipientLine: "Payment details appear here after the order is created.",
+    extraRecipientLine:
+      "Payment details appear here after the order is created.",
     actionLabel: "Open Venmo",
     actionHref: VENMO_PAYMENT_URL,
   },
@@ -64,20 +66,21 @@ const MANUAL_PAYMENT_DETAILS = {
 const PAYMENT_METHODS = [
   {
     id: "card",
-    label: "Card / Klarna / Affirm",
-    title: "Card / Klarna / Affirm",
-    description: "Pay securely with credit/debit card, Klarna, or Affirm.",
+    label: "Card",
+    title: "Card",
+    description: "Pay securely with a credit or debit card.",
     badge: "Secure",
     flow: "secure_checkout",
     gatewayId: "",
     icon: CreditCard,
-    cta: "Continue with Card / Klarna / Affirm",
+    cta: "Continue with Card",
   },
   {
     id: "venmo",
     label: "Venmo",
     title: "Venmo",
-    description: "Complete checkout here, then see Venmo instructions in the thanks section and by email.",
+    description:
+      "Complete checkout here, then see Venmo instructions in the thanks section and by email.",
     badge: "5% OFF",
     flow: "manual_order",
     gatewayId: "",
@@ -88,7 +91,8 @@ const PAYMENT_METHODS = [
     id: "zelle",
     label: "Zelle",
     title: "Zelle",
-    description: "Complete checkout here, then see Zelle instructions in the thanks section and by email.",
+    description:
+      "Complete checkout here, then see Zelle instructions in the thanks section and by email.",
     badge: "5% OFF",
     flow: "manual_order",
     gatewayId: "",
@@ -99,7 +103,8 @@ const PAYMENT_METHODS = [
     id: "bank",
     label: "Bank",
     title: "Bank Transfer / ACH",
-    description: "Continue directly to ACH bank transfer and get 5% applied instantly.",
+    description:
+      "Continue directly to ACH bank transfer and get 5% applied instantly.",
     badge: "5% OFF",
     flow: "bank_transfer_yodlee",
     gatewayId: "edd_draft_yodlee_gateway",
@@ -162,10 +167,10 @@ const US_STATES = [
   ["WY", "Wyoming"],
 ];
 
-const BANK_SHIPPING_METHODS = [
+const FEDEX_SHIPPING_METHODS = [
   {
-    id: "priority",
-    title: "USPS Priority",
+    id: "fedex",
+    title: "FedEx Shipping",
     description: "Estimated 3–5 business days after processing.",
     price: 13,
     method_id: "flat_rate",
@@ -190,7 +195,9 @@ function safeJsonParse(value, fallback = null) {
 }
 
 function looksLikeHtmlResponse(value = "") {
-  const clean = String(value || "").trim().toLowerCase();
+  const clean = String(value || "")
+    .trim()
+    .toLowerCase();
 
   return (
     clean.startsWith("<!doctype html") ||
@@ -202,7 +209,6 @@ function looksLikeHtmlResponse(value = "") {
 function cleanWooUrl(value = "") {
   return String(value || "").replace(/\/$/, "");
 }
-
 
 function getBankTransferEndpoint() {
   const wpUrl =
@@ -260,7 +266,7 @@ function prepareBankTransferBackRoute() {
   window.history.pushState(
     { phaseoneBankTransferReturn: true },
     "",
-    backUrl.toString()
+    backUrl.toString(),
   );
 }
 
@@ -280,10 +286,9 @@ function recoverBankTransferBackRoute() {
   window.history.replaceState(
     { phaseoneCheckoutRecovered: true },
     "",
-    cleanCheckoutUrl
+    cleanCheckoutUrl,
   );
 }
-
 
 function formatMoney(value) {
   const number = Number(value || 0);
@@ -328,7 +333,6 @@ function formatCouponList(value = "") {
   return normalizeCouponList(value).join(", ");
 }
 
-
 function setPhaseoneCouponCookie(value = "") {
   if (typeof document === "undefined") return "";
 
@@ -359,8 +363,10 @@ function setPhaseoneCouponCookie(value = "") {
 function clearPhaseoneCouponCookie() {
   if (typeof document === "undefined") return;
 
-  document.cookie = "phaseone_tagada_coupon=; Path=/; Max-Age=0; SameSite=Lax; Secure";
-  document.cookie = "phaseone_tagada_coupon=; Path=/; Domain=.phaseonelabz.com; Max-Age=0; SameSite=Lax; Secure";
+  document.cookie =
+    "phaseone_tagada_coupon=; Path=/; Max-Age=0; SameSite=Lax; Secure";
+  document.cookie =
+    "phaseone_tagada_coupon=; Path=/; Domain=.phaseonelabz.com; Max-Age=0; SameSite=Lax; Secure";
 
   try {
     window.sessionStorage?.removeItem("phaseone_tagada_coupon");
@@ -371,7 +377,9 @@ function clearPhaseoneCouponCookie() {
 }
 
 function normalizeEmail(value = "") {
-  return String(value || "").trim().toLowerCase();
+  return String(value || "")
+    .trim()
+    .toLowerCase();
 }
 
 function isValidEmail(value = "") {
@@ -452,9 +460,10 @@ function persistLockedUrlCoupon(value = "") {
 function getStoredLockedCoupon() {
   if (typeof window === "undefined") return "";
 
-  const lockedFlag = localStorage.getItem("phaseone_coupon_locked_from_url") === "1";
+  const lockedFlag =
+    localStorage.getItem("phaseone_coupon_locked_from_url") === "1";
   const lockedCoupon = normalizeCoupon(
-    localStorage.getItem("phaseone_locked_checkout_coupon") || ""
+    localStorage.getItem("phaseone_locked_checkout_coupon") || "",
   );
 
   if (lockedFlag && lockedCoupon) return lockedCoupon;
@@ -508,10 +517,10 @@ function saveCoupon(value = "") {
 function isRewardGiftItem(item = {}) {
   return Boolean(
     item?.isRewardGift ||
-      item?.is_reward_gift ||
-      item?.rewardLabel ||
-      item?.reward_label ||
-      String(item?.cartKey || "").startsWith("reward:")
+    item?.is_reward_gift ||
+    item?.rewardLabel ||
+    item?.reward_label ||
+    String(item?.cartKey || "").startsWith("reward:"),
   );
 }
 
@@ -551,7 +560,9 @@ function resolveNumericId(...values) {
     }
 
     const decoded = decodePossibleGlobalId(raw);
-    const match = decoded.match(/(?:Product|product|Variation|variation|product_variation|post)[:\/](\d+)$/);
+    const match = decoded.match(
+      /(?:Product|product|Variation|variation|product_variation|post)[:\/](\d+)$/,
+    );
 
     if (match?.[1]) {
       const number = Number(match[1]);
@@ -621,7 +632,7 @@ function getOfficialProductId(item = {}) {
     item.merchandise?.product?.databaseId,
     item.variant?.product_id,
     item.selectedVariant?.product_id,
-    item.id
+    item.id,
   );
 }
 
@@ -644,7 +655,7 @@ function getOfficialVariationId(item = {}) {
     item.merchandise?.id,
     item.merchandise?.databaseId,
     item.data?.variation_id,
-    item.raw?.variation_id
+    item.raw?.variation_id,
   );
 }
 
@@ -725,7 +736,9 @@ function getCartItemLineTotal(item = {}) {
     }
   }
 
-  return Number((getCartItemUnitPrice(item) * getCartItemQuantity(item)).toFixed(2));
+  return Number(
+    (getCartItemUnitPrice(item) * getCartItemQuantity(item)).toFixed(2),
+  );
 }
 
 function calculateCartTotal(items = []) {
@@ -795,14 +808,22 @@ function getVisibleCartItems(items = []) {
 }
 
 function chooseManualThanksItems(orderItems = [], currentCartItems = []) {
-  const safeOrderItems = Array.isArray(orderItems) ? orderItems.filter(Boolean) : [];
+  const safeOrderItems = Array.isArray(orderItems)
+    ? orderItems.filter(Boolean)
+    : [];
   const safeCartItems = getVisibleCartItems(currentCartItems);
 
   if (!safeOrderItems.length) return safeCartItems;
   if (!safeCartItems.length) return safeOrderItems;
 
-  const orderTotal = safeOrderItems.reduce((sum, item) => sum + getCartItemLineTotal(item), 0);
-  const cartTotalValue = safeCartItems.reduce((sum, item) => sum + getCartItemLineTotal(item), 0);
+  const orderTotal = safeOrderItems.reduce(
+    (sum, item) => sum + getCartItemLineTotal(item),
+    0,
+  );
+  const cartTotalValue = safeCartItems.reduce(
+    (sum, item) => sum + getCartItemLineTotal(item),
+    0,
+  );
 
   if (safeOrderItems.length < safeCartItems.length) return safeCartItems;
   if (cartTotalValue > 0 && orderTotal <= 0) return safeCartItems;
@@ -827,8 +848,14 @@ function buildCheckoutItems(cartItems = []) {
         unit_price: unitPrice,
         line_total: lineTotal,
         total: lineTotal,
-        regular_price: toMoneyNumber(item.regular_price || item.regularPrice || item.price, unitPrice),
-        sale_price: toMoneyNumber(item.sale_price || item.salePrice || item.price, unitPrice),
+        regular_price: toMoneyNumber(
+          item.regular_price || item.regularPrice || item.price,
+          unitPrice,
+        ),
+        sale_price: toMoneyNumber(
+          item.sale_price || item.salePrice || item.price,
+          unitPrice,
+        ),
         name: getItemName(item),
         title: getItemName(item),
         image: getItemImage(item),
@@ -869,7 +896,10 @@ function getAccountName(user = {}) {
 }
 
 function splitName(fullName = "") {
-  const parts = String(fullName || "").trim().split(/\s+/).filter(Boolean);
+  const parts = String(fullName || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
   return {
     firstName: parts[0] || "",
     lastName: parts.slice(1).join(" ") || "",
@@ -890,11 +920,14 @@ function buildManualPaymentReference(source = {}) {
   const directReference = pickFirstValue(
     source?.payment_reference,
     source?.paymentReference,
-    source?.reference
+    source?.reference,
   );
 
   if (directReference && !/[0-9a-f]{8}-[0-9a-f]{4}/i.test(directReference)) {
-    return directReference.toUpperCase().replace(/[^A-Z0-9-]/g, "").slice(0, 18);
+    return directReference
+      .toUpperCase()
+      .replace(/[^A-Z0-9-]/g, "")
+      .slice(0, 18);
   }
 
   const rawOrderNumber = pickFirstValue(
@@ -903,7 +936,7 @@ function buildManualPaymentReference(source = {}) {
     source?.number,
     source?.order_id,
     source?.orderId,
-    source?.id
+    source?.id,
   );
 
   const cleanOrderNumber = String(rawOrderNumber || "")
@@ -918,15 +951,17 @@ function buildManualPaymentReference(source = {}) {
 }
 
 function getManualOrderStorageSuffix(session = {}) {
-  return String(
-    session?.checkout_session ||
-      session?.session_id ||
-      session?.sessionId ||
-      getSessionIdFromUrl() ||
-      "current"
-  )
-    .replace(/[^a-zA-Z0-9-]/g, "")
-    .slice(0, 40) || "current";
+  return (
+    String(
+      session?.checkout_session ||
+        session?.session_id ||
+        session?.sessionId ||
+        getSessionIdFromUrl() ||
+        "current",
+    )
+      .replace(/[^a-zA-Z0-9-]/g, "")
+      .slice(0, 40) || "current"
+  );
 }
 
 function normalizeManualOrderData(data = {}) {
@@ -937,7 +972,7 @@ function normalizeManualOrderData(data = {}) {
       order?.id ||
       data?.order_id ||
       data?.orderId ||
-      0
+      0,
   );
 
   if (!orderId) return null;
@@ -948,7 +983,7 @@ function normalizeManualOrderData(data = {}) {
       order?.number ||
       data?.order_number ||
       data?.orderNumber ||
-      orderId
+      orderId,
   );
 
   const paymentReference = buildManualPaymentReference({
@@ -978,7 +1013,13 @@ function normalizeManualOrderData(data = {}) {
       data?.payment_method_title ||
       data?.paymentMethodTitle ||
       "",
-    total: Number(order?.total ?? order?.order_total ?? data?.total ?? data?.order_total ?? 0),
+    total: Number(
+      order?.total ??
+        order?.order_total ??
+        data?.total ??
+        data?.order_total ??
+        0,
+    ),
     expires_at:
       order?.expires_at ||
       order?.expiresAt ||
@@ -987,7 +1028,6 @@ function normalizeManualOrderData(data = {}) {
       "",
   };
 }
-
 
 function normalizeCheckoutAddress(source = {}, fallback = {}) {
   const data = source && typeof source === "object" ? source : {};
@@ -998,13 +1038,13 @@ function normalizeCheckoutAddress(source = {}, fallback = {}) {
       data.first_name,
       data.firstName,
       fallbackData.first_name,
-      fallbackData.firstName
+      fallbackData.firstName,
     ),
     last_name: pickFirstValue(
       data.last_name,
       data.lastName,
       fallbackData.last_name,
-      fallbackData.lastName
+      fallbackData.lastName,
     ),
     company: pickFirstValue(data.company, fallbackData.company),
     email: pickFirstValue(data.email, fallbackData.email),
@@ -1015,13 +1055,13 @@ function normalizeCheckoutAddress(source = {}, fallback = {}) {
       data.address,
       fallbackData.address_1,
       fallbackData.address1,
-      fallbackData.address
+      fallbackData.address,
     ),
     address_2: pickFirstValue(
       data.address_2,
       data.address2,
       fallbackData.address_2,
-      fallbackData.address2
+      fallbackData.address2,
     ),
     city: pickFirstValue(data.city, fallbackData.city),
     state: pickFirstValue(data.state, fallbackData.state),
@@ -1031,7 +1071,7 @@ function normalizeCheckoutAddress(source = {}, fallback = {}) {
       data.postalCode,
       fallbackData.postcode,
       fallbackData.zip,
-      fallbackData.postalCode
+      fallbackData.postalCode,
     ),
     country: pickFirstValue(data.country, fallbackData.country, "US"),
   };
@@ -1044,7 +1084,7 @@ function getSessionCustomerData(session = {}, accountUser = {}) {
       session?.customer_name ||
       session?.billing?.name ||
       session?.billingAddress?.name ||
-      ""
+      "",
   ).trim();
 
   const { firstName, lastName } = splitName(customerName);
@@ -1056,7 +1096,7 @@ function getSessionCustomerData(session = {}, accountUser = {}) {
     session?.customer_email,
     session?.billing?.email,
     session?.billingAddress?.email,
-    session?.billing_email
+    session?.billing_email,
   );
 
   const customerPhone = pickFirstValue(
@@ -1066,24 +1106,38 @@ function getSessionCustomerData(session = {}, accountUser = {}) {
     session?.customer_phone,
     session?.billing?.phone,
     session?.billingAddress?.phone,
-    session?.billing_phone
+    session?.billing_phone,
   );
 
   const baseCustomer = {
-    first_name: pickFirstValue(accountUser?.first_name, accountUser?.firstName, firstName),
-    last_name: pickFirstValue(accountUser?.last_name, accountUser?.lastName, lastName),
+    first_name: pickFirstValue(
+      accountUser?.first_name,
+      accountUser?.firstName,
+      firstName,
+    ),
+    last_name: pickFirstValue(
+      accountUser?.last_name,
+      accountUser?.lastName,
+      lastName,
+    ),
     email: customerEmail,
     phone: customerPhone,
   };
 
   const billing = normalizeCheckoutAddress(
-    session?.billing || session?.billingAddress || session?.billing_address || {},
-    baseCustomer
+    session?.billing ||
+      session?.billingAddress ||
+      session?.billing_address ||
+      {},
+    baseCustomer,
   );
 
   const shipping = normalizeCheckoutAddress(
-    session?.shipping || session?.shippingAddress || session?.shipping_address || {},
-    billing
+    session?.shipping ||
+      session?.shippingAddress ||
+      session?.shipping_address ||
+      {},
+    billing,
   );
 
   return {
@@ -1097,7 +1151,6 @@ function getSessionCustomerData(session = {}, accountUser = {}) {
     shipping,
   };
 }
-
 
 function getBlankCheckoutForm() {
   return {
@@ -1115,17 +1168,28 @@ function getBlankCheckoutForm() {
   };
 }
 
-function buildCheckoutFormData(session = {}, accountUser = {}, fallbackEmail = "") {
+function buildCheckoutFormData(
+  session = {},
+  accountUser = {},
+  fallbackEmail = "",
+) {
   const data = getSessionCustomerData(session || {}, accountUser || {});
   const billing = data.billing || {};
   const shipping = data.shipping || billing || {};
 
   return {
-    email: normalizeEmail(billing.email || data.customer?.email || fallbackEmail),
+    email: normalizeEmail(
+      billing.email || data.customer?.email || fallbackEmail,
+    ),
     acceptsMarketing: false,
     country: shipping.country || billing.country || "US",
-    firstName: shipping.first_name || billing.first_name || data.customer?.firstName || "",
-    lastName: shipping.last_name || billing.last_name || data.customer?.lastName || "",
+    firstName:
+      shipping.first_name ||
+      billing.first_name ||
+      data.customer?.firstName ||
+      "",
+    lastName:
+      shipping.last_name || billing.last_name || data.customer?.lastName || "",
     address1: shipping.address_1 || billing.address_1 || "",
     address2: shipping.address_2 || billing.address_2 || "",
     city: shipping.city || billing.city || "",
@@ -1139,7 +1203,12 @@ function mergeOnlyEmptyFields(current = {}, next = {}) {
   const merged = { ...current };
 
   Object.entries(next || {}).forEach(([key, value]) => {
-    if ((merged[key] === "" || merged[key] === undefined || merged[key] === null) && value) {
+    if (
+      (merged[key] === "" ||
+        merged[key] === undefined ||
+        merged[key] === null) &&
+      value
+    ) {
       merged[key] = value;
     }
   });
@@ -1158,7 +1227,9 @@ function normalizeCheckoutFormForOrder(form = {}) {
     city: String(form.city || "").trim(),
     state: String(form.state || "").trim(),
     postcode: String(form.postcode || "").trim(),
-    country: String(form.country || "US").trim().toUpperCase(),
+    country: String(form.country || "US")
+      .trim()
+      .toUpperCase(),
   };
 
   return clean;
@@ -1166,17 +1237,18 @@ function normalizeCheckoutFormForOrder(form = {}) {
 
 function formatAddressBlock(address = {}) {
   const clean = normalizeCheckoutAddress(address || {}, {});
-  const fullName = [clean.first_name, clean.last_name].filter(Boolean).join(" ");
-  const cityLine = [clean.city, clean.state, clean.postcode].filter(Boolean).join(", ");
+  const fullName = [clean.first_name, clean.last_name]
+    .filter(Boolean)
+    .join(" ");
+  const cityLine = [clean.city, clean.state, clean.postcode]
+    .filter(Boolean)
+    .join(", ");
 
   return {
     fullName,
-    lines: [
-      clean.address_1,
-      clean.address_2,
-      cityLine,
-      clean.country,
-    ].filter(Boolean),
+    lines: [clean.address_1, clean.address_2, cityLine, clean.country].filter(
+      Boolean,
+    ),
     phone: clean.phone,
     email: normalizeEmail(clean.email || ""),
   };
@@ -1202,15 +1274,16 @@ function readPendingCheckoutSession() {
   if (sessionId) {
     const direct = safeJsonParse(
       localStorage.getItem(`phaseone_checkout_session_${sessionId}`),
-      null
+      null,
     );
 
-    if (direct) return { ...direct, session_id: direct.session_id || sessionId };
+    if (direct)
+      return { ...direct, session_id: direct.session_id || sessionId };
   }
 
   const pending = safeJsonParse(
     localStorage.getItem("phaseone_pending_checkout"),
-    null
+    null,
   );
 
   if (pending) return pending;
@@ -1285,23 +1358,20 @@ function buildWooCheckoutUrl({
   const couponCodes = normalizeCouponList(coupon);
   const cleanCoupon = couponCodes[0] || "";
   const cleanCoupons = couponCodes.join(",");
-  const token =
-    session?.auth_token ||
-    session?.token ||
-    getAccountToken();
+  const token = session?.auth_token || session?.token || getAccountToken();
 
   const customerEmail = String(
     accountUser?.email ||
       session?.customer?.email ||
       session?.customer_email ||
-      ""
+      "",
   ).trim();
 
   const customerName = String(
     getAccountName(accountUser || {}) ||
       session?.customer?.name ||
       session?.customer_name ||
-      ""
+      "",
   ).trim();
 
   const { firstName, lastName } = splitName(customerName);
@@ -1332,10 +1402,19 @@ function buildWooCheckoutUrl({
     url.searchParams.set("phaseone_coupon", cleanCoupon);
     url.searchParams.set("phaseone_coupons", cleanCoupons);
     url.searchParams.set("phaseone_coupon_count", String(couponCodes.length));
-    url.searchParams.set("phaseone_discount_token", discountTokens[0] || discountToken);
+    url.searchParams.set(
+      "phaseone_discount_token",
+      discountTokens[0] || discountToken,
+    );
     url.searchParams.set("phaseone_discount_tokens", discountTokens.join(","));
-    url.searchParams.set("phaseone_discount_amount", String(Number(discountAmount || 0)));
-    url.searchParams.set("phaseone_preview_total", String(Number(previewTotal || 0)));
+    url.searchParams.set(
+      "phaseone_discount_amount",
+      String(Number(discountAmount || 0)),
+    );
+    url.searchParams.set(
+      "phaseone_preview_total",
+      String(Number(previewTotal || 0)),
+    );
   }
 
   if (token) {
@@ -1367,24 +1446,29 @@ function buildWooCheckoutUrl({
 
   if (paymentMethod?.id) {
     url.searchParams.set("phaseone_selected_payment", paymentMethod.id);
-    url.searchParams.set("phaseone_payment_flow", paymentMethod.flow || paymentMethod.id);
-    url.searchParams.set("phaseone_payment_label", paymentMethod.title || paymentMethod.label || "");
-
+    url.searchParams.set(
+      "phaseone_payment_flow",
+      paymentMethod.flow || paymentMethod.id,
+    );
+    url.searchParams.set(
+      "phaseone_payment_label",
+      paymentMethod.title || paymentMethod.label || "",
+    );
   }
 
   if (Number(paymentDiscountAmount || 0) > 0) {
     url.searchParams.set("phaseone_payment_discount", "1");
     url.searchParams.set(
       "phaseone_payment_discount_amount",
-      String(Number(paymentDiscountAmount || 0))
+      String(Number(paymentDiscountAmount || 0)),
     );
     url.searchParams.set(
       "phaseone_payment_discount_rate",
-      String(Number(paymentDiscountRate || PAYMENT_DISCOUNT_RATE))
+      String(Number(paymentDiscountRate || PAYMENT_DISCOUNT_RATE)),
     );
     url.searchParams.set(
       "phaseone_payment_discount_label",
-      getPaymentDiscountLabel(paymentMethod)
+      getPaymentDiscountLabel(paymentMethod),
     );
   }
 
@@ -1394,7 +1478,10 @@ function buildWooCheckoutUrl({
     url.searchParams.set("phaseone_terms_accepted", "1");
     url.searchParams.set("phaseone_refund_policy_accepted", "1");
     url.searchParams.set("phaseone_research_use_policy_accepted", "1");
-    url.searchParams.set("phaseone_policy_acknowledged_at", new Date().toISOString());
+    url.searchParams.set(
+      "phaseone_policy_acknowledged_at",
+      new Date().toISOString(),
+    );
   }
 
   // Important: card keeps the normal checkout flow.
@@ -1439,10 +1526,13 @@ export default function CheckoutTransferPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [paymentNotice, setPaymentNotice] = useState("");
-  const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState("card");
+  const [selectedPaymentMethodId, setSelectedPaymentMethodId] =
+    useState("card");
   const [bankTransferEmail, setBankTransferEmail] = useState("");
-  const [checkoutForm, setCheckoutForm] = useState(() => getBlankCheckoutForm());
-  const [selectedShippingMethodId] = useState("priority");
+  const [checkoutForm, setCheckoutForm] = useState(() =>
+    getBlankCheckoutForm(),
+  );
+  const [selectedShippingMethodId] = useState("fedex");
   const [policyAcknowledged, setPolicyAcknowledged] = useState(false);
   const [manualPaymentOrder, setManualPaymentOrder] = useState(null);
   const [manualPaymentStatus, setManualPaymentStatus] = useState("idle");
@@ -1461,13 +1551,16 @@ export default function CheckoutTransferPage() {
 
     setLocalCartItems(Array.isArray(parsedCart) ? parsedCart : []);
 
-    const pendingCustomerData = getSessionCustomerData(pendingSession || {}, {});
+    const pendingCustomerData = getSessionCustomerData(
+      pendingSession || {},
+      {},
+    );
     const initialBankEmail = normalizeEmail(
       pendingCustomerData?.billing?.email ||
         localStorage.getItem("phaseone_checkout_email") ||
         localStorage.getItem("phaseone_customer_email") ||
         localStorage.getItem("customer_email") ||
-        ""
+        "",
     );
 
     if (initialBankEmail) {
@@ -1477,8 +1570,8 @@ export default function CheckoutTransferPage() {
     setCheckoutForm((current) =>
       mergeOnlyEmptyFields(
         current,
-        buildCheckoutFormData(pendingSession || {}, {}, initialBankEmail)
-      )
+        buildCheckoutFormData(pendingSession || {}, {}, initialBankEmail),
+      ),
     );
 
     const cleanCoupon = getSavedCoupon();
@@ -1495,7 +1588,7 @@ export default function CheckoutTransferPage() {
       setCouponMessage(
         shouldLockCoupon
           ? "Referral code locked from your link. It will be sent automatically to payment."
-          : "Apply the code from your link to preview the discount."
+          : "Apply the code from your link to preview the discount.",
       );
     } else {
       setCouponStatus("idle");
@@ -1552,7 +1645,10 @@ export default function CheckoutTransferPage() {
   }, []);
 
   useEffect(() => {
-    const customerData = getSessionCustomerData(session || {}, accountUser || {});
+    const customerData = getSessionCustomerData(
+      session || {},
+      accountUser || {},
+    );
     const detectedEmail = normalizeEmail(customerData?.billing?.email || "");
 
     if (detectedEmail && !bankTransferEmail) {
@@ -1562,8 +1658,12 @@ export default function CheckoutTransferPage() {
     setCheckoutForm((current) =>
       mergeOnlyEmptyFields(
         current,
-        buildCheckoutFormData(session || {}, accountUser || {}, bankTransferEmail)
-      )
+        buildCheckoutFormData(
+          session || {},
+          accountUser || {},
+          bankTransferEmail,
+        ),
+      ),
     );
   }, [session, accountUser, bankTransferEmail]);
 
@@ -1575,7 +1675,7 @@ export default function CheckoutTransferPage() {
     if (typeof window === "undefined") return;
 
     const savedOrder = normalizeManualOrderData(
-      safeJsonParse(localStorage.getItem(manualOrderStorageKey), null)
+      safeJsonParse(localStorage.getItem(manualOrderStorageKey), null),
     );
 
     if (savedOrder?.order_id && savedOrder?.payment_reference) {
@@ -1585,10 +1685,7 @@ export default function CheckoutTransferPage() {
   }, [manualOrderStorageKey]);
 
   const sessionCartItems =
-    session?.cart_items ||
-    session?.cartItems ||
-    session?.items ||
-    [];
+    session?.cart_items || session?.cartItems || session?.items || [];
 
   const cartItems = hasProviderCartItems
     ? cart.cartItems
@@ -1598,7 +1695,11 @@ export default function CheckoutTransferPage() {
 
   const cartTotal = hasProviderCartItems
     ? Number(cart.cartTotal || 0)
-    : Number(session?.cart_total || session?.cartTotal || calculateCartTotal(cartItems));
+    : Number(
+        session?.cart_total ||
+          session?.cartTotal ||
+          calculateCartTotal(cartItems),
+      );
 
   const paidSubtotal = hasProviderCartItems
     ? Number(cart.paidSubtotal || cartTotal)
@@ -1616,23 +1717,27 @@ export default function CheckoutTransferPage() {
     session?.rewardProgress ||
     null;
 
-  const estimatedPoints = Math.max(0, Math.floor(paidSubtotal || cartTotal || 0));
+  const estimatedPoints = Math.max(
+    0,
+    Math.floor(paidSubtotal || cartTotal || 0),
+  );
 
   const isLoggedIn = Boolean(accountUser);
-  const accountDisplayName = getAccountName(accountUser || {}) || "Your account";
+  const accountDisplayName =
+    getAccountName(accountUser || {}) || "Your account";
 
   const pointsBalance = Number(
     accountUser?.pointsBalance ||
       accountUser?.points_balance ||
       accountUser?.points ||
-      0
+      0,
   );
 
   const storeCredit = Number(
     accountUser?.storeCredit ||
       accountUser?.store_credit ||
       accountUser?.credit ||
-      0
+      0,
   );
 
   const cashbackAvailable = Math.max(0, storeCredit);
@@ -1654,31 +1759,43 @@ export default function CheckoutTransferPage() {
     PAYMENT_METHODS.find((method) => method.id === selectedPaymentMethodId) ||
     PAYMENT_METHODS[0];
 
-  const isManualPaymentSelected = isManualPaymentMethod(selectedPaymentMethod?.id);
-  const manualPaymentDetails = getManualPaymentDetails(selectedPaymentMethod?.id);
+  const isManualPaymentSelected = isManualPaymentMethod(
+    selectedPaymentMethod?.id,
+  );
+  const manualPaymentDetails = getManualPaymentDetails(
+    selectedPaymentMethod?.id,
+  );
 
   const selectedShippingMethod =
-    BANK_SHIPPING_METHODS.find((method) => method.id === selectedShippingMethodId) ||
-    BANK_SHIPPING_METHODS[0];
+    FEDEX_SHIPPING_METHODS.find(
+      (method) => method.id === selectedShippingMethodId,
+    ) || FEDEX_SHIPPING_METHODS[0];
 
   const paymentDiscountBase = Math.max(previewTotal, 0);
   const paymentMethodDiscount = getPaymentDiscountAmount(
     selectedPaymentMethod?.id,
-    paymentDiscountBase
+    paymentDiscountBase,
   );
   const paymentDiscountLabel = getPaymentDiscountLabel(selectedPaymentMethod);
 
   const freeShippingUnlocked = cartTotal >= FREE_SHIPPING_MINIMUM;
-  const amountUntilFreeShipping = Math.max(FREE_SHIPPING_MINIMUM - cartTotal, 0);
-  const selectedShippingOriginalPrice = Number(selectedShippingMethod?.price || 0);
+  const amountUntilFreeShipping = Math.max(
+    FREE_SHIPPING_MINIMUM - cartTotal,
+    0,
+  );
+  const selectedShippingOriginalPrice = Number(
+    selectedShippingMethod?.price || 0,
+  );
 
-  const bankShippingCost = selectedPaymentMethod?.id === "bank" && !freeShippingUnlocked
-    ? selectedShippingOriginalPrice
-    : 0;
+  const bankShippingCost =
+    selectedPaymentMethod?.id === "bank" && !freeShippingUnlocked
+      ? selectedShippingOriginalPrice
+      : 0;
 
-  const manualShippingCost = isManualPaymentSelected && !freeShippingUnlocked
-    ? MANUAL_PAYMENT_SHIPPING_COST
-    : 0;
+  const manualShippingCost =
+    isManualPaymentSelected && !freeShippingUnlocked
+      ? MANUAL_PAYMENT_SHIPPING_COST
+      : 0;
 
   const activeShippingCost = bankShippingCost + manualShippingCost;
 
@@ -1686,46 +1803,53 @@ export default function CheckoutTransferPage() {
     ...selectedShippingMethod,
     price: bankShippingCost,
     original_price: selectedShippingOriginalPrice,
-    free_shipping_applied: selectedPaymentMethod?.id === "bank" && freeShippingUnlocked,
+    free_shipping_applied:
+      selectedPaymentMethod?.id === "bank" && freeShippingUnlocked,
     free_shipping_minimum: FREE_SHIPPING_MINIMUM,
   };
 
   const paymentPreviewTotal = Math.max(
     previewTotal - paymentMethodDiscount + activeShippingCost,
-    0
+    0,
   );
 
-  const manualPaymentReference = buildManualPaymentReference(manualPaymentOrder || {});
+  const manualPaymentReference = buildManualPaymentReference(
+    manualPaymentOrder || {},
+  );
   const manualPaymentReady = Boolean(
-    isManualPaymentSelected && manualPaymentOrder?.order_id && manualPaymentReference
+    isManualPaymentSelected &&
+    manualPaymentOrder?.order_id &&
+    manualPaymentReference,
   );
   const manualPaymentMatchesSelected = Boolean(
     manualPaymentReady &&
-      selectedPaymentMethod?.id &&
-      [
-        selectedPaymentMethod.id,
-        `phaseone_${selectedPaymentMethod.id}`,
-      ].includes(String(manualPaymentOrder?.payment_method || ""))
+    selectedPaymentMethod?.id &&
+    [selectedPaymentMethod.id, `phaseone_${selectedPaymentMethod.id}`].includes(
+      String(manualPaymentOrder?.payment_method || ""),
+    ),
   );
   // Zelle/Venmo instructions are shown inside this same component after the order is created.
-  const showManualInstructions = Boolean(manualPaymentReady && manualPaymentMatchesSelected);
+  const showManualInstructions = Boolean(
+    manualPaymentReady && manualPaymentMatchesSelected,
+  );
   const manualInstructionsEmail = normalizeEmail(
     manualPaymentOrder?.email ||
       manualPaymentOrder?.billing?.email ||
       checkoutForm.email ||
-      bankTransferEmail
+      bankTransferEmail,
   );
 
   const manualOrderDisplayNumber = manualPaymentOrder?.order_number
     ? `#${manualPaymentOrder.order_number}`
     : "";
-  const manualOrderTotal = Number(manualPaymentOrder?.total || 0) > 0
-    ? Number(manualPaymentOrder.total)
-    : paymentPreviewTotal;
+  const manualOrderTotal =
+    Number(manualPaymentOrder?.total || 0) > 0
+      ? Number(manualPaymentOrder.total)
+      : paymentPreviewTotal;
 
   const manualPaymentAmount = useMemo(
     () => formatMoney(manualOrderTotal),
-    [manualOrderTotal]
+    [manualOrderTotal],
   );
 
   const manualOrderPaymentDetails =
@@ -1735,16 +1859,19 @@ export default function CheckoutTransferPage() {
     null;
 
   const manualThanksBilling = formatAddressBlock(
-    manualPaymentOrder?.billing || normalizeCheckoutFormForOrder(checkoutForm)
+    manualPaymentOrder?.billing || normalizeCheckoutFormForOrder(checkoutForm),
   );
 
   const manualThanksShipping = formatAddressBlock(
     manualPaymentOrder?.shipping ||
       manualPaymentOrder?.billing ||
-      normalizeCheckoutFormForOrder(checkoutForm)
+      normalizeCheckoutFormForOrder(checkoutForm),
   );
 
-  const manualThanksItems = chooseManualThanksItems(manualPaymentOrder?.items, cartItems);
+  const manualThanksItems = chooseManualThanksItems(
+    manualPaymentOrder?.items,
+    cartItems,
+  );
 
   useEffect(() => {
     if (!showManualInstructions || typeof window === "undefined") return;
@@ -1755,7 +1882,7 @@ export default function CheckoutTransferPage() {
   }, [showManualInstructions]);
 
   const effectiveBankTransferEmail = normalizeEmail(
-    checkoutForm.email || bankTransferEmail
+    checkoutForm.email || bankTransferEmail,
   );
 
   const updateCheckoutField = (field, value) => {
@@ -1836,7 +1963,7 @@ export default function CheckoutTransferPage() {
       setCouponMessage(
         couponCodes.length > 1
           ? `Validating ${couponCodes.length} coupons...`
-          : "Validating coupon..."
+          : "Validating coupon...",
       );
       setCouponDiscount(0);
       setCouponData(null);
@@ -1844,7 +1971,8 @@ export default function CheckoutTransferPage() {
 
       const token = getAccountToken();
       const checkoutItems = buildCheckoutItems(cartItems);
-      const customerEmail = accountUser?.email || session?.customer?.email || "";
+      const customerEmail =
+        accountUser?.email || session?.customer?.email || "";
       const validatedCoupons = [];
       let accumulatedDiscount = 0;
 
@@ -1891,7 +2019,7 @@ export default function CheckoutTransferPage() {
 
         if (looksLikeHtmlResponse(rawText)) {
           throw new Error(
-            `Coupon endpoint returned an HTML page. Check PUBLIC_WP_SITE_URL and confirm the WordPress plugin route exists: ${VALIDATE_COUPON_ENDPOINT}`
+            `Coupon endpoint returned an HTML page. Check PUBLIC_WP_SITE_URL and confirm the WordPress plugin route exists: ${VALIDATE_COUPON_ENDPOINT}`,
           );
         }
 
@@ -1917,7 +2045,7 @@ export default function CheckoutTransferPage() {
 
         const discountAmount = Math.max(
           Number(data.discountAmount ?? data.discount_amount ?? 0),
-          0
+          0,
         );
 
         const secureToken =
@@ -1926,20 +2054,22 @@ export default function CheckoutTransferPage() {
           data.phaseone_discount_token ||
           "";
 
-        const serverCoupon = normalizeCoupon(data?.coupon?.code || data?.code || cleanCoupon);
+        const serverCoupon = normalizeCoupon(
+          data?.coupon?.code || data?.code || cleanCoupon,
+        );
         const couponDetails = data?.coupon || {};
 
         if (discountAmount <= 0) {
           throw new Error(
             data?.error ||
               data?.message ||
-              `${serverCoupon || cleanCoupon} was found, but it returned no discount.`
+              `${serverCoupon || cleanCoupon} was found, but it returned no discount.`,
           );
         }
 
         if (!secureToken) {
           throw new Error(
-            `${serverCoupon || cleanCoupon} validated, but the secure discount token was not returned.`
+            `${serverCoupon || cleanCoupon} validated, but the secure discount token was not returned.`,
           );
         }
 
@@ -1961,9 +2091,13 @@ export default function CheckoutTransferPage() {
         });
       }
 
-      const savedCoupon = saveCoupon(validatedCoupons.map((item) => item.code).join(","));
+      const savedCoupon = saveCoupon(
+        validatedCoupons.map((item) => item.code).join(","),
+      );
       const totalDiscount = Number(accumulatedDiscount.toFixed(2));
-      const discountTokens = validatedCoupons.map((item) => item.discountToken).join(",");
+      const discountTokens = validatedCoupons
+        .map((item) => item.discountToken)
+        .join(",");
 
       setCoupon(savedCoupon);
       setCouponInput(savedCoupon);
@@ -1975,7 +2109,7 @@ export default function CheckoutTransferPage() {
       });
       setDiscountToken(discountTokens);
       setCouponMessage(
-        `${savedCoupon} applied: -${formatMoney(totalDiscount)}.`
+        `${savedCoupon} applied: -${formatMoney(totalDiscount)}.`,
       );
     } catch (err) {
       console.error("PHASE ONE COUPON APPLY ERROR:", err);
@@ -1987,7 +2121,7 @@ export default function CheckoutTransferPage() {
       setCouponData(null);
       setDiscountToken("");
       setCouponMessage(
-        err?.message || "Coupon validation failed. Check browser console."
+        err?.message || "Coupon validation failed. Check browser console.",
       );
     }
   };
@@ -2037,14 +2171,14 @@ export default function CheckoutTransferPage() {
 
     if (couponStatus === "valid" && !discountToken && !couponLocked) {
       setError(
-        "The coupon was validated, but the secure discount token is missing. Apply it again."
+        "The coupon was validated, but the secure discount token is missing. Apply it again.",
       );
       return false;
     }
 
     if (!policyAcknowledged) {
       setError(
-        "Please confirm the age, research-use, and policy acknowledgement before continuing."
+        "Please confirm the age, research-use, and policy acknowledgement before continuing.",
       );
       return false;
     }
@@ -2097,7 +2231,9 @@ export default function CheckoutTransferPage() {
     }
 
     const normalizedForm = normalizeCheckoutFormForOrder(checkoutForm);
-    const finalBankEmail = normalizeEmail(normalizedForm.email || bankTransferEmail);
+    const finalBankEmail = normalizeEmail(
+      normalizedForm.email || bankTransferEmail,
+    );
 
     if (!isValidEmail(finalBankEmail)) {
       setError("Enter a valid email before creating the Bank Transfer order.");
@@ -2140,7 +2276,10 @@ export default function CheckoutTransferPage() {
 
     if (typeof window !== "undefined") {
       localStorage.setItem("phaseone_checkout_email", finalBankEmail);
-      localStorage.setItem("phaseone_checkout_shipping", JSON.stringify(checkoutForm));
+      localStorage.setItem(
+        "phaseone_checkout_shipping",
+        JSON.stringify(checkoutForm),
+      );
     }
 
     try {
@@ -2152,7 +2291,7 @@ export default function CheckoutTransferPage() {
 
       if (!endpoint) {
         throw new Error(
-          "Bank Transfer endpoint is missing. Check PUBLIC_WP_SITE_URL or PUBLIC_WOOCOMMERCE_URL."
+          "Bank Transfer endpoint is missing. Check PUBLIC_WP_SITE_URL or PUBLIC_WOOCOMMERCE_URL.",
         );
       }
 
@@ -2179,8 +2318,10 @@ export default function CheckoutTransferPage() {
           shipping_method: effectiveSelectedShippingMethod,
           shippingTotal: bankShippingCost,
           shipping_total: bankShippingCost,
-          freeShippingApplied: effectiveSelectedShippingMethod.free_shipping_applied,
-          free_shipping_applied: effectiveSelectedShippingMethod.free_shipping_applied,
+          freeShippingApplied:
+            effectiveSelectedShippingMethod.free_shipping_applied,
+          free_shipping_applied:
+            effectiveSelectedShippingMethod.free_shipping_applied,
           freeShippingMinimum: FREE_SHIPPING_MINIMUM,
           free_shipping_minimum: FREE_SHIPPING_MINIMUM,
 
@@ -2197,14 +2338,24 @@ export default function CheckoutTransferPage() {
                 ? formatCouponList(couponInput)
                 : "",
           couponCodes: normalizeCouponList(
-            couponStatus === "valid" ? coupon : couponInput
+            couponStatus === "valid" ? coupon : couponInput,
           ),
           coupon_codes: normalizeCouponList(
-            couponStatus === "valid" ? coupon : couponInput
+            couponStatus === "valid" ? coupon : couponInput,
           ),
           discountToken: couponStatus === "valid" ? discountToken : "",
-          discountTokens: couponStatus === "valid" ? String(discountToken || "").split(",").filter(Boolean) : [],
-          discount_tokens: couponStatus === "valid" ? String(discountToken || "").split(",").filter(Boolean) : [],
+          discountTokens:
+            couponStatus === "valid"
+              ? String(discountToken || "")
+                  .split(",")
+                  .filter(Boolean)
+              : [],
+          discount_tokens:
+            couponStatus === "valid"
+              ? String(discountToken || "")
+                  .split(",")
+                  .filter(Boolean)
+              : [],
           couponDiscountAmount:
             couponStatus === "valid" ? validatedCouponDiscount : 0,
           discountAmount:
@@ -2245,7 +2396,7 @@ export default function CheckoutTransferPage() {
         throw new Error(
           data?.message ||
             data?.error ||
-            "Unable to create the Bank Transfer order."
+            "Unable to create the Bank Transfer order.",
         );
       }
 
@@ -2271,13 +2422,17 @@ export default function CheckoutTransferPage() {
       setPaymentNotice("");
       setError(
         err?.message ||
-          "Unable to open Bank Transfer checkout. Please try again."
+          "Unable to open Bank Transfer checkout. Please try again.",
       );
     }
   };
 
-  const createOrReuseManualPaymentOrder = async (methodId = selectedPaymentMethod?.id) => {
-    const manualMethod = PAYMENT_METHODS.find((method) => method.id === methodId);
+  const createOrReuseManualPaymentOrder = async (
+    methodId = selectedPaymentMethod?.id,
+  ) => {
+    const manualMethod = PAYMENT_METHODS.find(
+      (method) => method.id === methodId,
+    );
 
     if (!manualMethod || !isManualPaymentMethod(manualMethod.id)) return;
 
@@ -2295,17 +2450,22 @@ export default function CheckoutTransferPage() {
     }
 
     const normalizedForm = normalizeCheckoutFormForOrder(checkoutForm);
-    const customerData = getSessionCustomerData(session || {}, accountUser || {});
+    const customerData = getSessionCustomerData(
+      session || {},
+      accountUser || {},
+    );
     const finalEmail = normalizeEmail(
       normalizedForm.email ||
         bankTransferEmail ||
         customerData?.billing?.email ||
         customerData?.customer?.email ||
-        ""
+        "",
     );
 
     if (!isValidEmail(finalEmail)) {
-      setError("Enter a valid email before generating Venmo/Zelle payment instructions.");
+      setError(
+        "Enter a valid email before generating Venmo/Zelle payment instructions.",
+      );
       setManualPaymentStatus("error");
       return;
     }
@@ -2323,7 +2483,9 @@ export default function CheckoutTransferPage() {
     const missingField = requiredFields.find(([key]) => !normalizedForm[key]);
 
     if (missingField) {
-      setError(`${missingField[1]} is required before creating the ${manualMethod.title} order.`);
+      setError(
+        `${missingField[1]} is required before creating the ${manualMethod.title} order.`,
+      );
       setManualPaymentStatus("error");
       return;
     }
@@ -2347,14 +2509,15 @@ export default function CheckoutTransferPage() {
       phone: finalBilling.phone,
     };
 
-    const savedOrder = typeof window !== "undefined"
-      ? normalizeManualOrderData(
-          safeJsonParse(localStorage.getItem(manualOrderStorageKey), null)
-        )
-      : null;
+    const savedOrder =
+      typeof window !== "undefined"
+        ? normalizeManualOrderData(
+            safeJsonParse(localStorage.getItem(manualOrderStorageKey), null),
+          )
+        : null;
 
     const existingOrderId = Number(
-      manualPaymentOrder?.order_id || savedOrder?.order_id || 0
+      manualPaymentOrder?.order_id || savedOrder?.order_id || 0,
     );
 
     try {
@@ -2367,7 +2530,7 @@ export default function CheckoutTransferPage() {
 
       if (!endpoint) {
         throw new Error(
-          "Manual payment endpoint is missing. Check PUBLIC_WP_SITE_URL or PUBLIC_WOOCOMMERCE_URL."
+          "Manual payment endpoint is missing. Check PUBLIC_WP_SITE_URL or PUBLIC_WOOCOMMERCE_URL.",
         );
       }
 
@@ -2393,16 +2556,20 @@ export default function CheckoutTransferPage() {
           shipping: finalShipping,
           items: checkoutItems,
           shippingMethod: {
-            id: freeShippingUnlocked ? "free_priority_shipping" : "priority_flat_rate",
-            title: "USPS Priority",
+            id: freeShippingUnlocked
+              ? "free_fedex_shipping"
+              : "fedex_flat_rate",
+            title: "FedEx Shipping",
             price: manualShippingCost,
             method_id: freeShippingUnlocked ? "free_shipping" : "flat_rate",
             free_shipping_applied: freeShippingUnlocked,
             free_shipping_minimum: FREE_SHIPPING_MINIMUM,
           },
           shipping_method: {
-            id: freeShippingUnlocked ? "free_priority_shipping" : "priority_flat_rate",
-            title: "USPS Priority",
+            id: freeShippingUnlocked
+              ? "free_fedex_shipping"
+              : "fedex_flat_rate",
+            title: "FedEx Shipping",
             price: manualShippingCost,
             method_id: freeShippingUnlocked ? "free_shipping" : "flat_rate",
             free_shipping_applied: freeShippingUnlocked,
@@ -2427,14 +2594,24 @@ export default function CheckoutTransferPage() {
                 ? formatCouponList(couponInput)
                 : "",
           couponCodes: normalizeCouponList(
-            couponStatus === "valid" ? coupon : couponInput
+            couponStatus === "valid" ? coupon : couponInput,
           ),
           coupon_codes: normalizeCouponList(
-            couponStatus === "valid" ? coupon : couponInput
+            couponStatus === "valid" ? coupon : couponInput,
           ),
           discountToken: couponStatus === "valid" ? discountToken : "",
-          discountTokens: couponStatus === "valid" ? String(discountToken || "").split(",").filter(Boolean) : [],
-          discount_tokens: couponStatus === "valid" ? String(discountToken || "").split(",").filter(Boolean) : [],
+          discountTokens:
+            couponStatus === "valid"
+              ? String(discountToken || "")
+                  .split(",")
+                  .filter(Boolean)
+              : [],
+          discount_tokens:
+            couponStatus === "valid"
+              ? String(discountToken || "")
+                  .split(",")
+                  .filter(Boolean)
+              : [],
           couponDiscountAmount:
             couponStatus === "valid" ? validatedCouponDiscount : 0,
           paymentDiscountAmount: paymentMethodDiscount,
@@ -2477,14 +2654,19 @@ export default function CheckoutTransferPage() {
         throw new Error(
           data?.message ||
             data?.error ||
-            "Unable to prepare Venmo/Zelle payment instructions."
+            "Unable to prepare Venmo/Zelle payment instructions.",
         );
       }
 
       const normalizedOrderData = normalizeManualOrderData(data);
 
-      if (!normalizedOrderData?.order_id || !normalizedOrderData?.payment_reference) {
-        throw new Error("The order was created, but no payment reference was returned.");
+      if (
+        !normalizedOrderData?.order_id ||
+        !normalizedOrderData?.payment_reference
+      ) {
+        throw new Error(
+          "The order was created, but no payment reference was returned.",
+        );
       }
 
       const orderData = {
@@ -2507,13 +2689,15 @@ export default function CheckoutTransferPage() {
       if (typeof window !== "undefined") {
         localStorage.setItem(manualOrderStorageKey, JSON.stringify(orderData));
         localStorage.setItem("phaseone_checkout_email", finalEmail);
-        localStorage.setItem("phaseone_checkout_shipping", JSON.stringify(checkoutForm));
-
+        localStorage.setItem(
+          "phaseone_checkout_shipping",
+          JSON.stringify(checkoutForm),
+        );
       }
 
       setLoading(false);
       setPaymentNotice(
-        `${manualMethod.title} order ${orderData.order_number ? `#${orderData.order_number}` : ""} created. Payment instructions are shown below and were emailed to ${finalEmail}.`
+        `${manualMethod.title} order ${orderData.order_number ? `#${orderData.order_number}` : ""} created. Payment instructions are shown below and were emailed to ${finalEmail}.`,
       );
 
       if (typeof window !== "undefined") {
@@ -2530,7 +2714,7 @@ export default function CheckoutTransferPage() {
       setPaymentNotice("");
       setError(
         err?.message ||
-          "Unable to prepare Venmo/Zelle payment instructions. Please try again."
+          "Unable to prepare Venmo/Zelle payment instructions. Please try again.",
       );
     }
   };
@@ -2550,12 +2734,14 @@ export default function CheckoutTransferPage() {
     continueToWooCheckout();
   };
 
-
   if (showManualInstructions && manualPaymentDetails) {
     return (
       <main className="checkout-page manual-thanks-page">
         <section className="checkout-shell manual-thanks-shell">
-          <section className="phase-thanks-card phase-thanks-card-full" aria-live="polite">
+          <section
+            className="phase-thanks-card phase-thanks-card-full"
+            aria-live="polite"
+          >
             <div className="phase-thanks-hero">
               <span className="phase-thanks-icon">
                 <BadgeCheck size={24} />
@@ -2565,7 +2751,13 @@ export default function CheckoutTransferPage() {
                 <p>Thank you</p>
                 <h2>Your order was received</h2>
                 <span>
-                  Order {manualOrderDisplayNumber || ""} is on hold until we confirm your {manualPaymentDetails.title} payment. A copy of these instructions was sent to {manualInstructionsEmail || manualThanksBilling.email || "your email"}.
+                  Order {manualOrderDisplayNumber || ""} is on hold until we
+                  confirm your {manualPaymentDetails.title} payment. A copy of
+                  these instructions was sent to{" "}
+                  {manualInstructionsEmail ||
+                    manualThanksBilling.email ||
+                    "your email"}
+                  .
                 </span>
               </div>
             </div>
@@ -2594,15 +2786,18 @@ export default function CheckoutTransferPage() {
                 <div className="phase-thanks-line">
                   <span>{manualPaymentDetails.recipientLabel}</span>
                   <strong>
-                    {manualOrderPaymentDetails?.recipient || manualPaymentDetails.recipientValue}
+                    {manualOrderPaymentDetails?.recipient ||
+                      manualPaymentDetails.recipientValue}
                   </strong>
                 </div>
 
-                {(manualOrderPaymentDetails?.recipient_extra || manualPaymentDetails.extraRecipientLine) && (
+                {(manualOrderPaymentDetails?.recipient_extra ||
+                  manualPaymentDetails.extraRecipientLine) && (
                   <div className="phase-thanks-line">
                     <span>Name</span>
                     <strong>
-                      {manualOrderPaymentDetails?.recipient_extra || manualPaymentDetails.extraRecipientLine}
+                      {manualOrderPaymentDetails?.recipient_extra ||
+                        manualPaymentDetails.extraRecipientLine}
                     </strong>
                   </div>
                 )}
@@ -2612,14 +2807,20 @@ export default function CheckoutTransferPage() {
                   <strong>Awaiting payment</strong>
                 </div>
 
-                {(manualOrderPaymentDetails?.button_url || manualPaymentDetails.actionHref) && (
+                {(manualOrderPaymentDetails?.button_url ||
+                  manualPaymentDetails.actionHref) && (
                   <a
                     className="phase-thanks-action"
-                    href={manualOrderPaymentDetails?.button_url || manualPaymentDetails.actionHref}
+                    href={
+                      manualOrderPaymentDetails?.button_url ||
+                      manualPaymentDetails.actionHref
+                    }
                     target="_blank"
                     rel="noreferrer"
                   >
-                    {manualOrderPaymentDetails?.button_label || manualPaymentDetails.actionLabel || "Open payment app"}
+                    {manualOrderPaymentDetails?.button_label ||
+                      manualPaymentDetails.actionLabel ||
+                      "Open payment app"}
                   </a>
                 )}
               </div>
@@ -2627,21 +2828,29 @@ export default function CheckoutTransferPage() {
               <div className="phase-thanks-box">
                 <div className="phase-thanks-box-head">
                   <span>Shipping details</span>
-                  <strong>{manualThanksShipping.fullName || "Shipping address"}</strong>
+                  <strong>
+                    {manualThanksShipping.fullName || "Shipping address"}
+                  </strong>
                 </div>
 
                 <div className="phase-thanks-address">
                   {manualThanksShipping.lines.length ? (
-                    manualThanksShipping.lines.map((line) => <p key={line}>{line}</p>)
+                    manualThanksShipping.lines.map((line) => (
+                      <p key={line}>{line}</p>
+                    ))
                   ) : (
                     <p>Shipping address saved on the order.</p>
                   )}
-                  {manualThanksShipping.phone && <p>{manualThanksShipping.phone}</p>}
+                  {manualThanksShipping.phone && (
+                    <p>{manualThanksShipping.phone}</p>
+                  )}
                 </div>
 
                 <div className="phase-thanks-line compact">
                   <span>Email</span>
-                  <strong>{manualInstructionsEmail || manualThanksBilling.email}</strong>
+                  <strong>
+                    {manualInstructionsEmail || manualThanksBilling.email}
+                  </strong>
                 </div>
               </div>
             </div>
@@ -2649,7 +2858,10 @@ export default function CheckoutTransferPage() {
             <div className="phase-thanks-box order-box">
               <div className="phase-thanks-box-head">
                 <span>Order details</span>
-                <strong>{manualThanksItems.length} item{manualThanksItems.length === 1 ? "" : "s"}</strong>
+                <strong>
+                  {manualThanksItems.length} item
+                  {manualThanksItems.length === 1 ? "" : "s"}
+                </strong>
               </div>
 
               <div className="phase-thanks-items">
@@ -2661,17 +2873,29 @@ export default function CheckoutTransferPage() {
                   const quantity = getCartItemQuantity(item);
 
                   return (
-                    <div key={item.cartKey || item.cart_key || `${item.id || item.product_id || name}-${index}`}>
+                    <div
+                      key={
+                        item.cartKey ||
+                        item.cart_key ||
+                        `${item.id || item.product_id || name}-${index}`
+                      }
+                    >
                       <span className="phase-thanks-item-media">
                         <img src={image} alt="" loading="lazy" />
                       </span>
 
                       <span className="phase-thanks-item-copy">
-                        <strong>{quantity}× {name}</strong>
+                        <strong>
+                          {quantity}× {name}
+                        </strong>
                         {options && <small>{options}</small>}
                       </span>
 
-                      <em>{isRewardGiftItem(item) ? "FREE" : formatMoney(lineTotal)}</em>
+                      <em>
+                        {isRewardGiftItem(item)
+                          ? "FREE"
+                          : formatMoney(lineTotal)}
+                      </em>
                     </div>
                   );
                 })}
@@ -2681,7 +2905,9 @@ export default function CheckoutTransferPage() {
             <div className="phase-thanks-warning">
               <AlertTriangle size={16} />
               <p>
-                Important: write only <strong>{manualPaymentReference}</strong> in the payment note. Do not include product names. Unpaid Zelle/Venmo orders cancel automatically after 24 hours.
+                Important: write only <strong>{manualPaymentReference}</strong>{" "}
+                in the payment note. Do not include product names. Unpaid
+                Zelle/Venmo orders cancel automatically after 24 hours.
               </p>
             </div>
 
@@ -2696,7 +2922,6 @@ export default function CheckoutTransferPage() {
       </main>
     );
   }
-
 
   if (!hasItems) {
     return (
@@ -2791,7 +3016,8 @@ export default function CheckoutTransferPage() {
 
               <p className="checkout-copy">
                 Add a promo or affiliate code, apply available cashback, then
-                choose your payment method. Complete the checkout details before pressing Buy Now.
+                choose your payment method. Complete the checkout details before
+                pressing Buy Now.
               </p>
             </div>
 
@@ -2809,27 +3035,31 @@ export default function CheckoutTransferPage() {
 
               <div className="coupon-box">
                 <input
-                      value={couponInput}
-                      onChange={handleCouponInput}
-                      placeholder="CODE1, CODE2, CODE3"
-                      inputMode="text"
-                      autoCapitalize="characters"
-                      readOnly={couponLocked}
-                      aria-readonly={couponLocked}
-                      className={couponLocked ? "coupon-locked-input" : ""}
-                    />
+                  value={couponInput}
+                  onChange={handleCouponInput}
+                  placeholder="CODE1, CODE2, CODE3"
+                  inputMode="text"
+                  autoCapitalize="characters"
+                  readOnly={couponLocked}
+                  aria-readonly={couponLocked}
+                  className={couponLocked ? "coupon-locked-input" : ""}
+                />
 
-                    {couponLocked && couponStatus === "valid" ? (
-                      <button type="button" className="locked-code" disabled>
-                        <Lock size={14} />
-                        Locked
-                      </button>
-                    ) : couponStatus === "valid" ? (
-                      <button type="button" className="remove-code" onClick={removeCoupon}>
-                        <X size={14} />
-                        Remove
-                      </button>
-                    ) : (
+                {couponLocked && couponStatus === "valid" ? (
+                  <button type="button" className="locked-code" disabled>
+                    <Lock size={14} />
+                    Locked
+                  </button>
+                ) : couponStatus === "valid" ? (
+                  <button
+                    type="button"
+                    className="remove-code"
+                    onClick={removeCoupon}
+                  >
+                    <X size={14} />
+                    Remove
+                  </button>
+                ) : (
                   <button
                     type="button"
                     onClick={applyCoupon}
@@ -2842,13 +3072,15 @@ export default function CheckoutTransferPage() {
 
               {!couponLocked && (
                 <p className="coupon-locked-note">
-                  You can apply up to 3 codes. Separate them with commas or spaces.
+                  You can apply up to 3 codes. Separate them with commas or
+                  spaces.
                 </p>
               )}
 
               {couponLocked && couponInput && (
                 <p className="coupon-locked-note">
-                  Referral code locked from your link. It will be passed to secure payment automatically.
+                  Referral code locked from your link. It will be passed to
+                  secure payment automatically.
                 </p>
               )}
 
@@ -2856,7 +3088,7 @@ export default function CheckoutTransferPage() {
                 <div className="applied-code">
                   <BadgeCheck size={15} />
                   <p>
-                    <strong>{coupon}</strong> applied. Total discount: {" "}
+                    <strong>{coupon}</strong> applied. Total discount:{" "}
                     <strong>-{formatMoney(validatedCouponDiscount)}</strong>.
                   </p>
                 </div>
@@ -2911,9 +3143,7 @@ export default function CheckoutTransferPage() {
                 ) : (
                   <div className="benefit-empty">
                     <Wallet size={16} />
-                    <p>
-                      No cashback balance is available on this account yet.
-                    </p>
+                    <p>No cashback balance is available on this account yet.</p>
                   </div>
                 )
               ) : (
@@ -2970,7 +3200,11 @@ export default function CheckoutTransferPage() {
                 </div>
               </div>
 
-              <div className="payment-method-grid" role="radiogroup" aria-label="Payment method">
+              <div
+                className="payment-method-grid"
+                role="radiogroup"
+                aria-label="Payment method"
+              >
                 {PAYMENT_METHODS.map((method) => {
                   const Icon = method.icon;
                   const active = selectedPaymentMethodId === method.id;
@@ -2986,7 +3220,6 @@ export default function CheckoutTransferPage() {
                         setSelectedPaymentMethodId(method.id);
                         setError("");
                         setPaymentNotice("");
-
                       }}
                     >
                       <span className="payment-icon">
@@ -2998,7 +3231,13 @@ export default function CheckoutTransferPage() {
                         <small>{method.description}</small>
                       </span>
 
-                      <em className={isPaymentDiscountEligible(method.id) ? "payment-discount-badge" : ""}>
+                      <em
+                        className={
+                          isPaymentDiscountEligible(method.id)
+                            ? "payment-discount-badge"
+                            : ""
+                        }
+                      >
                         {method.badge}
                       </em>
                     </button>
@@ -3031,7 +3270,8 @@ export default function CheckoutTransferPage() {
                       <p>Thanks</p>
                       <h2>Your order was received</h2>
                       <span>
-                        Order {manualOrderDisplayNumber || ""} is on hold until we confirm your {manualPaymentDetails.title} payment.
+                        Order {manualOrderDisplayNumber || ""} is on hold until
+                        we confirm your {manualPaymentDetails.title} payment.
                       </span>
                     </div>
                   </div>
@@ -3060,15 +3300,18 @@ export default function CheckoutTransferPage() {
                       <div className="phase-thanks-line">
                         <span>{manualPaymentDetails.recipientLabel}</span>
                         <strong>
-                          {manualOrderPaymentDetails?.recipient || manualPaymentDetails.recipientValue}
+                          {manualOrderPaymentDetails?.recipient ||
+                            manualPaymentDetails.recipientValue}
                         </strong>
                       </div>
 
-                      {(manualOrderPaymentDetails?.recipient_extra || manualPaymentDetails.extraRecipientLine) && (
+                      {(manualOrderPaymentDetails?.recipient_extra ||
+                        manualPaymentDetails.extraRecipientLine) && (
                         <div className="phase-thanks-line">
                           <span>Name</span>
                           <strong>
-                            {manualOrderPaymentDetails?.recipient_extra || manualPaymentDetails.extraRecipientLine}
+                            {manualOrderPaymentDetails?.recipient_extra ||
+                              manualPaymentDetails.extraRecipientLine}
                           </strong>
                         </div>
                       )}
@@ -3078,14 +3321,20 @@ export default function CheckoutTransferPage() {
                         <strong>Awaiting payment</strong>
                       </div>
 
-                      {(manualOrderPaymentDetails?.button_url || manualPaymentDetails.actionHref) && (
+                      {(manualOrderPaymentDetails?.button_url ||
+                        manualPaymentDetails.actionHref) && (
                         <a
                           className="phase-thanks-action"
-                          href={manualOrderPaymentDetails?.button_url || manualPaymentDetails.actionHref}
+                          href={
+                            manualOrderPaymentDetails?.button_url ||
+                            manualPaymentDetails.actionHref
+                          }
                           target="_blank"
                           rel="noreferrer"
                         >
-                          {manualOrderPaymentDetails?.button_label || manualPaymentDetails.actionLabel || "Open payment app"}
+                          {manualOrderPaymentDetails?.button_label ||
+                            manualPaymentDetails.actionLabel ||
+                            "Open payment app"}
                         </a>
                       )}
                     </div>
@@ -3093,21 +3342,29 @@ export default function CheckoutTransferPage() {
                     <div className="phase-thanks-box">
                       <div className="phase-thanks-box-head">
                         <span>Shipping details</span>
-                        <strong>{manualThanksShipping.fullName || "Shipping address"}</strong>
+                        <strong>
+                          {manualThanksShipping.fullName || "Shipping address"}
+                        </strong>
                       </div>
 
                       <div className="phase-thanks-address">
                         {manualThanksShipping.lines.length ? (
-                          manualThanksShipping.lines.map((line) => <p key={line}>{line}</p>)
+                          manualThanksShipping.lines.map((line) => (
+                            <p key={line}>{line}</p>
+                          ))
                         ) : (
                           <p>Shipping address saved on the order.</p>
                         )}
-                        {manualThanksShipping.phone && <p>{manualThanksShipping.phone}</p>}
+                        {manualThanksShipping.phone && (
+                          <p>{manualThanksShipping.phone}</p>
+                        )}
                       </div>
 
                       <div className="phase-thanks-line compact">
                         <span>Email</span>
-                        <strong>{manualInstructionsEmail || manualThanksBilling.email}</strong>
+                        <strong>
+                          {manualInstructionsEmail || manualThanksBilling.email}
+                        </strong>
                       </div>
                     </div>
                   </div>
@@ -3115,7 +3372,10 @@ export default function CheckoutTransferPage() {
                   <div className="phase-thanks-box order-box">
                     <div className="phase-thanks-box-head">
                       <span>Order details</span>
-                      <strong>{manualThanksItems.length} item{manualThanksItems.length === 1 ? "" : "s"}</strong>
+                      <strong>
+                        {manualThanksItems.length} item
+                        {manualThanksItems.length === 1 ? "" : "s"}
+                      </strong>
                     </div>
 
                     <div className="phase-thanks-items">
@@ -3124,12 +3384,24 @@ export default function CheckoutTransferPage() {
                         const lineTotal = getCartItemLineTotal(item);
 
                         return (
-                          <div key={item.cartKey || `${item.id || item.product_id}-${index}`}>
+                          <div
+                            key={
+                              item.cartKey ||
+                              `${item.id || item.product_id}-${index}`
+                            }
+                          >
                             <span>
-                              <strong>{item.quantity || 1}× {item.name || item.title || "Item"}</strong>
+                              <strong>
+                                {item.quantity || 1}×{" "}
+                                {item.name || item.title || "Item"}
+                              </strong>
                               {options && <small>{options}</small>}
                             </span>
-                            <em>{isRewardGiftItem(item) ? "FREE" : formatMoney(lineTotal)}</em>
+                            <em>
+                              {isRewardGiftItem(item)
+                                ? "FREE"
+                                : formatMoney(lineTotal)}
+                            </em>
                           </div>
                         );
                       })}
@@ -3139,13 +3411,17 @@ export default function CheckoutTransferPage() {
                   <div className="phase-thanks-warning">
                     <AlertTriangle size={16} />
                     <p>
-                      Important: write only <strong>{manualPaymentReference}</strong> in the payment note. Do not include product names. Unpaid Zelle/Venmo orders cancel automatically after 24 hours.
+                      Important: write only{" "}
+                      <strong>{manualPaymentReference}</strong> in the payment
+                      note. Do not include product names. Unpaid Zelle/Venmo
+                      orders cancel automatically after 24 hours.
                     </p>
                   </div>
                 </section>
               )}
 
-              {(selectedPaymentMethod.id === "bank" || (isManualPaymentSelected && !showManualInstructions)) && (
+              {(selectedPaymentMethod.id === "bank" ||
+                (isManualPaymentSelected && !showManualInstructions)) && (
                 <div className="bank-checkout-panel">
                   <div className="bank-checkout-intro">
                     <div>
@@ -3156,8 +3432,8 @@ export default function CheckoutTransferPage() {
                       </strong>
                       <p>
                         {selectedPaymentMethod.id === "bank"
-                          ? `Complete your contact and delivery address. USPS Priority is free from ${formatMoney(FREE_SHIPPING_MINIMUM)}; otherwise it is ${formatMoney(MANUAL_PAYMENT_SHIPPING_COST)}. Your ACH 5% discount is already applied in the order summary.`
-                          : `Fill in the contact and shipping information below. We use this address to ship your order. USPS Priority is free from ${formatMoney(FREE_SHIPPING_MINIMUM)}; otherwise it is ${formatMoney(MANUAL_PAYMENT_SHIPPING_COST)}.`}
+                          ? `Complete your contact and delivery address. FedEx shipping is free from ${formatMoney(FREE_SHIPPING_MINIMUM)}; otherwise it is ${formatMoney(MANUAL_PAYMENT_SHIPPING_COST)}. Your ACH 5% discount is already applied in the order summary.`
+                          : `Fill in the contact and shipping information below. We use this address to ship your order. FedEx shipping is free from ${formatMoney(FREE_SHIPPING_MINIMUM)}; otherwise it is ${formatMoney(MANUAL_PAYMENT_SHIPPING_COST)}.`}
                       </p>
                     </div>
                   </div>
@@ -3165,7 +3441,9 @@ export default function CheckoutTransferPage() {
                   <div className="bank-form-section">
                     <div className="bank-section-title">
                       <span>Contact</span>
-                      <small>Email for order updates and payment confirmation.</small>
+                      <small>
+                        Email for order updates and payment confirmation.
+                      </small>
                     </div>
 
                     <label className="bank-field is-full">
@@ -3173,7 +3451,9 @@ export default function CheckoutTransferPage() {
                       <input
                         type="email"
                         value={checkoutForm.email}
-                        onChange={(event) => updateCheckoutField("email", event.target.value)}
+                        onChange={(event) =>
+                          updateCheckoutField("email", event.target.value)
+                        }
                         placeholder="your@email.com"
                         autoComplete="email"
                       />
@@ -3184,7 +3464,10 @@ export default function CheckoutTransferPage() {
                         type="checkbox"
                         checked={checkoutForm.acceptsMarketing}
                         onChange={(event) =>
-                          updateCheckoutField("acceptsMarketing", event.target.checked)
+                          updateCheckoutField(
+                            "acceptsMarketing",
+                            event.target.checked,
+                          )
                         }
                       />
                       <span>Email me with news and offers</span>
@@ -3201,7 +3484,9 @@ export default function CheckoutTransferPage() {
                       <span>Country</span>
                       <select
                         value={checkoutForm.country}
-                        onChange={(event) => updateCheckoutField("country", event.target.value)}
+                        onChange={(event) =>
+                          updateCheckoutField("country", event.target.value)
+                        }
                         autoComplete="country"
                       >
                         <option value="US">United States</option>
@@ -3214,7 +3499,9 @@ export default function CheckoutTransferPage() {
                         <input
                           type="text"
                           value={checkoutForm.firstName}
-                          onChange={(event) => updateCheckoutField("firstName", event.target.value)}
+                          onChange={(event) =>
+                            updateCheckoutField("firstName", event.target.value)
+                          }
                           placeholder="John"
                           autoComplete="given-name"
                         />
@@ -3225,7 +3512,9 @@ export default function CheckoutTransferPage() {
                         <input
                           type="text"
                           value={checkoutForm.lastName}
-                          onChange={(event) => updateCheckoutField("lastName", event.target.value)}
+                          onChange={(event) =>
+                            updateCheckoutField("lastName", event.target.value)
+                          }
                           placeholder="Doe"
                           autoComplete="family-name"
                         />
@@ -3237,7 +3526,9 @@ export default function CheckoutTransferPage() {
                       <input
                         type="text"
                         value={checkoutForm.address1}
-                        onChange={(event) => updateCheckoutField("address1", event.target.value)}
+                        onChange={(event) =>
+                          updateCheckoutField("address1", event.target.value)
+                        }
                         placeholder="123 Main Street"
                         autoComplete="address-line1"
                       />
@@ -3248,7 +3539,9 @@ export default function CheckoutTransferPage() {
                       <input
                         type="text"
                         value={checkoutForm.address2}
-                        onChange={(event) => updateCheckoutField("address2", event.target.value)}
+                        onChange={(event) =>
+                          updateCheckoutField("address2", event.target.value)
+                        }
                         placeholder="Apt, Suite, etc. (optional)"
                         autoComplete="address-line2"
                       />
@@ -3260,7 +3553,9 @@ export default function CheckoutTransferPage() {
                         <input
                           type="text"
                           value={checkoutForm.city}
-                          onChange={(event) => updateCheckoutField("city", event.target.value)}
+                          onChange={(event) =>
+                            updateCheckoutField("city", event.target.value)
+                          }
                           placeholder="City"
                           autoComplete="address-level2"
                         />
@@ -3270,7 +3565,9 @@ export default function CheckoutTransferPage() {
                         <span>State / Province</span>
                         <select
                           value={checkoutForm.state}
-                          onChange={(event) => updateCheckoutField("state", event.target.value)}
+                          onChange={(event) =>
+                            updateCheckoutField("state", event.target.value)
+                          }
                           autoComplete="address-level1"
                         >
                           {US_STATES.map(([value, label]) => (
@@ -3286,7 +3583,9 @@ export default function CheckoutTransferPage() {
                         <input
                           type="text"
                           value={checkoutForm.postcode}
-                          onChange={(event) => updateCheckoutField("postcode", event.target.value)}
+                          onChange={(event) =>
+                            updateCheckoutField("postcode", event.target.value)
+                          }
                           placeholder="12345"
                           autoComplete="postal-code"
                         />
@@ -3298,7 +3597,9 @@ export default function CheckoutTransferPage() {
                       <input
                         type="tel"
                         value={checkoutForm.phone}
-                        onChange={(event) => updateCheckoutField("phone", event.target.value)}
+                        onChange={(event) =>
+                          updateCheckoutField("phone", event.target.value)
+                        }
                         placeholder="+1 (555) 123-4567"
                         autoComplete="tel"
                       />
@@ -3321,7 +3622,7 @@ export default function CheckoutTransferPage() {
                       </span>
 
                       <div>
-                        <strong>USPS Priority</strong>
+                        <strong>FedEx Shipping</strong>
                         <small>
                           {freeShippingUnlocked
                             ? `Estimated 3–5 business days after processing. Free shipping is applied from ${formatMoney(FREE_SHIPPING_MINIMUM)}.`
@@ -3329,8 +3630,14 @@ export default function CheckoutTransferPage() {
                         </small>
                       </div>
 
-                      <em className={freeShippingUnlocked ? "free-shipping-price" : ""}>
-                        {freeShippingUnlocked ? "FREE" : formatMoney(MANUAL_PAYMENT_SHIPPING_COST)}
+                      <em
+                        className={
+                          freeShippingUnlocked ? "free-shipping-price" : ""
+                        }
+                      >
+                        {freeShippingUnlocked
+                          ? "FREE"
+                          : formatMoney(MANUAL_PAYMENT_SHIPPING_COST)}
                       </em>
                     </div>
                   </div>
@@ -3369,7 +3676,11 @@ export default function CheckoutTransferPage() {
             <button
               type="button"
               onClick={handleContinuePayment}
-              disabled={loading || manualPaymentStatus === "loading" || showManualInstructions}
+              disabled={
+                loading ||
+                manualPaymentStatus === "loading" ||
+                showManualInstructions
+              }
               className="checkout-submit"
             >
               <span className="checkout-submit-main">
@@ -3405,7 +3716,9 @@ export default function CheckoutTransferPage() {
               <div className="security-note manual-final-note">
                 <ShieldCheck size={17} />
                 <p>
-                  After pressing Buy Now, your order will be created and the thanks section will appear here with payment instructions. Use only the payment reference shown in the thanks section.
+                  After pressing Buy Now, your order will be created and the
+                  thanks section will appear here with payment instructions. Use
+                  only the payment reference shown in the thanks section.
                 </p>
               </div>
             )}
@@ -3439,7 +3752,9 @@ export default function CheckoutTransferPage() {
                       <div>
                         <h3>{item.name}</h3>
                         {options && <p>{options}</p>}
-                        {isRewardGift && <p className="gift-label">Free reward</p>}
+                        {isRewardGift && (
+                          <p className="gift-label">Free reward</p>
+                        )}
                       </div>
 
                       <strong>
@@ -3477,11 +3792,18 @@ export default function CheckoutTransferPage() {
                   </div>
                 )}
 
-                {(selectedPaymentMethod?.id === "bank" || isManualPaymentSelected) && (
+                {(selectedPaymentMethod?.id === "bank" ||
+                  isManualPaymentSelected) && (
                   <div className="shipping-line">
                     <span>Shipping</span>
-                    <strong className={freeShippingUnlocked ? "free-shipping-price" : ""}>
-                      {freeShippingUnlocked ? "FREE" : formatMoney(activeShippingCost)}
+                    <strong
+                      className={
+                        freeShippingUnlocked ? "free-shipping-price" : ""
+                      }
+                    >
+                      {freeShippingUnlocked
+                        ? "FREE"
+                        : formatMoney(activeShippingCost)}
                     </strong>
                   </div>
                 )}
