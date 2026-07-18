@@ -75,11 +75,11 @@ const sortOptions = [
 const customProductOrder = [
   {
     rank: 1,
-    groups: [["rt3"], ["reta"], ["retatrutide"]],
+    groups: [["pl rt"], ["r3ta"], ["rt3"], ["reta"], ["retatrutide"]],
   },
   {
     rank: 2,
-    groups: [["tz2"], ["tirz"], ["tirzepatide"]],
+    groups: [["tirz"], ["pl tz"], ["tz2"], ["tirzepatide"]],
   },
   {
     rank: 3,
@@ -1179,8 +1179,6 @@ function getProductOrderSearchText(product) {
       product?.title,
       product?.slug,
       product?.sku,
-      product?.short_description,
-      product?.description,
       ...categories,
       ...tags,
       ...attributes,
