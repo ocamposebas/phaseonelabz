@@ -98,6 +98,103 @@ function normalizeText(value = "") {
     .trim();
 }
 
+const COA_PANEL_META = {
+  "3x": { label: "3X Tested", className: "is-3x" },
+  "4x": { label: "4X Tested", className: "is-4x" },
+  "8x": { label: "8X Tested", className: "is-8x" },
+  standard: { label: "Standard Panel", className: "is-standard" },
+  full: { label: "Full Panel", className: "is-full" },
+};
+
+function toCoaPanelArray(value) {
+  if (Array.isArray(value)) return value.flat(Infinity);
+  if (value === null || value === undefined || value === "") return [];
+
+  if (typeof value === "string") {
+    return value
+      .split(/[\n,|/]+/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  return [value];
+}
+
+function normalizeCoaPanelType(value) {
+  const compact = normalizeText(value).replace(/\s+/g, "");
+
+  if (!compact) return "";
+  if (compact === "full" || compact.includes("fullpanel")) return "full";
+  if (compact === "standard" || compact.includes("standardpanel")) {
+    return "standard";
+  }
+
+  const regularMatch = compact.match(/(\d{1,2})x/);
+  const reversedMatch = compact.match(/^x(\d{1,2})/);
+  const numericMatch = compact.match(/^(\d{1,2})$/);
+  const amount =
+    regularMatch?.[1] || reversedMatch?.[1] || numericMatch?.[1];
+
+  return amount ? `${Number(amount)}x` : "";
+}
+
+function getCoaPanelTypes(record) {
+  if (!record || typeof record !== "object") return [];
+
+  const currentCoa =
+    record.currentCoa && typeof record.currentCoa === "object"
+      ? record.currentCoa
+      : record.current_coa && typeof record.current_coa === "object"
+        ? record.current_coa
+        : {};
+
+  const explicit = [record, currentCoa].flatMap((source) =>
+    toCoaPanelArray(
+      source.panelTypes ||
+        source.panel_types ||
+        source.reportPanels ||
+        source.report_panels ||
+        source.panelType ||
+        source.panel_type
+    )
+  );
+
+  const candidates = explicit.length
+    ? explicit
+    : [
+        currentCoa.label,
+        currentCoa.tested,
+        currentCoa.method,
+        record.tested,
+        record.method,
+        ...toCoaPanelArray(record.keywords),
+      ];
+
+  return Array.from(
+    new Set(candidates.map(normalizeCoaPanelType).filter(Boolean))
+  ).sort((left, right) => {
+    const rank = (panel) => {
+      if (/^\d+x$/.test(panel)) return Number(panel.slice(0, -1));
+      if (panel === "standard") return 100;
+      if (panel === "full") return 101;
+      return 999;
+    };
+
+    return rank(left) - rank(right);
+  });
+}
+
+function getCoaPanelMeta(panelType) {
+  if (COA_PANEL_META[panelType]) return COA_PANEL_META[panelType];
+
+  const amount = String(panelType || "").match(/^(\d{1,2})x$/)?.[1];
+
+  return {
+    label: amount ? `${amount}X Tested` : String(panelType || "Panel"),
+    className: "is-dynamic",
+  };
+}
+
 function normalizeSlug(value = "") {
   return String(value || "")
     .toLowerCase()
@@ -778,6 +875,8 @@ function getRecordLot(record) {
 
 function getRecordDate(record) {
   return (
+    record?.currentCoa?.date ||
+    record?.current_coa?.date ||
     record?.date ||
     record?.testedAt ||
     record?.tested_at ||
@@ -2661,6 +2760,9 @@ export default function ProductDetailSection({
   const currentCoaUrl = currentCoaRecord ? getRecordUrl(currentCoaRecord) : "";
   const currentCoaLot = currentCoaRecord ? getRecordLot(currentCoaRecord) : "";
   const currentCoaDate = currentCoaRecord ? getRecordDate(currentCoaRecord) : "";
+  const currentCoaPanelTypes = currentCoaRecord
+    ? getCoaPanelTypes(currentCoaRecord)
+    : [];
 
   const showCurrentCoa = Boolean(currentCoaRecord);
   const points = Math.max(Math.floor(Number(productPrice || 0)), 0);
@@ -2842,19 +2944,51 @@ export default function ProductDetailSection({
               </div>
 
               {showCurrentCoa && (
-                <div className="pdp-file-row">
+                <div
+                  className="pdp-file-row"
+                  data-coa-layout="inline-panels-v3"
+                >
                   <div className="pdp-file-mark">
                     <FileCheck2 size={20} />
                     <Check size={12} />
                   </div>
 
                   <div className="pdp-file-copy">
-                    <small>Active lot file</small>
+                    <div className="pdp-file-kicker-row">
+                      <small>
+                        <Layers3 size={11} />
+                        Latest COA
+                      </small>
+
+                      {currentCoaPanelTypes.length > 0 && (
+                        <div
+                          className="pdp-file-panels"
+                          aria-label="Panels active on the latest COA"
+                        >
+                          {currentCoaPanelTypes.map((panelType) => {
+                            const panel = getCoaPanelMeta(panelType);
+
+                            return (
+                              <span
+                                key={panelType}
+                                className={`pdp-panel-badge ${panel.className}`}
+                                title={panel.label}
+                              >
+                                <i />
+                                {panel.label}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
                     <strong>{currentCoaLot}</strong>
-                    <span>
+
+                    <span className="pdp-file-meta">
                       {currentCoaDate
-                        ? `Current COA record · ${currentCoaDate}`
-                        : "Current COA matched from the live WordPress library"}
+                        ? `Most recent certificate · ${currentCoaDate}`
+                        : "Most recent certificate matched from the live COA library"}
                     </span>
                   </div>
 
@@ -3206,7 +3340,7 @@ export default function ProductDetailSection({
           display: grid;
           grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
           gap: clamp(30px, 4.2vw, 64px);
-          align-items: start;
+          align-items: center;
         }
 
         .pdp-gallery {
@@ -3497,23 +3631,35 @@ export default function ProductDetailSection({
           position: relative;
           z-index: 1;
           display: grid;
-          grid-template-columns: 54px 1fr auto;
+          grid-template-columns: 54px minmax(0, 1fr) auto;
           gap: 14px;
-          align-items: center;
+          align-items: start;
+          overflow: hidden;
           margin-top: 20px;
           border: 1px solid rgba(165, 243, 252, 0.15);
-          border-radius: 22px;
+          border-radius: 18px;
           background:
-            linear-gradient(90deg, rgba(103, 232, 249, 0.075), rgba(255, 255, 255, 0.018));
-          padding: 14px;
+            linear-gradient(105deg, rgba(103, 232, 249, 0.05), rgba(255, 255, 255, 0.012));
+          padding: 13px;
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.022);
           transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
+        }
+
+        .pdp-file-row::before {
+          content: "";
+          position: absolute;
+          inset: 12px auto 12px 0;
+          width: 2px;
+          border-radius: 999px;
+          background: linear-gradient(180deg, transparent, rgb(103, 232, 249), transparent);
+          opacity: 0.72;
         }
 
         .pdp-file-row:hover {
           transform: translateY(-2px);
           border-color: rgba(165, 243, 252, 0.34);
           background:
-            linear-gradient(90deg, rgba(103, 232, 249, 0.12), rgba(255, 255, 255, 0.028));
+            linear-gradient(105deg, rgba(103, 232, 249, 0.075), rgba(255, 255, 255, 0.018));
         }
 
         .pdp-file-mark {
@@ -3539,15 +3685,95 @@ export default function ProductDetailSection({
           color: rgb(2, 6, 23);
         }
 
+        .pdp-file-copy {
+          min-width: 0;
+        }
+
+        .pdp-file-kicker-row {
+          display: flex;
+          min-width: 0;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 6px 10px;
+        }
+
+        .pdp-file-kicker-row > small {
+          display: inline-flex;
+          min-width: 0;
+          flex: 0 0 auto;
+          align-items: center;
+          gap: 5px;
+          margin: 0;
+          color: rgba(191, 219, 254, 0.65);
+          font-size: 7px;
+          font-weight: 950;
+          letter-spacing: 0.14em;
+          line-height: 1;
+          text-transform: uppercase;
+          white-space: nowrap;
+        }
+
+        .pdp-file-kicker-row > small svg {
+          color: rgb(147, 197, 253);
+        }
+
+        .pdp-file-panels {
+          display: flex;
+          min-width: 0;
+          flex: 1 1 auto;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 5px;
+        }
+
+        .pdp-file-heading {
+          display: flex;
+          min-width: 0;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 10px;
+        }
+
+        .pdp-file-title {
+          min-width: 0;
+        }
+
+        .pdp-file-status {
+          display: inline-flex;
+          min-height: 27px;
+          flex: 0 0 auto;
+          align-items: center;
+          gap: 6px;
+          border: 1px solid rgba(110, 231, 183, 0.16);
+          border-radius: 999px;
+          background: rgba(52, 211, 153, 0.065);
+          padding: 5px 9px;
+          color: rgba(209, 250, 229, 0.88);
+          font-size: 7px;
+          font-weight: 950;
+          letter-spacing: 0.11em;
+          line-height: 1;
+          text-transform: uppercase;
+          white-space: nowrap;
+        }
+
+        .pdp-file-status i {
+          width: 6px;
+          height: 6px;
+          border-radius: 999px;
+          background: rgb(110, 231, 183);
+          box-shadow: 0 0 9px rgba(110, 231, 183, 0.9);
+        }
+
         .pdp-file-copy strong {
           display: block;
-          margin-top: 4px;
+          margin-top: 7px;
           color: white;
           font-size: 15px;
           font-weight: 850;
         }
 
-        .pdp-file-copy span {
+        .pdp-file-copy > span {
           display: block;
           margin-top: 4px;
           color: rgba(203, 213, 225, 0.62);
@@ -3555,13 +3781,130 @@ export default function ProductDetailSection({
           line-height: 1.45;
         }
 
+        .pdp-coa-panels {
+          position: relative;
+          overflow: hidden;
+          margin-top: 12px;
+          border: 1px solid rgba(148, 163, 184, 0.095);
+          border-radius: 15px;
+          background: rgba(2, 6, 23, 0.34);
+          padding: 9px;
+        }
+
+        .pdp-coa-panels::after {
+          content: "";
+          position: absolute;
+          inset: 0;
+          pointer-events: none;
+          background: linear-gradient(110deg, transparent 18%, rgba(255, 255, 255, 0.025) 48%, transparent 72%);
+        }
+
+        .pdp-coa-panels-head {
+          position: relative;
+          z-index: 1;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 10px;
+        }
+
+        .pdp-coa-panels-head span {
+          display: inline-flex;
+          min-width: 0;
+          align-items: center;
+          gap: 6px;
+          color: rgba(191, 219, 254, 0.68);
+          font-size: 7px;
+          font-weight: 950;
+          letter-spacing: 0.14em;
+          text-transform: uppercase;
+        }
+
+        .pdp-coa-panels-head svg {
+          color: rgb(147, 197, 253);
+        }
+
+        .pdp-coa-panels-head em {
+          flex: 0 0 auto;
+          color: rgba(148, 163, 184, 0.48);
+          font-size: 7px;
+          font-style: normal;
+          font-weight: 850;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+        }
+
+        .pdp-coa-panel-list {
+          position: relative;
+          z-index: 1;
+          display: flex;
+          min-width: 0;
+          flex-wrap: wrap;
+          gap: 6px;
+          margin-top: 8px;
+        }
+
+        .pdp-panel-badge {
+          --pdp-panel-rgb: 103 232 249;
+          display: inline-flex;
+          min-height: 22px;
+          max-width: 100%;
+          align-items: center;
+          gap: 5px;
+          border: 1px solid rgb(var(--pdp-panel-rgb) / 0.22);
+          border-radius: 999px;
+          background: rgb(var(--pdp-panel-rgb) / 0.08);
+          padding: 4px 7px;
+          color: rgb(var(--pdp-panel-rgb));
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035), 0 0 20px rgb(var(--pdp-panel-rgb) / 0.035);
+          font-size: 6px;
+          font-weight: 950;
+          letter-spacing: 0.1em;
+          line-height: 1;
+          text-transform: uppercase;
+          white-space: nowrap;
+        }
+
+        .pdp-panel-badge i {
+          width: 5px;
+          height: 5px;
+          flex: 0 0 auto;
+          border-radius: 999px;
+          background: currentColor;
+          box-shadow: 0 0 8px currentColor;
+        }
+
+        .pdp-panel-badge.is-3x {
+          --pdp-panel-rgb: 251 191 36;
+        }
+
+        .pdp-panel-badge.is-4x {
+          --pdp-panel-rgb: 167 139 250;
+        }
+
+        .pdp-panel-badge.is-8x {
+          --pdp-panel-rgb: 147 197 253;
+        }
+
+        .pdp-panel-badge.is-standard {
+          --pdp-panel-rgb: 103 232 249;
+        }
+
+        .pdp-panel-badge.is-full {
+          --pdp-panel-rgb: 240 171 252;
+        }
+
         .pdp-file-action {
           display: inline-flex;
+          min-height: 40px;
+          align-self: center;
           align-items: center;
           justify-content: center;
           gap: 7px;
-          border: 0;
-          background: transparent;
+          border: 1px solid rgba(165, 243, 252, 0.16);
+          border-radius: 13px;
+          background: rgba(103, 232, 249, 0.07);
+          padding: 0 13px;
           color: rgb(165, 243, 252);
           font-size: 9px;
           font-weight: 950;
@@ -3569,6 +3912,13 @@ export default function ProductDetailSection({
           text-transform: uppercase;
           white-space: nowrap;
           cursor: pointer;
+          transition: border-color 180ms ease, background 180ms ease, color 180ms ease;
+        }
+
+        .pdp-file-action:hover {
+          border-color: rgba(165, 243, 252, 0.34);
+          background: rgba(103, 232, 249, 0.13);
+          color: white;
         }
 
         .pdp-file-action.is-disabled {
@@ -5652,11 +6002,46 @@ export default function ProductDetailSection({
           }
 
           .pdp-file-row {
-            grid-template-columns: 1fr;
+            grid-template-columns: 48px minmax(0, 1fr);
+            align-items: start;
+            gap: 12px;
+            border-radius: 20px;
+            padding: 13px;
           }
 
           .pdp-file-action {
-            grid-column: auto;
+            grid-column: 1 / -1;
+            width: 100%;
+            min-height: 46px;
+          }
+
+          .pdp-file-mark {
+            width: 48px;
+            height: 48px;
+            border-radius: 16px;
+          }
+
+          .pdp-file-heading {
+            flex-wrap: wrap;
+          }
+
+          .pdp-file-kicker-row {
+            align-items: flex-start;
+          }
+
+          .pdp-file-panels {
+            flex-basis: 100%;
+            margin-top: 2px;
+          }
+
+          .pdp-coa-panels {
+            margin-top: 10px;
+            padding: 9px;
+          }
+
+          .pdp-panel-badge {
+            min-height: 28px;
+            font-size: 7px;
           }
 
           .pdp-stock-pill.is-out {
@@ -6028,6 +6413,77 @@ export default function ProductDetailSection({
         }
 
         @media (max-width: 430px) {
+          .pdp-file-row {
+            grid-template-columns: 42px minmax(0, 1fr);
+            gap: 10px;
+            padding: 12px;
+          }
+
+          .pdp-file-row:hover {
+            transform: none;
+          }
+
+          .pdp-file-mark {
+            width: 42px;
+            height: 42px;
+            border-radius: 14px;
+          }
+
+          .pdp-file-heading {
+            display: block;
+          }
+
+          .pdp-file-kicker-row {
+            display: block;
+          }
+
+          .pdp-file-panels {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 5px;
+            margin-top: 8px;
+          }
+
+          .pdp-file-status {
+            margin-top: 8px;
+          }
+
+          .pdp-file-copy strong {
+            overflow-wrap: anywhere;
+            font-size: 14px;
+          }
+
+          .pdp-file-copy > span {
+            font-size: 11px;
+          }
+
+          .pdp-coa-panels {
+            grid-column: 1 / -1;
+          }
+
+          .pdp-coa-panels-head {
+            align-items: flex-start;
+            flex-direction: column;
+            gap: 4px;
+          }
+
+          .pdp-coa-panel-list {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+
+          .pdp-panel-badge {
+            min-width: 0;
+            justify-content: center;
+            overflow: hidden;
+            padding-inline: 7px;
+            text-overflow: ellipsis;
+          }
+
+          .pdp-panel-badge:last-child:nth-child(odd) {
+            grid-column: 1 / -1;
+          }
+
           .pdp-restock-email-row {
             grid-template-columns: 1fr;
           }
