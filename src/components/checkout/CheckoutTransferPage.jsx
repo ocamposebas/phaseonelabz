@@ -164,17 +164,10 @@ const US_STATES = [
 
 const BANK_SHIPPING_METHODS = [
   {
-    id: "standard",
-    title: "Standard Shipping",
-    description: "Estimated 3–7 business days after processing.",
-    price: 13,
-    method_id: "flat_rate",
-  },
-  {
     id: "priority",
-    title: "Priority Shipping",
-    description: "Estimated 2–4 business days after processing.",
-    price: 14.95,
+    title: "USPS Priority",
+    description: "Estimated 3–5 business days after processing.",
+    price: 13,
     method_id: "flat_rate",
   },
 ];
@@ -1449,7 +1442,7 @@ export default function CheckoutTransferPage() {
   const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState("card");
   const [bankTransferEmail, setBankTransferEmail] = useState("");
   const [checkoutForm, setCheckoutForm] = useState(() => getBlankCheckoutForm());
-  const [selectedShippingMethodId, setSelectedShippingMethodId] = useState("standard");
+  const [selectedShippingMethodId] = useState("priority");
   const [policyAcknowledged, setPolicyAcknowledged] = useState(false);
   const [manualPaymentOrder, setManualPaymentOrder] = useState(null);
   const [manualPaymentStatus, setManualPaymentStatus] = useState("idle");
@@ -2400,16 +2393,16 @@ export default function CheckoutTransferPage() {
           shipping: finalShipping,
           items: checkoutItems,
           shippingMethod: {
-            id: freeShippingUnlocked ? "free_manual_shipping" : "manual_flat_rate",
-            title: freeShippingUnlocked ? "Free Shipping" : "Standard Shipping",
+            id: freeShippingUnlocked ? "free_priority_shipping" : "priority_flat_rate",
+            title: "USPS Priority",
             price: manualShippingCost,
             method_id: freeShippingUnlocked ? "free_shipping" : "flat_rate",
             free_shipping_applied: freeShippingUnlocked,
             free_shipping_minimum: FREE_SHIPPING_MINIMUM,
           },
           shipping_method: {
-            id: freeShippingUnlocked ? "free_manual_shipping" : "manual_flat_rate",
-            title: freeShippingUnlocked ? "Free Shipping" : "Standard Shipping",
+            id: freeShippingUnlocked ? "free_priority_shipping" : "priority_flat_rate",
+            title: "USPS Priority",
             price: manualShippingCost,
             method_id: freeShippingUnlocked ? "free_shipping" : "flat_rate",
             free_shipping_applied: freeShippingUnlocked,
@@ -3163,8 +3156,8 @@ export default function CheckoutTransferPage() {
                       </strong>
                       <p>
                         {selectedPaymentMethod.id === "bank"
-                          ? "Complete your contact, delivery address, and shipping option. Your ACH 5% discount is already applied in the order summary."
-                          : `Fill in the contact and shipping information below. We use this address to ship your order. Shipping is free over ${formatMoney(FREE_SHIPPING_MINIMUM)}; otherwise it is ${formatMoney(MANUAL_PAYMENT_SHIPPING_COST)}.`}
+                          ? `Complete your contact and delivery address. USPS Priority is free from ${formatMoney(FREE_SHIPPING_MINIMUM)}; otherwise it is ${formatMoney(MANUAL_PAYMENT_SHIPPING_COST)}. Your ACH 5% discount is already applied in the order summary.`
+                          : `Fill in the contact and shipping information below. We use this address to ship your order. USPS Priority is free from ${formatMoney(FREE_SHIPPING_MINIMUM)}; otherwise it is ${formatMoney(MANUAL_PAYMENT_SHIPPING_COST)}.`}
                       </p>
                     </div>
                   </div>
@@ -3322,64 +3315,24 @@ export default function CheckoutTransferPage() {
                       </small>
                     </div>
 
-                    {selectedPaymentMethod.id === "bank" ? (
-                      <div className="bank-shipping-options" role="radiogroup" aria-label="Shipping method">
-                        {BANK_SHIPPING_METHODS.map((method) => {
-                          const active = selectedShippingMethodId === method.id;
+                    <div className="manual-shipping-single">
+                      <span>
+                        <Truck size={16} />
+                      </span>
 
-                          return (
-                            <button
-                              key={method.id}
-                              type="button"
-                              role="radio"
-                              aria-checked={active}
-                              className={`bank-shipping-method ${active ? "is-active" : ""}`}
-                              onClick={() => {
-                                setSelectedShippingMethodId(method.id);
-                                setError("");
-                                setPaymentNotice("");
-                              }}
-                            >
-                              <span>
-                                <Truck size={16} />
-                              </span>
-
-                              <div>
-                                <strong>{method.title}</strong>
-                                <small>
-                                  {freeShippingUnlocked
-                                    ? `${method.description} Free shipping is applied automatically.`
-                                    : method.description}
-                                </small>
-                              </div>
-
-                              <em className={freeShippingUnlocked ? "free-shipping-price" : ""}>
-                                {freeShippingUnlocked ? "FREE" : formatMoney(method.price)}
-                              </em>
-                            </button>
-                          );
-                        })}
+                      <div>
+                        <strong>USPS Priority</strong>
+                        <small>
+                          {freeShippingUnlocked
+                            ? `Estimated 3–5 business days after processing. Free shipping is applied from ${formatMoney(FREE_SHIPPING_MINIMUM)}.`
+                            : `Estimated 3–5 business days after processing. Shipping is ${formatMoney(MANUAL_PAYMENT_SHIPPING_COST)}. Add ${formatMoney(amountUntilFreeShipping)} more to get free shipping.`}
+                        </small>
                       </div>
-                    ) : (
-                      <div className="manual-shipping-single">
-                        <span>
-                          <Truck size={16} />
-                        </span>
 
-                        <div>
-                          <strong>{freeShippingUnlocked ? "Free Shipping" : "Standard Shipping"}</strong>
-                          <small>
-                            {freeShippingUnlocked
-                              ? `Free shipping is applied because the order is over ${formatMoney(FREE_SHIPPING_MINIMUM)}.`
-                              : `Shipping is ${formatMoney(MANUAL_PAYMENT_SHIPPING_COST)}. Add ${formatMoney(amountUntilFreeShipping)} more to get free shipping.`}
-                          </small>
-                        </div>
-
-                        <em className={freeShippingUnlocked ? "free-shipping-price" : ""}>
-                          {freeShippingUnlocked ? "FREE" : formatMoney(MANUAL_PAYMENT_SHIPPING_COST)}
-                        </em>
-                      </div>
-                    )}
+                      <em className={freeShippingUnlocked ? "free-shipping-price" : ""}>
+                        {freeShippingUnlocked ? "FREE" : formatMoney(MANUAL_PAYMENT_SHIPPING_COST)}
+                      </em>
+                    </div>
                   </div>
                 </div>
               )}

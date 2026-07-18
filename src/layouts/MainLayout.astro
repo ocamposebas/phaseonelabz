@@ -4,7 +4,6 @@ import "../styles/global.css";
 import GlobalPreloader from "../components/loading/GlobalPreloader.jsx";
 import AgeGate from "../components/age-gate/AgeGate.jsx";
 import AffiliateCouponTracker from "../components/tracking/AffiliateCouponTracker.jsx";
-import Popups from "../components/popups/pop.jsx";
 
 interface Props {
   title?: string;
@@ -180,6 +179,5 @@ const websiteSchema = {
       <slot />
     </main>
 
-    <Popups client:idle />
   </body>
 </html>
