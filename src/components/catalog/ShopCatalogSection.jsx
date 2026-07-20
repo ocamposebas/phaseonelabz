@@ -20,9 +20,8 @@ import { useCart } from "../cart/CartContext";
 const categoryFilters = [
   "All Products",
   "Accessories",
-  "Bacteriostatic Water",
+  "Reconstitution Solution",
   "Cosmetic & Skin",
-  "Growth Hormone",
   "Healing & Recovery",
   "Longevity & Other",
   "Metabolic Research",
@@ -163,6 +162,21 @@ function normalizeCatalogFilterText(value = "") {
     return "accessories";
   }
 
+  // Growth Hormone is no longer shown as its own filter.
+  // Products assigned to that former category now belong to Research Peptides.
+  if (normalized === "growth hormone" || normalized === "growth hormones") {
+    return "research peptides";
+  }
+
+  // Keep compatibility with the old WooCommerce category and old catalog URLs,
+  // while presenting the new customer-facing category name everywhere.
+  if (
+    normalized === "bacteriostatic water" ||
+    normalized === "bacteriostatic waters"
+  ) {
+    return "reconstitution solution";
+  }
+
   return normalized;
 }
 
@@ -221,13 +235,21 @@ function getProductImage(product) {
 }
 
 function getProductCategory(product) {
-  if (product?.category) return product.category;
+  const rawCategory =
+    getTermValue(product?.category) ||
+    (Array.isArray(product?.categories) && product.categories.length > 0
+      ? getTermValue(product.categories[0])
+      : "") ||
+    "Research Peptides";
 
-  if (Array.isArray(product?.categories) && product.categories.length > 0) {
-    return product.categories[0]?.name || product.categories[0];
+  const normalizedCategory = normalizeCatalogFilterText(rawCategory);
+
+  if (normalizedCategory === "research peptides") return "Research Peptides";
+  if (normalizedCategory === "reconstitution solution") {
+    return "Reconstitution Solution";
   }
 
-  return "Research Peptides";
+  return rawCategory;
 }
 
 function parseProductPriceNumber(value) {

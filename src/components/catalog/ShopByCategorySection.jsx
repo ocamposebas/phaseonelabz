@@ -8,7 +8,6 @@ import {
   PackageCheck,
   ShieldPlus,
   Sparkles,
-  Syringe,
   WandSparkles,
 } from "lucide-react";
 
@@ -56,15 +55,8 @@ const fallbackCategories = [
     icon: WandSparkles,
   },
   {
-    name: "Growth Hormone",
-    slug: "growth-hormone",
-    count: 3,
-    description: "GH catalog",
-    icon: Syringe,
-  },
-  {
-    name: "Bacteriostatic Water",
-    slug: "bacteriostatic-water",
+    name: "Reconstitution Solution",
+    slug: "reconstitution-solution",
     count: 3,
     description: "Support items",
     icon: Droplets,
@@ -77,6 +69,92 @@ const fallbackCategories = [
     icon: PackageCheck,
   },
 ];
+
+function normalizeCategoryKey(value = "") {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/&amp;/g, "and")
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function categoryMatches(category, acceptedValues = []) {
+  const keys = [
+    normalizeCategoryKey(category?.name),
+    normalizeCategoryKey(category?.slug),
+  ].filter(Boolean);
+
+  return keys.some((key) => acceptedValues.includes(key));
+}
+
+function isGrowthHormoneCategory(category) {
+  return categoryMatches(category, ["growth hormone"]);
+}
+
+function isResearchPeptidesCategory(category) {
+  return categoryMatches(category, ["research peptides"]);
+}
+
+function isBacteriostaticCategory(category) {
+  return categoryMatches(category, [
+    "bacteriostatic water",
+    "bacteriostatic solution",
+    "bac water",
+    "bac",
+  ]);
+}
+
+function prepareCategories(categories) {
+  const safeCategories = Array.isArray(categories)
+    ? categories
+    : fallbackCategories;
+
+  const growthHormoneCount = safeCategories
+    .filter(isGrowthHormoneCategory)
+    .reduce((total, category) => total + Number(category?.count || 0), 0);
+
+  const preparedCategories = safeCategories
+    .filter((category) => !isGrowthHormoneCategory(category))
+    .map((category) => {
+      if (!isBacteriostaticCategory(category)) return category;
+
+      return {
+        ...category,
+        name: "Reconstitution Solution",
+        slug: "reconstitution-solution",
+        description: category?.description || "Support items",
+        icon: category?.icon || Droplets,
+        // Force getCategoryHref() to build the URL from the new slug.
+        href: undefined,
+      };
+    });
+
+  if (growthHormoneCount > 0) {
+    const researchIndex = preparedCategories.findIndex(
+      isResearchPeptidesCategory
+    );
+
+    if (researchIndex >= 0) {
+      preparedCategories[researchIndex] = {
+        ...preparedCategories[researchIndex],
+        count:
+          Number(preparedCategories[researchIndex]?.count || 0) +
+          growthHormoneCount,
+      };
+    } else {
+      preparedCategories.unshift({
+        ...fallbackCategories.find(
+          (category) => category.slug === "research-peptides"
+        ),
+        count: growthHormoneCount,
+      });
+    }
+  }
+
+  return preparedCategories;
+}
 
 const fallbackCategoryMap = new Map(
   fallbackCategories.flatMap((category) => [
@@ -170,13 +248,10 @@ export default function ShopByCategorySection({
   titleBottom = "by category.",
   subtitle = "Explore products by research focus, support items, and specialized catalog groups.",
 }) {
-  const normalizedCategories = useMemo(() => {
-    const safeCategories = Array.isArray(categories)
-      ? categories
-      : fallbackCategories;
-
-    return safeCategories.map(normalizeCategory);
-  }, [categories]);
+  const normalizedCategories = useMemo(
+    () => prepareCategories(categories).map(normalizeCategory),
+    [categories]
+  );
 
   return (
     <section className="category-section relative overflow-hidden px-6 py-12 text-white sm:py-14 lg:py-16">
