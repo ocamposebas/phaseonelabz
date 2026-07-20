@@ -55,7 +55,7 @@ const fallbackCategories = [
     icon: WandSparkles,
   },
   {
-    name: "Reconstitution Solution",
+    name: "Recon Water",
     slug: "reconstitution-solution",
     count: 3,
     description: "Support items",
@@ -122,7 +122,7 @@ function prepareCategories(categories) {
 
       return {
         ...category,
-        name: "Reconstitution Solution",
+        name: "Recon Water",
         slug: "reconstitution-solution",
         description: category?.description || "Support items",
         icon: category?.icon || Droplets,

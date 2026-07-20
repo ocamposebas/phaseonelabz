@@ -20,7 +20,7 @@ import { useCart } from "../cart/CartContext";
 const categoryFilters = [
   "All Products",
   "Accessories",
-  "Reconstitution Solution",
+  "Recon Water",
   "Cosmetic & Skin",
   "Healing & Recovery",
   "Longevity & Other",
@@ -172,9 +172,12 @@ function normalizeCatalogFilterText(value = "") {
   // while presenting the new customer-facing category name everywhere.
   if (
     normalized === "bacteriostatic water" ||
-    normalized === "bacteriostatic waters"
+    normalized === "bacteriostatic waters" ||
+    normalized === "reconstitution solution" ||
+    normalized === "reconstitution solutions" ||
+    normalized === "recon waters"
   ) {
-    return "reconstitution solution";
+    return "recon water";
   }
 
   return normalized;
@@ -245,8 +248,8 @@ function getProductCategory(product) {
   const normalizedCategory = normalizeCatalogFilterText(rawCategory);
 
   if (normalizedCategory === "research peptides") return "Research Peptides";
-  if (normalizedCategory === "reconstitution solution") {
-    return "Reconstitution Solution";
+  if (normalizedCategory === "recon water") {
+    return "Recon Water";
   }
 
   return rawCategory;
