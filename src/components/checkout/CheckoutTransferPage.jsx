@@ -22,6 +22,7 @@ import { useCart } from "../cart/CartContext";
 
 const ACCOUNT_ENDPOINT = "/api/account/me";
 const PRISM_CHECKOUT_ENDPOINT = "/api/prism/checkout";
+const THANK_YOU_URL = "/checkout/thank-you";
 const VALIDATE_COUPON_ENDPOINT =
   "https://staging.phaseonelabz.com/wp-json/phaseone/v1/validate-coupon";
 const WOO_URL =
@@ -1518,6 +1519,7 @@ export default function CheckoutTransferPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [paymentNotice, setPaymentNotice] = useState("");
+  const [returnNotice, setReturnNotice] = useState("");
   const [selectedPaymentMethodId, setSelectedPaymentMethodId] =
     useState("card");
   const [bankTransferEmail, setBankTransferEmail] = useState("");
@@ -1534,6 +1536,32 @@ export default function CheckoutTransferPage() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+
+    const returnParams = new URLSearchParams(window.location.search);
+    if (
+      returnParams.get("payment") === "cancelled" &&
+      returnParams.get("gateway") === "prism"
+    ) {
+      setReturnNotice(
+        "Payment was not completed. Your order is still available and you can try again whenever you are ready.",
+      );
+
+      returnParams.delete("payment");
+      returnParams.delete("gateway");
+      returnParams.delete("order_id");
+      returnParams.delete("order_key");
+      returnParams.delete("prism_session");
+
+      const cleanReturnUrl = `${window.location.pathname}${
+        returnParams.toString() ? `?${returnParams.toString()}` : ""
+      }${window.location.hash || ""}`;
+
+      window.history.replaceState(
+        { phaseoneCheckoutReturnCleaned: true },
+        "",
+        cleanReturnUrl,
+      );
+    }
 
     const pendingSession = readPendingCheckoutSession();
     setSession(pendingSession);
@@ -1810,74 +1838,6 @@ export default function CheckoutTransferPage() {
     previewTotal - paymentMethodDiscount + activeShippingCost,
     0,
   );
-
-  const manualPaymentReference = buildManualPaymentReference(
-    manualPaymentOrder || {},
-  );
-  const manualPaymentReady = Boolean(
-    isManualPaymentSelected &&
-    manualPaymentOrder?.order_id &&
-    manualPaymentReference,
-  );
-  const manualPaymentMatchesSelected = Boolean(
-    manualPaymentReady &&
-    selectedPaymentMethod?.id &&
-    [selectedPaymentMethod.id, `phaseone_${selectedPaymentMethod.id}`].includes(
-      String(manualPaymentOrder?.payment_method || ""),
-    ),
-  );
-  // Zelle/Venmo instructions are shown inside this same component after the order is created.
-  const showManualInstructions = Boolean(
-    manualPaymentReady && manualPaymentMatchesSelected,
-  );
-  const manualInstructionsEmail = normalizeEmail(
-    manualPaymentOrder?.email ||
-      manualPaymentOrder?.billing?.email ||
-      checkoutForm.email ||
-      bankTransferEmail,
-  );
-
-  const manualOrderDisplayNumber = manualPaymentOrder?.order_number
-    ? `#${manualPaymentOrder.order_number}`
-    : "";
-  const manualOrderTotal =
-    Number(manualPaymentOrder?.total || 0) > 0
-      ? Number(manualPaymentOrder.total)
-      : paymentPreviewTotal;
-
-  const manualPaymentAmount = useMemo(
-    () => formatMoney(manualOrderTotal),
-    [manualOrderTotal],
-  );
-
-  const manualOrderPaymentDetails =
-    manualPaymentOrder?.payment_details ||
-    manualPaymentOrder?.paymentDetails ||
-    manualPaymentDetails ||
-    null;
-
-  const manualThanksBilling = formatAddressBlock(
-    manualPaymentOrder?.billing || normalizeCheckoutFormForOrder(checkoutForm),
-  );
-
-  const manualThanksShipping = formatAddressBlock(
-    manualPaymentOrder?.shipping ||
-      manualPaymentOrder?.billing ||
-      normalizeCheckoutFormForOrder(checkoutForm),
-  );
-
-  const manualThanksItems = chooseManualThanksItems(
-    manualPaymentOrder?.items,
-    cartItems,
-  );
-
-  useEffect(() => {
-    if (!showManualInstructions || typeof window === "undefined") return;
-
-    window.requestAnimationFrame(() => {
-      window.scrollTo({ top: 0, behavior: "auto" });
-    });
-  }, [showManualInstructions]);
 
   const effectiveBankTransferEmail = normalizeEmail(
     checkoutForm.email || bankTransferEmail,
@@ -2346,7 +2306,13 @@ export default function CheckoutTransferPage() {
           JSON.stringify({
             orderId: data.orderId || null,
             orderNumber: data.orderNumber || null,
+            orderKey: data.orderKey || null,
+            total: data.total || paymentPreviewTotal,
+            currency: data.currency || "USD",
             email: finalBilling.email,
+            billing: finalBilling,
+            shipping: finalShipping,
+            items: checkoutItems,
             createdAt: acceptedAt,
           }),
         );
@@ -2831,26 +2797,45 @@ export default function CheckoutTransferPage() {
       setManualPaymentStatus("ready");
 
       if (typeof window !== "undefined") {
+        const thankYouOrder = {
+          ...orderData,
+          checkoutType: "manual",
+          method: manualMethod.id,
+          methodTitle: manualMethod.title,
+          email: finalEmail,
+          billing: orderData.billing || finalBilling,
+          shipping: orderData.shipping || finalShipping,
+          items: orderData.items || checkoutItems,
+          createdAt: new Date().toISOString(),
+        };
+
         localStorage.setItem(manualOrderStorageKey, JSON.stringify(orderData));
+        localStorage.setItem(
+          "phaseone_thank_you_order",
+          JSON.stringify(thankYouOrder),
+        );
         localStorage.setItem("phaseone_checkout_email", finalEmail);
         localStorage.setItem(
           "phaseone_checkout_shipping",
           JSON.stringify(checkoutForm),
         );
+
+        const thankYouParams = new URLSearchParams({
+          payment: "manual",
+          gateway: manualMethod.id,
+          order_id: String(orderData.order_id),
+        });
+
+        window.location.assign(
+          `${THANK_YOU_URL}?${thankYouParams.toString()}`,
+        );
+        return;
       }
 
       setLoading(false);
       setPaymentNotice(
-        `${manualMethod.title} order ${orderData.order_number ? `#${orderData.order_number}` : ""} created. Payment instructions are shown below and were emailed to ${finalEmail}.`,
+        `${manualMethod.title} order created. Check your email for payment instructions.`,
       );
-
-      if (typeof window !== "undefined") {
-        window.setTimeout(() => {
-          document
-            .querySelector(".phase-thanks-card")
-            ?.scrollIntoView({ behavior: "auto", block: "start" });
-        }, 120);
-      }
     } catch (err) {
       console.error("PHASE ONE MANUAL PAYMENT ORDER ERROR:", err);
       setLoading(false);
@@ -2877,195 +2862,6 @@ export default function CheckoutTransferPage() {
     setPaymentNotice("");
     createPrismCardCheckout();
   };
-
-  if (showManualInstructions && manualPaymentDetails) {
-    return (
-      <main className="checkout-page manual-thanks-page">
-        <section className="checkout-shell manual-thanks-shell">
-          <section
-            className="phase-thanks-card phase-thanks-card-full"
-            aria-live="polite"
-          >
-            <div className="phase-thanks-hero">
-              <span className="phase-thanks-icon">
-                <BadgeCheck size={24} />
-              </span>
-
-              <div>
-                <p>Thank you</p>
-                <h2>Your order was received</h2>
-                <span>
-                  Order {manualOrderDisplayNumber || ""} is on hold until we
-                  confirm your {manualPaymentDetails.title} payment. A copy of
-                  these instructions was sent to{" "}
-                  {manualInstructionsEmail ||
-                    manualThanksBilling.email ||
-                    "your email"}
-                  .
-                </span>
-              </div>
-            </div>
-
-            <div className="phase-thanks-grid main-grid">
-              <div className="phase-thanks-panel payment-panel">
-                <span>Amount to send</span>
-                <strong>{manualPaymentAmount}</strong>
-                <small>Send this exact amount.</small>
-              </div>
-
-              <div className="phase-thanks-panel reference-panel">
-                <span>Payment reference</span>
-                <strong>{manualPaymentReference}</strong>
-                <small>Use only this reference in the payment note.</small>
-              </div>
-            </div>
-
-            <div className="phase-thanks-split">
-              <div className="phase-thanks-box">
-                <div className="phase-thanks-box-head">
-                  <span>Payment instructions</span>
-                  <strong>{manualPaymentDetails.title}</strong>
-                </div>
-
-                <div className="phase-thanks-line">
-                  <span>{manualPaymentDetails.recipientLabel}</span>
-                  <strong>
-                    {manualOrderPaymentDetails?.recipient ||
-                      manualPaymentDetails.recipientValue}
-                  </strong>
-                </div>
-
-                {(manualOrderPaymentDetails?.recipient_extra ||
-                  manualPaymentDetails.extraRecipientLine) && (
-                  <div className="phase-thanks-line">
-                    <span>Name</span>
-                    <strong>
-                      {manualOrderPaymentDetails?.recipient_extra ||
-                        manualPaymentDetails.extraRecipientLine}
-                    </strong>
-                  </div>
-                )}
-
-                <div className="phase-thanks-line">
-                  <span>Status</span>
-                  <strong>Awaiting payment</strong>
-                </div>
-
-                {(manualOrderPaymentDetails?.button_url ||
-                  manualPaymentDetails.actionHref) && (
-                  <a
-                    className="phase-thanks-action"
-                    href={
-                      manualOrderPaymentDetails?.button_url ||
-                      manualPaymentDetails.actionHref
-                    }
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    {manualOrderPaymentDetails?.button_label ||
-                      manualPaymentDetails.actionLabel ||
-                      "Open payment app"}
-                  </a>
-                )}
-              </div>
-
-              <div className="phase-thanks-box">
-                <div className="phase-thanks-box-head">
-                  <span>Shipping details</span>
-                  <strong>
-                    {manualThanksShipping.fullName || "Shipping address"}
-                  </strong>
-                </div>
-
-                <div className="phase-thanks-address">
-                  {manualThanksShipping.lines.length ? (
-                    manualThanksShipping.lines.map((line) => (
-                      <p key={line}>{line}</p>
-                    ))
-                  ) : (
-                    <p>Shipping address saved on the order.</p>
-                  )}
-                  {manualThanksShipping.phone && (
-                    <p>{manualThanksShipping.phone}</p>
-                  )}
-                </div>
-
-                <div className="phase-thanks-line compact">
-                  <span>Email</span>
-                  <strong>
-                    {manualInstructionsEmail || manualThanksBilling.email}
-                  </strong>
-                </div>
-              </div>
-            </div>
-
-            <div className="phase-thanks-box order-box">
-              <div className="phase-thanks-box-head">
-                <span>Order details</span>
-                <strong>
-                  {manualThanksItems.length} item
-                  {manualThanksItems.length === 1 ? "" : "s"}
-                </strong>
-              </div>
-
-              <div className="phase-thanks-items">
-                {manualThanksItems.map((item, index) => {
-                  const options = getItemOptions(item);
-                  const lineTotal = getCartItemLineTotal(item);
-                  const image = getItemImage(item);
-                  const name = getItemName(item);
-                  const quantity = getCartItemQuantity(item);
-
-                  return (
-                    <div
-                      key={
-                        item.cartKey ||
-                        item.cart_key ||
-                        `${item.id || item.product_id || name}-${index}`
-                      }
-                    >
-                      <span className="phase-thanks-item-media">
-                        <img src={image} alt="" loading="lazy" />
-                      </span>
-
-                      <span className="phase-thanks-item-copy">
-                        <strong>
-                          {quantity}× {name}
-                        </strong>
-                        {options && <small>{options}</small>}
-                      </span>
-
-                      <em>
-                        {isRewardGiftItem(item)
-                          ? "FREE"
-                          : formatMoney(lineTotal)}
-                      </em>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="phase-thanks-warning">
-              <AlertTriangle size={16} />
-              <p>
-                Important: write only <strong>{manualPaymentReference}</strong>{" "}
-                in the payment note. Do not include product names. Unpaid
-                Zelle/Venmo orders cancel automatically after 24 hours.
-              </p>
-            </div>
-
-            <div className="phase-thanks-actions-row">
-              <a href="/shop">Continue shopping</a>
-              <a href="/contact">Need help?</a>
-            </div>
-          </section>
-        </section>
-
-        <style>{styles}</style>
-      </main>
-    );
-  }
 
   if (!hasItems) {
     return (
@@ -3097,6 +2893,23 @@ export default function CheckoutTransferPage() {
             </small>
           </div>
         </header>
+
+        {returnNotice && (
+          <div className="checkout-return-notice" role="status">
+            <AlertTriangle size={17} />
+            <div>
+              <strong>Payment not completed</strong>
+              <span>{returnNotice}</span>
+            </div>
+            <button
+              type="button"
+              aria-label="Dismiss message"
+              onClick={() => setReturnNotice("")}
+            >
+              <X size={16} />
+            </button>
+          </div>
+        )}
 
         <div className="checkout-layout">
           <form
@@ -3419,16 +3232,23 @@ export default function CheckoutTransferPage() {
                   const options = getItemOptions(item);
                   const isRewardGift = isRewardGiftItem(item);
                   const lineTotal =
-                    getCartItemPrice(item) * Number(item.quantity || 1);
+                    getCartItemPrice(item) * getCartItemQuantity(item);
 
                   return (
                     <div
                       key={item.cartKey || `${item.id}-${options}-${index}`}
                       className="summary-item"
                     >
-                      <div className="summary-image">
-                        <img src={image} alt={getItemName(item)} />
-                        <span>{item.quantity}</span>
+                      <div className="summary-image-wrap">
+                        <div className="summary-image">
+                          <img src={image} alt={getItemName(item)} />
+                        </div>
+                        <span
+                          className="summary-quantity"
+                          aria-label={`Quantity ${getCartItemQuantity(item)}`}
+                        >
+                          {getCartItemQuantity(item)}
+                        </span>
                       </div>
 
                       <div className="summary-item-copy">
@@ -3613,6 +3433,52 @@ const styles = `
     text-transform: uppercase;
   }
 
+
+  .checkout-return-notice {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 12px;
+    margin: 0 0 18px;
+    padding: 14px 16px;
+    border: 1px solid rgba(245, 158, 11, 0.32);
+    border-radius: 14px;
+    background: rgba(120, 53, 15, 0.16);
+    color: #f8d99a;
+  }
+
+  .checkout-return-notice > svg {
+    color: #f6b94d;
+  }
+
+  .checkout-return-notice div {
+    display: grid;
+    gap: 3px;
+  }
+
+  .checkout-return-notice strong {
+    color: #fff4d7;
+    font-size: 0.86rem;
+  }
+
+  .checkout-return-notice span {
+    color: #c7b88f;
+    font-size: 0.78rem;
+    line-height: 1.5;
+  }
+
+  .checkout-return-notice button {
+    display: grid;
+    width: 32px;
+    height: 32px;
+    place-items: center;
+    border: 0;
+    border-radius: 9px;
+    background: rgba(255, 255, 255, 0.05);
+    color: #d9c9a5;
+    cursor: pointer;
+  }
+
   .checkout-layout {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 390px;
@@ -3621,7 +3487,6 @@ const styles = `
   }
 
   .traditional-checkout-form,
-  .summary-card,
   .phase-thanks-card,
   .checkout-empty {
     border: 1px solid rgba(148, 163, 184, 0.14);
@@ -4006,9 +3871,12 @@ const styles = `
   }
 
   .summary-card {
-    overflow: hidden;
-    border-radius: 20px;
-    padding: 22px;
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    padding: 2px 0 0;
   }
 
   .summary-head {
@@ -4016,98 +3884,146 @@ const styles = `
     align-items: center;
     justify-content: space-between;
     gap: 14px;
-    padding-bottom: 18px;
-    border-bottom: 1px solid rgba(148, 163, 184, 0.11);
+    padding: 0 0 20px;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.14);
   }
 
   .summary-head span {
     color: #64748b;
     font-size: 9px;
     font-weight: 900;
-    letter-spacing: 0.11em;
+    letter-spacing: 0.14em;
     text-transform: uppercase;
   }
 
   .summary-head h2 {
-    margin: 4px 0 0;
-    font-size: 19px;
+    margin: 5px 0 0;
+    color: #f8fafc;
+    font-size: 20px;
+    line-height: 1.15;
+    letter-spacing: -0.025em;
   }
 
   .summary-head svg {
     color: #60a5fa;
+    filter: drop-shadow(0 0 12px rgba(59, 130, 246, 0.24));
   }
 
   .summary-items {
     display: grid;
-    gap: 14px;
-    max-height: 360px;
-    overflow: auto;
-    padding: 18px 3px 18px 0;
+    gap: 0;
+    max-height: 390px;
+    overflow-x: visible;
+    overflow-y: auto;
+    padding: 4px 4px 6px 0;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(96, 165, 250, 0.28) transparent;
+  }
+
+  .summary-items::-webkit-scrollbar {
+    width: 5px;
+  }
+
+  .summary-items::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: rgba(96, 165, 250, 0.26);
   }
 
   .summary-item {
     display: grid;
-    grid-template-columns: 52px minmax(0, 1fr) auto;
+    grid-template-columns: 60px minmax(0, 1fr) auto;
     align-items: center;
-    gap: 12px;
+    min-height: 82px;
+    gap: 14px;
+    padding: 12px 0;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+  }
+
+  .summary-item:last-child {
+    border-bottom: 0;
+  }
+
+  .summary-image-wrap {
+    position: relative;
+    width: 58px;
+    height: 58px;
+    flex: 0 0 58px;
   }
 
   .summary-image {
-    position: relative;
     display: grid;
-    width: 52px;
-    height: 52px;
+    width: 58px;
+    height: 58px;
     place-items: center;
     overflow: hidden;
-    border: 1px solid rgba(148, 163, 184, 0.13);
-    border-radius: 11px;
-    background: rgba(15, 23, 42, 0.62);
+    border: 1px solid rgba(148, 163, 184, 0.16);
+    border-radius: 14px;
+    background:
+      radial-gradient(circle at 50% 25%, rgba(59, 130, 246, 0.1), transparent 62%),
+      rgba(6, 11, 22, 0.32);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
   }
 
   .summary-image img {
-    width: 88%;
-    height: 88%;
+    width: 86%;
+    height: 86%;
     object-fit: contain;
+    filter: drop-shadow(0 8px 12px rgba(0, 0, 0, 0.28));
   }
 
-  .summary-image span {
+  .summary-quantity {
     position: absolute;
-    top: -5px;
-    right: -5px;
+    z-index: 2;
+    top: -7px;
+    right: -7px;
     display: grid;
-    min-width: 20px;
-    height: 20px;
+    min-width: 23px;
+    height: 23px;
+    padding: 0 6px;
     place-items: center;
+    border: 2px solid #02050b;
     border-radius: 999px;
-    background: #2563eb;
+    background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+    box-shadow: 0 7px 16px rgba(29, 78, 216, 0.32);
     color: #ffffff;
-    font-size: 9px;
+    font-size: 10px;
     font-weight: 900;
+    line-height: 1;
   }
 
   .summary-item-copy {
     display: grid;
     min-width: 0;
-    gap: 4px;
+    gap: 5px;
   }
 
   .summary-item-copy strong {
     overflow: hidden;
-    font-size: 12px;
+    color: #f8fafc;
+    font-size: 13px;
+    line-height: 1.25;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
   .summary-item-copy small {
+    overflow: hidden;
     color: #64748b;
     font-size: 10px;
+    font-weight: 650;
+    letter-spacing: 0.01em;
+    line-height: 1.35;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .summary-item em {
-    color: #e2e8f0;
-    font-size: 11px;
+    color: #f1f5f9;
+    font-size: 12px;
     font-style: normal;
-    font-weight: 800;
+    font-weight: 850;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
   }
 
   .gift-label,
@@ -4117,43 +4033,75 @@ const styles = `
 
   .summary-coupon {
     display: grid;
-    gap: 8px;
-    padding: 16px 0;
-    border-top: 1px solid rgba(148, 163, 184, 0.11);
-    border-bottom: 1px solid rgba(148, 163, 184, 0.11);
+    gap: 9px;
+    padding: 18px 0 20px;
+    border-top: 1px solid rgba(148, 163, 184, 0.12);
+    border-bottom: 1px solid rgba(148, 163, 184, 0.12);
   }
 
   .coupon-entry {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
-    gap: 8px;
+    gap: 4px;
+    align-items: center;
+    padding: 4px;
+    border: 1px solid rgba(148, 163, 184, 0.17);
+    border-radius: 14px;
+    background: rgba(2, 6, 15, 0.22);
+    transition: border-color 160ms ease, box-shadow 160ms ease;
+  }
+
+  .coupon-entry:focus-within {
+    border-color: rgba(96, 165, 250, 0.56);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.09);
   }
 
   .coupon-entry input {
-    min-height: 44px;
+    min-height: 42px;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    box-shadow: none;
+    padding: 0 12px;
+  }
+
+  .coupon-entry input:focus {
+    border: 0;
+    background: transparent;
+    box-shadow: none;
   }
 
   .coupon-entry button,
   .applied-coupon button {
-    border: 1px solid rgba(96, 165, 250, 0.24);
+    min-height: 42px;
+    border: 0;
     border-radius: 10px;
-    background: rgba(37, 99, 235, 0.1);
-    padding: 0 13px;
-    color: #bfdbfe;
+    background: linear-gradient(135deg, #2563eb, #1d4ed8);
+    box-shadow: 0 8px 20px rgba(29, 78, 216, 0.2);
+    padding: 0 17px;
+    color: #ffffff;
     font-size: 11px;
     font-weight: 900;
     cursor: pointer;
+    transition: transform 150ms ease, filter 150ms ease, opacity 150ms ease;
+  }
+
+  .coupon-entry button:hover:not(:disabled),
+  .applied-coupon button:hover {
+    filter: brightness(1.08);
+    transform: translateY(-1px);
   }
 
   .coupon-entry button:disabled {
     cursor: not-allowed;
-    opacity: 0.5;
+    opacity: 0.42;
+    transform: none;
   }
 
   .summary-coupon > small {
     color: #64748b;
     font-size: 10px;
-    line-height: 1.4;
+    line-height: 1.45;
   }
 
   .summary-coupon > small.coupon-error {
@@ -4164,11 +4112,16 @@ const styles = `
   .applied-coupon > div {
     display: flex;
     align-items: center;
-    gap: 9px;
+    gap: 10px;
   }
 
   .applied-coupon {
+    min-height: 52px;
     justify-content: space-between;
+    border: 1px solid rgba(74, 222, 128, 0.18);
+    border-radius: 14px;
+    background: rgba(20, 83, 45, 0.09);
+    padding: 7px 7px 7px 13px;
   }
 
   .applied-coupon svg {
@@ -4181,6 +4134,7 @@ const styles = `
   }
 
   .applied-coupon strong {
+    color: #f0fdf4;
     font-size: 11px;
   }
 
@@ -4189,10 +4143,18 @@ const styles = `
     font-size: 10px;
   }
 
+  .applied-coupon button {
+    min-height: 36px;
+    background: rgba(15, 23, 42, 0.72);
+    box-shadow: none;
+    color: #cbd5e1;
+    padding: 0 12px;
+  }
+
   .summary-lines {
     display: grid;
-    gap: 11px;
-    padding: 18px 0;
+    gap: 12px;
+    padding: 20px 0;
   }
 
   .summary-lines > div,
@@ -4209,15 +4171,17 @@ const styles = `
   }
 
   .summary-lines strong {
+    color: #e2e8f0;
     font-size: 11px;
   }
 
   .summary-total {
-    border-top: 1px solid rgba(148, 163, 184, 0.12);
-    padding-top: 18px;
+    border-top: 1px solid rgba(148, 163, 184, 0.14);
+    padding-top: 19px;
   }
 
   .summary-total > span {
+    color: #f8fafc;
     font-size: 14px;
     font-weight: 900;
   }
@@ -4235,26 +4199,28 @@ const styles = `
   }
 
   .summary-total strong {
-    font-size: 23px;
+    color: #ffffff;
+    font-size: 24px;
     letter-spacing: -0.04em;
   }
 
   .free-shipping-progress {
-    margin: 14px 0 0;
-    border-radius: 10px;
-    background: rgba(37, 99, 235, 0.08);
-    padding: 10px 11px;
+    margin: 15px 0 0;
+    border: 1px solid rgba(96, 165, 250, 0.12);
+    border-radius: 12px;
+    background: rgba(37, 99, 235, 0.06);
+    padding: 11px 12px;
     color: #93c5fd;
     font-size: 10px;
-    line-height: 1.4;
+    line-height: 1.45;
   }
 
   .summary-note {
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-top: 14px;
-    color: #475569;
+    margin-top: 15px;
+    color: #536173;
     font-size: 9px;
   }
 
@@ -4545,9 +4511,17 @@ const styles = `
       padding-left: 16px;
     }
 
-    .summary-card,
     .phase-thanks-card {
       padding: 18px;
+    }
+
+    .summary-card {
+      padding: 0;
+    }
+
+    .summary-item {
+      grid-template-columns: 58px minmax(0, 1fr) auto;
+      gap: 12px;
     }
   }
 `;
