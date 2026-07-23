@@ -263,6 +263,28 @@ function getStatusLabel(status = "") {
 }
 
 export default function CheckoutThankYouPage() {
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+
+    let viewport = document.querySelector('meta[name="viewport"]');
+
+    if (!viewport) {
+      viewport = document.createElement("meta");
+      viewport.setAttribute("name", "viewport");
+      document.head.appendChild(viewport);
+    }
+
+    viewport.setAttribute(
+      "content",
+      "width=device-width, initial-scale=1, viewport-fit=cover",
+    );
+
+    document.documentElement.style.width = "100%";
+    document.documentElement.style.maxWidth = "100%";
+    document.body.style.width = "100%";
+    document.body.style.maxWidth = "100%";
+  }, []);
+
   const [context, setContext] = useState(null);
   const [order, setOrder] = useState(null);
   const [statusState, setStatusState] = useState("loading");

@@ -4,4 +4,47 @@ import CheckoutThankYouPage from "../../components/checkout/CheckoutThankYouPage
 export const prerender = false;
 ---
 
-<CheckoutThankYouPage client:load />
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#050912" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Order Confirmation | Phase One Labz</title>
+
+    <script is:inline>
+      (() => {
+        let viewport = document.querySelector('meta[name="viewport"]');
+
+        if (!viewport) {
+          viewport = document.createElement("meta");
+          viewport.name = "viewport";
+          document.head.appendChild(viewport);
+        }
+
+        viewport.content =
+          "width=device-width, initial-scale=1, viewport-fit=cover";
+      })();
+    </script>
+  </head>
+
+  <body>
+    <CheckoutThankYouPage client:load />
+  </body>
+</html>
+
+<style is:global>
+  html,
+  body {
+    width: 100%;
+    max-width: 100%;
+    min-height: 100%;
+    margin: 0;
+    overflow-x: hidden;
+    background: #050912;
+  }
+</style>
