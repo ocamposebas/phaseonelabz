@@ -21,6 +21,7 @@ import {
 import { useCart } from "../cart/CartContext";
 
 const ACCOUNT_ENDPOINT = "/api/account/me";
+const PRISM_CHECKOUT_ENDPOINT = "/api/prism/checkout";
 const VALIDATE_COUPON_ENDPOINT =
   "https://staging.phaseonelabz.com/wp-json/phaseone/v1/validate-coupon";
 const WOO_URL =
@@ -1159,12 +1160,16 @@ function getBlankCheckoutForm() {
     country: "US",
     firstName: "",
     lastName: "",
+    company: "",
+    researchOrganization: "",
     address1: "",
     address2: "",
     city: "",
     state: "",
     postcode: "",
     phone: "",
+    deliveryInstructions: "",
+    orderNotes: "",
   };
 }
 
@@ -1190,12 +1195,31 @@ function buildCheckoutFormData(
       "",
     lastName:
       shipping.last_name || billing.last_name || data.customer?.lastName || "",
+    company: shipping.company || billing.company || "",
+    researchOrganization:
+      session?.customFields?.researchOrganization ||
+      session?.custom_fields?.research_organization ||
+      session?.researchOrganization ||
+      session?.research_organization ||
+      "",
     address1: shipping.address_1 || billing.address_1 || "",
     address2: shipping.address_2 || billing.address_2 || "",
     city: shipping.city || billing.city || "",
     state: shipping.state || billing.state || "",
     postcode: shipping.postcode || billing.postcode || "",
     phone: shipping.phone || billing.phone || data.customer?.phone || "",
+    deliveryInstructions:
+      session?.customFields?.deliveryInstructions ||
+      session?.custom_fields?.delivery_instructions ||
+      session?.deliveryInstructions ||
+      session?.delivery_instructions ||
+      "",
+    orderNotes:
+      session?.customFields?.orderNotes ||
+      session?.custom_fields?.order_notes ||
+      session?.orderNotes ||
+      session?.order_notes ||
+      "",
   };
 }
 
@@ -1222,6 +1246,7 @@ function normalizeCheckoutFormForOrder(form = {}) {
     last_name: String(form.lastName || "").trim(),
     email: normalizeEmail(form.email || ""),
     phone: String(form.phone || "").trim(),
+    company: String(form.company || "").trim(),
     address_1: String(form.address1 || "").trim(),
     address_2: String(form.address2 || "").trim(),
     city: String(form.city || "").trim(),
@@ -1797,7 +1822,13 @@ export default function CheckoutTransferPage() {
       ? MANUAL_PAYMENT_SHIPPING_COST
       : 0;
 
-  const activeShippingCost = bankShippingCost + manualShippingCost;
+  const cardShippingCost =
+    selectedPaymentMethod?.id === "card" && !freeShippingUnlocked
+      ? selectedShippingOriginalPrice
+      : 0;
+
+  const activeShippingCost =
+    bankShippingCost + manualShippingCost + cardShippingCost;
 
   const effectiveSelectedShippingMethod = {
     ...selectedShippingMethod,
@@ -2220,6 +2251,163 @@ export default function CheckoutTransferPage() {
     window.location.href = checkoutUrl;
   };
 
+  const createPrismCardCheckout = async () => {
+    if (!validateBeforePayment()) return;
+
+    if (cashbackToApply > 0) {
+      setError(
+        "Cashback cannot be applied through the new PRISM card flow yet. Turn off cashback and try again.",
+      );
+      return;
+    }
+
+    const checkoutItems = buildCheckoutItems(cartItems);
+
+    if (!checkoutItems.length) {
+      setError("No valid cart items were found for secure card checkout.");
+      return;
+    }
+
+    const normalizedForm = normalizeCheckoutFormForOrder(checkoutForm);
+    const requiredFields = [
+      ["first_name", "First name"],
+      ["last_name", "Last name"],
+      ["email", "Email"],
+      ["phone", "Phone number"],
+      ["address_1", "Address"],
+      ["city", "City"],
+      ["state", "State / Province"],
+      ["postcode", "Postal code"],
+      ["country", "Country"],
+    ];
+
+    const missingField = requiredFields.find(([key]) => !normalizedForm[key]);
+
+    if (missingField) {
+      setError(`${missingField[1]} is required for secure card checkout.`);
+      return;
+    }
+
+    if (!isValidEmail(normalizedForm.email)) {
+      setError("Enter a valid email for secure card checkout.");
+      return;
+    }
+
+    const finalBilling = { ...normalizedForm };
+    const finalShipping = { ...normalizedForm };
+    const acceptedAt = new Date().toISOString();
+    const couponCodes = normalizeCouponList(
+      couponStatus === "valid" ? coupon : couponInput,
+    );
+
+    if (typeof window !== "undefined") {
+      localStorage.setItem("phaseone_checkout_email", finalBilling.email);
+      localStorage.setItem(
+        "phaseone_checkout_shipping",
+        JSON.stringify(checkoutForm),
+      );
+    }
+
+    try {
+      setLoading(true);
+      setError("");
+      setPaymentNotice("Creating your order and opening secure PRISM checkout...");
+
+      const response = await fetch(PRISM_CHECKOUT_ENDPOINT, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          customer: {
+            firstName: finalBilling.first_name,
+            lastName: finalBilling.last_name,
+            email: finalBilling.email,
+            phone: finalBilling.phone,
+          },
+          billing: finalBilling,
+          shipping: finalShipping,
+          items: checkoutItems.map((item) => ({
+            product_id: Number(item.product_id || 0),
+            variation_id: Number(item.variation_id || 0),
+            quantity: Number(item.quantity || 1),
+          })),
+          couponCodes,
+          coupon_codes: couponCodes,
+          acceptsMarketing: Boolean(checkoutForm.acceptsMarketing),
+          accepts_marketing: Boolean(checkoutForm.acceptsMarketing),
+          customFields: {
+            researchOrganization: String(
+              checkoutForm.researchOrganization || "",
+            ).trim(),
+            deliveryInstructions: String(
+              checkoutForm.deliveryInstructions || "",
+            ).trim(),
+            orderNotes: String(checkoutForm.orderNotes || "").trim(),
+          },
+          acknowledgements: {
+            age21OrOlder: true,
+            inVitroResearchUseOnly: true,
+            termsAndConditionsAccepted: true,
+            refundPolicyAccepted: true,
+            researchUseOnlyPolicyAccepted: true,
+            acceptedAt,
+            text: POLICY_ACKNOWLEDGEMENT_TEXT,
+          },
+          source: "phaseone_custom_checkout_prism",
+        }),
+      });
+
+      const rawText = await response.text();
+
+      if (looksLikeHtmlResponse(rawText)) {
+        throw new Error(
+          "The secure checkout endpoint returned an HTML page. Confirm that src/pages/api/prism/checkout.ts exists and redeploy the Astro site.",
+        );
+      }
+
+      let data = null;
+
+      try {
+        data = rawText ? JSON.parse(rawText) : null;
+      } catch {
+        data = null;
+      }
+
+      if (!response.ok || !data?.success || !data?.redirectUrl) {
+        throw new Error(
+          data?.message ||
+            data?.error ||
+            "Unable to start secure PRISM card checkout.",
+        );
+      }
+
+      if (typeof window !== "undefined") {
+        localStorage.setItem(
+          "phaseone_prism_pending_order",
+          JSON.stringify({
+            orderId: data.orderId || null,
+            orderNumber: data.orderNumber || null,
+            email: finalBilling.email,
+            createdAt: acceptedAt,
+          }),
+        );
+      }
+
+      window.location.assign(data.redirectUrl);
+    } catch (err) {
+      console.error("PHASE ONE PRISM CHECKOUT ERROR:", err);
+      setLoading(false);
+      setPaymentNotice("");
+      setError(
+        err?.message ||
+          "Unable to start secure PRISM card checkout. Please try again.",
+      );
+    }
+  };
+
   const createBankTransferOrder = async () => {
     if (!validateBeforePayment()) return;
 
@@ -2370,6 +2558,12 @@ export default function CheckoutTransferPage() {
           cashbackAmount: cashbackToApply,
           previewTotal: paymentPreviewTotal,
           cartTotal,
+          acceptsMarketing: Boolean(checkoutForm.acceptsMarketing),
+          customFields: {
+            researchOrganization: checkoutForm.researchOrganization,
+            deliveryInstructions: checkoutForm.deliveryInstructions,
+            orderNotes: checkoutForm.orderNotes,
+          },
           source: "phaseone_custom_checkout_bank_transfer",
           ageConfirmed: true,
           researchUseAcknowledged: true,
@@ -2626,6 +2820,12 @@ export default function CheckoutTransferPage() {
           preview_total: paymentPreviewTotal,
           cartTotal,
           cart_total: cartTotal,
+          acceptsMarketing: Boolean(checkoutForm.acceptsMarketing),
+          customFields: {
+            researchOrganization: checkoutForm.researchOrganization,
+            deliveryInstructions: checkoutForm.deliveryInstructions,
+            orderNotes: checkoutForm.orderNotes,
+          },
           source: "phaseone_custom_checkout_manual_payment",
           expiresInHours: 24,
           expires_in_hours: 24,
@@ -2731,7 +2931,7 @@ export default function CheckoutTransferPage() {
     }
 
     setPaymentNotice("");
-    continueToWooCheckout();
+    createPrismCardCheckout();
   };
 
   if (showManualInstructions && manualPaymentDetails) {
@@ -3254,7 +3454,9 @@ export default function CheckoutTransferPage() {
                       ? `${paymentDiscountLabel} is applied to your estimated total.`
                       : selectedPaymentMethod.id === "bank"
                         ? "You will continue directly to the verified bank transfer portal in this tab."
-                        : "You will continue through the same secure checkout flow."}
+                        : selectedPaymentMethod.id === "card"
+                          ? "Your WooCommerce order will be created securely before PRISM opens the protected card checkout."
+                          : "You will continue through the same secure checkout flow."}
                   </p>
                 </div>
               )}
@@ -3420,20 +3622,23 @@ export default function CheckoutTransferPage() {
                 </section>
               )}
 
-              {(selectedPaymentMethod.id === "bank" ||
-                (isManualPaymentSelected && !showManualInstructions)) && (
+              {!showManualInstructions && (
                 <div className="bank-checkout-panel">
                   <div className="bank-checkout-intro">
                     <div>
                       <strong>
-                        {selectedPaymentMethod.id === "bank"
-                          ? "Secure bank transfer details"
-                          : `${selectedPaymentMethod.title} checkout details`}
+                        {selectedPaymentMethod.id === "card"
+                          ? "Secure card checkout details"
+                          : selectedPaymentMethod.id === "bank"
+                            ? "Secure bank transfer details"
+                            : `${selectedPaymentMethod.title} checkout details`}
                       </strong>
                       <p>
-                        {selectedPaymentMethod.id === "bank"
-                          ? `Complete your contact and delivery address. FedEx shipping is free from ${formatMoney(FREE_SHIPPING_MINIMUM)}; otherwise it is ${formatMoney(MANUAL_PAYMENT_SHIPPING_COST)}. Your ACH 5% discount is already applied in the order summary.`
-                          : `Fill in the contact and shipping information below. We use this address to ship your order. FedEx shipping is free from ${formatMoney(FREE_SHIPPING_MINIMUM)}; otherwise it is ${formatMoney(MANUAL_PAYMENT_SHIPPING_COST)}.`}
+                        {selectedPaymentMethod.id === "card"
+                          ? `Complete your contact and delivery address. We create the WooCommerce order securely, then open the verified PRISM card checkout. FedEx shipping is free from ${formatMoney(FREE_SHIPPING_MINIMUM)}; otherwise it is ${formatMoney(MANUAL_PAYMENT_SHIPPING_COST)}.`
+                          : selectedPaymentMethod.id === "bank"
+                            ? `Complete your contact and delivery address. FedEx shipping is free from ${formatMoney(FREE_SHIPPING_MINIMUM)}; otherwise it is ${formatMoney(MANUAL_PAYMENT_SHIPPING_COST)}. Your ACH 5% discount is already applied in the order summary.`
+                            : `Fill in the contact and shipping information below. We use this address to ship your order. FedEx shipping is free from ${formatMoney(FREE_SHIPPING_MINIMUM)}; otherwise it is ${formatMoney(MANUAL_PAYMENT_SHIPPING_COST)}.`}
                       </p>
                     </div>
                   </div>
@@ -3522,6 +3727,19 @@ export default function CheckoutTransferPage() {
                     </div>
 
                     <label className="bank-field is-full">
+                      <span>Company (optional)</span>
+                      <input
+                        type="text"
+                        value={checkoutForm.company}
+                        onChange={(event) =>
+                          updateCheckoutField("company", event.target.value)
+                        }
+                        placeholder="Company or laboratory"
+                        autoComplete="organization"
+                      />
+                    </label>
+
+                    <label className="bank-field is-full">
                       <span>Address</span>
                       <input
                         type="text"
@@ -3602,6 +3820,58 @@ export default function CheckoutTransferPage() {
                         }
                         placeholder="+1 (555) 123-4567"
                         autoComplete="tel"
+                      />
+                    </label>
+                  </div>
+
+                  <div className="bank-form-section">
+                    <div className="bank-section-title">
+                      <span>Additional details</span>
+                      <small>
+                        Optional information saved securely with the WooCommerce order.
+                      </small>
+                    </div>
+
+                    <label className="bank-field is-full">
+                      <span>Research organization (optional)</span>
+                      <input
+                        type="text"
+                        value={checkoutForm.researchOrganization}
+                        onChange={(event) =>
+                          updateCheckoutField(
+                            "researchOrganization",
+                            event.target.value,
+                          )
+                        }
+                        placeholder="Laboratory, university, or organization"
+                        autoComplete="organization"
+                      />
+                    </label>
+
+                    <label className="bank-field is-full">
+                      <span>Delivery instructions (optional)</span>
+                      <textarea
+                        rows={3}
+                        value={checkoutForm.deliveryInstructions}
+                        onChange={(event) =>
+                          updateCheckoutField(
+                            "deliveryInstructions",
+                            event.target.value,
+                          )
+                        }
+                        placeholder="Gate code, receiving instructions, or delivery notes"
+                      />
+                    </label>
+
+                    <label className="bank-field is-full">
+                      <span>Order notes (optional)</span>
+                      <textarea
+                        rows={3}
+                        value={checkoutForm.orderNotes}
+                        onChange={(event) =>
+                          updateCheckoutField("orderNotes", event.target.value)
+                        }
+                        placeholder="Add a note for this order"
                       />
                     </label>
                   </div>
@@ -3695,7 +3965,7 @@ export default function CheckoutTransferPage() {
                         ? "Continue with ACH Discount"
                         : isManualPaymentSelected
                           ? "Buy Now"
-                          : "Continue to secure checkout"}
+                          : "Continue with Card"}
                 </strong>
 
                 <span>
@@ -3705,7 +3975,9 @@ export default function CheckoutTransferPage() {
                       ? "The order will be created now. The thanks section will appear here with payment instructions."
                       : paymentMethodDiscount > 0
                         ? `${paymentDiscountLabel} applied.`
-                        : "Protected payment redirect."}
+                        : selectedPaymentMethod?.id === "card"
+                          ? "Your order is created first, then PRISM opens the protected card payment."
+                          : "Protected payment redirect."}
                 </span>
               </span>
 
@@ -3792,8 +4064,7 @@ export default function CheckoutTransferPage() {
                   </div>
                 )}
 
-                {(selectedPaymentMethod?.id === "bank" ||
-                  isManualPaymentSelected) && (
+                {!showManualInstructions && (
                   <div className="shipping-line">
                     <span>Shipping</span>
                     <strong
@@ -4105,7 +4376,8 @@ const styles = `
   }
 
   input,
-  select {
+  select,
+  textarea {
     width: 100%;
     min-height: 52px;
     border: 1px solid rgba(148, 163, 184, 0.18);
@@ -4120,12 +4392,22 @@ const styles = `
     transition: border-color 160ms ease, background 160ms ease;
   }
 
-  input::placeholder {
+  textarea {
+    min-height: 96px;
+    resize: vertical;
+    padding-top: 14px;
+    padding-bottom: 14px;
+    line-height: 1.5;
+  }
+
+  input::placeholder,
+  textarea::placeholder {
     color: rgba(148, 163, 184, 0.52);
   }
 
   input:focus,
-  select:focus {
+  select:focus,
+  textarea:focus {
     border-color: rgba(103, 232, 249, 0.42);
     background: rgba(2, 6, 23, 0.74);
   }
