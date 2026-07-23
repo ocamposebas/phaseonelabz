@@ -74,11 +74,25 @@ const sortOptions = [
 const customProductOrder = [
   {
     rank: 1,
-    groups: [["pl rt"], ["r3ta"], ["rt3"], ["reta"], ["retatrutide"]],
+    groups: [
+      ["pl", "rt"],
+      ["pl rt"],
+      ["r3ta"],
+      ["rt3"],
+      ["reta"],
+      ["retatrutide"],
+    ],
   },
   {
     rank: 2,
-    groups: [["tirz"], ["pl tz"], ["tz2"], ["tirzepatide"]],
+    groups: [
+      ["pl", "tirz"],
+      ["pl tirz"],
+      ["tirz"],
+      ["pl tz"],
+      ["tz2"],
+      ["tirzepatide"],
+    ],
   },
   {
     rank: 3,
@@ -86,55 +100,67 @@ const customProductOrder = [
   },
   {
     rank: 4,
-    groups: [["p1", "water"], ["phase one", "water"], ["p1", "bacteriostatic"]],
+    groups: [
+      ["recon", "water", "30ml"],
+      ["recon", "water"],
+      ["reconstitution", "water", "30ml"],
+      ["reconstitution", "water"],
+      ["p1", "water"],
+      ["phase one", "water"],
+      ["p1", "bacteriostatic"],
+    ],
     exclude: ["hospira"],
   },
   {
     rank: 5,
     groups: [["adamax"]],
   },
+
+  // Todos los bundles aparecerán aquí:
+  // posiciones 6, 7 y 8 según su orden original.
   {
     rank: 6,
+    groups: [
+      ["bundle"],
+      ["kit"],
+      ["stack"],
+    ],
+  },
+
+  {
+    rank: 9,
     groups: [["glow"]],
   },
   {
-    rank: 7,
+    rank: 10,
     groups: [["klow"]],
   },
   {
-    rank: 8,
-    groups: [["ghk"], ["ghk cu"]],
-  },
-  {
-    rank: 9,
-    groups: [["tesamorelin"]],
-  },
-  {
-    rank: 10,
-    groups: [["mots"], ["mots c"]],
-  },
-  {
     rank: 11,
-    groups: [["wolverine"], ["bpc", "tb"], ["bpc", "tb 500"]],
+    groups: [
+      ["ghk cu"],
+      ["ghk-cu"],
+      ["ghk"],
+    ],
+    exclude: ["glow", "klow"],
   },
   {
     rank: 12,
-    groups: [["ss31"], ["ss 31"]],
+    groups: [
+      ["tesa"],
+      ["tesamorelin"],
+    ],
   },
   {
     rank: 13,
-    groups: [["5 amino", "1mq"], ["5 amino"], ["1mq"]],
-  },
-  {
-    rank: 14,
-    groups: [["korean", "glutha"], ["korean", "glutathione"], ["glutha"]],
-  },
-  {
-    rank: 15,
-    groups: [["nad plus"], ["nad"]],
+    groups: [
+      ["mots c"],
+      ["mots-c"],
+      ["motsc"],
+      ["mots"],
+    ],
   },
 ];
-
 function normalizeProductOrderText(value = "") {
   return String(value || "")
     .toLowerCase()
