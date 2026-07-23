@@ -959,7 +959,7 @@ const styles = `
     height: 58px;
     place-items: center;
     border: 1px solid rgba(59, 130, 246, 0.34);
-    border-radius: 17px;
+    border-radius: 20px;
     background: rgba(37, 99, 235, 0.12);
     color: #69a4ff;
   }
@@ -1417,15 +1417,15 @@ const styles = `
       width: calc(100% - 24px);
       max-width: none;
       padding:
-        max(14px, env(safe-area-inset-top))
+        max(30px, calc(env(safe-area-inset-top) + 18px))
         0
-        max(34px, env(safe-area-inset-bottom));
+        max(42px, calc(env(safe-area-inset-bottom) + 22px));
     }
 
     .thank-you-header {
       align-items: center;
       gap: 12px;
-      margin-bottom: 16px;
+      margin-bottom: 24px;
       padding: 0 2px;
     }
 
@@ -1468,8 +1468,8 @@ const styles = `
 
     .thank-you-card {
       min-width: 0;
-      padding: 19px 14px;
-      border-radius: 19px;
+      padding: 24px 18px;
+      border-radius: 22px;
       box-shadow:
         0 18px 46px rgba(0, 0, 0, 0.3),
         inset 0 1px 0 rgba(255, 255, 255, 0.025);
@@ -1501,7 +1501,7 @@ const styles = `
     .thank-you-hero h1 {
       max-width: 100%;
       overflow-wrap: anywhere;
-      font-size: clamp(1.35rem, 7vw, 1.75rem);
+      font-size: clamp(1.55rem, 7.8vw, 2rem);
       line-height: 1.12;
       letter-spacing: -0.035em;
     }
@@ -1757,7 +1757,7 @@ const styles = `
     }
 
     .thank-you-card {
-      padding: 17px 12px;
+      padding: 22px 15px;
       border-radius: 17px;
     }
 
