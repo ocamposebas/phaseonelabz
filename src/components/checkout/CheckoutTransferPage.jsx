@@ -69,12 +69,12 @@ const PAYMENT_METHODS = [
     id: "card",
     label: "Card",
     title: "Card",
-    description: "Pay securely with a credit or debit card.",
-    badge: "Secure",
+    description: "Cards, Apple Pay, Google Pay, Link and other eligible wallets.",
+    badge: "Wallets + Card",
     flow: "secure_checkout",
     gatewayId: "",
     icon: CreditCard,
-    cta: "Continue with Card",
+    cta: "Continue to Secure Payment",
   },
   {
     id: "venmo",
@@ -1156,20 +1156,15 @@ function getSessionCustomerData(session = {}, accountUser = {}) {
 function getBlankCheckoutForm() {
   return {
     email: "",
-    acceptsMarketing: false,
     country: "US",
     firstName: "",
     lastName: "",
-    company: "",
-    researchOrganization: "",
     address1: "",
     address2: "",
     city: "",
     state: "",
     postcode: "",
     phone: "",
-    deliveryInstructions: "",
-    orderNotes: "",
   };
 }
 
@@ -1186,7 +1181,6 @@ function buildCheckoutFormData(
     email: normalizeEmail(
       billing.email || data.customer?.email || fallbackEmail,
     ),
-    acceptsMarketing: false,
     country: shipping.country || billing.country || "US",
     firstName:
       shipping.first_name ||
@@ -1195,31 +1189,12 @@ function buildCheckoutFormData(
       "",
     lastName:
       shipping.last_name || billing.last_name || data.customer?.lastName || "",
-    company: shipping.company || billing.company || "",
-    researchOrganization:
-      session?.customFields?.researchOrganization ||
-      session?.custom_fields?.research_organization ||
-      session?.researchOrganization ||
-      session?.research_organization ||
-      "",
     address1: shipping.address_1 || billing.address_1 || "",
     address2: shipping.address_2 || billing.address_2 || "",
     city: shipping.city || billing.city || "",
     state: shipping.state || billing.state || "",
     postcode: shipping.postcode || billing.postcode || "",
     phone: shipping.phone || billing.phone || data.customer?.phone || "",
-    deliveryInstructions:
-      session?.customFields?.deliveryInstructions ||
-      session?.custom_fields?.delivery_instructions ||
-      session?.deliveryInstructions ||
-      session?.delivery_instructions ||
-      "",
-    orderNotes:
-      session?.customFields?.orderNotes ||
-      session?.custom_fields?.order_notes ||
-      session?.orderNotes ||
-      session?.order_notes ||
-      "",
   };
 }
 
@@ -1246,7 +1221,6 @@ function normalizeCheckoutFormForOrder(form = {}) {
     last_name: String(form.lastName || "").trim(),
     email: normalizeEmail(form.email || ""),
     phone: String(form.phone || "").trim(),
-    company: String(form.company || "").trim(),
     address_1: String(form.address1 || "").trim(),
     address_2: String(form.address2 || "").trim(),
     city: String(form.city || "").trim(),
@@ -2311,7 +2285,7 @@ export default function CheckoutTransferPage() {
     try {
       setLoading(true);
       setError("");
-      setPaymentNotice("Creating your order and opening secure PRISM checkout...");
+      setPaymentNotice("");
 
       const response = await fetch(PRISM_CHECKOUT_ENDPOINT, {
         method: "POST",
@@ -2336,17 +2310,7 @@ export default function CheckoutTransferPage() {
           })),
           couponCodes,
           coupon_codes: couponCodes,
-          acceptsMarketing: Boolean(checkoutForm.acceptsMarketing),
-          accepts_marketing: Boolean(checkoutForm.acceptsMarketing),
-          customFields: {
-            researchOrganization: String(
-              checkoutForm.researchOrganization || "",
-            ).trim(),
-            deliveryInstructions: String(
-              checkoutForm.deliveryInstructions || "",
-            ).trim(),
-            orderNotes: String(checkoutForm.orderNotes || "").trim(),
-          },
+
           acknowledgements: {
             age21OrOlder: true,
             inVitroResearchUseOnly: true,
@@ -2380,7 +2344,7 @@ export default function CheckoutTransferPage() {
         throw new Error(
           data?.message ||
             data?.error ||
-            "Unable to start secure PRISM card checkout.",
+            "Unable to start secure card checkout.",
         );
       }
 
@@ -2403,7 +2367,7 @@ export default function CheckoutTransferPage() {
       setPaymentNotice("");
       setError(
         err?.message ||
-          "Unable to start secure PRISM card checkout. Please try again.",
+          "Unable to start secure card checkout. Please try again.",
       );
     }
   };
@@ -2558,12 +2522,7 @@ export default function CheckoutTransferPage() {
           cashbackAmount: cashbackToApply,
           previewTotal: paymentPreviewTotal,
           cartTotal,
-          acceptsMarketing: Boolean(checkoutForm.acceptsMarketing),
-          customFields: {
-            researchOrganization: checkoutForm.researchOrganization,
-            deliveryInstructions: checkoutForm.deliveryInstructions,
-            orderNotes: checkoutForm.orderNotes,
-          },
+          acceptsMarketing: false,
           source: "phaseone_custom_checkout_bank_transfer",
           ageConfirmed: true,
           researchUseAcknowledged: true,
@@ -2820,12 +2779,7 @@ export default function CheckoutTransferPage() {
           preview_total: paymentPreviewTotal,
           cartTotal,
           cart_total: cartTotal,
-          acceptsMarketing: Boolean(checkoutForm.acceptsMarketing),
-          customFields: {
-            researchOrganization: checkoutForm.researchOrganization,
-            deliveryInstructions: checkoutForm.deliveryInstructions,
-            orderNotes: checkoutForm.orderNotes,
-          },
+          acceptsMarketing: false,
           source: "phaseone_custom_checkout_manual_payment",
           expiresInHours: 24,
           expires_in_hours: 24,
@@ -3445,6 +3399,45 @@ export default function CheckoutTransferPage() {
                 })}
               </div>
 
+              {selectedPaymentMethodId === "card" && (
+                <div className="card-wallet-showcase" aria-label="Accepted card and wallet payments">
+                  <div className="card-wallet-showcase-copy">
+                    <span className="card-wallet-lock">
+                      <ShieldCheck size={16} />
+                    </span>
+                    <div>
+                      <strong>Fast, secure checkout</strong>
+                      <small>
+                        Available options are shown based on your device, browser and eligibility.
+                      </small>
+                    </div>
+                  </div>
+
+                  <div className="card-wallet-brands">
+                    <span className="wallet-brand apple-pay">
+                      <span className="wallet-brand-mark">A</span>
+                      <strong>Apple Pay</strong>
+                    </span>
+                    <span className="wallet-brand google-pay">
+                      <span className="wallet-brand-mark">G</span>
+                      <strong>Google Pay</strong>
+                    </span>
+                    <span className="wallet-brand link-pay">
+                      <span className="wallet-brand-mark">L</span>
+                      <strong>Link</strong>
+                    </span>
+                    <span className="wallet-brand card-pay">
+                      <CreditCard size={15} />
+                      <strong>Major cards</strong>
+                    </span>
+                    <span className="wallet-brand more-pay">
+                      <span className="wallet-brand-mark">+</span>
+                      <strong>More</strong>
+                    </span>
+                  </div>
+                </div>
+              )}
+
               {!isManualPaymentSelected && (
                 <div className="payment-selected-note">
                   <ShieldCheck size={15} />
@@ -3453,10 +3446,10 @@ export default function CheckoutTransferPage() {
                     {paymentMethodDiscount > 0
                       ? `${paymentDiscountLabel} is applied to your estimated total.`
                       : selectedPaymentMethod.id === "bank"
-                        ? "You will continue directly to the verified bank transfer portal in this tab."
+                        ? "You will continue to the secure bank transfer portal."
                         : selectedPaymentMethod.id === "card"
-                          ? "Your WooCommerce order will be created securely before PRISM opens the protected card checkout."
-                          : "You will continue through the same secure checkout flow."}
+                          ? "Cards and eligible digital wallets are available on the secure payment screen."
+                          : "Your selected payment method will use the same shipping details below."}
                   </p>
                 </div>
               )}
@@ -3623,32 +3616,24 @@ export default function CheckoutTransferPage() {
               )}
 
               {!showManualInstructions && (
-                <div className="bank-checkout-panel">
-                  <div className="bank-checkout-intro">
+                <div className="bank-checkout-panel unified-shipping-panel">
+                  <div className="bank-checkout-intro unified-shipping-intro">
+                    <span className="unified-shipping-icon">
+                      <Truck size={18} />
+                    </span>
                     <div>
-                      <strong>
-                        {selectedPaymentMethod.id === "card"
-                          ? "Secure card checkout details"
-                          : selectedPaymentMethod.id === "bank"
-                            ? "Secure bank transfer details"
-                            : `${selectedPaymentMethod.title} checkout details`}
-                      </strong>
+                      <strong>Contact & shipping</strong>
                       <p>
-                        {selectedPaymentMethod.id === "card"
-                          ? `Complete your contact and delivery address. We create the WooCommerce order securely, then open the verified PRISM card checkout. FedEx shipping is free from ${formatMoney(FREE_SHIPPING_MINIMUM)}; otherwise it is ${formatMoney(MANUAL_PAYMENT_SHIPPING_COST)}.`
-                          : selectedPaymentMethod.id === "bank"
-                            ? `Complete your contact and delivery address. FedEx shipping is free from ${formatMoney(FREE_SHIPPING_MINIMUM)}; otherwise it is ${formatMoney(MANUAL_PAYMENT_SHIPPING_COST)}. Your ACH 5% discount is already applied in the order summary.`
-                            : `Fill in the contact and shipping information below. We use this address to ship your order. FedEx shipping is free from ${formatMoney(FREE_SHIPPING_MINIMUM)}; otherwise it is ${formatMoney(MANUAL_PAYMENT_SHIPPING_COST)}.`}
+                        Enter your shipping details once. The same information is used for Card,
+                        Zelle, Venmo and Bank Transfer.
                       </p>
                     </div>
                   </div>
 
-                  <div className="bank-form-section">
+                  <div className="bank-form-section unified-shipping-form">
                     <div className="bank-section-title">
-                      <span>Contact</span>
-                      <small>
-                        Email for order updates and payment confirmation.
-                      </small>
+                      <span>Shipping information</span>
+                      <small>Required to process and deliver your order.</small>
                     </div>
 
                     <label className="bank-field is-full">
@@ -3664,103 +3649,56 @@ export default function CheckoutTransferPage() {
                       />
                     </label>
 
-                    <label className="bank-marketing-check">
-                      <input
-                        type="checkbox"
-                        checked={checkoutForm.acceptsMarketing}
-                        onChange={(event) =>
-                          updateCheckoutField(
-                            "acceptsMarketing",
-                            event.target.checked,
-                          )
-                        }
-                      />
-                      <span>Email me with news and offers</span>
-                    </label>
-                  </div>
-
-                  <div className="bank-form-section">
-                    <div className="bank-section-title">
-                      <span>Delivery</span>
-                      <small>Shipping address for this order.</small>
-                    </div>
-
-                    <label className="bank-field is-full">
-                      <span>Country</span>
-                      <select
-                        value={checkoutForm.country}
-                        onChange={(event) =>
-                          updateCheckoutField("country", event.target.value)
-                        }
-                        autoComplete="country"
-                      >
-                        <option value="US">United States</option>
-                      </select>
-                    </label>
-
                     <div className="bank-form-grid two">
                       <label className="bank-field">
-                        <span>First Name</span>
+                        <span>First name</span>
                         <input
                           type="text"
                           value={checkoutForm.firstName}
                           onChange={(event) =>
                             updateCheckoutField("firstName", event.target.value)
                           }
-                          placeholder="John"
+                          placeholder="First name"
                           autoComplete="given-name"
                         />
                       </label>
 
                       <label className="bank-field">
-                        <span>Last Name</span>
+                        <span>Last name</span>
                         <input
                           type="text"
                           value={checkoutForm.lastName}
                           onChange={(event) =>
                             updateCheckoutField("lastName", event.target.value)
                           }
-                          placeholder="Doe"
+                          placeholder="Last name"
                           autoComplete="family-name"
                         />
                       </label>
                     </div>
 
                     <label className="bank-field is-full">
-                      <span>Company (optional)</span>
-                      <input
-                        type="text"
-                        value={checkoutForm.company}
-                        onChange={(event) =>
-                          updateCheckoutField("company", event.target.value)
-                        }
-                        placeholder="Company or laboratory"
-                        autoComplete="organization"
-                      />
-                    </label>
-
-                    <label className="bank-field is-full">
-                      <span>Address</span>
+                      <span>Street address</span>
                       <input
                         type="text"
                         value={checkoutForm.address1}
                         onChange={(event) =>
                           updateCheckoutField("address1", event.target.value)
                         }
-                        placeholder="123 Main Street"
+                        placeholder="Street address"
                         autoComplete="address-line1"
                       />
                     </label>
 
                     <label className="bank-field is-full">
-                      <span>Apartment, suite, etc.</span>
+                      <span>Apartment, suite, etc. (optional)</span>
                       <input
                         type="text"
                         value={checkoutForm.address2}
                         onChange={(event) =>
                           updateCheckoutField("address2", event.target.value)
                         }
-                        placeholder="Apt, Suite, etc. (optional)"
+                        placeholder="Apartment, suite, unit, etc."
                         autoComplete="address-line2"
                       />
                     </label>
@@ -3780,7 +3718,7 @@ export default function CheckoutTransferPage() {
                       </label>
 
                       <label className="bank-field">
-                        <span>State / Province</span>
+                        <span>State</span>
                         <select
                           value={checkoutForm.state}
                           onChange={(event) =>
@@ -3797,14 +3735,14 @@ export default function CheckoutTransferPage() {
                       </label>
 
                       <label className="bank-field">
-                        <span>Postal Code</span>
+                        <span>ZIP code</span>
                         <input
                           type="text"
                           value={checkoutForm.postcode}
                           onChange={(event) =>
                             updateCheckoutField("postcode", event.target.value)
                           }
-                          placeholder="12345"
+                          placeholder="ZIP code"
                           autoComplete="postal-code"
                         />
                       </label>
@@ -3818,71 +3756,21 @@ export default function CheckoutTransferPage() {
                         onChange={(event) =>
                           updateCheckoutField("phone", event.target.value)
                         }
-                        placeholder="+1 (555) 123-4567"
+                        placeholder="Phone number"
                         autoComplete="tel"
                       />
                     </label>
+
+                    <input type="hidden" value={checkoutForm.country} readOnly />
                   </div>
 
-                  <div className="bank-form-section">
-                    <div className="bank-section-title">
-                      <span>Additional details</span>
-                      <small>
-                        Optional information saved securely with the WooCommerce order.
-                      </small>
-                    </div>
-
-                    <label className="bank-field is-full">
-                      <span>Research organization (optional)</span>
-                      <input
-                        type="text"
-                        value={checkoutForm.researchOrganization}
-                        onChange={(event) =>
-                          updateCheckoutField(
-                            "researchOrganization",
-                            event.target.value,
-                          )
-                        }
-                        placeholder="Laboratory, university, or organization"
-                        autoComplete="organization"
-                      />
-                    </label>
-
-                    <label className="bank-field is-full">
-                      <span>Delivery instructions (optional)</span>
-                      <textarea
-                        rows={3}
-                        value={checkoutForm.deliveryInstructions}
-                        onChange={(event) =>
-                          updateCheckoutField(
-                            "deliveryInstructions",
-                            event.target.value,
-                          )
-                        }
-                        placeholder="Gate code, receiving instructions, or delivery notes"
-                      />
-                    </label>
-
-                    <label className="bank-field is-full">
-                      <span>Order notes (optional)</span>
-                      <textarea
-                        rows={3}
-                        value={checkoutForm.orderNotes}
-                        onChange={(event) =>
-                          updateCheckoutField("orderNotes", event.target.value)
-                        }
-                        placeholder="Add a note for this order"
-                      />
-                    </label>
-                  </div>
-
-                  <div className="bank-form-section">
+                  <div className="bank-form-section unified-shipping-method">
                     <div className="bank-section-title">
                       <span>Shipping method</span>
                       <small>
                         {freeShippingUnlocked
-                          ? "Free shipping unlocked for this order."
-                          : `Shipping is $${MANUAL_PAYMENT_SHIPPING_COST}. Add ${formatMoney(amountUntilFreeShipping)} more to get free shipping.`}
+                          ? "Free FedEx shipping is unlocked for this order."
+                          : `Add ${formatMoney(amountUntilFreeShipping)} more to unlock free shipping.`}
                       </small>
                     </div>
 
@@ -3893,11 +3781,7 @@ export default function CheckoutTransferPage() {
 
                       <div>
                         <strong>FedEx Shipping</strong>
-                        <small>
-                          {freeShippingUnlocked
-                            ? `Estimated 3–5 business days after processing. Free shipping is applied from ${formatMoney(FREE_SHIPPING_MINIMUM)}.`
-                            : `Estimated 3–5 business days after processing. Shipping is ${formatMoney(MANUAL_PAYMENT_SHIPPING_COST)}. Add ${formatMoney(amountUntilFreeShipping)} more to get free shipping.`}
-                        </small>
+                        <small>Estimated 3–5 business days after processing.</small>
                       </div>
 
                       <em
@@ -3957,27 +3841,27 @@ export default function CheckoutTransferPage() {
                 <strong>
                   {loading || manualPaymentStatus === "loading"
                     ? isManualPaymentSelected
-                      ? "Creating order"
-                      : "Opening secure checkout"
+                      ? "Preparing payment"
+                      : "Opening payment"
                     : showManualInstructions
                       ? "Payment instructions ready"
                       : selectedPaymentMethod?.id === "bank"
                         ? "Continue with ACH Discount"
                         : isManualPaymentSelected
                           ? "Buy Now"
-                          : "Continue with Card"}
+                          : "Continue to Secure Payment"}
                 </strong>
 
                 <span>
                   {showManualInstructions
                     ? "Use the payment details shown above."
                     : isManualPaymentSelected
-                      ? "The order will be created now. The thanks section will appear here with payment instructions."
+                      ? "Your payment instructions will appear here."
                       : paymentMethodDiscount > 0
                         ? `${paymentDiscountLabel} applied.`
                         : selectedPaymentMethod?.id === "card"
-                          ? "Your order is created first, then PRISM opens the protected card payment."
-                          : "Protected payment redirect."}
+                          ? "Apple Pay, Google Pay, Link, cards and other eligible options."
+                          : "Continue to the secure payment portal."}
                 </span>
               </span>
 
@@ -4711,6 +4595,125 @@ const styles = `
     box-shadow:
       0 0 0 1px rgba(255, 255, 255, 0.16) inset,
       0 12px 30px rgba(245, 158, 11, 0.34);
+  }
+
+  .card-wallet-showcase {
+    display: grid;
+    gap: 14px;
+    margin-top: 14px;
+    border: 1px solid rgba(103, 232, 249, 0.2);
+    border-radius: 20px;
+    background:
+      radial-gradient(circle at 12% 0%, rgba(103, 232, 249, 0.12), transparent 42%),
+      linear-gradient(135deg, rgba(8, 29, 45, 0.86), rgba(2, 6, 23, 0.74));
+    padding: 15px;
+    box-shadow:
+      0 18px 42px rgba(2, 6, 23, 0.22),
+      inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  }
+
+  .card-wallet-showcase-copy {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+  }
+
+  .card-wallet-lock,
+  .unified-shipping-icon {
+    display: grid;
+    flex: 0 0 auto;
+    width: 38px;
+    height: 38px;
+    place-items: center;
+    border: 1px solid rgba(103, 232, 249, 0.22);
+    border-radius: 13px;
+    background: rgba(103, 232, 249, 0.09);
+    color: rgb(165, 243, 252);
+  }
+
+  .card-wallet-showcase-copy strong {
+    display: block;
+    color: #ffffff;
+    font-size: 13px;
+    font-weight: 900;
+    letter-spacing: -0.025em;
+  }
+
+  .card-wallet-showcase-copy small {
+    display: block;
+    margin-top: 3px;
+    color: rgba(203, 213, 225, 0.62);
+    font-size: 10.5px;
+    line-height: 1.45;
+  }
+
+  .card-wallet-brands {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .wallet-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    min-height: 34px;
+    border: 1px solid rgba(148, 163, 184, 0.16);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.94);
+    padding: 7px 10px;
+    color: rgb(15, 23, 42);
+    box-shadow: 0 8px 18px rgba(2, 6, 23, 0.16);
+  }
+
+  .wallet-brand strong {
+    font-size: 10.5px;
+    font-weight: 900;
+    letter-spacing: -0.02em;
+    white-space: nowrap;
+  }
+
+  .wallet-brand-mark {
+    display: grid;
+    width: 19px;
+    height: 19px;
+    place-items: center;
+    border-radius: 7px;
+    background: rgb(15, 23, 42);
+    color: #ffffff;
+    font-size: 10px;
+    font-weight: 950;
+  }
+
+  .google-pay .wallet-brand-mark {
+    background: linear-gradient(135deg, #4285f4, #34a853 48%, #fbbc05 72%, #ea4335);
+  }
+
+  .link-pay .wallet-brand-mark {
+    background: rgb(99, 91, 255);
+  }
+
+  .more-pay .wallet-brand-mark {
+    background: rgb(14, 116, 144);
+  }
+
+  .unified-shipping-panel {
+    overflow: hidden;
+  }
+
+  .unified-shipping-intro {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .unified-shipping-form {
+    display: grid;
+    gap: 14px;
+  }
+
+  .unified-shipping-method {
+    margin-top: 0;
   }
 
   .manual-payment-panel {
