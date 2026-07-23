@@ -3374,10 +3374,6 @@ const styles = `
     min-height: 100vh;
     padding: 68px 20px 88px;
     color: #f8fafc;
-    background:
-      radial-gradient(circle at 12% 0%, rgba(37, 99, 235, 0.12), transparent 32%),
-      radial-gradient(circle at 88% 16%, rgba(14, 165, 233, 0.08), transparent 28%),
-      #02050b;
   }
 
   .checkout-shell {
