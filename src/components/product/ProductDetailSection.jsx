@@ -1038,6 +1038,19 @@ function getCanonicalCoaKey(...values) {
 
   if (/\bnad\b/.test(clean) || clean.includes("nad plus")) return "nad-plus";
 
+  // Recon Water can appear under several legacy/store names.
+  if (
+    clean.includes("recon water") ||
+    clean.includes("reconstitution water") ||
+    clean.includes("reconstitution solution") ||
+    clean.includes("bacteriostatic water") ||
+    clean.includes("bac water") ||
+    clean.includes("p1 water") ||
+    clean.includes("sterile water")
+  ) {
+    return "recon-water";
+  }
+
   return "";
 }
 
@@ -1144,7 +1157,8 @@ function findCurrentCoaRecord(
 
     if (exactVariationMatch) return exactVariationMatch;
 
-    return null;
+    // Do not stop here. Some COAs are connected to the parent product, SKU,
+    // or family alias instead of one exact WooCommerce variation ID.
   }
 
   if (variationSku || productSku) {
@@ -2747,15 +2761,15 @@ export default function ProductDetailSection({
     selectedAttributes
   );
 
-  const currentCoaRecord = !productIsAccessory
-    ? findCurrentCoaRecord(
-        product,
-        liveCoaRecords,
-        selectedVariation,
-        selectedOptionLabel,
-        selectedAttributes
-      )
-    : null;
+  // Accessories can also have laboratory documentation. Recon Water was
+  // previously blocked here because its name contains "water".
+  const currentCoaRecord = findCurrentCoaRecord(
+    product,
+    liveCoaRecords,
+    selectedVariation,
+    selectedOptionLabel,
+    selectedAttributes
+  );
 
   const currentCoaUrl = currentCoaRecord ? getRecordUrl(currentCoaRecord) : "";
   const currentCoaLot = currentCoaRecord ? getRecordLot(currentCoaRecord) : "";
