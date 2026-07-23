@@ -67,50 +67,47 @@ const MANUAL_PAYMENT_DETAILS = {
 const PAYMENT_METHODS = [
   {
     id: "card",
-    label: "Card",
+    label: "Card & wallets",
     title: "Card",
-    description: "Cards, Apple Pay, Google Pay, Link and other eligible wallets.",
-    badge: "Wallets + Card",
+    description: "Credit or debit card, Apple Pay, Google Pay, Link and other eligible methods.",
+    badge: "Secure",
     flow: "secure_checkout",
     gatewayId: "",
     icon: CreditCard,
-    cta: "Continue to Secure Payment",
+    cta: "Pay securely",
   },
   {
     id: "venmo",
     label: "Venmo",
     title: "Venmo",
-    description:
-      "Complete checkout here, then see Venmo instructions in the thanks section and by email.",
+    description: "Place the order now and receive the exact Venmo payment details.",
     badge: "5% OFF",
     flow: "manual_order",
     gatewayId: "",
     icon: Smartphone,
-    cta: "Continue with Venmo",
+    cta: "Place Venmo order",
   },
   {
     id: "zelle",
     label: "Zelle",
     title: "Zelle",
-    description:
-      "Complete checkout here, then see Zelle instructions in the thanks section and by email.",
+    description: "Place the order now and receive the exact Zelle payment details.",
     badge: "5% OFF",
     flow: "manual_order",
     gatewayId: "",
     icon: Building2,
-    cta: "Continue with Zelle",
+    cta: "Place Zelle order",
   },
   {
     id: "bank",
-    label: "Bank",
+    label: "Bank transfer",
     title: "Bank Transfer / ACH",
-    description:
-      "Continue directly to ACH bank transfer and get 5% applied instantly.",
+    description: "Continue to the secure ACH bank transfer portal.",
     badge: "5% OFF",
     flow: "bank_transfer_yodlee",
     gatewayId: "edd_draft_yodlee_gateway",
     icon: Landmark,
-    cta: "Continue with ACH Discount",
+    cta: "Continue to ACH",
   },
 ];
 
@@ -1216,7 +1213,7 @@ function mergeOnlyEmptyFields(current = {}, next = {}) {
 }
 
 function normalizeCheckoutFormForOrder(form = {}) {
-  const clean = {
+  return {
     first_name: String(form.firstName || "").trim(),
     last_name: String(form.lastName || "").trim(),
     email: normalizeEmail(form.email || ""),
@@ -1226,12 +1223,8 @@ function normalizeCheckoutFormForOrder(form = {}) {
     city: String(form.city || "").trim(),
     state: String(form.state || "").trim(),
     postcode: String(form.postcode || "").trim(),
-    country: String(form.country || "US")
-      .trim()
-      .toUpperCase(),
+    country: String(form.country || "US").trim().toUpperCase(),
   };
-
-  return clean;
 }
 
 function formatAddressBlock(address = {}) {
@@ -2285,7 +2278,7 @@ export default function CheckoutTransferPage() {
     try {
       setLoading(true);
       setError("");
-      setPaymentNotice("");
+      setPaymentNotice("Opening secure payment...");
 
       const response = await fetch(PRISM_CHECKOUT_ENDPOINT, {
         method: "POST",
@@ -2310,7 +2303,6 @@ export default function CheckoutTransferPage() {
           })),
           couponCodes,
           coupon_codes: couponCodes,
-
           acknowledgements: {
             age21OrOlder: true,
             inVitroResearchUseOnly: true,
@@ -2344,7 +2336,7 @@ export default function CheckoutTransferPage() {
         throw new Error(
           data?.message ||
             data?.error ||
-            "Unable to start secure card checkout.",
+            "Unable to start secure PRISM card checkout.",
         );
       }
 
@@ -2367,7 +2359,7 @@ export default function CheckoutTransferPage() {
       setPaymentNotice("");
       setError(
         err?.message ||
-          "Unable to start secure card checkout. Please try again.",
+          "Unable to start secure PRISM card checkout. Please try again.",
       );
     }
   };
@@ -2437,7 +2429,7 @@ export default function CheckoutTransferPage() {
     try {
       setLoading(true);
       setError("");
-      setPaymentNotice("Preparing your Bank Transfer checkout...");
+      setPaymentNotice("Opening secure bank transfer...");
 
       const endpoint = getBankTransferEndpoint();
 
@@ -2522,7 +2514,6 @@ export default function CheckoutTransferPage() {
           cashbackAmount: cashbackToApply,
           previewTotal: paymentPreviewTotal,
           cartTotal,
-          acceptsMarketing: false,
           source: "phaseone_custom_checkout_bank_transfer",
           ageConfirmed: true,
           researchUseAcknowledged: true,
@@ -2779,7 +2770,6 @@ export default function CheckoutTransferPage() {
           preview_total: paymentPreviewTotal,
           cartTotal,
           cart_total: cartTotal,
-          acceptsMarketing: false,
           source: "phaseone_custom_checkout_manual_payment",
           expiresInHours: 24,
           expires_in_hours: 24,
@@ -3094,271 +3084,215 @@ export default function CheckoutTransferPage() {
   return (
     <main className="checkout-page">
       <section className="checkout-shell">
-        <div className="checkout-topbar">
+        <header className="checkout-header">
           <a href="/shop" className="checkout-back">
-            <ArrowLeft size={14} />
-            Continue shopping
+            <ArrowLeft size={15} />
+            Back to shop
           </a>
 
-          <div className="checkout-secure">
-            <Lock size={13} />
-            Secure checkout
+          <div className="checkout-brand">
+            <span>PHASE ONE LABZ</span>
+            <small>
+              <Lock size={13} /> Secure checkout
+            </small>
           </div>
-        </div>
+        </header>
 
-        <div className="checkout-heading">
-          <div>
-            <p>Phase One Labs</p>
-            <h1>Checkout</h1>
-          </div>
-
-          {isLoggedIn ? (
-            <div className="account-rewards-card">
-              <div className="account-rewards-main">
-                <span>
-                  <UserRound size={15} />
-                </span>
-
+        <div className="checkout-layout">
+          <form
+            className="traditional-checkout-form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              handleContinuePayment();
+            }}
+          >
+            <section className="checkout-section">
+              <div className="section-heading">
+                <span className="section-number">1</span>
                 <div>
-                  <strong>{accountDisplayName}</strong>
-                  <small>
-                    {formatMoney(storeCredit)} cashback ·{" "}
-                    {pointsBalance.toLocaleString("en-US")} points
-                  </small>
+                  <h1>Contact</h1>
+                  <p>We will send your order confirmation and updates here.</p>
                 </div>
               </div>
 
-              <a href="/account#rewards" className="redeem-button">
-                Rewards
-              </a>
-            </div>
-          ) : (
-            <a href="/account" className="rewards-badge">
-              <span>
-                <Gift size={15} />
-              </span>
+              <div className="field-grid two-columns">
+                <label className="checkout-field">
+                  <span>Email address</span>
+                  <input
+                    type="email"
+                    value={checkoutForm.email}
+                    onChange={(event) =>
+                      updateCheckoutField("email", event.target.value)
+                    }
+                    placeholder="you@example.com"
+                    autoComplete="email"
+                  />
+                </label>
 
-              <div>
-                <strong>
-                  {accountLoading
-                    ? "Checking account..."
-                    : "Sign in to earn points"}
-                </strong>
-                <small>
-                  Earn approx. {estimatedPoints} points with this order.
-                </small>
+                <label className="checkout-field">
+                  <span>Phone</span>
+                  <input
+                    type="tel"
+                    value={checkoutForm.phone}
+                    onChange={(event) =>
+                      updateCheckoutField("phone", event.target.value)
+                    }
+                    placeholder="+1 (555) 123-4567"
+                    autoComplete="tel"
+                  />
+                </label>
               </div>
-            </a>
-          )}
-        </div>
+            </section>
 
-        <div className="checkout-grid">
-          <div className="checkout-main">
-            <div className="checkout-card hero-card">
-              <div className="hero-glow" />
-
-              <div className="checkout-card-head">
-                <span>
-                  <Sparkles size={16} />
-                </span>
-
+            <section className="checkout-section">
+              <div className="section-heading">
+                <span className="section-number">2</span>
                 <div>
-                  <p>Before payment</p>
-                  <h2>Apply discounts and account benefits</h2>
+                  <h2>Delivery address</h2>
+                  <p>One address is used for every payment method.</p>
                 </div>
               </div>
 
-              <p className="checkout-copy">
-                Add a promo or affiliate code, apply available cashback, then
-                choose your payment method. Complete the checkout details before
-                pressing Buy Now.
-              </p>
-            </div>
-
-            <div className="checkout-card compact-card">
-              <div className="checkout-card-head compact-head">
-                <span>
-                  <Tag size={15} />
-                </span>
-
-                <div>
-                  <p>Promo code</p>
-                  <h2>Coupon or affiliate codes</h2>
-                </div>
-              </div>
-
-              <div className="coupon-box">
-                <input
-                  value={couponInput}
-                  onChange={handleCouponInput}
-                  placeholder="CODE1, CODE2, CODE3"
-                  inputMode="text"
-                  autoCapitalize="characters"
-                  readOnly={couponLocked}
-                  aria-readonly={couponLocked}
-                  className={couponLocked ? "coupon-locked-input" : ""}
-                />
-
-                {couponLocked && couponStatus === "valid" ? (
-                  <button type="button" className="locked-code" disabled>
-                    <Lock size={14} />
-                    Locked
-                  </button>
-                ) : couponStatus === "valid" ? (
-                  <button
-                    type="button"
-                    className="remove-code"
-                    onClick={removeCoupon}
+              <div className="field-grid">
+                <label className="checkout-field full-width">
+                  <span>Country / Region</span>
+                  <select
+                    value={checkoutForm.country}
+                    onChange={(event) =>
+                      updateCheckoutField("country", event.target.value)
+                    }
+                    autoComplete="country"
                   >
-                    <X size={14} />
-                    Remove
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={applyCoupon}
-                    disabled={couponStatus === "loading"}
-                  >
-                    {couponStatus === "loading" ? "Checking" : "Apply"}
-                  </button>
-                )}
-              </div>
+                    <option value="US">United States</option>
+                  </select>
+                </label>
 
-              {!couponLocked && (
-                <p className="coupon-locked-note">
-                  You can apply up to 3 codes. Separate them with commas or
-                  spaces.
-                </p>
-              )}
-
-              {couponLocked && couponInput && (
-                <p className="coupon-locked-note">
-                  Referral code locked from your link. It will be passed to
-                  secure payment automatically.
-                </p>
-              )}
-
-              {couponStatus === "valid" && coupon && (
-                <div className="applied-code">
-                  <BadgeCheck size={15} />
-                  <p>
-                    <strong>{coupon}</strong> applied. Total discount:{" "}
-                    <strong>-{formatMoney(validatedCouponDiscount)}</strong>.
-                  </p>
-                </div>
-              )}
-
-              {couponMessage && couponStatus !== "valid" && (
-                <p
-                  className={
-                    couponStatus === "error"
-                      ? "checkout-soft-message error-message"
-                      : "checkout-soft-message"
-                  }
-                >
-                  {couponMessage}
-                </p>
-              )}
-            </div>
-
-            <div className="checkout-card compact-card">
-              <div className="checkout-card-head compact-head">
-                <span>
-                  <Wallet size={15} />
-                </span>
-
-                <div>
-                  <p>Cashback</p>
-                  <h2>Store credit balance</h2>
-                </div>
-              </div>
-
-              {isLoggedIn ? (
-                canApplyCashback ? (
-                  <label className="cashback-check">
+                <div className="field-grid two-columns full-width">
+                  <label className="checkout-field">
+                    <span>First name</span>
                     <input
-                      type="checkbox"
-                      checked={applyCashback}
+                      type="text"
+                      value={checkoutForm.firstName}
                       onChange={(event) =>
-                        setApplyCashback(event.target.checked)
+                        updateCheckoutField("firstName", event.target.value)
                       }
+                      placeholder="First name"
+                      autoComplete="given-name"
                     />
-
-                    <span>
-                      <strong>Apply cashback</strong>
-                      <small>
-                        Use up to{" "}
-                        {formatMoney(Math.min(cashbackAvailable, cartTotal))}{" "}
-                        from your available {formatMoney(cashbackAvailable)}{" "}
-                        balance.
-                      </small>
-                    </span>
                   </label>
-                ) : (
-                  <div className="benefit-empty">
-                    <Wallet size={16} />
-                    <p>No cashback balance is available on this account yet.</p>
-                  </div>
-                )
-              ) : (
-                <div className="benefit-empty">
-                  <UserRound size={16} />
-                  <p>
-                    Sign in before checkout to use cashback and earn rewards.
-                  </p>
-                </div>
-              )}
-            </div>
 
-            <div className="checkout-card compact-card">
-              <div className="checkout-card-head compact-head">
-                <span>
-                  <Gift size={15} />
+                  <label className="checkout-field">
+                    <span>Last name</span>
+                    <input
+                      type="text"
+                      value={checkoutForm.lastName}
+                      onChange={(event) =>
+                        updateCheckoutField("lastName", event.target.value)
+                      }
+                      placeholder="Last name"
+                      autoComplete="family-name"
+                    />
+                  </label>
+                </div>
+
+                <label className="checkout-field full-width">
+                  <span>Address</span>
+                  <input
+                    type="text"
+                    value={checkoutForm.address1}
+                    onChange={(event) =>
+                      updateCheckoutField("address1", event.target.value)
+                    }
+                    placeholder="Street address"
+                    autoComplete="address-line1"
+                  />
+                </label>
+
+                <label className="checkout-field full-width">
+                  <span>Apartment, suite, etc. <em>Optional</em></span>
+                  <input
+                    type="text"
+                    value={checkoutForm.address2}
+                    onChange={(event) =>
+                      updateCheckoutField("address2", event.target.value)
+                    }
+                    placeholder="Apartment, suite, unit"
+                    autoComplete="address-line2"
+                  />
+                </label>
+
+                <div className="field-grid address-row full-width">
+                  <label className="checkout-field">
+                    <span>City</span>
+                    <input
+                      type="text"
+                      value={checkoutForm.city}
+                      onChange={(event) =>
+                        updateCheckoutField("city", event.target.value)
+                      }
+                      placeholder="City"
+                      autoComplete="address-level2"
+                    />
+                  </label>
+
+                  <label className="checkout-field">
+                    <span>State</span>
+                    <select
+                      value={checkoutForm.state}
+                      onChange={(event) =>
+                        updateCheckoutField("state", event.target.value)
+                      }
+                      autoComplete="address-level1"
+                    >
+                      {US_STATES.map(([value, label]) => (
+                        <option key={value || "empty"} value={value}>
+                          {label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="checkout-field">
+                    <span>ZIP code</span>
+                    <input
+                      type="text"
+                      value={checkoutForm.postcode}
+                      onChange={(event) =>
+                        updateCheckoutField("postcode", event.target.value)
+                      }
+                      placeholder="12345"
+                      autoComplete="postal-code"
+                    />
+                  </label>
+                </div>
+              </div>
+
+              <div className="shipping-choice">
+                <span className="shipping-choice-icon">
+                  <Truck size={18} />
                 </span>
-
                 <div>
-                  <p>Rewards</p>
-                  <h2>Points and free gifts</h2>
+                  <strong>FedEx Shipping</strong>
+                  <small>Estimated 3–5 business days after processing.</small>
+                </div>
+                <em>
+                  {freeShippingUnlocked
+                    ? "FREE"
+                    : formatMoney(MANUAL_PAYMENT_SHIPPING_COST)}
+                </em>
+              </div>
+            </section>
+
+            <section className="checkout-section payment-section">
+              <div className="section-heading">
+                <span className="section-number">3</span>
+                <div>
+                  <h2>Payment</h2>
+                  <p>Select one method. The button below follows your choice.</p>
                 </div>
               </div>
 
-              <div className="reward-grid">
-                <div>
-                  <span>Estimated points</span>
-                  <strong>{estimatedPoints.toLocaleString("en-US")}</strong>
-                </div>
-
-                <div>
-                  <span>Free rewards</span>
-                  <strong>{rewardGifts?.length || 0}</strong>
-                </div>
-              </div>
-
-              {rewardProgress?.nextTier && (
-                <p className="checkout-soft-message">
-                  You are {formatMoney(rewardProgress.remaining)} away from the{" "}
-                  {rewardProgress.nextTier.shortTitle || "next"} reward.
-                </p>
-              )}
-            </div>
-
-            <div className="checkout-card compact-card payment-card">
-              <div className="checkout-card-head compact-head">
-                <span>
-                  <CreditCard size={15} />
-                </span>
-
-                <div>
-                  <p>Payment method</p>
-                  <h2>Choose how you want to pay</h2>
-                </div>
-              </div>
-
-              <div
-                className="payment-method-grid"
-                role="radiogroup"
-                aria-label="Payment method"
-              >
+              <div className="traditional-payment-list" role="radiogroup">
                 {PAYMENT_METHODS.map((method) => {
                   const Icon = method.icon;
                   const active = selectedPaymentMethodId === method.id;
@@ -3369,440 +3303,52 @@ export default function CheckoutTransferPage() {
                       type="button"
                       role="radio"
                       aria-checked={active}
-                      className={`payment-method ${active ? "is-active" : ""}`}
+                      className={`traditional-payment-option ${
+                        active ? "is-active" : ""
+                      }`}
                       onClick={() => {
                         setSelectedPaymentMethodId(method.id);
                         setError("");
                         setPaymentNotice("");
                       }}
                     >
-                      <span className="payment-icon">
-                        <Icon size={18} />
+                      <span className="payment-radio" aria-hidden="true">
+                        <i />
                       </span>
 
-                      <span className="payment-copy">
+                      <span className="traditional-payment-icon">
+                        <Icon size={19} />
+                      </span>
+
+                      <span className="traditional-payment-copy">
                         <strong>{method.label}</strong>
                         <small>{method.description}</small>
+
+                        {method.id === "card" && (
+                          <span className="wallet-badges" aria-label="Supported wallets">
+                            <b> Pay</b>
+                            <b>G Pay</b>
+                            <b>Link</b>
+                            <b>VISA</b>
+                            <b>MC</b>
+                          </span>
+                        )}
                       </span>
 
-                      <em
-                        className={
+                      <span
+                        className={`traditional-payment-badge ${
                           isPaymentDiscountEligible(method.id)
-                            ? "payment-discount-badge"
+                            ? "has-discount"
                             : ""
-                        }
+                        }`}
                       >
                         {method.badge}
-                      </em>
+                      </span>
                     </button>
                   );
                 })}
               </div>
-
-              {selectedPaymentMethodId === "card" && (
-                <div className="card-wallet-showcase" aria-label="Accepted card and wallet payments">
-                  <div className="card-wallet-showcase-copy">
-                    <span className="card-wallet-lock">
-                      <ShieldCheck size={16} />
-                    </span>
-                    <div>
-                      <strong>Fast, secure checkout</strong>
-                      <small>
-                        Available options are shown based on your device, browser and eligibility.
-                      </small>
-                    </div>
-                  </div>
-
-                  <div className="card-wallet-brands">
-                    <span className="wallet-brand apple-pay">
-                      <span className="wallet-brand-mark">A</span>
-                      <strong>Apple Pay</strong>
-                    </span>
-                    <span className="wallet-brand google-pay">
-                      <span className="wallet-brand-mark">G</span>
-                      <strong>Google Pay</strong>
-                    </span>
-                    <span className="wallet-brand link-pay">
-                      <span className="wallet-brand-mark">L</span>
-                      <strong>Link</strong>
-                    </span>
-                    <span className="wallet-brand card-pay">
-                      <CreditCard size={15} />
-                      <strong>Major cards</strong>
-                    </span>
-                    <span className="wallet-brand more-pay">
-                      <span className="wallet-brand-mark">+</span>
-                      <strong>More</strong>
-                    </span>
-                  </div>
-                </div>
-              )}
-
-              {!isManualPaymentSelected && (
-                <div className="payment-selected-note">
-                  <ShieldCheck size={15} />
-                  <p>
-                    Selected: <strong>{selectedPaymentMethod.title}</strong>.{" "}
-                    {paymentMethodDiscount > 0
-                      ? `${paymentDiscountLabel} is applied to your estimated total.`
-                      : selectedPaymentMethod.id === "bank"
-                        ? "You will continue to the secure bank transfer portal."
-                        : selectedPaymentMethod.id === "card"
-                          ? "Cards and eligible digital wallets are available on the secure payment screen."
-                          : "Your selected payment method will use the same shipping details below."}
-                  </p>
-                </div>
-              )}
-
-              {showManualInstructions && manualPaymentDetails && (
-                <section className="phase-thanks-card" aria-live="polite">
-                  <div className="phase-thanks-hero">
-                    <span className="phase-thanks-icon">
-                      <BadgeCheck size={22} />
-                    </span>
-
-                    <div>
-                      <p>Thanks</p>
-                      <h2>Your order was received</h2>
-                      <span>
-                        Order {manualOrderDisplayNumber || ""} is on hold until
-                        we confirm your {manualPaymentDetails.title} payment.
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="phase-thanks-grid main-grid">
-                    <div className="phase-thanks-panel payment-panel">
-                      <span>Amount to send</span>
-                      <strong>{manualPaymentAmount}</strong>
-                      <small>Send the exact amount shown here.</small>
-                    </div>
-
-                    <div className="phase-thanks-panel">
-                      <span>Payment reference</span>
-                      <strong>{manualPaymentReference}</strong>
-                      <small>Put only this in the payment note.</small>
-                    </div>
-                  </div>
-
-                  <div className="phase-thanks-split">
-                    <div className="phase-thanks-box">
-                      <div className="phase-thanks-box-head">
-                        <span>Payment instructions</span>
-                        <strong>{manualPaymentDetails.title}</strong>
-                      </div>
-
-                      <div className="phase-thanks-line">
-                        <span>{manualPaymentDetails.recipientLabel}</span>
-                        <strong>
-                          {manualOrderPaymentDetails?.recipient ||
-                            manualPaymentDetails.recipientValue}
-                        </strong>
-                      </div>
-
-                      {(manualOrderPaymentDetails?.recipient_extra ||
-                        manualPaymentDetails.extraRecipientLine) && (
-                        <div className="phase-thanks-line">
-                          <span>Name</span>
-                          <strong>
-                            {manualOrderPaymentDetails?.recipient_extra ||
-                              manualPaymentDetails.extraRecipientLine}
-                          </strong>
-                        </div>
-                      )}
-
-                      <div className="phase-thanks-line">
-                        <span>Status</span>
-                        <strong>Awaiting payment</strong>
-                      </div>
-
-                      {(manualOrderPaymentDetails?.button_url ||
-                        manualPaymentDetails.actionHref) && (
-                        <a
-                          className="phase-thanks-action"
-                          href={
-                            manualOrderPaymentDetails?.button_url ||
-                            manualPaymentDetails.actionHref
-                          }
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          {manualOrderPaymentDetails?.button_label ||
-                            manualPaymentDetails.actionLabel ||
-                            "Open payment app"}
-                        </a>
-                      )}
-                    </div>
-
-                    <div className="phase-thanks-box">
-                      <div className="phase-thanks-box-head">
-                        <span>Shipping details</span>
-                        <strong>
-                          {manualThanksShipping.fullName || "Shipping address"}
-                        </strong>
-                      </div>
-
-                      <div className="phase-thanks-address">
-                        {manualThanksShipping.lines.length ? (
-                          manualThanksShipping.lines.map((line) => (
-                            <p key={line}>{line}</p>
-                          ))
-                        ) : (
-                          <p>Shipping address saved on the order.</p>
-                        )}
-                        {manualThanksShipping.phone && (
-                          <p>{manualThanksShipping.phone}</p>
-                        )}
-                      </div>
-
-                      <div className="phase-thanks-line compact">
-                        <span>Email</span>
-                        <strong>
-                          {manualInstructionsEmail || manualThanksBilling.email}
-                        </strong>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="phase-thanks-box order-box">
-                    <div className="phase-thanks-box-head">
-                      <span>Order details</span>
-                      <strong>
-                        {manualThanksItems.length} item
-                        {manualThanksItems.length === 1 ? "" : "s"}
-                      </strong>
-                    </div>
-
-                    <div className="phase-thanks-items">
-                      {manualThanksItems.map((item, index) => {
-                        const options = getItemOptions(item);
-                        const lineTotal = getCartItemLineTotal(item);
-
-                        return (
-                          <div
-                            key={
-                              item.cartKey ||
-                              `${item.id || item.product_id}-${index}`
-                            }
-                          >
-                            <span>
-                              <strong>
-                                {item.quantity || 1}×{" "}
-                                {item.name || item.title || "Item"}
-                              </strong>
-                              {options && <small>{options}</small>}
-                            </span>
-                            <em>
-                              {isRewardGiftItem(item)
-                                ? "FREE"
-                                : formatMoney(lineTotal)}
-                            </em>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  <div className="phase-thanks-warning">
-                    <AlertTriangle size={16} />
-                    <p>
-                      Important: write only{" "}
-                      <strong>{manualPaymentReference}</strong> in the payment
-                      note. Do not include product names. Unpaid Zelle/Venmo
-                      orders cancel automatically after 24 hours.
-                    </p>
-                  </div>
-                </section>
-              )}
-
-              {!showManualInstructions && (
-                <div className="bank-checkout-panel unified-shipping-panel">
-                  <div className="bank-checkout-intro unified-shipping-intro">
-                    <span className="unified-shipping-icon">
-                      <Truck size={18} />
-                    </span>
-                    <div>
-                      <strong>Contact & shipping</strong>
-                      <p>
-                        Enter your shipping details once. The same information is used for Card,
-                        Zelle, Venmo and Bank Transfer.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="bank-form-section unified-shipping-form">
-                    <div className="bank-section-title">
-                      <span>Shipping information</span>
-                      <small>Required to process and deliver your order.</small>
-                    </div>
-
-                    <label className="bank-field is-full">
-                      <span>Email</span>
-                      <input
-                        type="email"
-                        value={checkoutForm.email}
-                        onChange={(event) =>
-                          updateCheckoutField("email", event.target.value)
-                        }
-                        placeholder="your@email.com"
-                        autoComplete="email"
-                      />
-                    </label>
-
-                    <div className="bank-form-grid two">
-                      <label className="bank-field">
-                        <span>First name</span>
-                        <input
-                          type="text"
-                          value={checkoutForm.firstName}
-                          onChange={(event) =>
-                            updateCheckoutField("firstName", event.target.value)
-                          }
-                          placeholder="First name"
-                          autoComplete="given-name"
-                        />
-                      </label>
-
-                      <label className="bank-field">
-                        <span>Last name</span>
-                        <input
-                          type="text"
-                          value={checkoutForm.lastName}
-                          onChange={(event) =>
-                            updateCheckoutField("lastName", event.target.value)
-                          }
-                          placeholder="Last name"
-                          autoComplete="family-name"
-                        />
-                      </label>
-                    </div>
-
-                    <label className="bank-field is-full">
-                      <span>Street address</span>
-                      <input
-                        type="text"
-                        value={checkoutForm.address1}
-                        onChange={(event) =>
-                          updateCheckoutField("address1", event.target.value)
-                        }
-                        placeholder="Street address"
-                        autoComplete="address-line1"
-                      />
-                    </label>
-
-                    <label className="bank-field is-full">
-                      <span>Apartment, suite, etc. (optional)</span>
-                      <input
-                        type="text"
-                        value={checkoutForm.address2}
-                        onChange={(event) =>
-                          updateCheckoutField("address2", event.target.value)
-                        }
-                        placeholder="Apartment, suite, unit, etc."
-                        autoComplete="address-line2"
-                      />
-                    </label>
-
-                    <div className="bank-form-grid three">
-                      <label className="bank-field">
-                        <span>City</span>
-                        <input
-                          type="text"
-                          value={checkoutForm.city}
-                          onChange={(event) =>
-                            updateCheckoutField("city", event.target.value)
-                          }
-                          placeholder="City"
-                          autoComplete="address-level2"
-                        />
-                      </label>
-
-                      <label className="bank-field">
-                        <span>State</span>
-                        <select
-                          value={checkoutForm.state}
-                          onChange={(event) =>
-                            updateCheckoutField("state", event.target.value)
-                          }
-                          autoComplete="address-level1"
-                        >
-                          {US_STATES.map(([value, label]) => (
-                            <option key={value || "empty"} value={value}>
-                              {label}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-
-                      <label className="bank-field">
-                        <span>ZIP code</span>
-                        <input
-                          type="text"
-                          value={checkoutForm.postcode}
-                          onChange={(event) =>
-                            updateCheckoutField("postcode", event.target.value)
-                          }
-                          placeholder="ZIP code"
-                          autoComplete="postal-code"
-                        />
-                      </label>
-                    </div>
-
-                    <label className="bank-field is-full">
-                      <span>Phone</span>
-                      <input
-                        type="tel"
-                        value={checkoutForm.phone}
-                        onChange={(event) =>
-                          updateCheckoutField("phone", event.target.value)
-                        }
-                        placeholder="Phone number"
-                        autoComplete="tel"
-                      />
-                    </label>
-
-                    <input type="hidden" value={checkoutForm.country} readOnly />
-                  </div>
-
-                  <div className="bank-form-section unified-shipping-method">
-                    <div className="bank-section-title">
-                      <span>Shipping method</span>
-                      <small>
-                        {freeShippingUnlocked
-                          ? "Free FedEx shipping is unlocked for this order."
-                          : `Add ${formatMoney(amountUntilFreeShipping)} more to unlock free shipping.`}
-                      </small>
-                    </div>
-
-                    <div className="manual-shipping-single">
-                      <span>
-                        <Truck size={16} />
-                      </span>
-
-                      <div>
-                        <strong>FedEx Shipping</strong>
-                        <small>Estimated 3–5 business days after processing.</small>
-                      </div>
-
-                      <em
-                        className={
-                          freeShippingUnlocked ? "free-shipping-price" : ""
-                        }
-                      >
-                        {freeShippingUnlocked
-                          ? "FREE"
-                          : formatMoney(MANUAL_PAYMENT_SHIPPING_COST)}
-                      </em>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {error && <p className="checkout-error">{error}</p>}
-            {paymentNotice && !error && (
-              <p className="checkout-success-message">{paymentNotice}</p>
-            )}
+            </section>
 
             <label
               className={`compliance-check ${
@@ -3817,74 +3363,54 @@ export default function CheckoutTransferPage() {
                   if (event.target.checked) setError("");
                 }}
               />
-
-              <span className="compliance-copy">
-                I confirm I am 21 or older, I am acquiring these compounds for
-                in-vitro research or laboratory use only, and I agree to the{" "}
+              <span>
+                I confirm I am 21 or older, these products are for in-vitro
+                research or laboratory use only, and I agree to the{" "}
                 <a href={POLICY_LINKS.terms}>Terms & Conditions</a>,{" "}
                 <a href={POLICY_LINKS.refund}>Refund Policy</a>, and{" "}
                 <a href={POLICY_LINKS.researchUse}>Research Use Only policy</a>.
               </span>
             </label>
 
+            {error && <p className="checkout-error">{error}</p>}
+            {paymentNotice && !error && (
+              <p className="checkout-status">{paymentNotice}</p>
+            )}
+
             <button
-              type="button"
-              onClick={handleContinuePayment}
-              disabled={
-                loading ||
-                manualPaymentStatus === "loading" ||
-                showManualInstructions
-              }
+              type="submit"
+              disabled={loading || manualPaymentStatus === "loading"}
               className="checkout-submit"
             >
-              <span className="checkout-submit-main">
-                <strong>
-                  {loading || manualPaymentStatus === "loading"
-                    ? isManualPaymentSelected
-                      ? "Preparing payment"
-                      : "Opening payment"
-                    : showManualInstructions
-                      ? "Payment instructions ready"
-                      : selectedPaymentMethod?.id === "bank"
-                        ? "Continue with ACH Discount"
-                        : isManualPaymentSelected
-                          ? "Buy Now"
-                          : "Continue to Secure Payment"}
-                </strong>
-
-                <span>
-                  {showManualInstructions
-                    ? "Use the payment details shown above."
-                    : isManualPaymentSelected
-                      ? "Your payment instructions will appear here."
-                      : paymentMethodDiscount > 0
-                        ? `${paymentDiscountLabel} applied.`
-                        : selectedPaymentMethod?.id === "card"
-                          ? "Apple Pay, Google Pay, Link, cards and other eligible options."
-                          : "Continue to the secure payment portal."}
-                </span>
+              <span>
+                {loading || manualPaymentStatus === "loading"
+                  ? "Processing..."
+                  : selectedPaymentMethod?.id === "card"
+                    ? "Pay securely"
+                    : selectedPaymentMethod?.id === "bank"
+                      ? "Continue to ACH"
+                      : `Place ${selectedPaymentMethod?.title || "payment"} order`}
               </span>
-
-              <span className="checkout-submit-icon">→</span>
+              <strong>{formatMoney(paymentPreviewTotal)}</strong>
             </button>
 
-            {isManualPaymentSelected && (
-              <div className="security-note manual-final-note">
-                <ShieldCheck size={17} />
-                <p>
-                  After pressing Buy Now, your order will be created and the
-                  thanks section will appear here with payment instructions. Use
-                  only the payment reference shown in the thanks section.
-                </p>
-              </div>
-            )}
-          </div>
+            <div className="secure-footnote">
+              <ShieldCheck size={16} />
+              <span>
+                Payment details are handled by the selected secure provider.
+                Phase One Labz never stores card or banking credentials.
+              </span>
+            </div>
+          </form>
 
           <aside className="checkout-summary">
             <div className="summary-card">
               <div className="summary-head">
-                <h2>Order summary</h2>
-                <PackageCheck size={17} />
+                <div>
+                  <span>Your order</span>
+                  <h2>Order summary</h2>
+                </div>
+                <PackageCheck size={19} />
               </div>
 
               <div className="summary-items">
@@ -3901,24 +3427,63 @@ export default function CheckoutTransferPage() {
                       className="summary-item"
                     >
                       <div className="summary-image">
-                        <img src={image} alt={item.name} />
+                        <img src={image} alt={getItemName(item)} />
                         <span>{item.quantity}</span>
                       </div>
 
-                      <div>
-                        <h3>{item.name}</h3>
-                        {options && <p>{options}</p>}
-                        {isRewardGift && (
-                          <p className="gift-label">Free reward</p>
-                        )}
+                      <div className="summary-item-copy">
+                        <strong>{getItemName(item)}</strong>
+                        {options && <small>{options}</small>}
+                        {isRewardGift && <small className="gift-label">Free reward</small>}
                       </div>
 
-                      <strong>
-                        {isRewardGift ? "FREE" : formatMoney(lineTotal)}
-                      </strong>
+                      <em>{isRewardGift ? "FREE" : formatMoney(lineTotal)}</em>
                     </div>
                   );
                 })}
+              </div>
+
+              <div className="summary-coupon">
+                {couponStatus === "valid" ? (
+                  <div className="applied-coupon">
+                    <div>
+                      <BadgeCheck size={16} />
+                      <span>
+                        <strong>{coupon}</strong>
+                        <small>-{formatMoney(validatedCouponDiscount)}</small>
+                      </span>
+                    </div>
+                    {!couponLocked && (
+                      <button type="button" onClick={removeCoupon}>
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="coupon-entry">
+                    <input
+                      value={couponInput}
+                      onChange={handleCouponInput}
+                      placeholder="Discount code"
+                      disabled={couponLocked || couponStatus === "loading"}
+                    />
+                    <button
+                      type="button"
+                      onClick={applyCoupon}
+                      disabled={couponStatus === "loading" || !couponInput.trim()}
+                    >
+                      {couponStatus === "loading" ? "Checking" : "Apply"}
+                    </button>
+                  </div>
+                )}
+
+                {couponMessage && couponStatus !== "valid" && (
+                  <small
+                    className={couponStatus === "error" ? "coupon-error" : ""}
+                  >
+                    {couponMessage}
+                  </small>
+                )}
               </div>
 
               <div className="summary-lines">
@@ -3927,68 +3492,48 @@ export default function CheckoutTransferPage() {
                   <strong>{formatMoney(cartTotal)}</strong>
                 </div>
 
-                {couponStatus === "valid" && coupon && (
-                  <div className="coupon-line">
-                    <span>Coupon {coupon}</span>
+                {couponStatus === "valid" && validatedCouponDiscount > 0 && (
+                  <div className="discount-line">
+                    <span>Discount</span>
                     <strong>-{formatMoney(validatedCouponDiscount)}</strong>
                   </div>
                 )}
 
-                {cashbackToApply > 0 && (
-                  <div className="cashback-line">
-                    <span>Cashback selected</span>
-                    <strong>-{formatMoney(cashbackToApply)}</strong>
-                  </div>
-                )}
-
                 {paymentMethodDiscount > 0 && (
-                  <div className="payment-discount-line">
+                  <div className="discount-line">
                     <span>{paymentDiscountLabel}</span>
                     <strong>-{formatMoney(paymentMethodDiscount)}</strong>
                   </div>
                 )}
 
-                {!showManualInstructions && (
-                  <div className="shipping-line">
-                    <span>Shipping</span>
-                    <strong
-                      className={
-                        freeShippingUnlocked ? "free-shipping-price" : ""
-                      }
-                    >
-                      {freeShippingUnlocked
-                        ? "FREE"
-                        : formatMoney(activeShippingCost)}
-                    </strong>
-                  </div>
-                )}
+                <div>
+                  <span>Shipping</span>
+                  <strong>
+                    {activeShippingCost > 0
+                      ? formatMoney(activeShippingCost)
+                      : "FREE"}
+                  </strong>
+                </div>
+              </div>
 
-                <div className="total due-total">
-                  <span>Estimated due</span>
+              <div className="summary-total">
+                <span>Total</span>
+                <div>
+                  <small>USD</small>
                   <strong>{formatMoney(paymentPreviewTotal)}</strong>
                 </div>
               </div>
 
-              <div className="summary-rewards">
-                <Gift size={15} />
-
-                {isLoggedIn ? (
-                  <p>
-                    Logged in reward estimate:{" "}
-                    <strong>{estimatedPoints} points</strong>. Cashback
-                    available: <strong>{formatMoney(storeCredit)}</strong>.
-                  </p>
-                ) : (
-                  <p>
-                    Sign in before ordering to earn{" "}
-                    <strong>{estimatedPoints} points</strong>.
-                  </p>
-                )}
-              </div>
+              {!freeShippingUnlocked && (
+                <p className="free-shipping-progress">
+                  Add {formatMoney(amountUntilFreeShipping)} more for free FedEx
+                  shipping.
+                </p>
+              )}
 
               <div className="summary-note">
                 <BadgeCheck size={15} />
-                <p>Research use only. Not for human consumption.</p>
+                <span>Research use only. Not for human consumption.</span>
               </div>
             </div>
           </aside>
@@ -4007,1605 +3552,462 @@ const styles = `
 
   .checkout-page {
     min-height: 100vh;
-    padding: 78px 20px 72px;
-    color: #ffffff;
-    background: transparent;
-  }
-
-  .manual-thanks-page {
-    display: grid;
-    align-items: start;
-    padding: clamp(44px, 7vh, 82px) 14px 54px;
-  }
-
-  .manual-thanks-shell {
-    width: min(940px, 100%);
-    margin: 0 auto;
-  }
-
-  .checkout-empty-page {
-    display: grid;
-    place-items: center;
+    padding: 68px 20px 88px;
+    color: #f8fafc;
+    background:
+      radial-gradient(circle at 12% 0%, rgba(37, 99, 235, 0.12), transparent 32%),
+      radial-gradient(circle at 88% 16%, rgba(14, 165, 233, 0.08), transparent 28%),
+      #02050b;
   }
 
   .checkout-shell {
-    width: min(1180px, 100%);
+    width: min(1160px, 100%);
     margin: 0 auto;
   }
 
-  .checkout-topbar {
-    display: flex;
+  .checkout-header {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
     align-items: center;
-    justify-content: space-between;
-    gap: 14px;
-    margin-bottom: 20px;
+    min-height: 44px;
+    gap: 20px;
+    margin-bottom: 42px;
   }
 
-  .checkout-back,
-  .checkout-secure {
+  .checkout-back {
     display: inline-flex;
-    min-height: 40px;
     align-items: center;
-    justify-content: center;
-    gap: 9px;
-    border: 1px solid rgba(148, 163, 184, 0.16);
-    border-radius: 999px;
-    background: rgba(2, 6, 23, 0.48);
-    padding: 0 14px;
-    color: rgba(207, 250, 254, 0.86);
-    font-size: 10px;
-    font-weight: 900;
-    letter-spacing: 0.14em;
-    text-decoration: none;
-    text-transform: uppercase;
-  }
-
-  .checkout-secure {
-    color: rgba(226, 232, 240, 0.78);
-  }
-
-  .checkout-heading {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 22px;
-    align-items: end;
-    margin-bottom: 24px;
-  }
-
-  .checkout-heading p,
-  .checkout-card-head p,
-  .summary-kicker,
-  .bank-section-title span,
-  .payment-method span.payment-eyebrow {
-    margin: 0;
-    color: rgba(103, 232, 249, 0.7);
-    font-size: 9px;
-    font-weight: 950;
-    letter-spacing: 0.22em;
-    text-transform: uppercase;
-  }
-
-  .checkout-heading h1 {
-    margin: 7px 0 0;
-    max-width: 780px;
-    color: #ffffff;
-    font-size: clamp(38px, 5vw, 64px);
-    font-weight: 720;
-    letter-spacing: -0.07em;
-    line-height: 0.92;
-  }
-
-  .rewards-badge,
-  .account-rewards-card {
-    display: flex;
-    width: min(410px, 100%);
-    align-items: center;
-    justify-content: space-between;
-    gap: 14px;
-    border: 1px solid rgba(103, 232, 249, 0.14);
-    border-radius: 22px;
-    background: rgba(8, 20, 34, 0.72);
-    padding: 14px;
-    text-decoration: none;
-  }
-
-  .account-rewards-main,
-  .rewards-badge {
-    min-width: 0;
-  }
-
-  .account-rewards-main {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-
-  .rewards-badge > span,
-  .account-rewards-main > span {
-    display: grid;
-    width: 42px;
-    height: 42px;
-    flex: 0 0 auto;
-    place-items: center;
-    border: 1px solid rgba(103, 232, 249, 0.14);
-    border-radius: 15px;
-    background: rgba(103, 232, 249, 0.08);
-    color: rgb(165, 243, 252);
-  }
-
-  .rewards-badge strong,
-  .account-rewards-main strong {
-    display: block;
-    max-width: 230px;
-    overflow: hidden;
-    color: #ffffff;
+    gap: 8px;
+    width: fit-content;
+    color: #94a3b8;
     font-size: 13px;
-    font-weight: 850;
-    letter-spacing: -0.025em;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .rewards-badge small,
-  .account-rewards-main small {
-    display: block;
-    margin-top: 4px;
-    color: rgba(203, 213, 225, 0.62);
-    font-size: 11px;
-    line-height: 1.45;
-  }
-
-  .redeem-button {
-    flex: 0 0 auto;
-    border: 1px solid rgba(103, 232, 249, 0.2);
-    border-radius: 999px;
-    background: rgba(103, 232, 249, 0.08);
-    padding: 10px 13px;
-    color: rgb(165, 243, 252);
-    font-size: 9px;
-    font-weight: 950;
-    letter-spacing: 0.14em;
+    font-weight: 700;
     text-decoration: none;
+  }
+
+  .checkout-back:hover {
+    color: #ffffff;
+  }
+
+  .checkout-brand {
+    display: grid;
+    justify-items: center;
+    gap: 7px;
+    letter-spacing: 0.17em;
+  }
+
+  .checkout-brand > span {
+    color: #ffffff;
+    font-size: 15px;
+    font-weight: 900;
+  }
+
+  .checkout-brand small {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: #64748b;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
   }
 
-  .checkout-grid {
+  .checkout-layout {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 390px;
-    gap: 22px;
+    gap: 28px;
     align-items: start;
   }
 
-  .checkout-main {
-    display: grid;
-    gap: 14px;
-    min-width: 0;
-  }
-
-  .checkout-card,
-  .summary-card {
+  .traditional-checkout-form,
+  .summary-card,
+  .phase-thanks-card,
+  .checkout-empty {
     border: 1px solid rgba(148, 163, 184, 0.14);
-    border-radius: 26px;
-    background: rgba(7, 16, 30, 0.78);
-    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.18);
+    background: rgba(6, 11, 22, 0.94);
+    box-shadow: 0 28px 80px rgba(0, 0, 0, 0.28);
   }
 
-  .checkout-card {
-    padding: 20px;
-  }
-
-  .compact-card {
-    padding: 18px;
-  }
-
-  .hero-card,
-  .payment-card {
+  .traditional-checkout-form {
     overflow: hidden;
+    border-radius: 22px;
   }
 
-  .hero-glow,
-  .payment-card::before,
-  .checkout-submit-aura,
-  .bt-orb,
-  .floating-orb,
-  .form-orb {
-    display: none !important;
+  .checkout-section {
+    position: relative;
+    padding: 30px 28px;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.11);
   }
 
-  .checkout-card-head {
-    display: flex;
-    align-items: center;
-    gap: 13px;
-    margin-bottom: 14px;
+  .checkout-section:first-child {
+    padding-top: 34px;
   }
 
-  .compact-head {
-    margin-bottom: 14px;
-  }
-
-  .checkout-card-head > span {
-    display: grid;
-    width: 42px;
-    height: 42px;
-    flex: 0 0 auto;
-    place-items: center;
-    border: 1px solid rgba(103, 232, 249, 0.14);
-    border-radius: 15px;
-    background: rgba(103, 232, 249, 0.075);
-    color: rgb(165, 243, 252);
-  }
-
-  .checkout-card-head h2,
-  .summary-head h2 {
-    margin: 4px 0 0;
-    color: #ffffff;
-    font-size: 21px;
-    font-weight: 760;
-    letter-spacing: -0.045em;
-    line-height: 1.05;
-  }
-
-  .checkout-copy {
-    max-width: 720px;
-    margin: 0;
-    color: rgba(203, 213, 225, 0.68);
-    font-size: 13.5px;
-    line-height: 1.72;
-  }
-
-  .coupon-box {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 10px;
-  }
-
-  input,
-  select,
-  textarea {
-    width: 100%;
-    min-height: 52px;
-    border: 1px solid rgba(148, 163, 184, 0.18);
-    border-radius: 15px;
-    background: rgba(2, 6, 23, 0.56);
-    padding: 0 14px;
-    color: #ffffff;
-    outline: none;
-    font-family: inherit;
-    font-size: 13px;
-    font-weight: 750;
-    transition: border-color 160ms ease, background 160ms ease;
-  }
-
-  textarea {
-    min-height: 96px;
-    resize: vertical;
-    padding-top: 14px;
-    padding-bottom: 14px;
-    line-height: 1.5;
-  }
-
-  input::placeholder,
-  textarea::placeholder {
-    color: rgba(148, 163, 184, 0.52);
-  }
-
-  input:focus,
-  select:focus,
-  textarea:focus {
-    border-color: rgba(103, 232, 249, 0.42);
-    background: rgba(2, 6, 23, 0.74);
-  }
-
-  select option {
-    background: #07111f;
-    color: white;
-  }
-
-  .coupon-box button,
-  .remove-code {
-    display: inline-flex;
-    min-height: 52px;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    border: 0;
-    border-radius: 15px;
-    background: rgb(103, 232, 249);
-    padding: 0 18px;
-    color: rgb(2, 6, 23);
-    cursor: pointer;
-    font-size: 10px;
-    font-weight: 950;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-  }
-
-  .coupon-box .remove-code {
-    border: 1px solid rgba(248, 113, 113, 0.18);
-    background: rgba(248, 113, 113, 0.1);
-    color: rgb(254, 202, 202);
-  }
-
-  .coupon-box .locked-code {
-    border: 1px solid rgba(245, 158, 11, 0.35);
-    background: rgba(245, 158, 11, 0.14);
-    color: rgb(253, 230, 138);
-    cursor: not-allowed;
-  }
-
-  .coupon-locked-input {
-    border-color: rgba(245, 158, 11, 0.34);
-    background: rgba(245, 158, 11, 0.07);
-    color: rgb(253, 230, 138);
-    cursor: not-allowed;
-  }
-
-  .coupon-locked-note {
-    margin: 10px 0 0;
-    color: rgba(253, 230, 138, 0.82);
-    font-size: 11px;
-    font-weight: 800;
-    line-height: 1.5;
-  }
-
-  .applied-code,
-  .benefit-empty,
-  .security-note,
-  .summary-note,
-  .summary-rewards,
-  .payment-selected-note {
-    display: flex;
-    gap: 11px;
-    margin-top: 13px;
-    border: 1px solid rgba(103, 232, 249, 0.12);
-    border-radius: 17px;
-    background: rgba(103, 232, 249, 0.045);
-    padding: 13px;
-    color: rgba(226, 232, 240, 0.72);
-    font-size: 12px;
-    line-height: 1.55;
-  }
-
-  .payment-selected-note {
-    margin-top: 12px;
-  }
-
-  .payment-red-warning {
-    display: flex;
-    gap: 11px;
-    margin-top: 10px;
-    border: 1px solid rgba(248, 113, 113, 0.24);
-    border-radius: 17px;
-    background: rgba(248, 113, 113, 0.075);
-    padding: 13px;
-    color: rgba(254, 202, 202, 0.94);
-    font-size: 12px;
-    font-weight: 800;
-    line-height: 1.55;
-  }
-
-  .payment-red-warning p {
-    margin: 0;
-  }
-
-  .payment-red-warning svg {
-    flex: 0 0 auto;
-    margin-top: 2px;
-    color: rgb(252, 165, 165);
-  }
-
-  .applied-code p,
-  .benefit-empty p,
-  .security-note p,
-  .summary-note p,
-  .summary-rewards p,
-  .payment-selected-note p {
-    margin: 0;
-  }
-
-  .applied-code strong,
-  .summary-rewards strong,
-  .payment-selected-note strong {
-    color: rgb(165, 243, 252);
-  }
-
-  .cashback-check {
+  .section-heading {
     display: flex;
     align-items: flex-start;
-    gap: 12px;
-    border: 1px solid rgba(103, 232, 249, 0.14);
-    border-radius: 17px;
-    background: rgba(103, 232, 249, 0.045);
-    padding: 14px;
-    cursor: pointer;
+    gap: 13px;
+    margin-bottom: 22px;
   }
 
-  .cashback-check input,
-  .bank-marketing-check input {
-    width: 18px;
-    height: 18px;
-    min-height: 18px;
-    padding: 0;
-    accent-color: rgb(103, 232, 249);
-  }
-
-  .cashback-check span {
+  .section-number {
     display: grid;
-    gap: 4px;
-  }
-
-  .cashback-check strong {
-    color: #ffffff;
-    font-size: 13px;
-    font-weight: 850;
-  }
-
-  .cashback-check small {
-    color: rgba(203, 213, 225, 0.62);
-    font-size: 11.5px;
-    line-height: 1.45;
-  }
-
-  .reward-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-  }
-
-  .reward-grid div {
-    border: 1px solid rgba(148, 163, 184, 0.12);
-    border-radius: 18px;
-    background: rgba(2, 6, 23, 0.42);
-    padding: 15px;
-  }
-
-  .reward-grid span {
-    display: block;
-    color: rgba(203, 213, 225, 0.58);
-    font-size: 10px;
+    width: 29px;
+    height: 29px;
+    flex: 0 0 29px;
+    place-items: center;
+    border: 1px solid rgba(96, 165, 250, 0.28);
+    border-radius: 50%;
+    background: rgba(37, 99, 235, 0.12);
+    color: #93c5fd;
+    font-size: 12px;
     font-weight: 900;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
+    line-height: 1;
+    overflow: visible;
   }
 
-  .reward-grid strong {
-    display: block;
-    margin-top: 7px;
+  .section-heading h1,
+  .section-heading h2 {
+    margin: 0;
     color: #ffffff;
-    font-size: 25px;
-    font-weight: 850;
-    letter-spacing: -0.05em;
+    font-size: 20px;
+    line-height: 1.15;
+    letter-spacing: -0.025em;
   }
 
-  .checkout-soft-message,
-  .error-message {
-    margin: 12px 0 0;
-    color: rgba(203, 213, 225, 0.66);
+  .section-heading p {
+    margin: 6px 0 0;
+    color: #64748b;
     font-size: 12px;
     line-height: 1.55;
   }
 
-  .error-message {
-    color: rgba(254, 202, 202, 0.9);
-  }
-
-  .payment-method-grid {
+  .field-grid {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
-  }
-
-  .payment-method {
-    position: relative;
-    display: grid;
-    grid-template-columns: 44px minmax(0, 1fr) auto;
-    gap: 12px;
-    align-items: center;
-    min-height: 92px;
-    width: 100%;
-    border: 1px solid rgba(148, 163, 184, 0.14);
-    border-radius: 20px;
-    background: rgba(2, 6, 23, 0.45);
-    padding: 14px;
-    color: #ffffff;
-    cursor: pointer;
-    text-align: left;
-    transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
-  }
-
-  .payment-method:hover {
-    transform: translateY(-1px);
-    border-color: rgba(103, 232, 249, 0.28);
-    background: rgba(8, 24, 46, 0.72);
-  }
-
-  .payment-method.is-active {
-    border-color: rgba(103, 232, 249, 0.68);
-    background: rgba(8, 29, 45, 0.82);
-  }
-
-  .payment-icon {
-    display: grid;
-    width: 44px;
-    height: 44px;
-    place-items: center;
-    border: 1px solid rgba(103, 232, 249, 0.14);
-    border-radius: 15px;
-    background: rgba(103, 232, 249, 0.07);
-    color: rgb(165, 243, 252);
-  }
-
-  .payment-copy {
-    min-width: 0;
-  }
-
-  .payment-copy strong {
-    display: block;
-    color: #ffffff;
-    font-size: 14px;
-    font-weight: 870;
-    letter-spacing: -0.025em;
-  }
-
-  .payment-copy small {
-    display: block;
-    margin-top: 4px;
-    color: rgba(203, 213, 225, 0.6);
-    font-size: 11px;
-    line-height: 1.4;
-  }
-
-  .payment-method em {
-    align-self: start;
-    border: 1px solid rgba(148, 163, 184, 0.14);
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.04);
-    padding: 5px 8px;
-    color: rgba(226, 232, 240, 0.78);
-    font-size: 8px;
-    font-style: normal;
-    font-weight: 950;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    white-space: nowrap;
-  }
-
-  .payment-method.is-active em {
-    border-color: rgba(103, 232, 249, 0.36);
-    background: rgb(103, 232, 249);
-    color: rgb(2, 6, 23);
-  }
-
-  .payment-method em.payment-discount-badge {
-    border-color: rgba(245, 158, 11, 0.55);
-    background:
-      linear-gradient(135deg, rgba(251, 191, 36, 0.98), rgba(245, 158, 11, 0.92)),
-      rgb(245, 158, 11);
-    color: rgb(20, 12, 3);
-    box-shadow:
-      0 0 0 1px rgba(255, 255, 255, 0.08) inset,
-      0 10px 24px rgba(245, 158, 11, 0.22);
-  }
-
-  .payment-method.is-active em.payment-discount-badge {
-    border-color: rgba(253, 230, 138, 0.8);
-    background:
-      linear-gradient(135deg, rgb(253, 224, 71), rgb(245, 158, 11));
-    color: rgb(20, 12, 3);
-    box-shadow:
-      0 0 0 1px rgba(255, 255, 255, 0.16) inset,
-      0 12px 30px rgba(245, 158, 11, 0.34);
-  }
-
-  .card-wallet-showcase {
-    display: grid;
-    gap: 14px;
-    margin-top: 14px;
-    border: 1px solid rgba(103, 232, 249, 0.2);
-    border-radius: 20px;
-    background:
-      radial-gradient(circle at 12% 0%, rgba(103, 232, 249, 0.12), transparent 42%),
-      linear-gradient(135deg, rgba(8, 29, 45, 0.86), rgba(2, 6, 23, 0.74));
-    padding: 15px;
-    box-shadow:
-      0 18px 42px rgba(2, 6, 23, 0.22),
-      inset 0 1px 0 rgba(255, 255, 255, 0.04);
-  }
-
-  .card-wallet-showcase-copy {
-    display: flex;
-    align-items: center;
-    gap: 11px;
-  }
-
-  .card-wallet-lock,
-  .unified-shipping-icon {
-    display: grid;
-    flex: 0 0 auto;
-    width: 38px;
-    height: 38px;
-    place-items: center;
-    border: 1px solid rgba(103, 232, 249, 0.22);
-    border-radius: 13px;
-    background: rgba(103, 232, 249, 0.09);
-    color: rgb(165, 243, 252);
-  }
-
-  .card-wallet-showcase-copy strong {
-    display: block;
-    color: #ffffff;
-    font-size: 13px;
-    font-weight: 900;
-    letter-spacing: -0.025em;
-  }
-
-  .card-wallet-showcase-copy small {
-    display: block;
-    margin-top: 3px;
-    color: rgba(203, 213, 225, 0.62);
-    font-size: 10.5px;
-    line-height: 1.45;
-  }
-
-  .card-wallet-brands {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-
-  .wallet-brand {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    min-height: 34px;
-    border: 1px solid rgba(148, 163, 184, 0.16);
-    border-radius: 12px;
-    background: rgba(255, 255, 255, 0.94);
-    padding: 7px 10px;
-    color: rgb(15, 23, 42);
-    box-shadow: 0 8px 18px rgba(2, 6, 23, 0.16);
-  }
-
-  .wallet-brand strong {
-    font-size: 10.5px;
-    font-weight: 900;
-    letter-spacing: -0.02em;
-    white-space: nowrap;
-  }
-
-  .wallet-brand-mark {
-    display: grid;
-    width: 19px;
-    height: 19px;
-    place-items: center;
-    border-radius: 7px;
-    background: rgb(15, 23, 42);
-    color: #ffffff;
-    font-size: 10px;
-    font-weight: 950;
-  }
-
-  .google-pay .wallet-brand-mark {
-    background: linear-gradient(135deg, #4285f4, #34a853 48%, #fbbc05 72%, #ea4335);
-  }
-
-  .link-pay .wallet-brand-mark {
-    background: rgb(99, 91, 255);
-  }
-
-  .more-pay .wallet-brand-mark {
-    background: rgb(14, 116, 144);
-  }
-
-  .unified-shipping-panel {
-    overflow: hidden;
-  }
-
-  .unified-shipping-intro {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-
-  .unified-shipping-form {
-    display: grid;
+    grid-template-columns: 1fr;
     gap: 14px;
   }
 
-  .unified-shipping-method {
-    margin-top: 0;
-  }
-
-  .manual-payment-panel {
-    display: grid;
-    gap: 14px;
-    margin-top: 16px;
-    border: 1px solid rgba(103, 232, 249, 0.14);
-    border-radius: 22px;
-    background:
-      linear-gradient(135deg, rgba(103, 232, 249, 0.07), rgba(2, 6, 23, 0.16)),
-      rgba(2, 6, 23, 0.38);
-    padding: 16px;
-  }
-
-  .simple-manual-payment {
-    gap: 12px;
-    border-color: rgba(103, 232, 249, 0.18);
-    background: rgba(2, 6, 23, 0.42);
-  }
-
-  .simple-manual-payment.is-ready {
-    border-color: rgba(34, 197, 94, 0.28);
-    background:
-      linear-gradient(135deg, rgba(34, 197, 94, 0.075), rgba(2, 6, 23, 0.16)),
-      rgba(2, 6, 23, 0.46);
-  }
-
-  .manual-payment-simple-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    border-bottom: 1px solid rgba(148, 163, 184, 0.12);
-    padding-bottom: 12px;
-  }
-
-  .manual-payment-simple-head span,
-  .manual-payment-simple-grid span {
-    display: block;
-    color: rgba(103, 232, 249, 0.72);
-    font-size: 9px;
-    font-weight: 950;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-  }
-
-  .manual-payment-simple-head strong {
-    display: block;
-    margin-top: 5px;
-    color: white;
-    font-size: 28px;
-    font-weight: 900;
-    letter-spacing: -0.055em;
-    line-height: 1;
-  }
-
-  .manual-payment-simple-head p {
-    margin: 6px 0 0;
-    color: rgba(203, 213, 225, 0.62);
-    font-size: 12px;
-    line-height: 1.45;
-  }
-
-  .manual-payment-loading {
-    display: grid;
-    gap: 5px;
-  }
-
-  .manual-payment-loading span {
-    color: rgba(103, 232, 249, 0.74);
-    font-size: 9px;
-    font-weight: 950;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-  }
-
-  .manual-payment-loading strong {
-    color: #ffffff;
-    font-size: 16px;
-    font-weight: 850;
-    letter-spacing: -0.03em;
-  }
-
-  .manual-payment-loading p,
-  .manual-payment-expiry {
-    margin: 0;
-    color: rgba(203, 213, 225, 0.62);
-    font-size: 12px;
-    line-height: 1.5;
-  }
-
-  .manual-payment-expiry {
-    border-top: 1px solid rgba(148, 163, 184, 0.12);
-    padding-top: 12px;
-  }
-
-  .manual-payment-simple-grid {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 10px;
-  }
-
-  .manual-payment-simple-grid > div {
-    min-width: 0;
-    border: 1px solid rgba(148, 163, 184, 0.12);
-    border-radius: 16px;
-    background: rgba(2, 6, 23, 0.38);
-    padding: 12px;
-  }
-
-  .manual-payment-simple-grid strong {
-    display: block;
-    margin-top: 7px;
-    overflow-wrap: anywhere;
-    color: white;
-    font-size: 13px;
-    font-weight: 900;
-    line-height: 1.3;
-  }
-
-  .manual-payment-simple-grid small {
-    display: block;
-    margin-top: 5px;
-    color: rgba(203, 213, 225, 0.58);
-    font-size: 11px;
-    line-height: 1.35;
-  }
-
-  .manual-payment-action.compact {
-    min-height: 40px;
-    padding: 0 13px;
-    white-space: nowrap;
-  }
-
-  .manual-payment-head {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 14px;
-    align-items: start;
-    border-bottom: 1px solid rgba(148, 163, 184, 0.12);
-    padding-bottom: 14px;
-  }
-
-  .manual-payment-head span,
-  .manual-payment-info-grid span {
-    display: block;
-    color: rgba(103, 232, 249, 0.72);
-    font-size: 9px;
-    font-weight: 950;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-  }
-
-  .manual-payment-head strong {
-    display: block;
-    margin-top: 5px;
-    color: #ffffff;
-    font-size: 17px;
-    font-weight: 880;
-    letter-spacing: -0.035em;
-  }
-
-  .manual-payment-head p {
-    max-width: 640px;
-    margin: 7px 0 0;
-    color: rgba(203, 213, 225, 0.64);
-    font-size: 12px;
-    line-height: 1.6;
-  }
-
-  .manual-payment-total {
-    min-width: 150px;
-    border: 1px solid rgba(103, 232, 249, 0.13);
-    border-radius: 17px;
-    background: rgba(103, 232, 249, 0.055);
-    padding: 12px;
-    text-align: right;
-  }
-
-  .manual-payment-total small {
-    display: block;
-    color: rgba(203, 213, 225, 0.58);
-    font-size: 9px;
-    font-weight: 950;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
-  }
-
-  .manual-payment-total strong {
-    display: block;
-    margin-top: 5px;
-    color: rgb(165, 243, 252);
-    font-size: 20px;
-    font-weight: 950;
-    letter-spacing: -0.04em;
-  }
-
-  .manual-payment-info-grid {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 10px;
-  }
-
-  .manual-payment-info-grid > div {
-    min-width: 0;
-    border: 1px solid rgba(148, 163, 184, 0.12);
-    border-radius: 18px;
-    background: rgba(2, 6, 23, 0.42);
-    padding: 14px;
-  }
-
-  .manual-payment-info-grid strong {
-    display: block;
-    margin-top: 7px;
-    overflow-wrap: anywhere;
-    color: #ffffff;
-    font-size: 13px;
-    font-weight: 900;
-    line-height: 1.35;
-  }
-
-  .manual-payment-info-grid small {
-    display: block;
-    margin-top: 5px;
-    color: rgba(203, 213, 225, 0.56);
-    font-size: 11px;
-    line-height: 1.35;
-  }
-
-  .manual-payment-action {
-    display: inline-flex;
-    width: fit-content;
-    min-height: 44px;
-    align-items: center;
-    justify-content: center;
-    border: 1px solid rgba(103, 232, 249, 0.25);
-    border-radius: 999px;
-    background: rgb(103, 232, 249);
-    padding: 0 16px;
-    color: rgb(2, 6, 23);
-    font-size: 10px;
-    font-weight: 950;
-    letter-spacing: 0.15em;
-    text-decoration: none;
-    text-transform: uppercase;
-  }
-
-  .manual-payment-steps {
-    display: grid;
-    gap: 9px;
-    margin: 0;
-    padding-left: 20px;
-    color: rgba(226, 232, 240, 0.76);
-    font-size: 12px;
-    font-weight: 760;
-    line-height: 1.5;
-  }
-
-  .manual-payment-steps li::marker {
-    color: rgb(165, 243, 252);
-    font-weight: 950;
-  }
-
-  .manual-payment-warning {
-    display: flex;
-    gap: 10px;
-    border: 1px solid rgba(245, 158, 11, 0.22);
-    border-radius: 17px;
-    background: rgba(245, 158, 11, 0.075);
-    padding: 12px;
-    color: rgba(253, 230, 138, 0.92);
-    font-size: 12px;
-    font-weight: 800;
-    line-height: 1.5;
-  }
-
-  .manual-payment-warning p {
-    margin: 0;
-  }
-
-  .manual-payment-warning svg {
-    flex: 0 0 auto;
-    margin-top: 2px;
-  }
-
-
-  .bank-checkout-panel {
-    display: grid;
-    gap: 14px;
-    margin-top: 16px;
-    border: 1px solid rgba(103, 232, 249, 0.12);
-    border-radius: 22px;
-    background: rgba(2, 6, 23, 0.34);
-    padding: 16px;
-  }
-
-  .bank-checkout-intro {
-    border-bottom: 1px solid rgba(148, 163, 184, 0.12);
-    padding-bottom: 14px;
-  }
-
-  .bank-checkout-intro strong {
-    display: block;
-    color: #ffffff;
-    font-size: 16px;
-    font-weight: 850;
-    letter-spacing: -0.03em;
-  }
-
-  .bank-checkout-intro p {
-    max-width: 620px;
-    margin: 6px 0 0;
-    color: rgba(203, 213, 225, 0.64);
-    font-size: 12px;
-    line-height: 1.6;
-  }
-
-  .bank-form-section {
-    display: grid;
-    gap: 12px;
-  }
-
-  .bank-section-title {
-    display: grid;
-    gap: 4px;
-  }
-
-  .bank-section-title small {
-    color: rgba(203, 213, 225, 0.56);
-    font-size: 12px;
-    line-height: 1.45;
-  }
-
-  .bank-form-grid {
-    display: grid;
-    gap: 10px;
-  }
-
-  .bank-form-grid.two {
+  .field-grid.two-columns {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .bank-form-grid.three {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+  .field-grid.address-row {
+    grid-template-columns: minmax(0, 1.2fr) minmax(130px, 0.9fr) minmax(110px, 0.7fr);
   }
 
-  .bank-field {
-    display: grid;
-    gap: 7px;
-    min-width: 0;
-  }
-
-  .bank-field.is-full {
+  .full-width {
     grid-column: 1 / -1;
   }
 
-  .bank-field > span {
-    color: rgba(226, 232, 240, 0.75);
-    font-size: 10px;
-    font-weight: 900;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-  }
-
-  .bank-marketing-check {
-    display: flex;
-    align-items: center;
-    gap: 9px;
-    color: rgba(203, 213, 225, 0.7);
-    font-size: 12px;
-    line-height: 1.4;
-  }
-
-  .bank-shipping-options {
+  .checkout-field {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
+    gap: 7px;
   }
 
-  .bank-shipping-method,
-  .manual-shipping-single {
-    display: grid;
-    grid-template-columns: 40px minmax(0, 1fr) auto;
-    gap: 11px;
-    align-items: center;
-    border: 1px solid rgba(148, 163, 184, 0.14);
-    border-radius: 18px;
-    background: rgba(2, 6, 23, 0.45);
-    padding: 13px;
-    color: white;
-    cursor: pointer;
-    text-align: left;
-  }
-
-  .bank-shipping-method.is-active {
-    border-color: rgba(103, 232, 249, 0.58);
-    background: rgba(8, 29, 45, 0.78);
-  }
-
-  .manual-shipping-single {
-    border-color: rgba(103, 232, 249, 0.2);
-    background: rgba(8, 29, 45, 0.58);
-  }
-
-  .bank-shipping-method > span,
-  .manual-shipping-single > span {
-    display: grid;
-    width: 40px;
-    height: 40px;
-    place-items: center;
-    border-radius: 14px;
-    background: rgba(103, 232, 249, 0.08);
-    color: rgb(165, 243, 252);
-  }
-
-  .bank-shipping-method strong,
-  .manual-shipping-single strong {
-    display: block;
-    font-size: 13px;
-    font-weight: 850;
-  }
-
-  .bank-shipping-method small,
-  .manual-shipping-single small {
-    display: block;
-    margin-top: 3px;
-    color: rgba(203, 213, 225, 0.58);
+  .checkout-field > span {
+    color: #cbd5e1;
     font-size: 11px;
-    line-height: 1.35;
+    font-weight: 800;
   }
 
-  .bank-shipping-method em,
-  .manual-shipping-single em {
-    color: rgb(165, 243, 252);
-    font-size: 13px;
+  .checkout-field em {
+    color: #475569;
     font-style: normal;
-    font-weight: 900;
-    white-space: nowrap;
+    font-weight: 600;
   }
 
-  .free-shipping-price {
-    color: rgb(165, 243, 252) !important;
-    letter-spacing: 0.08em;
+  .checkout-field input,
+  .checkout-field select,
+  .coupon-entry input {
+    width: 100%;
+    min-height: 50px;
+    border: 1px solid rgba(148, 163, 184, 0.17);
+    border-radius: 12px;
+    outline: none;
+    background: rgba(2, 6, 15, 0.74);
+    padding: 0 14px;
+    color: #f8fafc;
+    font: inherit;
+    font-size: 14px;
+    transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
   }
 
-
-  .phase-thanks-card {
-    display: grid;
-    gap: 14px;
-    border: 1px solid rgba(103, 232, 249, 0.18);
-    border-radius: 26px;
-    background:
-      linear-gradient(135deg, rgba(103, 232, 249, 0.08), rgba(2, 6, 23, 0.16)),
-      rgba(2, 6, 23, 0.5);
-    padding: 18px;
-    box-shadow: none;
+  .checkout-field input::placeholder,
+  .coupon-entry input::placeholder {
+    color: #475569;
   }
 
-  .phase-thanks-card-full {
-    gap: 18px;
-    padding: clamp(18px, 3vw, 28px);
-    background: rgba(2, 6, 23, 0.72);
+  .checkout-field input:focus,
+  .checkout-field select:focus,
+  .coupon-entry input:focus {
+    border-color: rgba(96, 165, 250, 0.78);
+    background: rgba(4, 10, 22, 0.98);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
   }
 
-  .phase-thanks-actions-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    justify-content: flex-end;
-    border-top: 1px solid rgba(148, 163, 184, 0.12);
-    padding-top: 14px;
-  }
-
-  .phase-thanks-actions-row a {
-    display: inline-flex;
-    min-height: 42px;
-    align-items: center;
-    justify-content: center;
-    border: 1px solid rgba(103, 232, 249, 0.18);
-    border-radius: 999px;
-    background: rgba(103, 232, 249, 0.08);
-    padding: 0 15px;
-    color: rgb(165, 243, 252);
-    font-size: 10px;
-    font-weight: 950;
-    letter-spacing: 0.14em;
-    text-decoration: none;
-    text-transform: uppercase;
-  }
-
-  .phase-thanks-actions-row a:first-child {
-    border: 0;
-    background: rgb(103, 232, 249);
-    color: rgb(2, 6, 23);
-  }
-
-  .phase-thanks-hero {
-    display: flex;
-    align-items: flex-start;
-    gap: 13px;
-    border-bottom: 1px solid rgba(148, 163, 184, 0.12);
-    padding-bottom: 14px;
-  }
-
-  .phase-thanks-icon {
-    display: grid;
-    width: 48px;
-    height: 48px;
-    flex: 0 0 auto;
-    place-items: center;
-    border: 1px solid rgba(103, 232, 249, 0.2);
-    border-radius: 17px;
-    background: rgba(103, 232, 249, 0.08);
-    color: rgb(165, 243, 252);
-  }
-
-  .phase-thanks-hero p,
-  .phase-thanks-panel span,
-  .phase-thanks-box-head span,
-  .phase-thanks-line span {
-    margin: 0;
-    color: rgba(103, 232, 249, 0.72);
-    font-size: 9px;
-    font-weight: 950;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-  }
-
-  .phase-thanks-hero h2 {
-    margin: 4px 0 0;
-    color: #ffffff;
-    font-size: clamp(28px, 4vw, 42px);
-    font-weight: 790;
-    letter-spacing: -0.06em;
-    line-height: 0.96;
-  }
-
-  .phase-thanks-hero > div > span {
-    display: block;
-    margin-top: 8px;
-    color: rgba(203, 213, 225, 0.66);
-    font-size: 12.5px;
-    line-height: 1.55;
-  }
-
-  .phase-thanks-grid,
-  .phase-thanks-split {
-    display: grid;
-    gap: 12px;
-  }
-
-  .phase-thanks-grid.main-grid,
-  .phase-thanks-split {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .phase-thanks-panel,
-  .phase-thanks-box {
-    border: 1px solid rgba(148, 163, 184, 0.12);
-    border-radius: 20px;
-    background: rgba(2, 6, 23, 0.42);
-    padding: 15px;
-  }
-
-  .phase-thanks-panel strong {
-    display: block;
-    margin-top: 7px;
-    color: #ffffff;
-    font-size: 24px;
-    font-weight: 900;
-    letter-spacing: -0.04em;
-  }
-
-  .phase-thanks-panel.payment-panel strong {
-    color: rgb(165, 243, 252);
-    font-size: 30px;
-  }
-
-  .phase-thanks-panel small,
-  .phase-thanks-box-head + .phase-thanks-address,
-  .phase-thanks-line.compact,
-  .phase-thanks-items small {
-    color: rgba(203, 213, 225, 0.58);
-    font-size: 11.5px;
-    line-height: 1.45;
-  }
-
-  .phase-thanks-box-head {
-    display: grid;
-    gap: 5px;
-    margin-bottom: 12px;
-  }
-
-  .phase-thanks-box-head strong,
-  .phase-thanks-line strong {
-    color: #ffffff;
-    font-size: 13px;
-    font-weight: 880;
-    line-height: 1.35;
-  }
-
-  .phase-thanks-line {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 12px;
-    border-top: 1px solid rgba(148, 163, 184, 0.1);
-    padding: 11px 0 0;
-    margin-top: 11px;
-  }
-
-  .phase-thanks-line strong {
-    text-align: right;
-    word-break: break-word;
-  }
-
-  .phase-thanks-line.compact strong {
-    max-width: 70%;
-  }
-
-  .phase-thanks-address {
-    display: grid;
-    gap: 3px;
-    color: rgba(226, 232, 240, 0.78);
-    font-size: 12px;
-    line-height: 1.45;
-  }
-
-  .phase-thanks-address p {
-    margin: 0;
-  }
-
-  .phase-thanks-action {
-    display: inline-flex;
-    min-height: 44px;
-    align-items: center;
-    justify-content: center;
-    margin-top: 14px;
-    border-radius: 999px;
-    background: rgb(103, 232, 249);
-    padding: 0 16px;
-    color: rgb(2, 6, 23);
-    font-size: 10px;
-    font-weight: 950;
-    letter-spacing: 0.14em;
-    text-decoration: none;
-    text-transform: uppercase;
-  }
-
-  .phase-thanks-items {
-    display: grid;
-    gap: 10px;
-  }
-
-  .phase-thanks-items > div {
+  .shipping-choice {
     display: grid;
     grid-template-columns: 42px minmax(0, 1fr) auto;
     align-items: center;
-    gap: 12px;
-    border-top: 1px solid rgba(148, 163, 184, 0.1);
-    padding-top: 10px;
+    gap: 13px;
+    margin-top: 18px;
+    border: 1px solid rgba(96, 165, 250, 0.28);
+    border-radius: 14px;
+    background: rgba(30, 64, 175, 0.08);
+    padding: 14px;
   }
 
-  .phase-thanks-item-media {
+  .shipping-choice-icon,
+  .traditional-payment-icon {
     display: grid;
+    place-items: center;
+    border: 1px solid rgba(148, 163, 184, 0.13);
+    border-radius: 11px;
+    background: rgba(15, 23, 42, 0.72);
+    color: #93c5fd;
+  }
+
+  .shipping-choice-icon {
     width: 42px;
     height: 42px;
-    place-items: center;
-    border: 1px solid rgba(148, 163, 184, 0.12);
-    border-radius: 14px;
-    background: rgba(15, 23, 42, 0.45);
-    overflow: hidden;
   }
 
-  .phase-thanks-item-media img {
-    width: 34px;
-    height: 34px;
-    object-fit: contain;
+  .shipping-choice div {
+    display: grid;
+    gap: 4px;
   }
 
-  .phase-thanks-item-copy {
-    min-width: 0;
+  .shipping-choice strong {
+    font-size: 13px;
   }
 
-  .phase-thanks-items > div:first-child {
-    border-top: 0;
-    padding-top: 0;
+  .shipping-choice small {
+    color: #64748b;
+    font-size: 11px;
   }
 
-  .phase-thanks-items strong {
-    display: block;
-    color: #ffffff;
-    font-size: 12.5px;
-    font-weight: 850;
-    line-height: 1.35;
-  }
-
-  .phase-thanks-items small {
-    display: block;
-    margin-top: 3px;
-  }
-
-  .phase-thanks-items em {
-    color: rgb(165, 243, 252);
+  .shipping-choice em {
+    color: #bfdbfe;
     font-size: 12px;
     font-style: normal;
     font-weight: 900;
+  }
+
+  .traditional-payment-list {
+    display: grid;
+    gap: 10px;
+  }
+
+  .traditional-payment-option {
+    display: grid;
+    grid-template-columns: 20px 42px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    border: 1px solid rgba(148, 163, 184, 0.14);
+    border-radius: 15px;
+    background: rgba(2, 6, 15, 0.58);
+    padding: 14px;
+    color: #f8fafc;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+  }
+
+  .traditional-payment-option:hover {
+    border-color: rgba(96, 165, 250, 0.35);
+    background: rgba(8, 17, 35, 0.92);
+  }
+
+  .traditional-payment-option.is-active {
+    border-color: #3b82f6;
+    background: linear-gradient(90deg, rgba(37, 99, 235, 0.13), rgba(8, 17, 35, 0.86));
+    box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.17);
+  }
+
+  .payment-radio {
+    display: grid;
+    width: 18px;
+    height: 18px;
+    place-items: center;
+    border: 1px solid #475569;
+    border-radius: 50%;
+  }
+
+  .payment-radio i {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: transparent;
+  }
+
+  .is-active .payment-radio {
+    border-color: #60a5fa;
+  }
+
+  .is-active .payment-radio i {
+    background: #60a5fa;
+  }
+
+  .traditional-payment-icon {
+    width: 42px;
+    height: 42px;
+  }
+
+  .traditional-payment-copy {
+    display: grid;
+    min-width: 0;
+    gap: 4px;
+  }
+
+  .traditional-payment-copy > strong {
+    font-size: 13px;
+  }
+
+  .traditional-payment-copy > small {
+    color: #64748b;
+    font-size: 11px;
+    line-height: 1.45;
+  }
+
+  .traditional-payment-badge {
+    border: 1px solid rgba(148, 163, 184, 0.14);
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.64);
+    padding: 6px 9px;
+    color: #94a3b8;
+    font-size: 9px;
+    font-weight: 900;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
     white-space: nowrap;
   }
 
-  .phase-thanks-warning {
+  .traditional-payment-badge.has-discount {
+    border-color: rgba(34, 197, 94, 0.22);
+    background: rgba(22, 163, 74, 0.08);
+    color: #86efac;
+  }
+
+  .wallet-badges {
     display: flex;
-    gap: 10px;
-    border: 1px solid rgba(248, 113, 113, 0.24);
-    border-radius: 18px;
-    background: rgba(248, 113, 113, 0.075);
-    padding: 13px;
-    color: rgba(254, 202, 202, 0.94);
-    font-size: 12px;
-    font-weight: 800;
-    line-height: 1.55;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 4px;
   }
 
-  .phase-thanks-warning p {
-    margin: 0;
-  }
-
-  .phase-thanks-warning svg {
-    flex: 0 0 auto;
-    margin-top: 2px;
-    color: rgb(252, 165, 165);
-  }
-
-  .checkout-error,
-  .checkout-success-message {
-    margin: 0;
-    border: 1px solid rgba(248, 113, 113, 0.22);
-    border-radius: 16px;
-    background: rgba(248, 113, 113, 0.08);
-    padding: 13px 15px;
-    color: rgb(254, 202, 202);
-    font-size: 12px;
-    font-weight: 800;
-    line-height: 1.55;
-  }
-
-  .checkout-success-message {
-    border-color: rgba(103, 232, 249, 0.2);
-    background: rgba(103, 232, 249, 0.06);
-    color: rgba(207, 250, 254, 0.92);
+  .wallet-badges b {
+    border: 1px solid rgba(148, 163, 184, 0.14);
+    border-radius: 6px;
+    background: rgba(15, 23, 42, 0.78);
+    padding: 4px 7px;
+    color: #cbd5e1;
+    font-size: 9px;
+    font-weight: 900;
+    letter-spacing: 0.02em;
   }
 
   .compliance-check {
-    display: flex;
-    align-items: flex-start;
-    gap: 12px;
-    border: 1px solid rgba(103, 232, 249, 0.16);
-    border-radius: 18px;
-    background: rgba(103, 232, 249, 0.055);
-    padding: 15px;
-    color: rgba(226, 232, 240, 0.78);
-    cursor: pointer;
-    font-size: 12px;
-    font-weight: 720;
+    display: grid;
+    grid-template-columns: 18px minmax(0, 1fr);
+    gap: 10px;
+    margin: 20px 28px 0;
+    color: #64748b;
+    font-size: 11px;
     line-height: 1.6;
   }
 
-  .compliance-check.has-error {
-    border-color: rgba(248, 113, 113, 0.32);
-    background: rgba(248, 113, 113, 0.075);
-  }
-
   .compliance-check input {
-    width: 18px;
-    height: 18px;
-    min-height: 18px;
-    flex: 0 0 auto;
-    margin-top: 2px;
-    padding: 0;
-    accent-color: rgb(103, 232, 249);
+    width: 16px;
+    height: 16px;
+    margin: 2px 0 0;
+    accent-color: #3b82f6;
   }
 
-  .compliance-copy {
-    display: block;
-    color: rgba(226, 232, 240, 0.78);
+  .compliance-check a {
+    color: #bfdbfe;
   }
 
-  .compliance-copy a {
-    color: rgb(165, 243, 252);
-    font-weight: 900;
-    text-decoration: underline;
-    text-underline-offset: 3px;
+  .compliance-check.has-error {
+    color: #fca5a5;
+  }
+
+  .checkout-error,
+  .checkout-status {
+    margin: 14px 28px 0;
+    border-radius: 11px;
+    padding: 11px 13px;
+    font-size: 12px;
+    line-height: 1.45;
+  }
+
+  .checkout-error {
+    border: 1px solid rgba(248, 113, 113, 0.25);
+    background: rgba(127, 29, 29, 0.12);
+    color: #fecaca;
+  }
+
+  .checkout-status {
+    border: 1px solid rgba(96, 165, 250, 0.22);
+    background: rgba(30, 64, 175, 0.1);
+    color: #bfdbfe;
   }
 
   .checkout-submit {
-    position: relative;
-    display: grid;
-    grid-template-columns: 1fr auto;
+    display: flex;
+    min-height: 58px;
     align-items: center;
-    gap: 18px;
-    min-height: 62px;
-    width: 100%;
-    border: 1px solid rgba(165, 243, 252, 0.22);
-    border-radius: 18px;
-    background:
-      linear-gradient(135deg, rgba(103, 232, 249, 0.12), rgba(255, 255, 255, 0.025)),
-      rgba(2, 6, 23, 0.78);
-    color: white;
+    justify-content: space-between;
+    gap: 14px;
+    width: calc(100% - 56px);
+    margin: 18px 28px 0;
+    border: 0;
+    border-radius: 14px;
+    background: linear-gradient(135deg, #2563eb, #0284c7);
+    padding: 0 19px;
+    color: #ffffff;
+    font: inherit;
     cursor: pointer;
-    padding: 0 14px 0 22px;
-    text-align: left;
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.045),
-      0 18px 45px rgba(0, 0, 0, 0.18);
-    transition:
-      transform 180ms ease,
-      border-color 180ms ease,
-      background 180ms ease;
+    box-shadow: 0 14px 35px rgba(37, 99, 235, 0.24);
   }
 
-  .checkout-submit:hover {
-    transform: translateY(-2px);
-    border-color: rgba(103, 232, 249, 0.48);
-    background:
-      linear-gradient(135deg, rgba(103, 232, 249, 0.18), rgba(255, 255, 255, 0.035)),
-      rgba(4, 16, 30, 0.88);
+  .checkout-submit:hover:not(:disabled) {
+    filter: brightness(1.08);
   }
 
   .checkout-submit:disabled {
     cursor: wait;
-    opacity: 0.7;
-    transform: none;
+    opacity: 0.65;
   }
 
-  .checkout-submit-main {
-    display: grid;
-    gap: 4px;
-    min-width: 0;
+  .checkout-submit span,
+  .checkout-submit strong {
+    font-size: 14px;
+    font-weight: 900;
   }
 
-  .checkout-submit-main strong {
-    display: block;
-    color: white;
-    font-size: 12px;
-    font-weight: 950;
-    letter-spacing: 0.18em;
-    line-height: 1.2;
-    text-transform: uppercase;
-  }
-
-  .checkout-submit-main span {
-    display: block;
-    color: rgba(203, 213, 225, 0.62);
-    font-size: 12px;
-    font-weight: 700;
-    line-height: 1.35;
-    letter-spacing: 0;
-    text-transform: none;
-  }
-
-  .checkout-submit-icon {
-    display: grid;
-    width: 44px;
-    height: 44px;
-    place-items: center;
-    border: 1px solid rgba(165, 243, 252, 0.18);
-    border-radius: 15px;
-    background: rgb(103, 232, 249);
-    color: rgb(2, 6, 23);
-    font-size: 18px;
-    font-weight: 950;
-    transition:
-      transform 180ms ease,
-      background 180ms ease;
-  }
-
-  .checkout-submit:hover .checkout-submit-icon {
-    transform: translateX(2px);
-    background: white;
-  }
-
-  .security-note {
-    margin-top: 0;
+  .secure-footnote {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 8px;
+    padding: 14px 28px 25px;
+    color: #475569;
+    font-size: 10px;
+    line-height: 1.5;
+    text-align: center;
   }
 
   .checkout-summary {
     position: sticky;
-    top: 92px;
+    top: 24px;
   }
 
   .summary-card {
     overflow: hidden;
+    border-radius: 20px;
     padding: 22px;
   }
 
@@ -5614,8 +4016,25 @@ const styles = `
     align-items: center;
     justify-content: space-between;
     gap: 14px;
-    margin-bottom: 16px;
-    color: rgb(165, 243, 252);
+    padding-bottom: 18px;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.11);
+  }
+
+  .summary-head span {
+    color: #64748b;
+    font-size: 9px;
+    font-weight: 900;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+  }
+
+  .summary-head h2 {
+    margin: 4px 0 0;
+    font-size: 19px;
+  }
+
+  .summary-head svg {
+    color: #60a5fa;
   }
 
   .summary-items {
@@ -5623,349 +4042,512 @@ const styles = `
     gap: 14px;
     max-height: 360px;
     overflow: auto;
-    padding-right: 2px;
+    padding: 18px 3px 18px 0;
   }
 
   .summary-item {
     display: grid;
-    grid-template-columns: 60px minmax(0, 1fr) auto;
-    gap: 12px;
+    grid-template-columns: 52px minmax(0, 1fr) auto;
     align-items: center;
+    gap: 12px;
   }
 
   .summary-image {
     position: relative;
     display: grid;
-    width: 60px;
-    height: 60px;
+    width: 52px;
+    height: 52px;
     place-items: center;
-    border: 1px solid rgba(148, 163, 184, 0.12);
-    border-radius: 17px;
-    background: rgba(2, 6, 23, 0.48);
+    overflow: hidden;
+    border: 1px solid rgba(148, 163, 184, 0.13);
+    border-radius: 11px;
+    background: rgba(15, 23, 42, 0.62);
   }
 
   .summary-image img {
-    max-width: 47px;
-    max-height: 47px;
+    width: 88%;
+    height: 88%;
     object-fit: contain;
   }
 
   .summary-image span {
     position: absolute;
-    right: -6px;
-    top: -2px;
+    top: -5px;
+    right: -5px;
     display: grid;
-    min-width: 22px;
-    height: 22px;
+    min-width: 20px;
+    height: 20px;
     place-items: center;
-    border: 2px solid #081426;
     border-radius: 999px;
-    background: rgb(103, 232, 249);
-    color: rgb(2, 6, 23);
-    font-size: 10px;
-    font-weight: 950;
-    z-index: 2;
-  }
-
-  .summary-item h3 {
-    margin: 0;
+    background: #2563eb;
     color: #ffffff;
-    font-size: 12.5px;
-    font-weight: 850;
-    line-height: 1.35;
-  }
-
-  .summary-item p {
-    margin: 4px 0 0;
-    color: rgba(203, 213, 225, 0.54);
-    font-size: 10.5px;
-    line-height: 1.35;
-  }
-
-  .summary-item .gift-label {
-    color: rgb(165, 243, 252);
+    font-size: 9px;
     font-weight: 900;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
   }
 
-  .summary-item strong {
-    color: #ffffff;
-    font-size: 12.5px;
-    font-weight: 900;
+  .summary-item-copy {
+    display: grid;
+    min-width: 0;
+    gap: 4px;
+  }
+
+  .summary-item-copy strong {
+    overflow: hidden;
+    font-size: 12px;
+    text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .summary-item-copy small {
+    color: #64748b;
+    font-size: 10px;
+  }
+
+  .summary-item em {
+    color: #e2e8f0;
+    font-size: 11px;
+    font-style: normal;
+    font-weight: 800;
+  }
+
+  .gift-label,
+  .discount-line {
+    color: #86efac !important;
+  }
+
+  .summary-coupon {
+    display: grid;
+    gap: 8px;
+    padding: 16px 0;
+    border-top: 1px solid rgba(148, 163, 184, 0.11);
+    border-bottom: 1px solid rgba(148, 163, 184, 0.11);
+  }
+
+  .coupon-entry {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+  }
+
+  .coupon-entry input {
+    min-height: 44px;
+  }
+
+  .coupon-entry button,
+  .applied-coupon button {
+    border: 1px solid rgba(96, 165, 250, 0.24);
+    border-radius: 10px;
+    background: rgba(37, 99, 235, 0.1);
+    padding: 0 13px;
+    color: #bfdbfe;
+    font-size: 11px;
+    font-weight: 900;
+    cursor: pointer;
+  }
+
+  .coupon-entry button:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+
+  .summary-coupon > small {
+    color: #64748b;
+    font-size: 10px;
+    line-height: 1.4;
+  }
+
+  .summary-coupon > small.coupon-error {
+    color: #fca5a5;
+  }
+
+  .applied-coupon,
+  .applied-coupon > div {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+  }
+
+  .applied-coupon {
+    justify-content: space-between;
+  }
+
+  .applied-coupon svg {
+    color: #4ade80;
+  }
+
+  .applied-coupon span {
+    display: grid;
+    gap: 2px;
+  }
+
+  .applied-coupon strong {
+    font-size: 11px;
+  }
+
+  .applied-coupon small {
+    color: #86efac;
+    font-size: 10px;
   }
 
   .summary-lines {
     display: grid;
     gap: 11px;
-    margin-top: 18px;
-    border-top: 1px solid rgba(148, 163, 184, 0.14);
-    padding-top: 16px;
+    padding: 18px 0;
   }
 
-  .summary-lines div {
+  .summary-lines > div,
+  .summary-total {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
-    color: rgba(203, 213, 225, 0.68);
-    font-size: 13px;
+    gap: 14px;
+  }
+
+  .summary-lines span {
+    color: #94a3b8;
+    font-size: 11px;
   }
 
   .summary-lines strong {
-    color: #ffffff;
-    font-weight: 850;
+    font-size: 11px;
   }
 
-  .summary-lines .coupon-line strong,
-  .summary-lines .cashback-line strong,
-  .summary-lines .payment-discount-line strong,
-  .summary-lines .shipping-line strong {
-    color: rgb(165, 243, 252);
+  .summary-total {
+    border-top: 1px solid rgba(148, 163, 184, 0.12);
+    padding-top: 18px;
   }
 
-  .summary-lines .total,
-  .due-total {
-    margin-top: 4px;
-    border-top: 1px solid rgba(148, 163, 184, 0.14);
-    padding-top: 13px;
-    color: #ffffff;
-    font-size: 18px;
+  .summary-total > span {
+    font-size: 14px;
     font-weight: 900;
   }
 
-  .summary-rewards,
+  .summary-total > div {
+    display: flex;
+    align-items: baseline;
+    gap: 7px;
+  }
+
+  .summary-total small {
+    color: #64748b;
+    font-size: 9px;
+    font-weight: 800;
+  }
+
+  .summary-total strong {
+    font-size: 23px;
+    letter-spacing: -0.04em;
+  }
+
+  .free-shipping-progress {
+    margin: 14px 0 0;
+    border-radius: 10px;
+    background: rgba(37, 99, 235, 0.08);
+    padding: 10px 11px;
+    color: #93c5fd;
+    font-size: 10px;
+    line-height: 1.4;
+  }
+
   .summary-note {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     margin-top: 14px;
+    color: #475569;
+    font-size: 9px;
+  }
+
+  .summary-note svg {
+    color: #60a5fa;
+  }
+
+  .checkout-empty-page,
+  .manual-thanks-page {
+    display: grid;
+    min-height: 100vh;
+    place-items: center;
+    padding: 50px 18px;
+    background: #02050b;
   }
 
   .checkout-empty {
-    width: min(560px, 100%);
-    margin: 80px auto;
-    border: 1px solid rgba(148, 163, 184, 0.14);
-    border-radius: 28px;
-    background: rgba(7, 16, 30, 0.78);
-    padding: 32px;
+    width: min(480px, 100%);
+    border-radius: 20px;
+    padding: 34px;
     text-align: center;
   }
 
-  .checkout-empty p {
+  .checkout-empty p,
+  .phase-thanks-hero p {
     margin: 0;
-    color: rgb(165, 243, 252);
+    color: #60a5fa;
     font-size: 10px;
-    font-weight: 950;
-    letter-spacing: 0.22em;
+    font-weight: 900;
+    letter-spacing: 0.12em;
     text-transform: uppercase;
   }
 
   .checkout-empty h1 {
-    margin: 10px 0 0;
-    color: white;
-    font-size: 44px;
-    letter-spacing: -0.06em;
+    margin: 10px 0 22px;
   }
 
-  .checkout-empty a {
+  .checkout-empty a,
+  .phase-thanks-actions-row a,
+  .phase-thanks-action {
     display: inline-flex;
-    margin-top: 20px;
-    border-radius: 999px;
-    background: rgb(103, 232, 249);
-    padding: 13px 18px;
-    color: rgb(2, 6, 23);
-    font-size: 11px;
-    font-weight: 950;
-    letter-spacing: 0.16em;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    border-radius: 11px;
+    background: #2563eb;
+    padding: 0 16px;
+    color: #ffffff;
+    font-size: 12px;
+    font-weight: 900;
     text-decoration: none;
+  }
+
+  .manual-thanks-shell {
+    width: min(900px, 100%);
+  }
+
+  .phase-thanks-card {
+    border-radius: 22px;
+    padding: 28px;
+  }
+
+  .phase-thanks-hero {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    margin-bottom: 22px;
+  }
+
+  .phase-thanks-icon {
+    display: grid;
+    width: 46px;
+    height: 46px;
+    flex: 0 0 46px;
+    place-items: center;
+    border-radius: 14px;
+    background: rgba(34, 197, 94, 0.1);
+    color: #4ade80;
+  }
+
+  .phase-thanks-hero h2 {
+    margin: 5px 0 8px;
+    font-size: 24px;
+  }
+
+  .phase-thanks-hero > div > span {
+    color: #94a3b8;
+    font-size: 12px;
+    line-height: 1.55;
+  }
+
+  .phase-thanks-grid,
+  .phase-thanks-split {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    margin-top: 12px;
+  }
+
+  .phase-thanks-panel,
+  .phase-thanks-box,
+  .phase-thanks-warning {
+    border: 1px solid rgba(148, 163, 184, 0.12);
+    border-radius: 14px;
+    background: rgba(2, 6, 15, 0.58);
+    padding: 16px;
+  }
+
+  .phase-thanks-panel,
+  .phase-thanks-box-head,
+  .phase-thanks-line,
+  .phase-thanks-address,
+  .phase-thanks-item-copy {
+    display: grid;
+    gap: 5px;
+  }
+
+  .phase-thanks-panel > span,
+  .phase-thanks-box-head > span,
+  .phase-thanks-line > span {
+    color: #64748b;
+    font-size: 9px;
+    font-weight: 900;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
   }
 
-  @media (max-width: 1100px) {
-    .checkout-grid {
+  .phase-thanks-panel > strong {
+    font-size: 23px;
+  }
+
+  .phase-thanks-panel small,
+  .phase-thanks-line small {
+    color: #64748b;
+    font-size: 10px;
+  }
+
+  .phase-thanks-line {
+    margin-top: 14px;
+  }
+
+  .phase-thanks-address p {
+    margin: 0;
+    color: #cbd5e1;
+    font-size: 11px;
+  }
+
+  .phase-thanks-action {
+    width: 100%;
+    margin-top: 16px;
+  }
+
+  .order-box {
+    margin-top: 12px;
+  }
+
+  .phase-thanks-items {
+    display: grid;
+    gap: 10px;
+    margin-top: 14px;
+  }
+
+  .phase-thanks-items > div {
+    display: grid;
+    grid-template-columns: 42px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .phase-thanks-item-media {
+    display: grid;
+    width: 42px;
+    height: 42px;
+    place-items: center;
+    border-radius: 10px;
+    background: rgba(15, 23, 42, 0.7);
+  }
+
+  .phase-thanks-item-media img {
+    width: 88%;
+    height: 88%;
+    object-fit: contain;
+  }
+
+  .phase-thanks-item-copy strong {
+    font-size: 11px;
+  }
+
+  .phase-thanks-item-copy small {
+    color: #64748b;
+    font-size: 9px;
+  }
+
+  .phase-thanks-items em {
+    font-size: 11px;
+    font-style: normal;
+    font-weight: 900;
+  }
+
+  .phase-thanks-warning {
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+    margin-top: 12px;
+    color: #fbbf24;
+  }
+
+  .phase-thanks-warning p {
+    margin: 0;
+    font-size: 11px;
+    line-height: 1.5;
+  }
+
+  .phase-thanks-actions-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 16px;
+  }
+
+  @media (max-width: 960px) {
+    .checkout-layout {
       grid-template-columns: 1fr;
     }
 
     .checkout-summary {
-      position: relative;
-      top: auto;
+      position: static;
       order: -1;
-    }
-
-    .checkout-heading {
-      grid-template-columns: 1fr;
-      align-items: start;
-    }
-
-    .rewards-badge,
-    .account-rewards-card {
-      width: 100%;
     }
   }
 
-  @media (max-width: 820px) {
+  @media (max-width: 680px) {
     .checkout-page {
-      padding: 58px 14px 56px;
+      padding: 38px 12px 58px;
     }
 
-    .checkout-topbar {
-      align-items: stretch;
-      flex-direction: column;
+    .checkout-header {
+      grid-template-columns: 1fr auto;
     }
 
-    .checkout-back,
-    .checkout-secure {
-      width: 100%;
+    .checkout-brand {
+      justify-items: end;
     }
 
-    .checkout-heading h1 {
-      font-size: 42px;
+    .checkout-brand > span {
+      font-size: 12px;
     }
 
-    .checkout-card,
-    .summary-card {
-      border-radius: 22px;
-      padding: 15px;
+    .checkout-section {
+      padding: 24px 16px;
     }
 
-    .payment-method-grid,
-    .bank-shipping-options,
-    .reward-grid,
-    .manual-payment-head,
-    .manual-payment-info-grid,
-    .bank-form-grid.two,
-    .bank-form-grid.three,
-    .phase-thanks-grid.main-grid,
+    .checkout-section:first-child {
+      padding-top: 28px;
+    }
+
+    .field-grid.two-columns,
+    .field-grid.address-row,
+    .phase-thanks-grid,
     .phase-thanks-split {
       grid-template-columns: 1fr;
     }
 
-    .payment-method {
-      grid-template-columns: 42px minmax(0, 1fr);
-      min-height: auto;
+    .traditional-payment-option {
+      grid-template-columns: 18px 40px minmax(0, 1fr);
     }
 
-    .payment-method em {
-      grid-column: 2;
-      width: fit-content;
-    }
-
-    .coupon-box {
-      grid-template-columns: 1fr;
-    }
-
-    .coupon-box button {
-      width: 100%;
-    }
-
-
-    .manual-payment-simple-head,
-    .manual-payment-simple-grid {
-      grid-template-columns: 1fr;
-    }
-
-    .manual-payment-simple-head {
-      align-items: stretch;
-      flex-direction: column;
-    }
-
-
-    .manual-thanks-page {
-      padding: 42px 12px 44px;
-    }
-
-    .phase-thanks-card-full {
-      border-radius: 22px;
-      padding: 15px;
-    }
-
-    .phase-thanks-hero {
-      display: grid;
-      gap: 11px;
-    }
-
-    .phase-thanks-line {
-      display: grid;
-      gap: 6px;
-    }
-
-    .phase-thanks-line strong,
-    .phase-thanks-line.compact strong {
-      max-width: 100%;
-      text-align: left;
-    }
-
-    .phase-thanks-items > div {
-      grid-template-columns: 40px minmax(0, 1fr);
-    }
-
-    .phase-thanks-items em {
-      grid-column: 2;
+    .traditional-payment-badge {
+      grid-column: 3;
       justify-self: start;
     }
 
-    .phase-thanks-actions-row {
-      justify-content: stretch;
-    }
-
-    .phase-thanks-actions-row a {
-      width: 100%;
-    }
-
-    .manual-payment-action.compact {
-      width: 100%;
+    .compliance-check,
+    .checkout-error,
+    .checkout-status {
+      margin-right: 16px;
+      margin-left: 16px;
     }
 
     .checkout-submit {
-      min-height: 60px;
-      border-radius: 17px;
-      padding-left: 18px;
+      width: calc(100% - 32px);
+      margin-right: 16px;
+      margin-left: 16px;
     }
 
-    .checkout-submit-main strong {
-      font-size: 10px;
-      letter-spacing: 0.16em;
+    .secure-footnote {
+      padding-right: 16px;
+      padding-left: 16px;
     }
 
-    .checkout-submit-main span {
-      font-size: 11px;
-    }
-
-    .checkout-submit-icon {
-      width: 42px;
-      height: 42px;
-    }
-
-    .summary-item {
-      grid-template-columns: 58px minmax(0, 1fr);
-    }
-
-    .summary-item strong {
-      grid-column: 2;
-    }
-  }
-
-  @media (max-width: 460px) {
-    .checkout-heading h1 {
-      font-size: 38px;
-    }
-
-    .bank-checkout-panel,
-    .manual-payment-panel {
-      padding: 13px;
-    }
-
-    .manual-payment-total {
-      text-align: left;
-    }
-
-    .bank-shipping-method,
-    .manual-shipping-single {
-      grid-template-columns: 38px minmax(0, 1fr);
-    }
-
-    .bank-shipping-method em,
-    .manual-shipping-single em {
-      grid-column: 2;
+    .summary-card,
+    .phase-thanks-card {
+      padding: 18px;
     }
   }
 `;
