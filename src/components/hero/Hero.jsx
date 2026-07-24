@@ -284,7 +284,9 @@ export default function Hero({
         @media (max-width: 768px) {
           .hero-section,
           .hero-inner {
-            min-height: clamp(600px, 92svh, 700px) !important;
+            min-height: 100vh !important;
+            min-height: 100svh !important;
+            min-height: 100dvh !important;
           }
 
           .hero-bg-video {

@@ -368,3 +368,23 @@ body::after {
     animation: none !important;
   }
 }
+
+@media (max-width: 640px) {
+  html {
+    background: #01040d !important;
+  }
+
+  body {
+    background:
+      radial-gradient(circle at 50% -8%, rgba(30, 64, 175, 0.075), transparent 34%),
+      radial-gradient(circle at 100% 38%, rgba(14, 116, 144, 0.035), transparent 38%),
+      linear-gradient(180deg, #01040d 0%, #020817 48%, #01050f 100%) !important;
+    background-attachment: scroll !important;
+  }
+
+  body::before,
+  body::after {
+    display: none !important;
+    animation: none !important;
+  }
+}

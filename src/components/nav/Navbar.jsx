@@ -2570,6 +2570,13 @@ export default function SiteHeader({
             border-radius: 0;
           }
         }
+
+        .sh-header-home .sh-nav-card.sh-nav-clear.sh-nav-top {
+          background: transparent;
+          box-shadow: none;
+          backdrop-filter: none;
+          -webkit-backdrop-filter: none;
+        }
       `}</style>
     </>
   );
