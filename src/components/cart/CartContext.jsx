@@ -7,6 +7,90 @@ import { createContext, useContext, useState, useEffect } from "react";
 const PHASEONE_PUBLIC_SITE_URL = "https://phaseonelabz.com";
 const PHASEONE_PUBLIC_CHECKOUT_URL = `${PHASEONE_PUBLIC_SITE_URL}/checkout/`;
 
+
+const SHIPPING_PROTECTION_STORAGE_KEY = "phaseone_shipping_protection";
+const SHIPPING_PROTECTION_COOKIE_KEY = "phaseone_shipping_protection";
+const SHIPPING_PROTECTION_AMOUNT_COOKIE_KEY =
+  "phaseone_shipping_protection_amount";
+const SHIPPING_PROTECTION_VALUE_COOKIE_KEY =
+  "phaseone_shipping_protection_value";
+
+// One customer-facing domestic rate, regardless of whether the final label is
+// USPS or FedEx. ShipStation/ParcelGuard remains the only insurance provider.
+const SHIPPING_PROTECTION_RATE_PER_100 = 1.09;
+const SHIPPING_PROTECTION_COOKIE_MAX_AGE = 60 * 60 * 24;
+
+function roundMoney(value = 0) {
+  return Number((Number(value || 0) + Number.EPSILON).toFixed(2));
+}
+
+export function calculateShippingProtectionAmount(subtotal = 0) {
+  const insuredValue = Math.max(0, Number(subtotal || 0));
+
+  if (!insuredValue) return 0;
+
+  return roundMoney(
+    Math.ceil(insuredValue / 100) * SHIPPING_PROTECTION_RATE_PER_100,
+  );
+}
+
+function getSavedShippingProtectionSelection() {
+  if (typeof window === "undefined") return false;
+
+  try {
+    return localStorage.getItem(SHIPPING_PROTECTION_STORAGE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function writeSharedCookie(name, value, maxAge = SHIPPING_PROTECTION_COOKIE_MAX_AGE) {
+  if (typeof document === "undefined") return;
+
+  const encoded = encodeURIComponent(String(value ?? ""));
+  const baseCookie = `${name}=${encoded}; Path=/; Max-Age=${maxAge}; SameSite=Lax; Secure`;
+
+  document.cookie = baseCookie;
+  document.cookie = `${baseCookie}; Domain=.phaseonelabz.com`;
+}
+
+function clearSharedCookie(name) {
+  if (typeof document === "undefined") return;
+
+  document.cookie = `${name}=; Path=/; Max-Age=0; SameSite=Lax; Secure`;
+  document.cookie = `${name}=; Path=/; Domain=.phaseonelabz.com; Max-Age=0; SameSite=Lax; Secure`;
+}
+
+function persistShippingProtectionSelection({
+  selected = false,
+  amount = 0,
+  insuredValue = 0,
+} = {}) {
+  if (typeof window === "undefined") return;
+
+  try {
+    if (selected) {
+      localStorage.setItem(SHIPPING_PROTECTION_STORAGE_KEY, "1");
+      writeSharedCookie(SHIPPING_PROTECTION_COOKIE_KEY, "1");
+      writeSharedCookie(
+        SHIPPING_PROTECTION_AMOUNT_COOKIE_KEY,
+        roundMoney(amount).toFixed(2),
+      );
+      writeSharedCookie(
+        SHIPPING_PROTECTION_VALUE_COOKIE_KEY,
+        roundMoney(insuredValue).toFixed(2),
+      );
+    } else {
+      localStorage.removeItem(SHIPPING_PROTECTION_STORAGE_KEY);
+      clearSharedCookie(SHIPPING_PROTECTION_COOKIE_KEY);
+      clearSharedCookie(SHIPPING_PROTECTION_AMOUNT_COOKIE_KEY);
+      clearSharedCookie(SHIPPING_PROTECTION_VALUE_COOKIE_KEY);
+    }
+  } catch {
+    // Cookies are still attempted even when localStorage is blocked.
+  }
+}
+
 // Kept empty temporarily so older UI imports do not break during deployment.
 export const REWARD_TIERS = [];
 
@@ -31,6 +115,11 @@ const emptyCartContext = {
   buildCheckoutUrl: () => null,
   checkoutCoupon: "",
   setCheckoutCoupon: () => {},
+  shippingProtectionSelected: false,
+  setShippingProtectionSelected: () => {},
+  shippingProtectionAmount: 0,
+  shippingProtectionInsuredValue: 0,
+  checkoutTotal: 0,
   applyCheckoutCoupon: () => {},
   removeCheckoutCoupon: () => {},
   account: null,
@@ -879,6 +968,9 @@ function persistCheckoutSession({
   cartTotal = 0,
   checkoutCoupon = "",
   account = null,
+  shippingProtectionSelected = false,
+  shippingProtectionAmount = 0,
+  shippingProtectionInsuredValue = 0,
   source = "phaseone_cart_drawer_custom_checkout",
 } = {}) {
   if (typeof window === "undefined") return "";
@@ -916,6 +1008,27 @@ function persistCheckoutSession({
     paid_subtotal: paidSubtotal,
     paidSubtotal,
 
+    shipping_protection_selected: Boolean(shippingProtectionSelected),
+    shippingProtectionSelected: Boolean(shippingProtectionSelected),
+    shipping_protection_provider: shippingProtectionSelected
+      ? "parcelguard"
+      : "none",
+    shippingProtectionProvider: shippingProtectionSelected
+      ? "parcelguard"
+      : "none",
+    shipping_protection_amount: shippingProtectionSelected
+      ? roundMoney(shippingProtectionAmount)
+      : 0,
+    shippingProtectionAmount: shippingProtectionSelected
+      ? roundMoney(shippingProtectionAmount)
+      : 0,
+    shipping_protection_insured_value: shippingProtectionSelected
+      ? roundMoney(shippingProtectionInsuredValue || paidSubtotal)
+      : 0,
+    shippingProtectionInsuredValue: shippingProtectionSelected
+      ? roundMoney(shippingProtectionInsuredValue || paidSubtotal)
+      : 0,
+
     checkout_coupon: coupon,
     checkoutCoupon: coupon,
     customer_email: customerEmail,
@@ -923,6 +1036,12 @@ function persistCheckoutSession({
     customer_name: customerName,
     billing_first_name: customerName,
   };
+
+  persistShippingProtectionSelection({
+    selected: Boolean(shippingProtectionSelected),
+    amount: shippingProtectionAmount,
+    insuredValue: shippingProtectionInsuredValue || paidSubtotal,
+  });
 
   localStorage.setItem("phaseone_pending_checkout", JSON.stringify(session));
   localStorage.setItem(
@@ -937,6 +1056,7 @@ function buildCustomCheckoutUrlFromSession(
   sessionId = "",
   baseUrl = "",
   checkoutCoupon = "",
+  shippingProtection = {},
 ) {
   if (!sessionId) return null;
 
@@ -959,6 +1079,18 @@ function buildCustomCheckoutUrlFromSession(
     // Keep the coupon visible only on the Astro custom checkout URL.
     // CheckoutTransferPage will validate it, lock it, and carry it safely to Woo/Tagada.
     url.searchParams.set("coupon", cleanCoupon);
+  }
+
+  if (shippingProtection.selected) {
+    url.searchParams.set("shipping_protection", "1");
+    url.searchParams.set(
+      "shipping_protection_amount",
+      roundMoney(shippingProtection.amount).toFixed(2),
+    );
+    url.searchParams.set(
+      "shipping_protection_value",
+      roundMoney(shippingProtection.insuredValue).toFixed(2),
+    );
   }
 
   return url.toString();
@@ -987,6 +1119,17 @@ function createCheckoutRecoveryUrl(items = [], options = {}, baseUrl = "") {
   const cleanCheckoutCoupon = normalizeCheckoutCoupon(
     options.checkoutCoupon || getSavedCheckoutCoupon(),
   );
+  const shippingProtectionSelected =
+    options.shippingProtectionSelected ?? getSavedShippingProtectionSelection();
+  const shippingProtectionInsuredValue = roundMoney(
+    options.shippingProtectionInsuredValue ?? paidSubtotal,
+  );
+  const shippingProtectionAmount = shippingProtectionSelected
+    ? roundMoney(
+        options.shippingProtectionAmount ??
+          calculateShippingProtectionAmount(shippingProtectionInsuredValue),
+      )
+    : 0;
 
   const sessionId = persistCheckoutSession({
     normalizedItems,
@@ -997,6 +1140,9 @@ function createCheckoutRecoveryUrl(items = [], options = {}, baseUrl = "") {
     cartTotal,
     checkoutCoupon: cleanCheckoutCoupon,
     account: options.account,
+    shippingProtectionSelected,
+    shippingProtectionAmount,
+    shippingProtectionInsuredValue,
     source: options.source || "phaseone_omnisend_abandoned_cart",
   });
 
@@ -1005,6 +1151,11 @@ function createCheckoutRecoveryUrl(items = [], options = {}, baseUrl = "") {
       sessionId,
       baseUrl,
       cleanCheckoutCoupon,
+      {
+        selected: shippingProtectionSelected,
+        amount: shippingProtectionAmount,
+        insuredValue: shippingProtectionInsuredValue,
+      },
     ) ||
     baseUrl ||
     PHASEONE_PUBLIC_CHECKOUT_URL
@@ -1109,6 +1260,8 @@ export function CartProvider({ children }) {
     getSavedCheckoutCoupon(),
   );
   const [account, setAccount] = useState(null);
+  const [shippingProtectionSelected, setShippingProtectionSelectedState] =
+    useState(() => getSavedShippingProtectionSelection());
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -1352,8 +1505,48 @@ export function CartProvider({ children }) {
     });
   };
 
+  const normalizedCartItems = normalizeCartItems(cartItems);
+  const paidSubtotal = getPaidSubtotal(normalizedCartItems);
+  const cartTotal = normalizedCartItems.reduce(
+    (total, item) =>
+      total + getCartItemPrice(item) * Number(item.quantity || 1),
+    0,
+  );
+  const shippingProtectionInsuredValue = roundMoney(paidSubtotal);
+  const shippingProtectionAmount = calculateShippingProtectionAmount(
+    shippingProtectionInsuredValue,
+  );
+  const checkoutTotal = roundMoney(
+    cartTotal + (shippingProtectionSelected ? shippingProtectionAmount : 0),
+  );
+  const cartCount = normalizedCartItems.reduce(
+    (count, item) => count + Number(item.quantity || 1),
+    0,
+  );
+
+  useEffect(() => {
+    persistShippingProtectionSelection({
+      selected: shippingProtectionSelected && normalizedCartItems.length > 0,
+      amount: shippingProtectionAmount,
+      insuredValue: shippingProtectionInsuredValue,
+    });
+  }, [
+    shippingProtectionSelected,
+    shippingProtectionAmount,
+    shippingProtectionInsuredValue,
+    normalizedCartItems.length,
+  ]);
+
+  const setShippingProtectionSelected = (value) => {
+    const nextValue = Boolean(value) && normalizedCartItems.length > 0;
+    setShippingProtectionSelectedState(nextValue);
+    return nextValue;
+  };
+
   const clearCart = () => {
     setCartItems([]);
+    setShippingProtectionSelectedState(false);
+    persistShippingProtectionSelection({ selected: false });
 
     if (typeof window !== "undefined") {
       localStorage.removeItem("lab_cart");
@@ -1371,6 +1564,9 @@ export function CartProvider({ children }) {
       {
         checkoutCoupon,
         account,
+        shippingProtectionSelected,
+        shippingProtectionAmount,
+        shippingProtectionInsuredValue,
         source: "phaseone_cart_drawer_custom_checkout",
       },
       `${window.location.origin}/checkout`,
@@ -1403,10 +1599,12 @@ export function CartProvider({ children }) {
       { checkoutCoupon, account },
     );
 
-    trackMetaPixelEvent(
-      "InitiateCheckout",
-      buildMetaPixelCartPayload(checkoutItemsForTracking),
-    );
+    trackMetaPixelEvent("InitiateCheckout", {
+      ...buildMetaPixelCartPayload(checkoutItemsForTracking),
+      value: checkoutTotal,
+      shipping_protection: shippingProtectionSelected,
+      shipping_protection_amount: shippingProtectionAmount,
+    });
 
     setCheckoutLoading(true);
 
@@ -1414,20 +1612,6 @@ export function CartProvider({ children }) {
 
     window.location.href = checkoutUrl;
   };
-
-  const normalizedCartItems = normalizeCartItems(cartItems);
-  const paidSubtotal = getPaidSubtotal(normalizedCartItems);
-
-  const cartTotal = normalizedCartItems.reduce(
-    (total, item) =>
-      total + getCartItemPrice(item) * Number(item.quantity || 1),
-    0,
-  );
-
-  const cartCount = normalizedCartItems.reduce(
-    (count, item) => count + Number(item.quantity || 1),
-    0,
-  );
 
   return (
     <CartContext.Provider
@@ -1450,6 +1634,11 @@ export function CartProvider({ children }) {
         rewardProducts: {},
         checkoutCoupon,
         setCheckoutCoupon,
+        shippingProtectionSelected,
+        setShippingProtectionSelected,
+        shippingProtectionAmount,
+        shippingProtectionInsuredValue,
+        checkoutTotal,
         applyCheckoutCoupon,
         removeCheckoutCoupon,
         account,

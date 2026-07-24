@@ -1,5 +1,15 @@
 import { useEffect, useMemo } from "react";
-import { X, Plus, Minus, Trash2, ShoppingBag, Gift, Truck } from "lucide-react";
+import {
+  X,
+  Plus,
+  Minus,
+  Trash2,
+  ShoppingBag,
+  Gift,
+  Truck,
+  ShieldCheck,
+  Check,
+} from "lucide-react";
 import { useCart } from "./CartContext";
 
 const usdFormatter = new Intl.NumberFormat("en-US", {
@@ -61,6 +71,11 @@ export default function CartDrawer() {
     rewardGifts,
     checkout,
     checkoutLoading,
+    shippingProtectionSelected,
+    setShippingProtectionSelected,
+    shippingProtectionAmount,
+    shippingProtectionInsuredValue,
+    checkoutTotal,
   } = useCart();
 
   const hasItems = cartItems.length > 0;
@@ -322,21 +337,79 @@ export default function CartDrawer() {
 
         {hasItems && (
           <div className="shrink-0 border-t border-cyan-200/10 bg-[#040814] px-5 py-5">
-            <div className="mb-4 flex items-end justify-between gap-4">
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
-                  Subtotal
-                </p>
+            <div className="mb-4">
+              <div className="flex items-end justify-between gap-4">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
+                    Estimated total
+                  </p>
 
-                <p className="mt-1 text-3xl font-semibold tracking-[-0.05em] text-white">
-                  {formatPrice(cartTotal)}
+                  <p className="mt-1 text-3xl font-semibold tracking-[-0.05em] text-white">
+                    {formatPrice(checkoutTotal)}
+                  </p>
+                </div>
+
+                <p className="pb-1 text-right text-xs leading-5 text-slate-500">
+                  Taxes and shipping at checkout.
                 </p>
               </div>
 
-              <p className="pb-1 text-right text-xs leading-5 text-slate-500">
-                Taxes and shipping at checkout.
-              </p>
+              {shippingProtectionSelected && (
+                <div className="mt-3 flex items-center justify-between border-t border-white/[0.06] pt-3 text-xs">
+                  <span className="text-slate-500">Products subtotal</span>
+                  <span className="font-semibold text-slate-300">
+                    {formatPrice(cartTotal)}
+                  </span>
+                </div>
+              )}
             </div>
+
+            <button
+              type="button"
+              role="checkbox"
+              aria-checked={shippingProtectionSelected}
+              aria-label="Add shipping protection"
+              onClick={() =>
+                setShippingProtectionSelected(!shippingProtectionSelected)
+              }
+              disabled={checkoutLoading}
+              className={`mb-4 w-full rounded-2xl border p-3.5 text-left transition disabled:cursor-wait disabled:opacity-60 ${
+                shippingProtectionSelected
+                  ? "border-cyan-200/30 bg-cyan-300/[0.08]"
+                  : "border-cyan-200/10 bg-white/[0.025] hover:border-cyan-200/20 hover:bg-cyan-300/[0.04]"
+              }`}
+            >
+              <div className="flex items-start gap-3">
+                <span
+                  className={`mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-md border transition ${
+                    shippingProtectionSelected
+                      ? "border-cyan-200 bg-cyan-300 text-slate-950"
+                      : "border-white/20 bg-[#020617] text-transparent"
+                  }`}
+                >
+                  <Check size={13} strokeWidth={3} />
+                </span>
+
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center justify-between gap-3">
+                    <span className="inline-flex items-center gap-2 text-[12px] font-bold text-white">
+                      <ShieldCheck size={15} className="text-cyan-200" />
+                      Shipping Protection
+                    </span>
+
+                    <span className="shrink-0 text-[12px] font-black text-cyan-100">
+                      Est. +{formatPrice(shippingProtectionAmount)}
+                    </span>
+                  </span>
+
+                  <span className="mt-1.5 block text-[10px] leading-4 text-slate-400">
+                    Protects up to {formatPrice(shippingProtectionInsuredValue)}
+                    against loss or damage. The final protection charge updates
+                    at checkout and ParcelGuard is applied through ShipStation.
+                  </span>
+                </span>
+              </div>
+            </button>
 
             {rewardProgress && (
               <div className="mb-3">

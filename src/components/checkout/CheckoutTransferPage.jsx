@@ -33,6 +33,14 @@ const MANUAL_PAYMENT_SHIPPING_COST = 13;
 const PAYMENT_DISCOUNT_METHOD_IDS = ["venmo", "zelle", "bank"];
 const MANUAL_PAYMENT_METHOD_IDS = ["venmo", "zelle"];
 
+// One customer-facing protection option. ParcelGuard through ShipStation is
+// the only insurance provider used by this checkout.
+const SHIPPING_PROTECTION_PROVIDER = "parcelguard";
+const SHIPPING_PROTECTION_STORAGE_KEY = "phaseone_shipping_protection";
+const SHIPPING_PROTECTION_RATE_DOMESTIC = 1.09;
+const SHIPPING_PROTECTION_RATE_INTERNATIONAL = 1.39;
+const SHIPPING_PROTECTION_COOKIE_MAX_AGE = 60 * 60 * 24;
+
 // Manual Venmo/Zelle details.
 // Set these in your .env before publishing so the public checkout shows your real payment info.
 const VENMO_PAYMENT_URL =
@@ -296,6 +304,149 @@ function formatMoney(value) {
     style: "currency",
     currency: "USD",
   }).format(number);
+}
+
+function roundMoney(value = 0) {
+  return Number((Number(value || 0) + Number.EPSILON).toFixed(2));
+}
+
+function getShippingProtectionRate(country = "US") {
+  return String(country || "US").toUpperCase() === "US"
+    ? SHIPPING_PROTECTION_RATE_DOMESTIC
+    : SHIPPING_PROTECTION_RATE_INTERNATIONAL;
+}
+
+function calculateShippingProtectionAmount(baseTotal = 0, country = "US") {
+  const cleanBaseTotal = Math.max(Number(baseTotal || 0), 0);
+  const rate = getShippingProtectionRate(country);
+
+  if (!cleanBaseTotal || !rate) return 0;
+
+  // ShipStation automation can use Amount Paid as the insured value. This
+  // small fixed-point loop also covers the tier created by adding the fee.
+  let fee = 0;
+
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const units = Math.max(1, Math.ceil((cleanBaseTotal + fee) / 100));
+    const nextFee = roundMoney(units * rate);
+
+    if (Math.abs(nextFee - fee) < 0.001) {
+      fee = nextFee;
+      break;
+    }
+
+    fee = nextFee;
+  }
+
+  return roundMoney(fee);
+}
+
+function isShippingAddressReady(form = {}) {
+  const requiredValues = [
+    form.email,
+    form.phone,
+    form.country,
+    form.firstName,
+    form.lastName,
+    form.address1,
+    form.city,
+    form.state,
+    form.postcode,
+  ];
+
+  return requiredValues.every((value) => String(value || "").trim());
+}
+
+function readSavedShippingProtectionSelection() {
+  if (typeof window === "undefined") return false;
+
+  try {
+    return localStorage.getItem(SHIPPING_PROTECTION_STORAGE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function writeSharedCheckoutCookie(name, value, maxAge = SHIPPING_PROTECTION_COOKIE_MAX_AGE) {
+  if (typeof document === "undefined") return;
+
+  const encoded = encodeURIComponent(String(value ?? ""));
+  const baseCookie = `${name}=${encoded}; Path=/; Max-Age=${maxAge}; SameSite=Lax; Secure`;
+
+  document.cookie = baseCookie;
+  document.cookie = `${baseCookie}; Domain=.phaseonelabz.com`;
+}
+
+function clearSharedCheckoutCookie(name) {
+  if (typeof document === "undefined") return;
+
+  document.cookie = `${name}=; Path=/; Max-Age=0; SameSite=Lax; Secure`;
+  document.cookie = `${name}=; Path=/; Domain=.phaseonelabz.com; Max-Age=0; SameSite=Lax; Secure`;
+}
+
+function persistCheckoutShippingProtection({
+  selected = false,
+  amount = 0,
+  insuredValue = 0,
+  sessionId = "",
+} = {}) {
+  if (typeof window === "undefined") return;
+
+  const cleanSelected = Boolean(selected);
+  const cleanAmount = cleanSelected ? roundMoney(amount) : 0;
+  const cleanInsuredValue = cleanSelected ? roundMoney(insuredValue) : 0;
+
+  try {
+    if (cleanSelected) {
+      localStorage.setItem(SHIPPING_PROTECTION_STORAGE_KEY, "1");
+      writeSharedCheckoutCookie("phaseone_shipping_protection", "1");
+      writeSharedCheckoutCookie(
+        "phaseone_shipping_protection_amount",
+        cleanAmount.toFixed(2),
+      );
+      writeSharedCheckoutCookie(
+        "phaseone_shipping_protection_value",
+        cleanInsuredValue.toFixed(2),
+      );
+    } else {
+      localStorage.removeItem(SHIPPING_PROTECTION_STORAGE_KEY);
+      clearSharedCheckoutCookie("phaseone_shipping_protection");
+      clearSharedCheckoutCookie("phaseone_shipping_protection_amount");
+      clearSharedCheckoutCookie("phaseone_shipping_protection_value");
+    }
+
+    const storageKeys = ["phaseone_pending_checkout"];
+    const cleanSessionId = String(sessionId || "").trim();
+
+    if (cleanSessionId) {
+      storageKeys.push(`phaseone_checkout_session_${cleanSessionId}`);
+    }
+
+    storageKeys.forEach((key) => {
+      const current = safeJsonParse(localStorage.getItem(key), null);
+      if (!current || typeof current !== "object") return;
+
+      const next = {
+        ...current,
+        shipping_protection_selected: cleanSelected,
+        shippingProtectionSelected: cleanSelected,
+        shipping_protection_provider: cleanSelected
+          ? SHIPPING_PROTECTION_PROVIDER
+          : "none",
+        shippingProtectionProvider: cleanSelected
+          ? SHIPPING_PROTECTION_PROVIDER
+          : "none",
+        shipping_protection_amount: cleanAmount,
+        shippingProtectionAmount: cleanAmount,
+        shipping_protection_insured_value: cleanInsuredValue,
+        shippingProtectionInsuredValue: cleanInsuredValue,
+      };
+
+      localStorage.setItem(key, JSON.stringify(next));
+    });
+  } catch {
+    // The checkout still works when storage is blocked.
+  }
 }
 
 function normalizeCoupon(value = "") {
@@ -1297,6 +1448,9 @@ function buildWooCheckoutUrl({
   paymentDiscountAmount,
   paymentDiscountRate,
   policyAcknowledged,
+  shippingProtectionSelected,
+  shippingProtectionAmount,
+  shippingProtectionInsuredValue,
 }) {
   const fromSession =
     session?.woo_checkout_url ||
@@ -1477,6 +1631,26 @@ function buildWooCheckoutUrl({
     );
   }
 
+  if (
+    shippingProtectionSelected &&
+    Number(shippingProtectionAmount || 0) > 0
+  ) {
+    url.searchParams.set("shipping_protection", "1");
+    url.searchParams.set("phaseone_shipping_protection", "1");
+    url.searchParams.set(
+      "shipping_protection_provider",
+      SHIPPING_PROTECTION_PROVIDER,
+    );
+    url.searchParams.set(
+      "shipping_protection_amount",
+      roundMoney(shippingProtectionAmount).toFixed(2),
+    );
+    url.searchParams.set(
+      "shipping_protection_value",
+      roundMoney(shippingProtectionInsuredValue).toFixed(2),
+    );
+  }
+
   // Important: card keeps the normal checkout flow.
   // Venmo and Zelle are handled by the manual-payment REST endpoint.
   // Only Bank Transfer is forced to the Yodlee/eDebit WooCommerce gateway.
@@ -1526,6 +1700,8 @@ export default function CheckoutTransferPage() {
   const [checkoutForm, setCheckoutForm] = useState(() =>
     getBlankCheckoutForm(),
   );
+  const [shippingProtectionSelected, setShippingProtectionSelected] =
+    useState(false);
   const [selectedShippingMethodId] = useState("fedex");
   const [policyAcknowledged, setPolicyAcknowledged] = useState(false);
   const [manualPaymentOrder, setManualPaymentOrder] = useState(null);
@@ -1565,6 +1741,15 @@ export default function CheckoutTransferPage() {
 
     const pendingSession = readPendingCheckoutSession();
     setSession(pendingSession);
+
+    const protectionSelected = Boolean(
+      cart?.shippingProtectionSelected ||
+        pendingSession?.shipping_protection_selected ||
+        pendingSession?.shippingProtectionSelected ||
+        readSavedShippingProtectionSelection(),
+    );
+
+    setShippingProtectionSelected(protectionSelected);
 
     const savedCart = localStorage.getItem("lab_cart");
     const parsedCart = safeJsonParse(savedCart, []);
@@ -1834,10 +2019,42 @@ export default function CheckoutTransferPage() {
     free_shipping_minimum: FREE_SHIPPING_MINIMUM,
   };
 
-  const paymentPreviewTotal = Math.max(
+  const shippingProtectionAddressReady = isShippingAddressReady(checkoutForm);
+  const paymentPreviewBeforeProtection = Math.max(
     previewTotal - paymentMethodDiscount + activeShippingCost,
     0,
   );
+  const shippingProtectionQuotedAmount = shippingProtectionAddressReady
+    ? calculateShippingProtectionAmount(
+        paymentPreviewBeforeProtection,
+        checkoutForm.country,
+      )
+    : 0;
+  const effectiveShippingProtectionSelected = Boolean(
+    shippingProtectionSelected &&
+      shippingProtectionAddressReady &&
+      shippingProtectionQuotedAmount > 0,
+  );
+  const shippingProtectionAmount = effectiveShippingProtectionSelected
+    ? shippingProtectionQuotedAmount
+    : 0;
+  const shippingProtectionInsuredValue = effectiveShippingProtectionSelected
+    ? roundMoney(paymentPreviewBeforeProtection + shippingProtectionAmount)
+    : 0;
+  const paymentPreviewTotal = roundMoney(
+    paymentPreviewBeforeProtection + shippingProtectionAmount,
+  );
+  const shippingProtectionPayload = {
+    selected: effectiveShippingProtectionSelected,
+    provider: effectiveShippingProtectionSelected
+      ? SHIPPING_PROTECTION_PROVIDER
+      : "none",
+    amount: shippingProtectionAmount,
+    insuredValue: shippingProtectionInsuredValue,
+    insured_value: shippingProtectionInsuredValue,
+    finalOrderTotal: paymentPreviewTotal,
+    final_order_total: paymentPreviewTotal,
+  };
 
   const effectiveBankTransferEmail = normalizeEmail(
     checkoutForm.email || bankTransferEmail,
@@ -1856,6 +2073,34 @@ export default function CheckoutTransferPage() {
     setError("");
     setPaymentNotice("");
   };
+
+  const updateShippingProtectionSelection = (selected) => {
+    const cleanSelected = Boolean(selected);
+
+    setShippingProtectionSelected(cleanSelected);
+    cart?.setShippingProtectionSelected?.(cleanSelected);
+    setError("");
+    setPaymentNotice("");
+  };
+
+  useEffect(() => {
+    persistCheckoutShippingProtection({
+      selected: shippingProtectionSelected,
+      amount: shippingProtectionSelected ? shippingProtectionQuotedAmount : 0,
+      insuredValue: shippingProtectionSelected
+        ? roundMoney(
+            paymentPreviewBeforeProtection + shippingProtectionQuotedAmount,
+          )
+        : 0,
+      sessionId: session?.session_id || session?.sessionId || getSessionIdFromUrl(),
+    });
+  }, [
+    shippingProtectionSelected,
+    shippingProtectionQuotedAmount,
+    paymentPreviewBeforeProtection,
+    session?.session_id,
+    session?.sessionId,
+  ]);
 
   useEffect(() => {
     if (!canApplyCashback && applyCashback) {
@@ -2167,6 +2412,9 @@ export default function CheckoutTransferPage() {
       paymentDiscountAmount: paymentMethodDiscount,
       paymentDiscountRate: PAYMENT_DISCOUNT_RATE,
       policyAcknowledged,
+      shippingProtectionSelected: effectiveShippingProtectionSelected,
+      shippingProtectionAmount,
+      shippingProtectionInsuredValue,
     });
 
     if (!checkoutUrl) {
@@ -2256,6 +2504,18 @@ export default function CheckoutTransferPage() {
           },
           billing: finalBilling,
           shipping: finalShipping,
+          shippingProtection: shippingProtectionPayload,
+          shipping_protection: shippingProtectionPayload,
+          shippingProtectionSelected: effectiveShippingProtectionSelected,
+          shipping_protection_selected: effectiveShippingProtectionSelected,
+          shippingProtectionProvider: shippingProtectionPayload.provider,
+          shipping_protection_provider: shippingProtectionPayload.provider,
+          shippingProtectionAmount,
+          shipping_protection_amount: shippingProtectionAmount,
+          shippingProtectionInsuredValue,
+          shipping_protection_insured_value: shippingProtectionInsuredValue,
+          previewTotal: paymentPreviewTotal,
+          preview_total: paymentPreviewTotal,
           items: checkoutItems.map((item) => ({
             product_id: Number(item.product_id || 0),
             variation_id: Number(item.variation_id || 0),
@@ -2312,6 +2572,8 @@ export default function CheckoutTransferPage() {
             email: finalBilling.email,
             billing: finalBilling,
             shipping: finalShipping,
+            shippingProtection: shippingProtectionPayload,
+            shipping_protection: shippingProtectionPayload,
             items: checkoutItems,
             createdAt: acceptedAt,
           }),
@@ -2434,6 +2696,16 @@ export default function CheckoutTransferPage() {
             effectiveSelectedShippingMethod.free_shipping_applied,
           freeShippingMinimum: FREE_SHIPPING_MINIMUM,
           free_shipping_minimum: FREE_SHIPPING_MINIMUM,
+          shippingProtection: shippingProtectionPayload,
+          shipping_protection: shippingProtectionPayload,
+          shippingProtectionSelected: effectiveShippingProtectionSelected,
+          shipping_protection_selected: effectiveShippingProtectionSelected,
+          shippingProtectionProvider: shippingProtectionPayload.provider,
+          shipping_protection_provider: shippingProtectionPayload.provider,
+          shippingProtectionAmount,
+          shipping_protection_amount: shippingProtectionAmount,
+          shippingProtectionInsuredValue,
+          shipping_protection_insured_value: shippingProtectionInsuredValue,
 
           couponCode:
             couponStatus === "valid"
@@ -2691,6 +2963,16 @@ export default function CheckoutTransferPage() {
           free_shipping_applied: freeShippingUnlocked,
           freeShippingMinimum: FREE_SHIPPING_MINIMUM,
           free_shipping_minimum: FREE_SHIPPING_MINIMUM,
+          shippingProtection: shippingProtectionPayload,
+          shipping_protection: shippingProtectionPayload,
+          shippingProtectionSelected: effectiveShippingProtectionSelected,
+          shipping_protection_selected: effectiveShippingProtectionSelected,
+          shippingProtectionProvider: shippingProtectionPayload.provider,
+          shipping_protection_provider: shippingProtectionPayload.provider,
+          shippingProtectionAmount,
+          shipping_protection_amount: shippingProtectionAmount,
+          shippingProtectionInsuredValue,
+          shipping_protection_insured_value: shippingProtectionInsuredValue,
           couponCode:
             couponStatus === "valid"
               ? coupon
@@ -2805,6 +3087,10 @@ export default function CheckoutTransferPage() {
           email: finalEmail,
           billing: orderData.billing || finalBilling,
           shipping: orderData.shipping || finalShipping,
+          shippingProtection:
+            orderData.shippingProtection || shippingProtectionPayload,
+          shipping_protection:
+            orderData.shipping_protection || shippingProtectionPayload,
           items: orderData.items || checkoutItems,
           createdAt: new Date().toISOString(),
         };
@@ -3094,6 +3380,59 @@ export default function CheckoutTransferPage() {
                     : formatMoney(MANUAL_PAYMENT_SHIPPING_COST)}
                 </em>
               </div>
+
+              {shippingProtectionAddressReady ? (
+                <label
+                  className={`shipping-protection-choice ${
+                    shippingProtectionSelected ? "is-selected" : ""
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={shippingProtectionSelected}
+                    onChange={(event) =>
+                      updateShippingProtectionSelection(event.target.checked)
+                    }
+                  />
+
+                  <span className="shipping-protection-checkbox" aria-hidden="true">
+                    <i>✓</i>
+                  </span>
+
+                  <span className="shipping-protection-icon">
+                    <ShieldCheck size={18} />
+                  </span>
+
+                  <span className="shipping-protection-copy">
+                    <span className="shipping-protection-title-row">
+                      <strong>Shipping Protection</strong>
+                      <b>FINAL PRICE</b>
+                    </span>
+                    <small>
+                      ParcelGuard through ShipStation. Protects the final paid
+                      order total against eligible loss or damage.
+                    </small>
+                    <em>
+                      Coverage value: {formatMoney(
+                        paymentPreviewBeforeProtection +
+                          shippingProtectionQuotedAmount,
+                      )}
+                    </em>
+                  </span>
+
+                  <span className="shipping-protection-price">
+                    +{formatMoney(shippingProtectionQuotedAmount)}
+                  </span>
+                </label>
+              ) : (
+                <div className="shipping-protection-waiting">
+                  <ShieldCheck size={17} />
+                  <span>
+                    Complete your contact and delivery address to see the final
+                    Shipping Protection price.
+                  </span>
+                </div>
+              )}
             </section>
 
             <section className="checkout-section payment-section">
@@ -3334,6 +3673,13 @@ export default function CheckoutTransferPage() {
                       : "FREE"}
                   </strong>
                 </div>
+
+                {effectiveShippingProtectionSelected && (
+                  <div className="protection-line">
+                    <span>Shipping Protection</span>
+                    <strong>{formatMoney(shippingProtectionAmount)}</strong>
+                  </div>
+                )}
               </div>
 
               <div className="summary-total">
@@ -3654,6 +4000,142 @@ const styles = `
     font-size: 12px;
     font-style: normal;
     font-weight: 900;
+  }
+
+  .shipping-protection-waiting {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 10px;
+    border: 1px dashed rgba(148, 163, 184, 0.18);
+    border-radius: 13px;
+    background: rgba(2, 6, 15, 0.38);
+    padding: 12px 14px;
+    color: #64748b;
+    font-size: 10px;
+    line-height: 1.5;
+  }
+
+  .shipping-protection-waiting svg {
+    flex: 0 0 auto;
+    color: #60a5fa;
+  }
+
+  .shipping-protection-choice {
+    display: grid;
+    grid-template-columns: 22px 42px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    margin-top: 10px;
+    border: 1px solid rgba(148, 163, 184, 0.16);
+    border-radius: 14px;
+    background: rgba(2, 6, 15, 0.58);
+    padding: 14px;
+    cursor: pointer;
+    transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+  }
+
+  .shipping-protection-choice:hover {
+    border-color: rgba(96, 165, 250, 0.38);
+    background: rgba(8, 17, 35, 0.92);
+  }
+
+  .shipping-protection-choice.is-selected {
+    border-color: rgba(34, 211, 238, 0.66);
+    background: linear-gradient(90deg, rgba(8, 145, 178, 0.13), rgba(8, 17, 35, 0.9));
+    box-shadow: inset 0 0 0 1px rgba(34, 211, 238, 0.12);
+  }
+
+  .shipping-protection-choice > input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .shipping-protection-checkbox {
+    display: grid;
+    width: 20px;
+    height: 20px;
+    place-items: center;
+    border: 1px solid rgba(148, 163, 184, 0.34);
+    border-radius: 6px;
+    background: rgba(2, 6, 15, 0.9);
+    color: transparent;
+    transition: all 160ms ease;
+  }
+
+  .shipping-protection-checkbox i {
+    font-size: 12px;
+    font-style: normal;
+    font-weight: 1000;
+    line-height: 1;
+  }
+
+  .shipping-protection-choice.is-selected .shipping-protection-checkbox {
+    border-color: #67e8f9;
+    background: #67e8f9;
+    color: #082f49;
+  }
+
+  .shipping-protection-icon {
+    display: grid;
+    width: 42px;
+    height: 42px;
+    place-items: center;
+    border: 1px solid rgba(34, 211, 238, 0.15);
+    border-radius: 11px;
+    background: rgba(8, 145, 178, 0.08);
+    color: #67e8f9;
+  }
+
+  .shipping-protection-copy {
+    display: grid;
+    min-width: 0;
+    gap: 4px;
+  }
+
+  .shipping-protection-title-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 7px;
+  }
+
+  .shipping-protection-title-row strong {
+    color: #f8fafc;
+    font-size: 13px;
+  }
+
+  .shipping-protection-title-row b {
+    border: 1px solid rgba(34, 211, 238, 0.22);
+    border-radius: 999px;
+    background: rgba(34, 211, 238, 0.08);
+    padding: 3px 7px;
+    color: #a5f3fc;
+    font-size: 7px;
+    letter-spacing: 0.12em;
+  }
+
+  .shipping-protection-copy small {
+    color: #64748b;
+    font-size: 10px;
+    line-height: 1.45;
+  }
+
+  .shipping-protection-copy em {
+    color: #7dd3fc;
+    font-size: 9px;
+    font-style: normal;
+    font-weight: 800;
+  }
+
+  .shipping-protection-price {
+    color: #cffafe;
+    font-size: 12px;
+    font-weight: 1000;
+    white-space: nowrap;
   }
 
   .traditional-payment-list {
@@ -4171,6 +4653,11 @@ const styles = `
     font-size: 11px;
   }
 
+  .summary-lines .protection-line span,
+  .summary-lines .protection-line strong {
+    color: #67e8f9;
+  }
+
   .summary-total {
     border-top: 1px solid rgba(148, 163, 184, 0.14);
     padding-top: 19px;
@@ -4482,6 +4969,21 @@ const styles = `
 
     .traditional-payment-option {
       grid-template-columns: 18px 40px minmax(0, 1fr);
+    }
+
+    .shipping-protection-choice {
+      grid-template-columns: 20px 38px minmax(0, 1fr);
+    }
+
+    .shipping-protection-icon {
+      width: 38px;
+      height: 38px;
+    }
+
+    .shipping-protection-price {
+      grid-column: 3;
+      justify-self: start;
+      margin-top: 2px;
     }
 
     .traditional-payment-badge {
