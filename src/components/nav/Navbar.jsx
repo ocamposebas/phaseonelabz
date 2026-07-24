@@ -3,7 +3,7 @@ import { Menu, Search, ShoppingCart, User, X, LogOut } from "lucide-react";
 import { useCart } from "../cart/CartContext";
 
 const navItems = [
-  { label: "Inicio", href: "/" },
+  { label: "Home", href: "/" },
   { label: "Catalog", href: "/shop" },
   { label: "COA", href: "/coa" },
   { label: "Restocks", href: "/restock-status" },
