@@ -10,7 +10,7 @@ import {
   ShieldCheck,
   Check,
 } from "lucide-react";
-import { useCart } from "./CartContext";
+import { getProductPurchaseLimit, useCart } from "./CartContext";
 
 const usdFormatter = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -204,6 +204,7 @@ export default function CartDrawer() {
                 const itemImage = getDisplayImage(item);
                 const itemOptions = getDisplayOptions(item);
                 const isRewardGift = Boolean(item.isRewardGift);
+                const purchaseLimit = getProductPurchaseLimit(item);
                 const lineTotal =
                   Number(item.price || 0) * Number(item.quantity || 1);
 
@@ -258,6 +259,12 @@ export default function CartDrawer() {
                                 ? "Automatically added"
                                 : `${formatPrice(item.price)} each`}
                             </p>
+
+                            {purchaseLimit && !isRewardGift && (
+                              <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.12em] text-amber-200/80">
+                                Maximum {purchaseLimit} per order
+                              </p>
+                            )}
                           </div>
 
                           <button
@@ -310,7 +317,12 @@ export default function CartDrawer() {
                                   updateQuantity(itemKey, 1);
                                 }
                               }}
-                              disabled={checkoutLoading || isRewardGift}
+                              disabled={
+                                checkoutLoading ||
+                                isRewardGift ||
+                                (purchaseLimit &&
+                                  Number(item.quantity || 0) >= purchaseLimit)
+                              }
                               aria-label="Increase quantity"
                               className="grid h-7 w-7 place-items-center rounded-full text-slate-400 transition hover:bg-white/[0.05] hover:text-white disabled:cursor-not-allowed disabled:opacity-45"
                             >

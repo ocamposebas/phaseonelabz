@@ -20,6 +20,12 @@ const SHIPPING_PROTECTION_VALUE_COOKIE_KEY =
 const SHIPPING_PROTECTION_RATE_PER_100 = 1.09;
 const SHIPPING_PROTECTION_COOKIE_MAX_AGE = 60 * 60 * 24;
 
+// Product-specific purchase limits. Keep this rule in the cart so it applies
+// to every catalog/product-page entry point and to checkout payloads.
+const PRODUCT_PURCHASE_LIMITS = {
+  545: 2,
+};
+
 function roundMoney(value = 0) {
   return Number((Number(value || 0) + Number.EPSILON).toFixed(2));
 }
@@ -587,6 +593,17 @@ function getProductId(item = {}) {
   );
 }
 
+export function getProductPurchaseLimit(item = {}) {
+  return PRODUCT_PURCHASE_LIMITS[getProductId(item)] || null;
+}
+
+function clampCartItemQuantity(item = {}, quantity = 1) {
+  const safeQuantity = Math.max(1, Number(quantity) || 1);
+  const purchaseLimit = getProductPurchaseLimit(item);
+
+  return purchaseLimit ? Math.min(safeQuantity, purchaseLimit) : safeQuantity;
+}
+
 function getVariationId(item = {}) {
   return resolveNumericId(
     item.variation_id,
@@ -641,7 +658,7 @@ function normalizeCartItem(item = {}) {
     product_id: getProductId(item),
     parent_id: item.parent_id || getProductId(item),
     variation_id: getVariationId(item),
-    quantity: Number(item.quantity || 1),
+    quantity: clampCartItemQuantity(item, item.quantity),
     image: getCartItemImage(item),
     price: getCartItemPrice(item),
   };
@@ -675,7 +692,7 @@ function buildCheckoutPayload(cartItems = []) {
         product_id: productId,
         id: productId,
         variation_id: variationId,
-        quantity: Number(item.quantity || 1),
+        quantity: clampCartItemQuantity(item, item.quantity),
         variation: normalizeCartVariation(item),
       };
     })
@@ -1373,11 +1390,11 @@ export function CartProvider({ children }) {
   };
 
   const addToCart = (product) => {
-    const quantityToAdd = Number(product?.quantity || 1);
+    const requestedQuantity = Math.max(1, Number(product?.quantity || 1));
 
     const normalizedProduct = normalizeCartItem({
       ...product,
-      quantity: quantityToAdd,
+      quantity: requestedQuantity,
     });
 
     const incomingKey = normalizedProduct.cartKey;
@@ -1385,6 +1402,15 @@ export function CartProvider({ children }) {
     const currentItems = normalizeCartItems(cartItems);
 
     const existingTrackingIndex = findIndexByCartKey(currentItems, incomingKey);
+    const existingQuantity =
+      existingTrackingIndex === -1
+        ? 0
+        : Number(currentItems[existingTrackingIndex]?.quantity || 0);
+    const nextQuantity = clampCartItemQuantity(
+      normalizedProduct,
+      existingQuantity + requestedQuantity,
+    );
+    const quantityActuallyAdded = Math.max(0, nextQuantity - existingQuantity);
 
     let trackingItems;
 
@@ -1393,7 +1419,7 @@ export function CartProvider({ children }) {
         index === existingTrackingIndex
           ? {
               ...item,
-              quantity: Number(item.quantity || 1) + quantityToAdd,
+              quantity: nextQuantity,
             }
           : item,
       );
@@ -1406,24 +1432,30 @@ export function CartProvider({ children }) {
       account,
     });
 
-    pushOmnisendEvent(
-      "added product to cart",
-      trackingItems,
-      normalizedProduct,
-      trackingCheckoutUrl,
-      { checkoutCoupon, account },
-    );
+    if (quantityActuallyAdded > 0) {
+      pushOmnisendEvent(
+        "added product to cart",
+        trackingItems,
+        { ...normalizedProduct, quantity: quantityActuallyAdded },
+        trackingCheckoutUrl,
+        { checkoutCoupon, account },
+      );
 
-    trackMetaPixelEvent("AddToCart", {
-      content_ids: [getMetaPixelContentId(normalizedProduct)].filter(Boolean),
-      contents: getMetaPixelContents([normalizedProduct]),
-      content_name: getMetaPixelItemName(normalizedProduct),
-      content_type: "product",
-      value: Number(
-        (getCartItemPrice(normalizedProduct) * quantityToAdd).toFixed(2),
-      ),
-      currency: "USD",
-    });
+      trackMetaPixelEvent("AddToCart", {
+        content_ids: [getMetaPixelContentId(normalizedProduct)].filter(Boolean),
+        contents: getMetaPixelContents([
+          { ...normalizedProduct, quantity: quantityActuallyAdded },
+        ]),
+        content_name: getMetaPixelItemName(normalizedProduct),
+        content_type: "product",
+        value: Number(
+          (
+            getCartItemPrice(normalizedProduct) * quantityActuallyAdded
+          ).toFixed(2),
+        ),
+        currency: "USD",
+      });
+    }
 
     setCartItems((prevItems) => {
       const normalizedPrev = normalizeCartItems(prevItems);
@@ -1436,7 +1468,10 @@ export function CartProvider({ children }) {
           index === existingIndex
             ? {
                 ...item,
-                quantity: Number(item.quantity || 1) + quantityToAdd,
+                quantity: clampCartItemQuantity(
+                  item,
+                  Number(item.quantity || 1) + requestedQuantity,
+                ),
               }
             : item,
         );
@@ -1474,7 +1509,7 @@ export function CartProvider({ children }) {
 
           return {
             ...item,
-            quantity: newQty,
+            quantity: clampCartItemQuantity(item, newQty),
           };
         })
         .filter(Boolean);
@@ -1496,7 +1531,7 @@ export function CartProvider({ children }) {
 
           return {
             ...item,
-            quantity: nextQuantity,
+            quantity: clampCartItemQuantity(item, nextQuantity),
           };
         })
         .filter(Boolean);
