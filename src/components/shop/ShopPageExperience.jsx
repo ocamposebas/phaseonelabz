@@ -12,7 +12,7 @@ export default function ShopExperience({ products = [] }) {
 
       <Header logoSrc="/TRANSPARENCIA-03.webp" transparentOnTop={true} />
 
-      <main className="pt-[118px]">
+      <main className="pt-[108px]">
         <ProductCatalog products={products} />
         <New/>
         <SiteFooter />

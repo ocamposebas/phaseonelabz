@@ -59,7 +59,7 @@ export default function SiteFooter({
   return (
     <footer className="relative px-5 pb-7 pt-10 text-white sm:px-6 sm:pb-8 sm:pt-14">
       <div className="mx-auto max-w-6xl">
-        <div className="h-px w-full bg-gradient-to-r from-transparent via-cyan-200/16 to-transparent" />
+        <div className="h-px w-full bg-white/10" />
 
         <div className="grid gap-7 py-8 lg:grid-cols-[1.05fr_1.55fr_0.95fr] lg:items-start lg:gap-10 lg:py-10">
           {/* Brand */}
@@ -80,7 +80,7 @@ export default function SiteFooter({
           </div>
 
           {/* Links */}
-          <div className="grid grid-cols-3 gap-3 rounded-[1.35rem] border border-cyan-200/10 bg-white/[0.015] p-4 sm:gap-6 sm:p-5 lg:border-0 lg:bg-transparent lg:p-0">
+          <div className="grid grid-cols-3 gap-3 rounded-[1.35rem] border border-white/10 bg-transparent p-4 sm:gap-6 sm:p-5 lg:border-0 lg:p-0">
             {footerColumns.map((column) => (
               <div key={column.title} className="min-w-0">
                 <h3 className="mb-3 text-[8px] font-black uppercase tracking-[0.18em] text-cyan-200/55 sm:text-[10px] sm:tracking-[0.26em]">
@@ -104,7 +104,7 @@ export default function SiteFooter({
           </div>
 
           {/* Need help */}
-          <div className="rounded-[1.35rem] border border-cyan-200/10 bg-white/[0.018] p-4 text-center sm:rounded-2xl sm:p-5 lg:text-left">
+          <div className="rounded-[1.35rem] border border-white/10 bg-transparent p-4 text-center sm:rounded-2xl sm:p-5 lg:text-left">
             <p className="text-[8.5px] font-black uppercase tracking-[0.22em] text-cyan-200/55 sm:text-[10px] sm:tracking-[0.24em]">
               Need Help?
             </p>
@@ -141,7 +141,7 @@ export default function SiteFooter({
         </div>
 
         {/* Disclaimer */}
-        <div className="rounded-[1.25rem] border border-red-400/18 bg-red-500/[0.04] px-4 py-4 sm:rounded-2xl sm:px-5">
+        <div className="rounded-[1.25rem] border border-white/10 bg-transparent px-4 py-4 sm:rounded-2xl sm:px-5">
           <p className="text-[10.5px] leading-5 text-red-50/70 sm:text-xs sm:leading-6">
             <span className="font-black uppercase tracking-[0.1em] text-red-300">
               For laboratory and research use only.

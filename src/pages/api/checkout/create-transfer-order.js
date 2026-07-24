@@ -141,6 +141,10 @@ function normalizeMoneyString(value) {
   return normalizePrice(value).toFixed(2);
 }
 
+const HOSPIRA_PRODUCT_ID = 545;
+const HOSPIRA_PROMO_THRESHOLD = 100;
+const HOSPIRA_PROMO_LIMIT = 2;
+
 function getShippingFromRequest(shipping = {}) {
   const method = sanitizeString(shipping.method || "standard").toLowerCase();
 
@@ -333,14 +337,70 @@ async function getProductPriceFromWoo(config, item) {
 }
 
 async function calculateVerifiedSubtotal(config, items = []) {
-  let subtotal = 0;
+  const pricedItems = [];
 
   for (const item of items) {
     const unitPrice = await getProductPriceFromWoo(config, item);
-    subtotal += unitPrice * item.quantity;
+    pricedItems.push({ ...item, unitPrice });
   }
 
-  return normalizePrice(subtotal);
+  const qualifyingSubtotal = normalizePrice(
+    pricedItems.reduce(
+      (total, item) =>
+        item.product_id === HOSPIRA_PRODUCT_ID
+          ? total
+          : total + item.unitPrice * item.quantity,
+      0
+    )
+  );
+  const hospiraPromoActive = qualifyingSubtotal > HOSPIRA_PROMO_THRESHOLD;
+
+  if (hospiraPromoActive) {
+    items.forEach((item) => {
+      if (item.product_id === HOSPIRA_PRODUCT_ID) {
+        item.quantity = Math.min(item.quantity, HOSPIRA_PROMO_LIMIT);
+      }
+    });
+  }
+
+  const regularSubtotal = normalizePrice(
+    pricedItems.reduce((total, pricedItem) => {
+      const currentItem = items.find(
+        (item) =>
+          item.product_id === pricedItem.product_id &&
+          item.variation_id === pricedItem.variation_id
+      );
+
+      return total + pricedItem.unitPrice * Number(currentItem?.quantity || 0);
+    }, 0)
+  );
+
+  const hospiraDiscount = hospiraPromoActive
+    ? normalizePrice(
+        pricedItems.reduce((total, pricedItem) => {
+          if (pricedItem.product_id !== HOSPIRA_PRODUCT_ID) return total;
+
+          const currentItem = items.find(
+            (item) =>
+              item.product_id === pricedItem.product_id &&
+              item.variation_id === pricedItem.variation_id
+          );
+
+          return (
+            total +
+            pricedItem.unitPrice * Number(currentItem?.quantity || 0) * 0.5
+          );
+        }, 0)
+      )
+    : 0;
+
+  return {
+    subtotal: normalizePrice(regularSubtotal - hospiraDiscount),
+    regularSubtotal,
+    qualifyingSubtotal,
+    hospiraPromoActive,
+    hospiraDiscount,
+  };
 }
 
 async function getAccountFromToken(cleanWooUrl, token) {
@@ -562,7 +622,8 @@ export async function POST({ request }) {
       );
     }
 
-    const verifiedSubtotal = await calculateVerifiedSubtotal(config, items);
+    const verifiedCart = await calculateVerifiedSubtotal(config, items);
+    const verifiedSubtotal = verifiedCart.subtotal;
     const verifiedShipping = normalizePrice(shippingMethod.total);
     const totalBeforeCredit = normalizePrice(verifiedSubtotal + verifiedShipping);
 
@@ -600,6 +661,14 @@ export async function POST({ request }) {
         key: "_lab_total_due",
         value: normalizeMoneyString(finalTotal),
       },
+      {
+        key: "_phaseone_hospira_promo",
+        value: verifiedCart.hospiraPromoActive ? "yes" : "no",
+      },
+      {
+        key: "_phaseone_hospira_discount",
+        value: normalizeMoneyString(verifiedCart.hospiraDiscount),
+      },
     ];
 
     if (customerId > 0) {
@@ -610,6 +679,14 @@ export async function POST({ request }) {
     }
 
     const feeLines = [];
+
+    if (verifiedCart.hospiraDiscount > 0) {
+      feeLines.push({
+        name: "Hospira 50% Promotion",
+        total: `-${normalizeMoneyString(verifiedCart.hospiraDiscount)}`,
+        tax_status: "none",
+      });
+    }
 
     if (storeCreditToApply > 0) {
       feeLines.push({

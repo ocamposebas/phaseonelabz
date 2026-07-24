@@ -49,10 +49,7 @@ export default function NewsletterSection() {
   return (
     <section className="relative overflow-hidden px-6 py-12 text-white sm:py-14 lg:py-16">
       <div className="relative mx-auto max-w-7xl">
-        <div className="relative z-10 mx-auto max-w-5xl overflow-hidden rounded-[1.6rem] border border-cyan-200/12 bg-[#121E2E] px-5 py-5 text-white shadow-[0_28px_90px_rgba(0,0,0,0.32)] backdrop-blur-xl sm:px-6 lg:px-8">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_20%,rgba(103,232,249,0.10),transparent_34%),linear-gradient(135deg,rgba(255,255,255,0.045),rgba(255,255,255,0.012),rgba(103,232,249,0.035))]" />
-          <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-cyan-200/35 to-transparent" />
-
+        <div className="relative z-10 mx-auto max-w-5xl overflow-hidden rounded-[1.25rem] border border-white/10 bg-transparent px-5 py-5 text-white sm:px-6 lg:px-8">
           <div className="relative grid gap-5 lg:grid-cols-[0.95fr_1.05fr] lg:items-center">
             <div>
               <p className="text-[10px] font-black uppercase tracking-[0.28em] text-cyan-200/60">
@@ -70,7 +67,7 @@ export default function NewsletterSection() {
             </div>
 
             <form className="w-full" onSubmit={handleSubmit}>
-              <div className="flex flex-col overflow-hidden rounded-xl border border-cyan-200/18 bg-[#07111D]/80 shadow-[0_16px_45px_rgba(0,0,0,0.18)] sm:flex-row">
+              <div className="flex flex-col overflow-hidden rounded-xl border border-white/12 bg-transparent sm:flex-row">
                 <input
                   type="email"
                   required

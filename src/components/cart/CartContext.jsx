@@ -20,11 +20,10 @@ const SHIPPING_PROTECTION_VALUE_COOKIE_KEY =
 const SHIPPING_PROTECTION_RATE_PER_100 = 1.09;
 const SHIPPING_PROTECTION_COOKIE_MAX_AGE = 60 * 60 * 24;
 
-// Product-specific purchase limits. Keep this rule in the cart so it applies
-// to every catalog/product-page entry point and to checkout payloads.
-const PRODUCT_PURCHASE_LIMITS = {
-  545: 2,
-};
+const HOSPIRA_PRODUCT_ID = 545;
+const HOSPIRA_PROMO_THRESHOLD = 100;
+const HOSPIRA_PROMO_DISCOUNT = 0.5;
+const HOSPIRA_PROMO_LIMIT = 2;
 
 function roundMoney(value = 0) {
   return Number((Number(value || 0) + Number.EPSILON).toFixed(2));
@@ -594,7 +593,10 @@ function getProductId(item = {}) {
 }
 
 export function getProductPurchaseLimit(item = {}) {
-  return PRODUCT_PURCHASE_LIMITS[getProductId(item)] || null;
+  return getProductId(item) === HOSPIRA_PRODUCT_ID &&
+    item.phaseone_hospira_promo_active
+    ? HOSPIRA_PROMO_LIMIT
+    : null;
 }
 
 function clampCartItemQuantity(item = {}, quantity = 1) {
@@ -651,6 +653,14 @@ function getCartItemPrice(item = {}) {
 
 function normalizeCartItem(item = {}) {
   const cartKey = item.cartKey || getCartItemKey(item);
+  const basePrice = Number(
+    item.phaseone_base_price ??
+      item.regular_cart_price ??
+      item.price ??
+      item.sale_price ??
+      item.regular_price ??
+      0,
+  );
 
   return {
     ...item,
@@ -660,7 +670,8 @@ function normalizeCartItem(item = {}) {
     variation_id: getVariationId(item),
     quantity: clampCartItemQuantity(item, item.quantity),
     image: getCartItemImage(item),
-    price: getCartItemPrice(item),
+    price: basePrice,
+    phaseone_base_price: basePrice,
   };
 }
 
@@ -673,9 +684,39 @@ function getPaidSubtotal(items = []) {
 }
 
 function normalizeCartItems(items = []) {
-  return items
+  const normalizedItems = items
     .map(normalizeCartItem)
     .filter((item) => !isLegacyPromotionalItem(item));
+
+  const qualifyingSubtotal = normalizedItems.reduce((total, item) => {
+    if (getProductId(item) === HOSPIRA_PRODUCT_ID) return total;
+
+    return (
+      total +
+      Number(item.phaseone_base_price || 0) * Number(item.quantity || 1)
+    );
+  }, 0);
+
+  const promoActive = qualifyingSubtotal > HOSPIRA_PROMO_THRESHOLD;
+
+  return normalizedItems.map((item) => {
+    if (getProductId(item) !== HOSPIRA_PRODUCT_ID) return item;
+
+    const basePrice = Number(item.phaseone_base_price || 0);
+
+    return {
+      ...item,
+      quantity: promoActive
+        ? Math.min(Number(item.quantity || 1), HOSPIRA_PROMO_LIMIT)
+        : Number(item.quantity || 1),
+      price: promoActive
+        ? roundMoney(basePrice * HOSPIRA_PROMO_DISCOUNT)
+        : basePrice,
+      phaseone_hospira_promo_active: promoActive,
+      phaseone_hospira_promo_discount_percent: promoActive ? 50 : 0,
+      phaseone_hospira_qualifying_subtotal: roundMoney(qualifyingSubtotal),
+    };
+  });
 }
 
 function buildCheckoutPayload(cartItems = []) {
@@ -1400,6 +1441,21 @@ export function CartProvider({ children }) {
     const incomingKey = normalizedProduct.cartKey;
 
     const currentItems = normalizeCartItems(cartItems);
+    const hospiraPromoActive = currentItems.some(
+      (item) =>
+        getProductId(item) === HOSPIRA_PRODUCT_ID &&
+        item.phaseone_hospira_promo_active,
+    );
+
+    if (
+      getProductId(normalizedProduct) === HOSPIRA_PRODUCT_ID &&
+      hospiraPromoActive
+    ) {
+      normalizedProduct.phaseone_hospira_promo_active = true;
+      normalizedProduct.price = roundMoney(
+        normalizedProduct.phaseone_base_price * HOSPIRA_PROMO_DISCOUNT,
+      );
+    }
 
     const existingTrackingIndex = findIndexByCartKey(currentItems, incomingKey);
     const existingQuantity =

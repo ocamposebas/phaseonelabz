@@ -139,7 +139,7 @@ export default function CartDrawer() {
         className="fixed inset-0 z-[9998] bg-black/60"
       />
 
-      <aside className="phase-cart-drawer fixed bottom-0 right-0 top-0 z-[9999] flex w-full max-w-[430px] flex-col overflow-hidden border-l border-cyan-200/10 bg-[#040814] text-white shadow-[-10px_0_34px_rgba(0,0,0,0.35)]">
+      <aside className="phase-cart-drawer fixed bottom-0 right-0 top-0 z-[9999] flex w-full max-w-[430px] flex-col overflow-hidden border-l border-white/10 bg-[#050914] text-white shadow-[-10px_0_34px_rgba(0,0,0,0.35)]">
         <div className="shrink-0 border-b border-cyan-200/10 px-5 py-5">
           <div className="flex items-center justify-between gap-4">
             <div>
@@ -213,8 +213,8 @@ export default function CartDrawer() {
                     key={itemKey}
                     className={`rounded-2xl border p-3 ${
                       isRewardGift
-                        ? "border-cyan-200/18 bg-cyan-300/[0.045]"
-                        : "border-cyan-200/10 bg-white/[0.025]"
+                        ? "border-cyan-200/18 bg-transparent"
+                        : "border-white/10 bg-transparent"
                     }`}
                   >
                     <div className="flex gap-3">
@@ -262,7 +262,7 @@ export default function CartDrawer() {
 
                             {purchaseLimit && !isRewardGift && (
                               <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.12em] text-amber-200/80">
-                                Maximum {purchaseLimit} per order
+                                50% off · Maximum {purchaseLimit} per order
                               </p>
                             )}
                           </div>
@@ -348,7 +348,7 @@ export default function CartDrawer() {
         </div>
 
         {hasItems && (
-          <div className="shrink-0 border-t border-cyan-200/10 bg-[#040814] px-5 py-5">
+          <div className="shrink-0 border-t border-white/10 bg-[#050914] px-5 py-5">
             <div className="mb-4">
               <div className="flex items-end justify-between gap-4">
                 <div>

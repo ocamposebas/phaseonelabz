@@ -1908,9 +1908,16 @@ function productNeedsMgSelection(product = {}) {
 }
 
 
-const ProductCard = memo(function ProductCard({ item, addToCart, onBundleAdd }) {
+const ProductCard = memo(function ProductCard({
+  item,
+  addToCart,
+  onBundleAdd,
+  hospiraPromoActive,
+}) {
   const { product, name, category, price, pricing, image, url, availability } = item;
   const { isUnavailable, unavailableLabel } = availability;
+  const isHospira = Number(getWooProductId(product)) === 545;
+  const showHospiraPromo = isHospira && hospiraPromoActive;
   const isVariableProduct = isVariableCatalogProduct(product);
   const canSelectBundle = !isUnavailable;
   const showBundleButton = true;
@@ -2157,7 +2164,24 @@ const ProductCard = memo(function ProductCard({ item, addToCart, onBundleAdd }) 
           Research use only · Batch documentation available
         </p>
 
-        {pricing?.hasDiscount ? (
+        {showHospiraPromo ? (
+          <>
+            <p className="product-float-price product-float-price-discounted">
+              <span className="product-float-price-regular">
+                {formatPrice(price)}
+              </span>
+
+              <span className="product-float-price-current">
+                {formatPrice(Number(price || 0) * 0.5)}
+              </span>
+
+              <span className="product-float-discount-badge">50% OFF</span>
+            </p>
+            <p className="mt-1 text-[9px] font-bold uppercase tracking-[0.12em] text-amber-200/75">
+              Cart over $100 · Limit 2
+            </p>
+          </>
+        ) : pricing?.hasDiscount ? (
           <p className="product-float-price product-float-price-discounted">
             <span className="product-float-price-regular">
               {formatPrice(pricing.regularPrice)}
@@ -2388,6 +2412,23 @@ export default function ShopCatalogSection({
   const addToCart = cartApi?.addToCart;
   const cartItems =
     cartApi?.cartItems || cartApi?.items || cartApi?.cart || [];
+  const hospiraPromoActive = useMemo(
+    () =>
+      cartItems.reduce((total, item) => {
+        const productId = Number(
+          item.product_id || item.productId || item.parent_id || item.id || 0
+        );
+
+        if (productId === 545) return total;
+
+        const unitPrice = Number(
+          item.phaseone_base_price ?? item.price ?? item.sale_price ?? 0
+        );
+
+        return total + unitPrice * Number(item.quantity || 1);
+      }, 0) > 100,
+    [cartItems]
+  );
 
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
@@ -2640,7 +2681,7 @@ export default function ShopCatalogSection({
   return (
     <section className="product-catalog-section relative px-3 py-10 text-white sm:px-6 sm:py-14 lg:py-16">
       <div className="mx-auto max-w-7xl">
-        <div className="mb-8 flex max-w-4xl flex-col items-center text-center md:mx-0 md:items-start md:text-left lg:mb-10">
+        <div className="catalog-hero mb-8 flex max-w-4xl flex-col items-center text-center md:mx-0 md:items-start md:text-left lg:mb-10">
           <div className="mb-4 inline-flex items-center justify-center gap-3 md:justify-start">
             <span className="h-2 w-2 rounded-full bg-cyan-300 shadow-[0_0_20px_rgba(103,232,249,0.75)]" />
 
@@ -2649,11 +2690,9 @@ export default function ShopCatalogSection({
             </span>
           </div>
 
-          <h2 className="mx-auto max-w-[390px] text-[40px] font-semibold leading-[0.92] tracking-[-0.075em] text-white sm:max-w-4xl sm:text-[56px] md:mx-0 lg:text-[60px] lg:leading-[1.02] lg:tracking-[-0.06em]">
-            Browse research
-            <span className="block bg-gradient-to-r from-cyan-100 via-cyan-200 to-white bg-clip-text text-transparent">
-              products.
-            </span>
+          <h2 className="mx-auto max-w-[520px] text-[38px] font-semibold leading-[1] tracking-[-0.055em] text-white sm:max-w-4xl sm:text-[50px] md:mx-0 lg:text-[54px]">
+            Research products,
+            <span className="text-slate-400"> clearly organized.</span>
           </h2>
 
           <p className="mx-auto mt-5 max-w-xl text-[13.5px] leading-7 text-slate-300/65 sm:text-sm md:mx-0">
@@ -2662,7 +2701,7 @@ export default function ShopCatalogSection({
           </p>
         </div>
 
-        <div className="mb-7 overflow-hidden rounded-[1.35rem] border border-cyan-200/12 bg-[#121E2E]/55 p-4 sm:mb-8 sm:p-5">
+        <div className="bundle-summary mb-7 overflow-hidden rounded-[1.35rem] border border-cyan-200/12 bg-[#121E2E]/55 p-4 sm:mb-8 sm:p-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-cyan-200/12 bg-cyan-300/[0.055] px-3 py-1.5">
@@ -2874,6 +2913,7 @@ export default function ShopCatalogSection({
                       item={item}
                       addToCart={addToCart}
                       onBundleAdd={addAnyFiveBundleItemToCart}
+                      hospiraPromoActive={hospiraPromoActive}
                     />
                   ))}
                 </div>
@@ -4043,6 +4083,141 @@ export default function ShopCatalogSection({
             padding: 0 4px;
             font-size: 7px;
             letter-spacing: 0.035em;
+          }
+        }
+
+        /* Catalog polish: reduce visual noise and keep products primary. */
+        .product-catalog-section {
+          background: transparent;
+        }
+
+        .catalog-hero {
+          margin-bottom: 28px;
+        }
+
+        .bundle-summary {
+          border-radius: 16px;
+          border-color: rgba(255, 255, 255, 0.075);
+          background: transparent;
+          box-shadow: none;
+        }
+
+        .product-float-card {
+          border-radius: 18px;
+          border-color: rgba(255, 255, 255, 0.075);
+          background: rgba(3, 8, 23, 0.58);
+          box-shadow: none;
+        }
+
+        .product-float-card:hover {
+          transform: translate3d(0, -2px, 0);
+          border-color: rgba(103, 232, 249, 0.18);
+          box-shadow: none;
+        }
+
+        .product-float-visual {
+          height: 220px;
+          border-bottom-color: rgba(255, 255, 255, 0.06);
+          background: rgba(7, 17, 38, 0.42);
+        }
+
+        .visual-grid,
+        .visual-glow {
+          display: none;
+        }
+
+        .product-float-image-wrap,
+        .product-float-shadow {
+          animation: productSoftFloat 5.6s ease-in-out infinite;
+        }
+
+        .product-float-shadow {
+          animation-name: productShadowFloat;
+        }
+
+        .product-float-card:nth-child(3n + 2) .product-float-image-wrap,
+        .product-float-card:nth-child(3n + 2) .product-float-shadow {
+          animation-delay: -1.8s;
+        }
+
+        .product-float-card:nth-child(3n) .product-float-image-wrap,
+        .product-float-card:nth-child(3n) .product-float-shadow {
+          animation-delay: -3.6s;
+        }
+
+        .product-float-image {
+          max-height: 170px;
+          filter: drop-shadow(0 12px 18px rgba(0, 0, 0, 0.18));
+        }
+
+        .product-float-pill {
+          border-color: rgba(255, 255, 255, 0.08);
+          background: rgba(3, 7, 18, 0.74);
+          color: rgba(203, 213, 225, 0.78);
+          font-size: 8px;
+          letter-spacing: 0.11em;
+        }
+
+        .product-float-eye {
+          width: 34px;
+          height: 34px;
+          border-radius: 10px;
+          border-color: rgba(255, 255, 255, 0.08);
+          background: rgba(2, 6, 23, 0.72);
+        }
+
+        .product-catalog-section div[class*="bg-"]:not([class*="bg-cyan-300"]) {
+          background-color: transparent !important;
+          background-image: none !important;
+        }
+
+        .product-float-body {
+          padding: 16px;
+        }
+
+        .product-float-title {
+          min-height: 43px;
+          font-size: 20px;
+          line-height: 1.08;
+          letter-spacing: -0.035em;
+        }
+
+        .product-float-subtitle {
+          color: rgba(148, 163, 184, 0.55);
+        }
+
+        .product-float-button,
+        .product-float-button-disabled,
+        .product-bundle-select {
+          border-radius: 11px;
+        }
+
+        @media (max-width: 639px) {
+          .product-catalog-section {
+            padding-inline: 12px;
+          }
+
+          .catalog-hero {
+            align-items: flex-start;
+            text-align: left;
+          }
+
+          .catalog-hero h2,
+          .catalog-hero p {
+            margin-left: 0;
+            margin-right: 0;
+          }
+
+          .product-float-card {
+            border-radius: 14px;
+          }
+
+          .product-float-visual {
+            height: 152px;
+          }
+
+          .product-float-image {
+            max-height: 100px;
           }
         }
 

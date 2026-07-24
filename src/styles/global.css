@@ -33,7 +33,7 @@
 html {
   min-height: 100%;
   scroll-behavior: smooth;
-  background: #00030a;
+  background: #050914;
 }
 
 body {
@@ -48,35 +48,7 @@ body {
     Fondo más oscuro, más sobrio y más laboratorio.
     Menos glow, más profundidad, mejor contraste para cards.
   */
-  background:
-    radial-gradient(
-      circle at 16% -8%,
-      rgba(103, 232, 249, 0.07),
-      rgba(103, 232, 249, 0.018) 24%,
-      transparent 48%
-    ),
-    radial-gradient(
-      circle at 88% 8%,
-      rgba(37, 99, 235, 0.1),
-      rgba(37, 99, 235, 0.025) 30%,
-      transparent 58%
-    ),
-    radial-gradient(
-      circle at 50% 110%,
-      rgba(56, 189, 248, 0.045),
-      rgba(56, 189, 248, 0.012) 30%,
-      transparent 60%
-    ),
-    linear-gradient(
-      180deg,
-      #00030a 0%,
-      #010714 18%,
-      #020b1b 38%,
-      #020817 62%,
-      #00030a 100%
-    );
-
-  background-attachment: fixed;
+  background: #050914;
   color: var(--text);
   font-family:
     Inter,
@@ -95,28 +67,7 @@ body::before {
   inset: 0;
   z-index: -2;
   pointer-events: none;
-  background:
-    radial-gradient(
-      circle at 50% -18%,
-      rgba(147, 197, 253, 0.035),
-      transparent 34%
-    ),
-    radial-gradient(
-      circle at 12% 32%,
-      rgba(103, 232, 249, 0.018),
-      transparent 30%
-    ),
-    radial-gradient(
-      circle at 88% 42%,
-      rgba(37, 99, 235, 0.022),
-      transparent 34%
-    ),
-    linear-gradient(
-      180deg,
-      rgba(255, 255, 255, 0.008) 0%,
-      rgba(255, 255, 255, 0) 34%,
-      rgba(0, 3, 10, 0.76) 100%
-    );
+  display: none;
 }
 
 /* Technical lab texture */
@@ -126,12 +77,7 @@ body::after {
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  opacity: 0.105;
-  background-image:
-    linear-gradient(rgba(147, 197, 253, 0.015) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(147, 197, 253, 0.012) 1px, transparent 1px);
-  background-size: 92px 92px;
-  mask-image: radial-gradient(circle at 50% 16%, black, transparent 72%);
+  display: none;
 }
 
 section {
@@ -344,5 +290,81 @@ textarea::placeholder {
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
+  }
+}
+
+/* Animated night-blue canvas shared by the full site. */
+html {
+  background: #020617 !important;
+}
+
+body {
+  background:
+    radial-gradient(circle at 12% 8%, rgba(56, 189, 248, 0.12), transparent 29%),
+    radial-gradient(circle at 88% 18%, rgba(37, 99, 235, 0.16), transparent 34%),
+    radial-gradient(circle at 48% 88%, rgba(14, 165, 233, 0.08), transparent 36%),
+    linear-gradient(145deg, #020617 0%, #041026 46%, #020817 100%) !important;
+  background-attachment: fixed !important;
+}
+
+#root,
+#__astro,
+.site-main {
+  background: transparent !important;
+  background-image: none !important;
+}
+
+body::before {
+  display: block !important;
+  background:
+    radial-gradient(circle, rgba(103, 232, 249, 0.12), transparent 68%) !important;
+  width: 46vw;
+  height: 46vw;
+  inset: 4vh auto auto -18vw;
+  border-radius: 999px;
+  filter: blur(18px);
+  animation: phaseNightGlowOne 18s ease-in-out infinite alternate;
+}
+
+body::after {
+  display: block !important;
+  background:
+    radial-gradient(circle, rgba(59, 130, 246, 0.1), transparent 68%) !important;
+  width: 42vw;
+  height: 42vw;
+  inset: 28vh -17vw auto auto;
+  border-radius: 999px;
+  filter: blur(24px);
+  animation: phaseNightGlowTwo 22s ease-in-out infinite alternate;
+}
+
+@keyframes phaseNightGlowOne {
+  from {
+    transform: translate3d(0, 0, 0) scale(0.92);
+    opacity: 0.58;
+  }
+
+  to {
+    transform: translate3d(18vw, 24vh, 0) scale(1.14);
+    opacity: 0.9;
+  }
+}
+
+@keyframes phaseNightGlowTwo {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.5;
+  }
+
+  to {
+    transform: translate3d(-22vw, 30vh, 0) scale(1.18);
+    opacity: 0.82;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body::before,
+  body::after {
+    animation: none !important;
   }
 }
