@@ -132,9 +132,9 @@ export default function AgeGate({
   logoSrc = "/TRANSPARENCIA-03.webp",
   minAge = 21,
   registerEndpoint = "/api/auth/register",
-  termsUrl = "/terms-and-conditions",
-  privacyUrl = "/privacy-policy",
-  disclaimerUrl = "/disclaimer",
+  termsUrl = "/policies/terms",
+  privacyUrl = "/policies/privacy",
+  disclaimerUrl = "/policies/disclaimer",
   underAgeRedirectUrl = "https://www.google.com",
 }) {
   const [ready, setReady] = useState(false);
@@ -420,15 +420,30 @@ export default function AgeGate({
 
                   <span>
                     I confirm I am {minAge}+ and accept the{" "}
-                    <a href={termsUrl} target="_blank" rel="noreferrer">
+                    <a
+                      href={termsUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(event) => event.stopPropagation()}
+                    >
                       Terms
                     </a>
                     ,{" "}
-                    <a href={privacyUrl} target="_blank" rel="noreferrer">
+                    <a
+                      href={privacyUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(event) => event.stopPropagation()}
+                    >
                       Privacy Policy
                     </a>
                     , and{" "}
-                    <a href={disclaimerUrl} target="_blank" rel="noreferrer">
+                    <a
+                      href={disclaimerUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(event) => event.stopPropagation()}
+                    >
                       research-use disclaimers
                     </a>
                     . Products are not for human or animal consumption.

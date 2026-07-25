@@ -185,9 +185,9 @@ const FEDEX_SHIPPING_METHODS = [
 ];
 
 const POLICY_LINKS = {
-  terms: "/terms-and-conditions/",
-  refund: "/refund-policy/",
-  researchUse: "/research-use-only/",
+  terms: "/policies/terms",
+  refund: "/policies/refund",
+  researchUse: "/policies/research-use-only",
 };
 
 const POLICY_ACKNOWLEDGEMENT_TEXT =
@@ -3518,9 +3518,33 @@ export default function CheckoutTransferPage() {
               <span>
                 I confirm I am 21 or older, these products are for in-vitro
                 research or laboratory use only, and I agree to the{" "}
-                <a href={POLICY_LINKS.terms}>Terms & Conditions</a>,{" "}
-                <a href={POLICY_LINKS.refund}>Refund Policy</a>, and{" "}
-                <a href={POLICY_LINKS.researchUse}>Research Use Only policy</a>.
+                <a
+                  href={POLICY_LINKS.terms}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  Terms & Conditions
+                </a>
+                ,{" "}
+                <a
+                  href={POLICY_LINKS.refund}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  Refund Policy
+                </a>
+                , and{" "}
+                <a
+                  href={POLICY_LINKS.researchUse}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  Research Use Only policy
+                </a>
+                .
               </span>
             </label>
 
