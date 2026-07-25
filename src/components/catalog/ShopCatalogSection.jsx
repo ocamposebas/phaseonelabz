@@ -71,6 +71,7 @@ const sortOptions = [
   { label: "A–Z", value: "az" },
 ];
 
+
 const customProductOrder = [
   {
     rank: 1,
@@ -99,10 +100,10 @@ const customProductOrder = [
     groups: [["hospira"]],
   },
 
-  // Producto con ID 1385 siempre en el puesto 4
+  // Eloralintide — producto ID 1385
   {
     rank: 4,
-    ids: [1385],
+    groups: [["eloralintide"]],
   },
 
   {
@@ -123,9 +124,7 @@ const customProductOrder = [
     groups: [["adamax"]],
   },
 
-  // Todos los bundles comienzan desde el puesto 7.
-  // Si existen tres bundles, ocuparán 7, 8 y 9
-  // respetando su orden original.
+  // Los tres bundles ocuparán los puestos 7, 8 y 9.
   {
     rank: 7,
     groups: [
