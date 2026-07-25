@@ -97,10 +97,9 @@ const customProductOrder = [
   },
   {
     rank: 3,
-    groups: [["hospira"]],
+    groups: [["H- Recon Water"]],
   },
 
-  // Eloralintide — producto ID 1385
   {
     rank: 4,
     groups: [["eloralintide"]],
