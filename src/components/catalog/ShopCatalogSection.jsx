@@ -98,8 +98,15 @@ const customProductOrder = [
     rank: 3,
     groups: [["hospira"]],
   },
+
+  // Producto con ID 1385 siempre en el puesto 4
   {
     rank: 4,
+    ids: [1385],
+  },
+
+  {
+    rank: 5,
     groups: [
       ["recon", "water", "30ml"],
       ["recon", "water"],
@@ -112,14 +119,15 @@ const customProductOrder = [
     exclude: ["hospira"],
   },
   {
-    rank: 5,
+    rank: 6,
     groups: [["adamax"]],
   },
 
-  // Todos los bundles aparecerán aquí:
-  // posiciones 6, 7 y 8 según su orden original.
+  // Todos los bundles comienzan desde el puesto 7.
+  // Si existen tres bundles, ocuparán 7, 8 y 9
+  // respetando su orden original.
   {
-    rank: 6,
+    rank: 7,
     groups: [
       ["bundle"],
       ["kit"],
@@ -128,15 +136,15 @@ const customProductOrder = [
   },
 
   {
-    rank: 9,
+    rank: 10,
     groups: [["glow"]],
   },
   {
-    rank: 10,
+    rank: 11,
     groups: [["klow"]],
   },
   {
-    rank: 11,
+    rank: 12,
     groups: [
       ["ghk cu"],
       ["ghk-cu"],
@@ -145,14 +153,14 @@ const customProductOrder = [
     exclude: ["glow", "klow"],
   },
   {
-    rank: 12,
+    rank: 13,
     groups: [
       ["tesa"],
       ["tesamorelin"],
     ],
   },
   {
-    rank: 13,
+    rank: 14,
     groups: [
       ["mots c"],
       ["mots-c"],
