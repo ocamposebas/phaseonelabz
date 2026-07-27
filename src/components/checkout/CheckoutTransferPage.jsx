@@ -1909,6 +1909,39 @@ export default function CheckoutTransferPage() {
   const paidSubtotal = hasProviderCartItems
     ? Number(cart.paidSubtotal || cartTotal)
     : Number(session?.paid_subtotal || session?.paidSubtotal || cartTotal);
+  const calculatedSubtotalBeforeBundle = cartItems.reduce((total, item) => {
+    return (
+      total +
+      Number(item.phaseone_price_before_bundle ?? item.price ?? 0) *
+        Number(item.quantity || 1)
+    );
+  }, 0);
+  const bundleUnlocked = hasProviderCartItems
+    ? Boolean(cart.bundleUnlocked)
+    : Boolean(
+        session?.bundle_unlocked ||
+          session?.bundleUnlocked ||
+          cartItems.some((item) => item.phaseone_bundle_active),
+      );
+  const bundleDiscountAmount = bundleUnlocked
+    ? Math.max(
+        Number(
+          hasProviderCartItems
+            ? cart.bundleDiscountAmount
+            : session?.bundle_discount_amount ||
+                session?.bundleDiscountAmount ||
+                calculatedSubtotalBeforeBundle - cartTotal,
+        ),
+        0,
+      )
+    : 0;
+  const subtotalBeforeBundle = bundleUnlocked
+    ? Number(
+        session?.subtotal_before_bundle ||
+          session?.subtotalBeforeBundle ||
+          cartTotal + bundleDiscountAmount,
+      )
+    : cartTotal;
 
   const rewardGifts =
     cart?.rewardGifts ||
@@ -3672,8 +3705,15 @@ export default function CheckoutTransferPage() {
               <div className="summary-lines">
                 <div>
                   <span>Subtotal</span>
-                  <strong>{formatMoney(cartTotal)}</strong>
+                  <strong>{formatMoney(subtotalBeforeBundle)}</strong>
                 </div>
+
+                {bundleUnlocked && bundleDiscountAmount > 0 && (
+                  <div className="discount-line">
+                    <span>5-Product Bundle (10% off)</span>
+                    <strong>-{formatMoney(bundleDiscountAmount)}</strong>
+                  </div>
+                )}
 
                 {couponStatus === "valid" && validatedCouponDiscount > 0 && (
                   <div className="discount-line">

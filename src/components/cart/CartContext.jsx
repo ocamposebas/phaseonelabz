@@ -1070,6 +1070,19 @@ function persistCheckoutSession({
   const customerName = String(
     account?.name || account?.display_name || "",
   ).trim();
+  const bundleUnlocked = normalizedItems.some(
+    (item) => item.phaseone_bundle_active,
+  );
+  const subtotalBeforeBundle = normalizedItems.reduce(
+    (total, item) =>
+      total +
+      Number(item.phaseone_price_before_bundle ?? item.price ?? 0) *
+        Number(item.quantity || 1),
+    0,
+  );
+  const bundleDiscountAmount = bundleUnlocked
+    ? roundMoney(subtotalBeforeBundle - Number(cartTotal || 0))
+    : 0;
 
   const session = {
     session_id: sessionId,
@@ -1090,6 +1103,12 @@ function persistCheckoutSession({
     cartTotal,
     paid_subtotal: paidSubtotal,
     paidSubtotal,
+    bundle_unlocked: bundleUnlocked,
+    bundleUnlocked,
+    bundle_discount_amount: bundleDiscountAmount,
+    bundleDiscountAmount,
+    subtotal_before_bundle: roundMoney(subtotalBeforeBundle),
+    subtotalBeforeBundle: roundMoney(subtotalBeforeBundle),
 
     shipping_protection_selected: Boolean(shippingProtectionSelected),
     shippingProtectionSelected: Boolean(shippingProtectionSelected),
