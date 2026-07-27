@@ -1,6 +1,8 @@
 export const prerender = false;
 
 const REQUEST_TIMEOUT_MS = 15000;
+const BUNDLE_REQUIRED_QUANTITY = 5;
+const BUNDLE_DISCOUNT_RATE = 0.1;
 
 const SHIPPING_METHODS = {
   standard: {
@@ -393,13 +395,26 @@ async function calculateVerifiedSubtotal(config, items = []) {
         }, 0)
       )
     : 0;
+  const quantity = items.reduce(
+    (total, item) => total + Number(item.quantity || 0),
+    0
+  );
+  const bundleActive = quantity >= BUNDLE_REQUIRED_QUANTITY;
+  const subtotalAfterProductPromotions = normalizePrice(
+    regularSubtotal - hospiraDiscount
+  );
+  const bundleDiscount = bundleActive
+    ? normalizePrice(subtotalAfterProductPromotions * BUNDLE_DISCOUNT_RATE)
+    : 0;
 
   return {
-    subtotal: normalizePrice(regularSubtotal - hospiraDiscount),
+    subtotal: normalizePrice(subtotalAfterProductPromotions - bundleDiscount),
     regularSubtotal,
     qualifyingSubtotal,
     hospiraPromoActive,
     hospiraDiscount,
+    bundleActive,
+    bundleDiscount,
   };
 }
 
@@ -669,6 +684,14 @@ export async function POST({ request }) {
         key: "_phaseone_hospira_discount",
         value: normalizeMoneyString(verifiedCart.hospiraDiscount),
       },
+      {
+        key: "_phaseone_bundle_promo",
+        value: verifiedCart.bundleActive ? "yes" : "no",
+      },
+      {
+        key: "_phaseone_bundle_discount",
+        value: normalizeMoneyString(verifiedCart.bundleDiscount),
+      },
     ];
 
     if (customerId > 0) {
@@ -684,6 +707,14 @@ export async function POST({ request }) {
       feeLines.push({
         name: "Hospira 50% Promotion",
         total: `-${normalizeMoneyString(verifiedCart.hospiraDiscount)}`,
+        tax_status: "none",
+      });
+    }
+
+    if (verifiedCart.bundleDiscount > 0) {
+      feeLines.push({
+        name: "5-Product Bundle (10% Off)",
+        total: `-${normalizeMoneyString(verifiedCart.bundleDiscount)}`,
         tax_status: "none",
       });
     }

@@ -67,6 +67,8 @@ export default function CartDrawer() {
     updateQuantity,
     removeFromCart,
     cartTotal,
+    bundleUnlocked,
+    bundleDiscountAmount,
     rewardProgress,
     rewardGifts,
     checkout,
@@ -350,6 +352,16 @@ export default function CartDrawer() {
         {hasItems && (
           <div className="shrink-0 border-t border-white/10 bg-[#050914] px-5 py-5">
             <div className="mb-4">
+              {bundleUnlocked && bundleDiscountAmount > 0 && (
+                <div className="mb-3 flex items-center justify-between rounded-xl border border-emerald-300/15 bg-emerald-300/[0.06] px-3 py-2.5 text-xs">
+                  <span className="font-semibold text-emerald-200">
+                    5-product bundle · 10% off
+                  </span>
+                  <span className="font-bold text-emerald-200">
+                    -{formatPrice(bundleDiscountAmount)}
+                  </span>
+                </div>
+              )}
               <div className="flex items-end justify-between gap-4">
                 <div>
                   <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">

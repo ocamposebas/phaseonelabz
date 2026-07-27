@@ -24,6 +24,8 @@ const HOSPIRA_PRODUCT_ID = 545;
 const HOSPIRA_PROMO_THRESHOLD = 100;
 const HOSPIRA_PROMO_DISCOUNT = 0.5;
 const HOSPIRA_PROMO_LIMIT = 2;
+const BUNDLE_REQUIRED_QUANTITY = 5;
+const BUNDLE_DISCOUNT_RATE = 0.1;
 
 function roundMoney(value = 0) {
   return Number((Number(value || 0) + Number.EPSILON).toFixed(2));
@@ -113,6 +115,8 @@ const emptyCartContext = {
   cartTotal: 0,
   cartCount: 0,
   paidSubtotal: 0,
+  bundleUnlocked: false,
+  bundleDiscountAmount: 0,
   rewardProgress: null,
   rewardGifts: [],
   rewardProducts: {},
@@ -699,7 +703,7 @@ function normalizeCartItems(items = []) {
 
   const promoActive = qualifyingSubtotal > HOSPIRA_PROMO_THRESHOLD;
 
-  return normalizedItems.map((item) => {
+  const itemsWithProductPromotions = normalizedItems.map((item) => {
     if (getProductId(item) !== HOSPIRA_PRODUCT_ID) return item;
 
     const basePrice = Number(item.phaseone_base_price || 0);
@@ -715,6 +719,27 @@ function normalizeCartItems(items = []) {
       phaseone_hospira_promo_active: promoActive,
       phaseone_hospira_promo_discount_percent: promoActive ? 50 : 0,
       phaseone_hospira_qualifying_subtotal: roundMoney(qualifyingSubtotal),
+    };
+  });
+
+  const bundleQuantity = itemsWithProductPromotions.reduce(
+    (total, item) => total + Number(item.quantity || 0),
+    0,
+  );
+  const bundleUnlocked = bundleQuantity >= BUNDLE_REQUIRED_QUANTITY;
+
+  return itemsWithProductPromotions.map((item) => {
+    const priceAfterProductPromotions = Number(item.price || 0);
+
+    return {
+      ...item,
+      price: bundleUnlocked
+        ? roundMoney(priceAfterProductPromotions * (1 - BUNDLE_DISCOUNT_RATE))
+        : priceAfterProductPromotions,
+      phaseone_price_before_bundle: priceAfterProductPromotions,
+      phaseone_bundle_active: bundleUnlocked,
+      phaseone_bundle_discount_percent: bundleUnlocked ? 10 : 0,
+      phaseone_bundle_required_quantity: BUNDLE_REQUIRED_QUANTITY,
     };
   });
 }
@@ -1598,11 +1623,24 @@ export function CartProvider({ children }) {
 
   const normalizedCartItems = normalizeCartItems(cartItems);
   const paidSubtotal = getPaidSubtotal(normalizedCartItems);
+  const bundleUnlocked = normalizedCartItems.some(
+    (item) => item.phaseone_bundle_active,
+  );
+  const subtotalBeforeBundle = normalizedCartItems.reduce(
+    (total, item) =>
+      total +
+      Number(item.phaseone_price_before_bundle ?? item.price ?? 0) *
+        Number(item.quantity || 1),
+    0,
+  );
   const cartTotal = normalizedCartItems.reduce(
     (total, item) =>
       total + getCartItemPrice(item) * Number(item.quantity || 1),
     0,
   );
+  const bundleDiscountAmount = bundleUnlocked
+    ? roundMoney(subtotalBeforeBundle - cartTotal)
+    : 0;
   const shippingProtectionInsuredValue = roundMoney(paidSubtotal);
   const shippingProtectionAmount = calculateShippingProtectionAmount(
     shippingProtectionInsuredValue,
@@ -1720,6 +1758,8 @@ export function CartProvider({ children }) {
         cartTotal,
         cartCount,
         paidSubtotal,
+        bundleUnlocked,
+        bundleDiscountAmount,
         rewardProgress: null,
         rewardGifts: [],
         rewardProducts: {},
