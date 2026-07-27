@@ -4679,6 +4679,7 @@ const styles = `
   .signature-canvas-wrap {
     position: relative;
     overflow: hidden;
+    overscroll-behavior: contain;
     margin-top: 14px;
     border: 1px dashed rgba(96, 165, 250, 0.3);
     border-radius: 13px;
@@ -4700,6 +4701,9 @@ const styles = `
     height: 150px;
     cursor: crosshair;
     touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
   }
 
   .signature-canvas-placeholder {
@@ -5514,6 +5518,27 @@ const styles = `
     .signature-required {
       grid-column: 2;
       justify-self: start;
+    }
+
+    .signature-name-field input,
+    .typed-signature-field input {
+      font-size: 16px;
+    }
+
+    .typed-signature-field input {
+      font-size: 28px;
+    }
+
+    .signature-canvas-wrap canvas {
+      height: 190px;
+    }
+
+    .signature-canvas-placeholder {
+      top: 73px;
+    }
+
+    .signature-line {
+      bottom: 38px;
     }
 
     .checkout-submit {
