@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useEffect } from "react";
 
 // Public URL used only for Omnisend abandoned-cart recovery links.
 // IMPORTANT:
-// Do NOT send Omnisend recovery traffic to /checkout because WooCommerce/Tagada can capture that route.
+// Do NOT send Omnisend recovery traffic directly to the WooCommerce checkout route.
 // Use a clean frontend/Astro route that renders the Phase One custom checkout first.
 const PHASEONE_PUBLIC_SITE_URL = "https://phaseonelabz.com";
 const PHASEONE_PUBLIC_CHECKOUT_URL = `${PHASEONE_PUBLIC_SITE_URL}/checkout/`;
@@ -171,7 +171,6 @@ const CHECKOUT_COUPON_STORAGE_KEYS = [
   "phaseone_affiliate_coupon",
   "phaseone_locked_checkout_coupon",
   "phaseone_coupon_locked_from_url",
-  "phaseone_tagada_coupon",
 ];
 
 function getCouponExpiryKey(key = "") {
@@ -261,7 +260,7 @@ function setPhaseoneCouponCookie(value = "") {
 
   const maxAge = 60 * 60 * 24 * CHECKOUT_COUPON_STORAGE_DAYS;
   const encoded = encodeURIComponent(cleanCoupon);
-  const baseCookie = `phaseone_tagada_coupon=${encoded}; Path=/; Max-Age=${maxAge}; SameSite=Lax; Secure`;
+  const baseCookie = `phaseone_checkout_coupon=${encoded}; Path=/; Max-Age=${maxAge}; SameSite=Lax; Secure`;
 
   // Host cookie for the current domain.
   document.cookie = baseCookie;
@@ -270,8 +269,8 @@ function setPhaseoneCouponCookie(value = "") {
   document.cookie = `${baseCookie}; Domain=.phaseonelabz.com`;
 
   try {
-    window.sessionStorage?.setItem("phaseone_tagada_coupon", cleanCoupon);
-    setExpiringStorageItem("phaseone_tagada_coupon", cleanCoupon);
+    window.sessionStorage?.setItem("phaseone_checkout_coupon", cleanCoupon);
+    setExpiringStorageItem("phaseone_checkout_coupon", cleanCoupon);
   } catch {
     // Storage may be blocked; cookie is the important handoff.
   }
@@ -283,13 +282,13 @@ function clearPhaseoneCouponCookie() {
   if (typeof document === "undefined") return;
 
   document.cookie =
-    "phaseone_tagada_coupon=; Path=/; Max-Age=0; SameSite=Lax; Secure";
+    "phaseone_checkout_coupon=; Path=/; Max-Age=0; SameSite=Lax; Secure";
   document.cookie =
-    "phaseone_tagada_coupon=; Path=/; Domain=.phaseonelabz.com; Max-Age=0; SameSite=Lax; Secure";
+    "phaseone_checkout_coupon=; Path=/; Domain=.phaseonelabz.com; Max-Age=0; SameSite=Lax; Secure";
 
   try {
-    window.sessionStorage?.removeItem("phaseone_tagada_coupon");
-    removeExpiringStorageItem("phaseone_tagada_coupon");
+    window.sessionStorage?.removeItem("phaseone_checkout_coupon");
+    removeExpiringStorageItem("phaseone_checkout_coupon");
   } catch {
     // Ignore.
   }
@@ -814,7 +813,7 @@ function getProductionAbsoluteUrl(value = "") {
 function getOmnisendCheckoutBaseUrl() {
   /*
     This must return the EXACT custom checkout/recovery route.
-    Do not auto-append /checkout because /checkout is the WooCommerce/Tagada route.
+    Do not auto-append /checkout because that route can bypass recovery state.
 
     Recommended route:
     https://phaseonelabz.com/checkout-review/
@@ -1179,7 +1178,7 @@ function buildCustomCheckoutUrlFromSession(
 
   if (cleanCoupon) {
     // Keep the coupon visible only on the Astro custom checkout URL.
-    // CheckoutTransferPage will validate it, lock it, and carry it safely to Woo/Tagada.
+    // CheckoutTransferPage validates it, locks it, and carries it to WooCommerce.
     url.searchParams.set("coupon", cleanCoupon);
   }
 
@@ -1269,8 +1268,8 @@ function buildOmnisendCheckoutUrl(items = [], options = {}) {
     Omnisend recovery must open the SAME custom checkout flow as the normal cart:
     /checkout?checkout_session=<id>&phaseone_checkout=1
 
-    Do not send lab_checkout_payload, lab_checkout, phaseone_cart_sync, or Woo/Tagada
-    params in the email URL. Those params can make WordPress/Tagada skip the
+    Do not send lab_checkout_payload, lab_checkout, phaseone_cart_sync, or direct
+    WooCommerce params in the email URL. Those params can make WordPress skip the
     custom checkout page.
   */
 

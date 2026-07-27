@@ -2519,7 +2519,7 @@ export default function ShopCatalogSection({
       addToCart({
         ...product,
         // `id` must remain a real WooCommerce ID. The old composite string
-        // (`product-variation-label`) was later sent to Tagada as a product ID.
+        // (`product-variation-label`) was later sent as a product ID.
         id: variationId || productId,
         cartItemId: `wc:${productId}:${variationId || 0}`,
         product_id: productId,

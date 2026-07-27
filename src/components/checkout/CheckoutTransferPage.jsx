@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   AlertTriangle,
@@ -19,6 +19,7 @@ import {
   X,
 } from "lucide-react";
 import { useCart } from "../cart/CartContext";
+import SignatureCapture from "./SignatureCapture";
 
 const ACCOUNT_ENDPOINT = "/api/account/me";
 const PRISM_CHECKOUT_ENDPOINT = "/api/prism/checkout";
@@ -28,6 +29,7 @@ const VALIDATE_COUPON_ENDPOINT =
 const WOO_URL =
   import.meta.env.PUBLIC_WOOCOMMERCE_URL || "https://staging.phaseonelabz.com";
 const PAYMENT_DISCOUNT_RATE = 0.05;
+const MAX_COMBINED_DISCOUNT_RATE = 0.25;
 const FREE_SHIPPING_MINIMUM = 100;
 const MANUAL_PAYMENT_SHIPPING_COST = 13;
 const PAYMENT_DISCOUNT_METHOD_IDS = ["venmo", "zelle", "bank"];
@@ -191,7 +193,30 @@ const POLICY_LINKS = {
 };
 
 const POLICY_ACKNOWLEDGEMENT_TEXT =
-  "I confirm I am 21 or older, I am acquiring these compounds for in-vitro research or laboratory use only, and I agree to the Terms & Conditions, Refund Policy, and Research Use Only policy.";
+  "I confirm I am 21 or older, I am acquiring these compounds for in-vitro research or laboratory use only, I agree to the Terms & Conditions, Refund Policy, and Research Use Only policy, and I consent to receive and retain the signed agreement electronically at the email provided.";
+const CONTRACT_ATTACH_ENDPOINT = "/api/contracts/attach";
+const CONTRACT_VERSION = "purchase-research-agreement-2026-07-27";
+
+const CONTRACT_POLICIES = [
+  {
+    id: "terms",
+    title: "Terms and Conditions",
+    url: POLICY_LINKS.terms,
+    version: "June 2026",
+  },
+  {
+    id: "refund",
+    title: "Refund Policy",
+    url: POLICY_LINKS.refund,
+    version: "June 2026",
+  },
+  {
+    id: "research-use-only",
+    title: "Research Use Only Policy",
+    url: POLICY_LINKS.researchUse,
+    version: "June 2026",
+  },
+];
 
 function safeJsonParse(value, fallback = null) {
   try {
@@ -492,7 +517,7 @@ function setPhaseoneCouponCookie(value = "") {
 
   const maxAge = 60 * 60 * 24 * 7;
   const encoded = encodeURIComponent(cleanCoupon);
-  const baseCookie = `phaseone_tagada_coupon=${encoded}; Path=/; Max-Age=${maxAge}; SameSite=Lax; Secure`;
+  const baseCookie = `phaseone_checkout_coupon=${encoded}; Path=/; Max-Age=${maxAge}; SameSite=Lax; Secure`;
 
   // Host cookie for the current domain.
   document.cookie = baseCookie;
@@ -501,8 +526,8 @@ function setPhaseoneCouponCookie(value = "") {
   document.cookie = `${baseCookie}; Domain=.phaseonelabz.com`;
 
   try {
-    window.sessionStorage?.setItem("phaseone_tagada_coupon", cleanCoupon);
-    window.localStorage?.setItem("phaseone_tagada_coupon", cleanCoupon);
+    window.sessionStorage?.setItem("phaseone_checkout_coupon", cleanCoupon);
+    window.localStorage?.setItem("phaseone_checkout_coupon", cleanCoupon);
   } catch {
     // Storage may be blocked; cookie is the important handoff.
   }
@@ -514,13 +539,13 @@ function clearPhaseoneCouponCookie() {
   if (typeof document === "undefined") return;
 
   document.cookie =
-    "phaseone_tagada_coupon=; Path=/; Max-Age=0; SameSite=Lax; Secure";
+    "phaseone_checkout_coupon=; Path=/; Max-Age=0; SameSite=Lax; Secure";
   document.cookie =
-    "phaseone_tagada_coupon=; Path=/; Domain=.phaseonelabz.com; Max-Age=0; SameSite=Lax; Secure";
+    "phaseone_checkout_coupon=; Path=/; Domain=.phaseonelabz.com; Max-Age=0; SameSite=Lax; Secure";
 
   try {
-    window.sessionStorage?.removeItem("phaseone_tagada_coupon");
-    window.localStorage?.removeItem("phaseone_tagada_coupon");
+    window.sessionStorage?.removeItem("phaseone_checkout_coupon");
+    window.localStorage?.removeItem("phaseone_checkout_coupon");
   } catch {
     // Ignore.
   }
@@ -583,8 +608,7 @@ function getUrlCoupon() {
     params.get("promo") ||
     params.get("affiliate_coupon") ||
     params.get("phaseone_coupon") ||
-    params.get("phaseone_tagada_coupon") ||
-    params.get("phaseone_coupon_to_tagada") ||
+    params.get("phaseone_checkout_coupon") ||
     params.get("ref") ||
     "";
 
@@ -650,7 +674,7 @@ function saveCoupon(value = "") {
     localStorage.setItem("phaseone_checkout_coupon", cleanCoupon);
     localStorage.setItem("phaseone_affiliate_coupon", cleanCoupon);
 
-    // Legacy Tagada/Woo bridge receives the first code for backward compatibility.
+    // The WooCommerce bridge receives the first code for compatibility.
     // The full list is also sent later as phaseone_coupons.
     setPhaseoneCouponCookie(couponCodes[0]);
   } else {
@@ -1032,6 +1056,57 @@ function encodeCheckoutPayload(payload) {
   } catch {
     return "";
   }
+}
+
+function getOrderIdFromCheckoutResponse(data = {}) {
+  return Number(
+    data?.orderId ||
+      data?.order_id ||
+      data?.id ||
+      data?.order?.id ||
+      data?.order?.orderId ||
+      data?.order?.order_id ||
+      0,
+  );
+}
+
+async function attachContractToOrder({
+  orderId,
+  orderKey = "",
+  customerEmail,
+  contract,
+}) {
+  if (!orderId) {
+    throw new Error(
+      "The order was created without an order ID, so the signed agreement could not be secured.",
+    );
+  }
+
+  const response = await fetch(CONTRACT_ATTACH_ENDPOINT, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({
+      orderId,
+      orderKey,
+      customerEmail,
+      contract,
+    }),
+  });
+
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok || !data?.success) {
+    throw new Error(
+      data?.error ||
+        "The order was created, but the signed agreement could not be secured. Please contact support before paying.",
+    );
+  }
+
+  return data;
 }
 
 function getAccountName(user = {}) {
@@ -1525,12 +1600,12 @@ function buildWooCheckoutUrl({
 
   if (cleanCoupon) {
     /*
-      Safe handoff for Tagada only.
+      Safe handoff for the WooCommerce cart bridge.
       This custom parameter is ignored by WooCommerce add_to_cart and the
       WordPress cart-sync snippet forwards it only after products are synced.
     */
     setPhaseoneCouponCookie(cleanCoupon);
-    url.searchParams.set("phaseone_tagada_coupon", cleanCoupon);
+    url.searchParams.set("phaseone_checkout_coupon", cleanCoupon);
   }
 
   if (cleanCoupons && discountToken) {
@@ -1704,8 +1779,19 @@ export default function CheckoutTransferPage() {
     useState(false);
   const [selectedShippingMethodId] = useState("fedex");
   const [policyAcknowledged, setPolicyAcknowledged] = useState(false);
+  const [signatureConsent, setSignatureConsent] = useState({
+    version: "2026-07-27",
+    mode: "draw",
+    signerName: "",
+    typedSignature: "",
+    signatureImage: "",
+    valid: false,
+  });
   const [manualPaymentOrder, setManualPaymentOrder] = useState(null);
   const [manualPaymentStatus, setManualPaymentStatus] = useState("idle");
+  const handleSignatureChange = useCallback((nextSignature) => {
+    setSignatureConsent(nextSignature);
+  }, []);
 
   const hasProviderCartItems =
     Array.isArray(cart?.cartItems) && cart.cartItems.length > 0;
@@ -1942,6 +2028,13 @@ export default function CheckoutTransferPage() {
           cartTotal + bundleDiscountAmount,
       )
     : cartTotal;
+  const maximumCombinedDiscount = Number(
+    (Math.max(subtotalBeforeBundle, 0) * MAX_COMBINED_DISCOUNT_RATE).toFixed(2),
+  );
+  const maximumCouponDiscount = Math.max(
+    maximumCombinedDiscount - bundleDiscountAmount,
+    0,
+  );
 
   const rewardGifts =
     cart?.rewardGifts ||
@@ -2010,9 +2103,18 @@ export default function CheckoutTransferPage() {
     ) || FEDEX_SHIPPING_METHODS[0];
 
   const paymentDiscountBase = Math.max(previewTotal, 0);
-  const paymentMethodDiscount = getPaymentDiscountAmount(
+  const requestedPaymentMethodDiscount = getPaymentDiscountAmount(
     selectedPaymentMethod?.id,
     paymentDiscountBase,
+  );
+  const paymentMethodDiscount = Math.min(
+    requestedPaymentMethodDiscount,
+    Math.max(
+      maximumCombinedDiscount -
+        bundleDiscountAmount -
+        validatedCouponDiscount,
+      0,
+    ),
   );
   const paymentDiscountLabel = getPaymentDiscountLabel(selectedPaymentMethod);
 
@@ -2088,6 +2190,47 @@ export default function CheckoutTransferPage() {
     finalOrderTotal: paymentPreviewTotal,
     final_order_total: paymentPreviewTotal,
   };
+
+  const buildSignedContract = ({ acceptedAt, billing }) => ({
+    contractVersion: CONTRACT_VERSION,
+    acceptedAt,
+    signer: {
+      fullName: signatureConsent.signerName,
+      method: signatureConsent.mode,
+      typedSignature: signatureConsent.typedSignature,
+      signatureImage: signatureConsent.signatureImage,
+    },
+    customer: {
+      firstName: billing?.first_name || checkoutForm.firstName,
+      lastName: billing?.last_name || checkoutForm.lastName,
+      email: billing?.email || checkoutForm.email,
+    },
+    order: {
+      currency: "USD",
+      total: paymentPreviewTotal,
+      paymentMethod: selectedPaymentMethod?.id || "",
+      paymentMethodTitle:
+        selectedPaymentMethod?.title || selectedPaymentMethod?.label || "",
+      items: buildCheckoutItems(cartItems).map((item) => ({
+        productId: Number(item.product_id || 0),
+        variationId: Number(item.variation_id || 0),
+        name: item.name || item.title || "Catalog item",
+        sku: item.sku || "",
+        quantity: Number(item.quantity || 1),
+      })),
+    },
+    acknowledgements: {
+      age21OrOlder: true,
+      inVitroResearchUseOnly: true,
+      termsAndConditionsAccepted: true,
+      refundPolicyAccepted: true,
+      researchUseOnlyPolicyAccepted: true,
+      electronicSignatureIntent: true,
+      electronicRecordsConsent: true,
+      text: POLICY_ACKNOWLEDGEMENT_TEXT,
+    },
+    policies: CONTRACT_POLICIES,
+  });
 
   const effectiveBankTransferEmail = normalizeEmail(
     checkoutForm.email || bankTransferEmail,
@@ -2213,6 +2356,16 @@ export default function CheckoutTransferPage() {
       let accumulatedDiscount = 0;
 
       for (const cleanCoupon of couponCodes) {
+        const remainingCouponDiscount = Number(
+          Math.max(maximumCouponDiscount - accumulatedDiscount, 0).toFixed(2),
+        );
+
+        if (remainingCouponDiscount <= 0) {
+          throw new Error(
+            "The maximum combined discount is 25%. Remove a coupon to use a different one.",
+          );
+        }
+
         const workingSubtotal = Math.max(cartTotal - accumulatedDiscount, 0);
 
         console.log("PHASE ONE COUPON REQUEST:", {
@@ -2237,6 +2390,14 @@ export default function CheckoutTransferPage() {
             subtotal: workingSubtotal,
             originalSubtotal: cartTotal,
             original_subtotal: cartTotal,
+            previousDiscountAmount: accumulatedDiscount,
+            previous_discount_amount: accumulatedDiscount,
+            bundleDiscountAmount,
+            bundle_discount_amount: bundleDiscountAmount,
+            maximumCombinedDiscount,
+            maximum_combined_discount: maximumCombinedDiscount,
+            maximumAdditionalDiscount: remainingCouponDiscount,
+            maximum_additional_discount: remainingCouponDiscount,
             customerEmail,
             customer_email: customerEmail,
             items: checkoutItems,
@@ -2303,6 +2464,12 @@ export default function CheckoutTransferPage() {
           );
         }
 
+        if (discountAmount > remainingCouponDiscount + 0.01) {
+          throw new Error(
+            `${serverCoupon || cleanCoupon} would exceed the 25% maximum combined discount.`,
+          );
+        }
+
         if (!secureToken) {
           throw new Error(
             `${serverCoupon || cleanCoupon} validated, but the secure discount token was not returned.`,
@@ -2345,7 +2512,7 @@ export default function CheckoutTransferPage() {
       });
       setDiscountToken(discountTokens);
       setCouponMessage(
-        `${savedCoupon} applied: -${formatMoney(totalDiscount)}.`,
+        `${savedCoupon} applied: -${formatMoney(totalDiscount)}. Combined discounts are capped at 25%.`,
       );
     } catch (err) {
       console.error("PHASE ONE COUPON APPLY ERROR:", err);
@@ -2415,6 +2582,13 @@ export default function CheckoutTransferPage() {
     if (!policyAcknowledged) {
       setError(
         "Please confirm the age, research-use, and policy acknowledgement before continuing.",
+      );
+      return false;
+    }
+
+    if (!signatureConsent.valid) {
+      setError(
+        "Please enter your full legal name and complete the electronic signature before continuing.",
       );
       return false;
     }
@@ -2507,6 +2681,10 @@ export default function CheckoutTransferPage() {
     const couponCodes = normalizeCouponList(
       couponStatus === "valid" ? coupon : couponInput,
     );
+    const signedContract = buildSignedContract({
+      acceptedAt,
+      billing: finalBilling,
+    });
 
     if (typeof window !== "undefined") {
       localStorage.setItem("phaseone_checkout_email", finalBilling.email);
@@ -2565,6 +2743,8 @@ export default function CheckoutTransferPage() {
             acceptedAt,
             text: POLICY_ACKNOWLEDGEMENT_TEXT,
           },
+          contract: signedContract,
+          signedContract,
           source: "phaseone_custom_checkout_prism",
         }),
       });
@@ -2592,6 +2772,13 @@ export default function CheckoutTransferPage() {
             "Unable to start secure PRISM card checkout.",
         );
       }
+
+      await attachContractToOrder({
+        orderId: getOrderIdFromCheckoutResponse(data),
+        orderKey: data.orderKey || data.order_key || "",
+        customerEmail: finalBilling.email,
+        contract: signedContract,
+      });
 
       if (typeof window !== "undefined") {
         localStorage.setItem(
@@ -2678,6 +2865,11 @@ export default function CheckoutTransferPage() {
       email: finalBankEmail,
       phone: finalBilling.phone,
     };
+    const acceptedAt = new Date().toISOString();
+    const signedContract = buildSignedContract({
+      acceptedAt,
+      billing: finalBilling,
+    });
 
     if (typeof window !== "undefined") {
       localStorage.setItem("phaseone_checkout_email", finalBankEmail);
@@ -2791,7 +2983,7 @@ export default function CheckoutTransferPage() {
           termsAccepted: true,
           refundPolicyAccepted: true,
           researchUsePolicyAccepted: true,
-          policyAcknowledgedAt: new Date().toISOString(),
+          policyAcknowledgedAt: acceptedAt,
           policyAcknowledgementText: POLICY_ACKNOWLEDGEMENT_TEXT,
           acknowledgements: {
             age21OrOlder: true,
@@ -2799,9 +2991,11 @@ export default function CheckoutTransferPage() {
             termsAndConditionsAccepted: true,
             refundPolicyAccepted: true,
             researchUseOnlyPolicyAccepted: true,
-            acceptedAt: new Date().toISOString(),
+            acceptedAt,
             text: POLICY_ACKNOWLEDGEMENT_TEXT,
           },
+          contract: signedContract,
+          signedContract,
         }),
       });
 
@@ -2814,6 +3008,13 @@ export default function CheckoutTransferPage() {
             "Unable to create the Bank Transfer order.",
         );
       }
+
+      await attachContractToOrder({
+        orderId: getOrderIdFromCheckoutResponse(data),
+        orderKey: data?.orderKey || data?.order_key || data?.order?.key || "",
+        customerEmail: finalBankEmail,
+        contract: signedContract,
+      });
 
       const paymentUrl =
         data?.redirectUrl ||
@@ -2923,6 +3124,11 @@ export default function CheckoutTransferPage() {
       email: finalEmail,
       phone: finalBilling.phone,
     };
+    const acceptedAt = new Date().toISOString();
+    const signedContract = buildSignedContract({
+      acceptedAt,
+      billing: finalBilling,
+    });
 
     const savedOrder =
       typeof window !== "undefined"
@@ -3059,7 +3265,7 @@ export default function CheckoutTransferPage() {
           termsAccepted: true,
           refundPolicyAccepted: true,
           researchUsePolicyAccepted: true,
-          policyAcknowledgedAt: new Date().toISOString(),
+          policyAcknowledgedAt: acceptedAt,
           policyAcknowledgementText: POLICY_ACKNOWLEDGEMENT_TEXT,
           acknowledgements: {
             age21OrOlder: true,
@@ -3067,9 +3273,11 @@ export default function CheckoutTransferPage() {
             termsAndConditionsAccepted: true,
             refundPolicyAccepted: true,
             researchUseOnlyPolicyAccepted: true,
-            acceptedAt: new Date().toISOString(),
+            acceptedAt,
             text: POLICY_ACKNOWLEDGEMENT_TEXT,
           },
+          contract: signedContract,
+          signedContract,
         }),
       });
 
@@ -3082,6 +3290,13 @@ export default function CheckoutTransferPage() {
             "Unable to prepare Venmo/Zelle payment instructions.",
         );
       }
+
+      await attachContractToOrder({
+        orderId: getOrderIdFromCheckoutResponse(data),
+        orderKey: data?.orderKey || data?.order_key || data?.order?.key || "",
+        customerEmail: finalEmail,
+        contract: signedContract,
+      });
 
       const normalizedOrderData = normalizeManualOrderData(data);
 
@@ -3535,6 +3750,12 @@ export default function CheckoutTransferPage() {
               </div>
             </section>
 
+            <SignatureCapture
+              customerName={`${checkoutForm.firstName} ${checkoutForm.lastName}`.trim()}
+              hasError={!signatureConsent.valid && Boolean(error)}
+              onChange={handleSignatureChange}
+            />
+
             <label
               className={`compliance-check ${
                 !policyAcknowledged && error ? "has-error" : ""
@@ -3575,9 +3796,10 @@ export default function CheckoutTransferPage() {
                   rel="noopener noreferrer"
                   onClick={(event) => event.stopPropagation()}
                 >
-                  Research Use Only policy
+                Research Use Only policy
                 </a>
-                .
+                , and I consent to receive and retain the signed agreement
+                electronically at the email provided.
               </span>
             </label>
 
@@ -4314,6 +4536,223 @@ const styles = `
     font-size: 9px;
     font-weight: 900;
     letter-spacing: 0.02em;
+  }
+
+  .signature-panel {
+    margin: 22px 28px 0;
+    border: 1px solid rgba(96, 165, 250, 0.22);
+    border-radius: 18px;
+    background:
+      radial-gradient(circle at top right, rgba(37, 99, 235, 0.12), transparent 42%),
+      rgba(15, 23, 42, 0.72);
+    padding: 18px;
+    box-shadow: inset 0 1px rgba(255, 255, 255, 0.03);
+  }
+
+  .signature-panel.has-error {
+    border-color: rgba(248, 113, 113, 0.52);
+    box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.08);
+  }
+
+  .signature-heading {
+    display: grid;
+    grid-template-columns: 42px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 11px;
+  }
+
+  .signature-heading > div {
+    display: grid;
+    gap: 3px;
+  }
+
+  .signature-heading strong {
+    color: #f8fafc;
+    font-size: 14px;
+    font-weight: 900;
+  }
+
+  .signature-heading small {
+    color: #64748b;
+    font-size: 10px;
+    line-height: 1.45;
+  }
+
+  .signature-icon {
+    display: grid;
+    width: 42px;
+    height: 42px;
+    place-items: center;
+    border: 1px solid rgba(96, 165, 250, 0.2);
+    border-radius: 13px;
+    background: rgba(37, 99, 235, 0.12);
+    color: #93c5fd;
+  }
+
+  .signature-required {
+    border: 1px solid rgba(96, 165, 250, 0.2);
+    border-radius: 999px;
+    background: rgba(30, 64, 175, 0.14);
+    padding: 5px 8px;
+    color: #93c5fd;
+    font-size: 8px;
+    font-weight: 900;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .signature-tabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 5px;
+    margin-top: 16px;
+    border-radius: 11px;
+    background: rgba(2, 6, 23, 0.65);
+    padding: 4px;
+  }
+
+  .signature-tabs button {
+    display: flex;
+    min-height: 36px;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: #64748b;
+    font: inherit;
+    font-size: 10px;
+    font-weight: 900;
+    cursor: pointer;
+  }
+
+  .signature-tabs button.is-active {
+    background: linear-gradient(135deg, rgba(37, 99, 235, 0.34), rgba(2, 132, 199, 0.22));
+    color: #dbeafe;
+    box-shadow: inset 0 0 0 1px rgba(96, 165, 250, 0.2);
+  }
+
+  .signature-name-field,
+  .typed-signature-field {
+    display: grid;
+    gap: 7px;
+    margin-top: 14px;
+  }
+
+  .signature-name-field > span,
+  .typed-signature-field > span {
+    color: #94a3b8;
+    font-size: 9px;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .signature-name-field input,
+  .typed-signature-field input {
+    width: 100%;
+    border: 1px solid rgba(148, 163, 184, 0.16);
+    border-radius: 11px;
+    outline: none;
+    background: rgba(2, 6, 23, 0.68);
+    padding: 11px 12px;
+    color: #e2e8f0;
+    font: inherit;
+    font-size: 12px;
+  }
+
+  .signature-name-field input:focus,
+  .typed-signature-field input:focus {
+    border-color: rgba(96, 165, 250, 0.52);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+  }
+
+  .typed-signature-field input {
+    min-height: 78px;
+    padding: 14px 18px;
+    color: #dbeafe;
+    font-family: "Brush Script MT", "Segoe Script", cursive;
+    font-size: 29px;
+  }
+
+  .signature-canvas-wrap {
+    position: relative;
+    overflow: hidden;
+    margin-top: 14px;
+    border: 1px dashed rgba(96, 165, 250, 0.3);
+    border-radius: 13px;
+    background:
+      linear-gradient(rgba(15, 23, 42, 0.5), rgba(2, 6, 23, 0.7)),
+      repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 31px,
+        rgba(96, 165, 250, 0.045) 32px
+      );
+  }
+
+  .signature-canvas-wrap canvas {
+    position: relative;
+    z-index: 2;
+    display: block;
+    width: 100%;
+    height: 150px;
+    cursor: crosshair;
+    touch-action: none;
+  }
+
+  .signature-canvas-placeholder {
+    position: absolute;
+    z-index: 1;
+    top: 55px;
+    left: 50%;
+    color: rgba(148, 163, 184, 0.24);
+    font-family: "Brush Script MT", "Segoe Script", cursive;
+    font-size: 32px;
+    transform: translateX(-50%);
+    pointer-events: none;
+  }
+
+  .signature-line {
+    position: absolute;
+    z-index: 1;
+    right: 16px;
+    bottom: 34px;
+    left: 16px;
+    height: 1px;
+    background: rgba(148, 163, 184, 0.16);
+  }
+
+  .signature-clear {
+    position: absolute;
+    z-index: 3;
+    right: 9px;
+    top: 9px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    border: 1px solid rgba(148, 163, 184, 0.14);
+    border-radius: 8px;
+    background: rgba(2, 6, 23, 0.74);
+    padding: 6px 8px;
+    color: #94a3b8;
+    font: inherit;
+    font-size: 9px;
+    font-weight: 800;
+    cursor: pointer;
+  }
+
+  .signature-clear:disabled {
+    cursor: default;
+    opacity: 0.38;
+  }
+
+  .signature-panel > p {
+    margin: 12px 0 0;
+    color: #475569;
+    font-size: 9px;
+    line-height: 1.55;
   }
 
   .compliance-check {
@@ -5055,11 +5494,26 @@ const styles = `
       justify-self: start;
     }
 
+    .signature-panel,
     .compliance-check,
     .checkout-error,
     .checkout-status {
       margin-right: 16px;
       margin-left: 16px;
+    }
+
+    .signature-heading {
+      grid-template-columns: 38px minmax(0, 1fr);
+    }
+
+    .signature-icon {
+      width: 38px;
+      height: 38px;
+    }
+
+    .signature-required {
+      grid-column: 2;
+      justify-self: start;
     }
 
     .checkout-submit {

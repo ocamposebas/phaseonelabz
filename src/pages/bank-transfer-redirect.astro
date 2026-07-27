@@ -86,7 +86,7 @@ const pageTitle = "Opening Bank Transfer";
         If user presses Back from eDebit:
         eDebit → this bridge page again
         Since alreadyRedirected is 1, we send them back to your checkout,
-        not back into Tagada or WooCommerce.
+        not back into the previous WooCommerce redirect.
       */
       if (alreadyRedirected) {
         if (title) title.textContent = "Returning to checkout...";

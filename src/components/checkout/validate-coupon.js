@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 
 const MAX_TOKEN_AGE_SECONDS = 15 * 60;
+const MAX_COMBINED_DISCOUNT_RATE = 0.25;
 
 function getEnv(key) {
   return (
@@ -389,10 +390,36 @@ export const POST = async ({ request }) => {
       );
     }
 
-    const { discountAmount, eligibleSubtotal } = calculateCouponDiscount(
+    const calculatedDiscount = calculateCouponDiscount(
       coupon,
       items,
       subtotal
+    );
+    const eligibleSubtotal = calculatedDiscount.eligibleSubtotal;
+    const previousDiscountAmount = Math.max(
+      roundMoney(
+        body.previousDiscountAmount ?? body.previous_discount_amount ?? 0
+      ),
+      0
+    );
+    const bundleDiscountAmount = Math.max(
+      roundMoney(body.bundleDiscountAmount ?? body.bundle_discount_amount ?? 0),
+      0
+    );
+    const maximumCombinedDiscount = roundMoney(
+      subtotal * MAX_COMBINED_DISCOUNT_RATE
+    );
+    const remainingDiscountAllowance = Math.max(
+      roundMoney(
+        maximumCombinedDiscount -
+          bundleDiscountAmount -
+          previousDiscountAmount
+      ),
+      0
+    );
+    const discountAmount = Math.min(
+      calculatedDiscount.discountAmount,
+      remainingDiscountAllowance
     );
 
     if (discountAmount <= 0) {
@@ -400,7 +427,9 @@ export const POST = async ({ request }) => {
         {
           valid: false,
           error:
-            "This coupon exists, but it does not apply to the current cart.",
+            remainingDiscountAllowance <= 0
+              ? "The maximum combined discount is 25%."
+              : "This coupon exists, but it does not apply to the current cart.",
           debug: {
             coupon_type: coupon.discount_type,
             coupon_amount: coupon.amount,
@@ -456,6 +485,8 @@ export const POST = async ({ request }) => {
       discountAmount,
       finalSubtotal,
       eligibleSubtotal,
+      maximumCombinedDiscount,
+      remainingDiscountAllowance,
       discountToken,
       expiresAt,
       message: `${couponCode} applied. Discount: -$${discountAmount.toFixed(

@@ -2,7 +2,9 @@ import type { APIRoute } from "astro";
 
 export const prerender = false;
 
-const MAX_BODY_BYTES = 64 * 1024;
+// A drawn signature is a compact PNG data URL, so the signed checkout payload
+// needs a higher ceiling than the cart-only request.
+const MAX_BODY_BYTES = 320 * 1024;
 const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
 const RATE_LIMIT_MAX = 8;
 

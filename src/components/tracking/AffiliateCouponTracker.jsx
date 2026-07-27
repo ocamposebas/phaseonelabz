@@ -71,7 +71,7 @@ function persistCoupon(coupon = "") {
   try {
     const maxAge = 60 * 60 * 24 * 7;
     const encoded = encodeURIComponent(cleanCoupon);
-    const cookie = `phaseone_tagada_coupon=${encoded}; Path=/; Max-Age=${maxAge}; SameSite=Lax; Secure`;
+    const cookie = `phaseone_checkout_coupon=${encoded}; Path=/; Max-Age=${maxAge}; SameSite=Lax; Secure`;
 
     document.cookie = cookie;
     document.cookie = `${cookie}; Domain=.phaseonelabz.com`;
