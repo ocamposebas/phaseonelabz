@@ -9,6 +9,7 @@ import {
   ShieldCheck,
   PackageCheck,
 } from "lucide-react";
+import { FREE_SHIPPING_MINIMUM } from "../data/storeConfig";
 
 const navItems = [
   { label: "Shop", href: "/catalog" },
@@ -19,7 +20,7 @@ const navItems = [
 
 const announcementItems = [
   "Grand Opening Savings",
-  "Free Shipping Over $50",
+  `Free Shipping Over $${FREE_SHIPPING_MINIMUM}`,
   "No Extra Card Fees",
   "All for Our Grand Opening",
 ];
@@ -226,7 +227,8 @@ export default function SiteHeader({
               <div className="sh-mobile-note">
                 <p>Grand Opening</p>
                 <span>
-                  Launch savings, free shipping over $35, and no extra card fees.
+                  Launch savings, free shipping over ${FREE_SHIPPING_MINIMUM},
+                  and no extra card fees.
                 </span>
               </div>
 

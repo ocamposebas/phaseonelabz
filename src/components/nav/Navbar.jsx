@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Menu, Search, ShoppingCart, User, X, LogOut } from "lucide-react";
 import { useCart } from "../cart/CartContext";
+import { FREE_SHIPPING_MINIMUM } from "../data/storeConfig";
 
 const navItems = [
   { label: "Home", href: "/" },
@@ -12,7 +13,7 @@ const navItems = [
 
 const announcementItems = [
   "For research use only",
-  "Free shipping over $100",
+  `Free shipping over $${FREE_SHIPPING_MINIMUM}`,
   "Independent batch documentation",
 ];
 
@@ -970,7 +971,7 @@ export default function SiteHeader({
                   ? `${account?.points || 0} reward points · ${formatStoreCredit(
                       storeCreditBalance
                     )} store balance.`
-                  : "Opening savings, free shipping over $50, and no extra card fees."}
+                  : `Opening savings, free shipping over $${FREE_SHIPPING_MINIMUM}, and no extra card fees.`}
               </span>
             </div>
 

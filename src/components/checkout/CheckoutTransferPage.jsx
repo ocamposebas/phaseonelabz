@@ -19,6 +19,7 @@ import {
   X,
 } from "lucide-react";
 import { useCart } from "../cart/CartContext";
+import { FREE_SHIPPING_MINIMUM } from "../data/storeConfig";
 import SignatureCapture from "./SignatureCapture";
 
 const ACCOUNT_ENDPOINT = "/api/account/me";
@@ -30,7 +31,6 @@ const WOO_URL =
   import.meta.env.PUBLIC_WOOCOMMERCE_URL || "https://staging.phaseonelabz.com";
 const PAYMENT_DISCOUNT_RATE = 0.05;
 const MAX_COMBINED_DISCOUNT_RATE = 0.25;
-const FREE_SHIPPING_MINIMUM = 100;
 const MANUAL_PAYMENT_SHIPPING_COST = 13;
 const PAYMENT_DISCOUNT_METHOD_IDS = ["venmo", "zelle", "bank"];
 const MANUAL_PAYMENT_METHOD_IDS = ["venmo", "zelle"];
