@@ -20,10 +20,14 @@ const SHIPPING_PROTECTION_VALUE_COOKIE_KEY =
 const SHIPPING_PROTECTION_RATE_PER_100 = 1.09;
 const SHIPPING_PROTECTION_COOKIE_MAX_AGE = 60 * 60 * 24;
 
-const HOSPIRA_PRODUCT_ID = 545;
-const HOSPIRA_PROMO_THRESHOLD = 100;
-const HOSPIRA_PROMO_DISCOUNT = 0.5;
-const HOSPIRA_PROMO_LIMIT = 2;
+// Recon Water is intentionally identified by its stable WooCommerce slug, not
+// by a numeric ID. Numeric IDs can differ between environments.
+const RECON_WATER_IDENTIFIERS = new Set([
+  "h-recon-water",
+  "recon-water-30ml",
+]);
+const RECON_WATER_PROMO_THRESHOLD = 100;
+const RECON_WATER_PROMO_PRICE = 15;
 const BUNDLE_REQUIRED_QUANTITY = 5;
 const BUNDLE_DISCOUNT_RATE = 0.1;
 
@@ -596,10 +600,30 @@ function getProductId(item = {}) {
 }
 
 export function getProductPurchaseLimit(item = {}) {
-  return getProductId(item) === HOSPIRA_PRODUCT_ID &&
-    item.phaseone_hospira_promo_active
-    ? HOSPIRA_PROMO_LIMIT
-    : null;
+  return null;
+}
+
+function normalizeProductIdentifier(value = "") {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function isReconWaterProduct(item = {}) {
+  const identifiers = [
+    item.slug,
+    item.product_slug,
+    item.productSlug,
+    item.sku,
+    item.name,
+    item.title,
+  ].map(normalizeProductIdentifier);
+
+  return identifiers.some((identifier) =>
+    RECON_WATER_IDENTIFIERS.has(identifier),
+  );
 }
 
 function clampCartItemQuantity(item = {}, quantity = 1) {
@@ -692,7 +716,7 @@ function normalizeCartItems(items = []) {
     .filter((item) => !isLegacyPromotionalItem(item));
 
   const qualifyingSubtotal = normalizedItems.reduce((total, item) => {
-    if (getProductId(item) === HOSPIRA_PRODUCT_ID) return total;
+    if (isReconWaterProduct(item)) return total;
 
     return (
       total +
@@ -700,24 +724,22 @@ function normalizeCartItems(items = []) {
     );
   }, 0);
 
-  const promoActive = qualifyingSubtotal > HOSPIRA_PROMO_THRESHOLD;
+  const promoActive = qualifyingSubtotal > RECON_WATER_PROMO_THRESHOLD;
 
   const itemsWithProductPromotions = normalizedItems.map((item) => {
-    if (getProductId(item) !== HOSPIRA_PRODUCT_ID) return item;
+    if (!isReconWaterProduct(item)) return item;
 
     const basePrice = Number(item.phaseone_base_price || 0);
+    const discountedPrice = Math.min(basePrice, RECON_WATER_PROMO_PRICE);
 
     return {
       ...item,
-      quantity: promoActive
-        ? Math.min(Number(item.quantity || 1), HOSPIRA_PROMO_LIMIT)
-        : Number(item.quantity || 1),
-      price: promoActive
-        ? roundMoney(basePrice * HOSPIRA_PROMO_DISCOUNT)
+      price: promoActive ? discountedPrice : basePrice,
+      phaseone_recon_water_promo_active: promoActive,
+      phaseone_recon_water_promo_price: promoActive
+        ? discountedPrice
         : basePrice,
-      phaseone_hospira_promo_active: promoActive,
-      phaseone_hospira_promo_discount_percent: promoActive ? 50 : 0,
-      phaseone_hospira_qualifying_subtotal: roundMoney(qualifyingSubtotal),
+      phaseone_recon_water_qualifying_subtotal: roundMoney(qualifyingSubtotal),
     };
   });
 
@@ -732,7 +754,9 @@ function normalizeCartItems(items = []) {
 
     return {
       ...item,
-      price: bundleUnlocked
+      // The Recon Water promotion fixes its unit price at $15. The bundle
+      // discount may apply to other products, but must not lower it further.
+      price: bundleUnlocked && !isReconWaterProduct(item)
         ? roundMoney(priceAfterProductPromotions * (1 - BUNDLE_DISCOUNT_RATE))
         : priceAfterProductPromotions,
       phaseone_price_before_bundle: priceAfterProductPromotions,
@@ -1484,21 +1508,6 @@ export function CartProvider({ children }) {
     const incomingKey = normalizedProduct.cartKey;
 
     const currentItems = normalizeCartItems(cartItems);
-    const hospiraPromoActive = currentItems.some(
-      (item) =>
-        getProductId(item) === HOSPIRA_PRODUCT_ID &&
-        item.phaseone_hospira_promo_active,
-    );
-
-    if (
-      getProductId(normalizedProduct) === HOSPIRA_PRODUCT_ID &&
-      hospiraPromoActive
-    ) {
-      normalizedProduct.phaseone_hospira_promo_active = true;
-      normalizedProduct.price = roundMoney(
-        normalizedProduct.phaseone_base_price * HOSPIRA_PROMO_DISCOUNT,
-      );
-    }
 
     const existingTrackingIndex = findIndexByCartKey(currentItems, incomingKey);
     const existingQuantity =

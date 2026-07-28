@@ -143,9 +143,12 @@ function normalizeMoneyString(value) {
   return normalizePrice(value).toFixed(2);
 }
 
-const HOSPIRA_PRODUCT_ID = 545;
-const HOSPIRA_PROMO_THRESHOLD = 100;
-const HOSPIRA_PROMO_LIMIT = 2;
+const RECON_WATER_IDENTIFIERS = new Set([
+  "h-recon-water",
+  "recon-water-30ml",
+]);
+const RECON_WATER_PROMO_THRESHOLD = 100;
+const RECON_WATER_PROMO_PRICE = 15;
 
 function getShippingFromRequest(shipping = {}) {
   const method = sanitizeString(shipping.method || "standard").toLowerCase();
@@ -192,8 +195,31 @@ function buildWooLineItems(items = []) {
       lineItem.variation_id = item.variation_id;
     }
 
+    // WooCommerce accepts order-line totals on creation. Sending the verified
+    // promotional unit price here is important because fulfilment/Prims reads
+    // the line item itself, not only order-level fees.
+    if (Number.isFinite(item.lineUnitPrice)) {
+      const lineTotal = normalizeMoneyString(item.lineUnitPrice * item.quantity);
+      lineItem.subtotal = lineTotal;
+      lineItem.total = lineTotal;
+    }
+
     return lineItem;
   });
+}
+
+function normalizeProductIdentifier(value = "") {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function isReconWaterProduct(product = {}) {
+  return [product.slug, product.sku, product.name]
+    .map(normalizeProductIdentifier)
+    .some((identifier) => RECON_WATER_IDENTIFIERS.has(identifier));
 }
 
 function getCustomerPayload(customer = {}) {
@@ -316,105 +342,110 @@ async function wooFetch({
   return data;
 }
 
-async function getProductPriceFromWoo(config, item) {
+async function getProductPricingFromWoo(config, item) {
+  // Always load the parent product: variable products do not reliably expose
+  // the parent slug in their variation response.
+  const product = await wooFetch({
+    ...config,
+    path: `/products/${item.product_id}`,
+  });
+
   if (item.variation_id > 0) {
     const variation = await wooFetch({
       ...config,
       path: `/products/${item.product_id}/variations/${item.variation_id}`,
     });
 
-    return normalizePrice(
-      variation.price || variation.sale_price || variation.regular_price || 0
-    );
+    return {
+      unitPrice: normalizePrice(
+        variation.price || variation.sale_price || variation.regular_price || 0
+      ),
+      isReconWater: isReconWaterProduct(product),
+    };
   }
 
-  const product = await wooFetch({
-    ...config,
-    path: `/products/${item.product_id}`,
-  });
-
-  return normalizePrice(
-    product.price || product.sale_price || product.regular_price || 0
-  );
+  return {
+    unitPrice: normalizePrice(
+      product.price || product.sale_price || product.regular_price || 0
+    ),
+    isReconWater: isReconWaterProduct(product),
+  };
 }
 
 async function calculateVerifiedSubtotal(config, items = []) {
   const pricedItems = [];
 
   for (const item of items) {
-    const unitPrice = await getProductPriceFromWoo(config, item);
-    pricedItems.push({ ...item, unitPrice });
+    const pricing = await getProductPricingFromWoo(config, item);
+    pricedItems.push({ ...item, ...pricing });
   }
 
   const qualifyingSubtotal = normalizePrice(
     pricedItems.reduce(
       (total, item) =>
-        item.product_id === HOSPIRA_PRODUCT_ID
+        item.isReconWater
           ? total
           : total + item.unitPrice * item.quantity,
       0
     )
   );
-  const hospiraPromoActive = qualifyingSubtotal > HOSPIRA_PROMO_THRESHOLD;
-
-  if (hospiraPromoActive) {
-    items.forEach((item) => {
-      if (item.product_id === HOSPIRA_PRODUCT_ID) {
-        item.quantity = Math.min(item.quantity, HOSPIRA_PROMO_LIMIT);
-      }
-    });
-  }
+  const reconWaterPromoActive = qualifyingSubtotal > RECON_WATER_PROMO_THRESHOLD;
 
   const regularSubtotal = normalizePrice(
-    pricedItems.reduce((total, pricedItem) => {
-      const currentItem = items.find(
-        (item) =>
-          item.product_id === pricedItem.product_id &&
-          item.variation_id === pricedItem.variation_id
-      );
-
-      return total + pricedItem.unitPrice * Number(currentItem?.quantity || 0);
-    }, 0)
+    pricedItems.reduce(
+      (total, item) => total + item.unitPrice * item.quantity,
+      0
+    )
   );
 
-  const hospiraDiscount = hospiraPromoActive
+  const reconWaterDiscount = reconWaterPromoActive
     ? normalizePrice(
-        pricedItems.reduce((total, pricedItem) => {
-          if (pricedItem.product_id !== HOSPIRA_PRODUCT_ID) return total;
-
-          const currentItem = items.find(
-            (item) =>
-              item.product_id === pricedItem.product_id &&
-              item.variation_id === pricedItem.variation_id
-          );
+        pricedItems.reduce((total, item) => {
+          if (!item.isReconWater) return total;
 
           return (
             total +
-            pricedItem.unitPrice * Number(currentItem?.quantity || 0) * 0.5
+            Math.max(0, item.unitPrice - RECON_WATER_PROMO_PRICE) * item.quantity
           );
         }, 0)
       )
     : 0;
+  const itemsWithPromotion = pricedItems.map((item) => ({
+    ...item,
+    lineUnitPrice:
+      reconWaterPromoActive && item.isReconWater
+        ? Math.min(item.unitPrice, RECON_WATER_PROMO_PRICE)
+        : item.unitPrice,
+  }));
   const quantity = items.reduce(
     (total, item) => total + Number(item.quantity || 0),
     0
   );
   const bundleActive = quantity >= BUNDLE_REQUIRED_QUANTITY;
   const subtotalAfterProductPromotions = normalizePrice(
-    regularSubtotal - hospiraDiscount
+    regularSubtotal - reconWaterDiscount
   );
   const bundleDiscount = bundleActive
-    ? normalizePrice(subtotalAfterProductPromotions * BUNDLE_DISCOUNT_RATE)
+    ? normalizePrice(
+        itemsWithPromotion.reduce(
+          (total, item) =>
+            item.isReconWater
+              ? total
+              : total + item.lineUnitPrice * item.quantity,
+          0
+        ) * BUNDLE_DISCOUNT_RATE
+      )
     : 0;
 
   return {
     subtotal: normalizePrice(subtotalAfterProductPromotions - bundleDiscount),
     regularSubtotal,
     qualifyingSubtotal,
-    hospiraPromoActive,
-    hospiraDiscount,
+    reconWaterPromoActive,
+    reconWaterDiscount,
     bundleActive,
     bundleDiscount,
+    items: itemsWithPromotion,
   };
 }
 
@@ -677,12 +708,16 @@ export async function POST({ request }) {
         value: normalizeMoneyString(finalTotal),
       },
       {
-        key: "_phaseone_hospira_promo",
-        value: verifiedCart.hospiraPromoActive ? "yes" : "no",
+        key: "_phaseone_recon_water_promo",
+        value: verifiedCart.reconWaterPromoActive ? "yes" : "no",
       },
       {
-        key: "_phaseone_hospira_discount",
-        value: normalizeMoneyString(verifiedCart.hospiraDiscount),
+        key: "_phaseone_recon_water_discount",
+        value: normalizeMoneyString(verifiedCart.reconWaterDiscount),
+      },
+      {
+        key: "_phaseone_recon_water_promo_price",
+        value: normalizeMoneyString(RECON_WATER_PROMO_PRICE),
       },
       {
         key: "_phaseone_bundle_promo",
@@ -702,14 +737,6 @@ export async function POST({ request }) {
     }
 
     const feeLines = [];
-
-    if (verifiedCart.hospiraDiscount > 0) {
-      feeLines.push({
-        name: "Hospira 50% Promotion",
-        total: `-${normalizeMoneyString(verifiedCart.hospiraDiscount)}`,
-        tax_status: "none",
-      });
-    }
 
     if (verifiedCart.bundleDiscount > 0) {
       feeLines.push({
@@ -732,7 +759,7 @@ export async function POST({ request }) {
       customer_id: customerId || 0,
       billing: customerPayload.billing,
       shipping: customerPayload.shipping,
-      line_items: buildWooLineItems(items),
+      line_items: buildWooLineItems(verifiedCart.items),
       shipping_lines: [
         {
           method_id: shippingMethod.id,

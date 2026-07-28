@@ -17,6 +17,23 @@ import {
 } from "lucide-react";
 import { useCart } from "../cart/CartContext";
 
+const RECON_WATER_IDENTIFIERS = new Set([
+  "h-recon-water",
+  "recon-water-30ml",
+]);
+
+function isReconWaterProduct(product = {}) {
+  return [product.slug, product.product_slug, product.sku, product.name, product.title]
+    .map((value) =>
+      String(value || "")
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, ""),
+    )
+    .some((identifier) => RECON_WATER_IDENTIFIERS.has(identifier));
+}
+
 const categoryFilters = [
   "All Products",
   "Accessories",
@@ -1918,12 +1935,12 @@ const ProductCard = memo(function ProductCard({
   item,
   addToCart,
   onBundleAdd,
-  hospiraPromoActive,
+  reconWaterPromoActive,
 }) {
   const { product, name, category, price, pricing, image, url, availability } = item;
   const { isUnavailable, unavailableLabel } = availability;
-  const isHospira = Number(getWooProductId(product)) === 545;
-  const showHospiraPromo = isHospira && hospiraPromoActive;
+  const showReconWaterPromo =
+    isReconWaterProduct(product) && reconWaterPromoActive;
   const isVariableProduct = isVariableCatalogProduct(product);
   const canSelectBundle = !isUnavailable;
   const showBundleButton = true;
@@ -2170,7 +2187,7 @@ const ProductCard = memo(function ProductCard({
           Research use only · Batch documentation available
         </p>
 
-        {showHospiraPromo ? (
+        {showReconWaterPromo ? (
           <>
             <p className="product-float-price product-float-price-discounted">
               <span className="product-float-price-regular">
@@ -2178,13 +2195,13 @@ const ProductCard = memo(function ProductCard({
               </span>
 
               <span className="product-float-price-current">
-                {formatPrice(Number(price || 0) * 0.5)}
+                {formatPrice(15)}
               </span>
 
-              <span className="product-float-discount-badge">50% OFF</span>
+              <span className="product-float-discount-badge">$15</span>
             </p>
             <p className="mt-1 text-[9px] font-bold uppercase tracking-[0.12em] text-amber-200/75">
-              Cart over $100 · Limit 2
+              Other products over $100
             </p>
           </>
         ) : pricing?.hasDiscount ? (
@@ -2418,14 +2435,10 @@ export default function ShopCatalogSection({
   const addToCart = cartApi?.addToCart;
   const cartItems =
     cartApi?.cartItems || cartApi?.items || cartApi?.cart || [];
-  const hospiraPromoActive = useMemo(
+  const reconWaterPromoActive = useMemo(
     () =>
       cartItems.reduce((total, item) => {
-        const productId = Number(
-          item.product_id || item.productId || item.parent_id || item.id || 0
-        );
-
-        if (productId === 545) return total;
+        if (isReconWaterProduct(item)) return total;
 
         const unitPrice = Number(
           item.phaseone_base_price ?? item.price ?? item.sale_price ?? 0
@@ -2919,7 +2932,7 @@ export default function ShopCatalogSection({
                       item={item}
                       addToCart={addToCart}
                       onBundleAdd={addAnyFiveBundleItemToCart}
-                      hospiraPromoActive={hospiraPromoActive}
+                      reconWaterPromoActive={reconWaterPromoActive}
                     />
                   ))}
                 </div>
