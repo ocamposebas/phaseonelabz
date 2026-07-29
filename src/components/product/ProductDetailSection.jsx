@@ -1244,7 +1244,11 @@ function findCurrentCoaRecord(
         "variation_id"
       );
 
-      if (recordVariationIds.length > 0) return false;
+      // A bundle provides an explicit concentration (for example PL-RT
+      // 10 mg), so a COA attached to that product's variation is safe to use
+      // when its parent product matches. Without a selected strength, keep
+      // the previous safeguard and do not guess among variations.
+      if (recordVariationIds.length > 0 && !selectedStrength) return false;
 
       return parentIds.includes(lookupParentId);
     });

@@ -29,8 +29,6 @@ export default function ShopExperience({ products = [] }) {
         <ShopByCategorySection />
 
         <ProductCatalog products={products} />
-
-        <Coa />
         <MilitaryDiscountBanner />
         <RewardsProgram />
 
