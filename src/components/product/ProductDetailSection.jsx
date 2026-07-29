@@ -1263,9 +1263,13 @@ function findCurrentCoaRecord(
     const recordAliases = getRecordAliases(record);
     const recordCoaKey = getRecordCanonicalKey(record);
 
-    if (productCoaKey || recordCoaKey) {
+    // Canonical names are only decisive when both sides can be identified.
+    // A COA may carry additional aliases (for example, PL-RT / Retatrutide)
+    // while the bundled product only exposes its store name. In that case,
+    // keep checking its direct name and aliases below.
+    if (productCoaKey && recordCoaKey) {
       return Boolean(
-        productCoaKey && recordCoaKey && productCoaKey === recordCoaKey
+        productCoaKey === recordCoaKey
       );
     }
 
