@@ -28,6 +28,7 @@ import {
 import { useCart } from "../cart/CartContext";
 
 const COA_LIBRARY_PATH = "/wp-json/phaseone/v1/coas";
+const BUNDLE_COMPONENT_COA_STRENGTH = "10 mg";
 
 function getCoaLibraryEndpoint() {
   const explicitEndpoint =
@@ -974,10 +975,30 @@ function getSelectedCoaStrengthText(
 function getRecordStrengthText(record) {
   return extractStrengthText(
     record?.strength,
+    record?.currentCoa?.strength,
+    record?.current_coa?.strength,
+    record?.currentCoa?.name,
+    record?.current_coa?.name,
+    record?.currentCoa?.title,
+    record?.current_coa?.title,
+    record?.currentCoa?.label,
+    record?.current_coa?.label,
     record?.batch,
     record?.productName,
     record?.compound,
     Array.isArray(record?.aliases) ? record.aliases : []
+  );
+}
+
+function findCoaRecordForStrength(records = [], selectedStrength = "") {
+  if (!records.length) return null;
+
+  if (!selectedStrength) return records[0];
+
+  return (
+    records.find(
+      (record) => getRecordStrengthText(record) === selectedStrength
+    ) || null
   );
 }
 
@@ -1140,7 +1161,7 @@ function findCurrentCoaRecord(
   const currentRecords = records.filter(isCurrentCoaRecord);
 
   if (selectedVariationId) {
-    const exactVariationMatch = currentRecords.find((record) => {
+    const exactVariationMatches = currentRecords.filter((record) => {
       const variationIds = getRecordIdList(
         record,
         "variationIds",
@@ -1155,6 +1176,11 @@ function findCurrentCoaRecord(
       );
     });
 
+    const exactVariationMatch = findCoaRecordForStrength(
+      exactVariationMatches,
+      selectedStrength
+    );
+
     if (exactVariationMatch) return exactVariationMatch;
 
     // Do not stop here. Some COAs are connected to the parent product, SKU,
@@ -1162,7 +1188,7 @@ function findCurrentCoaRecord(
   }
 
   if (variationSku || productSku) {
-    const exactSkuMatch = currentRecords.find((record) => {
+    const exactSkuMatches = currentRecords.filter((record) => {
       const recordSkus = getRecordSkuList(record);
 
       return Boolean(
@@ -1171,11 +1197,16 @@ function findCurrentCoaRecord(
       );
     });
 
+    const exactSkuMatch = findCoaRecordForStrength(
+      exactSkuMatches,
+      selectedStrength
+    );
+
     if (exactSkuMatch) return exactSkuMatch;
   }
 
   if (productId) {
-    const exactProductMatch = currentRecords.find((record) => {
+    const exactProductMatches = currentRecords.filter((record) => {
       const productIds = getRecordIdList(
         record,
         "productIds",
@@ -1187,6 +1218,11 @@ function findCurrentCoaRecord(
       return productIds.includes(productId) || wooIds.includes(productId);
     });
 
+    const exactProductMatch = findCoaRecordForStrength(
+      exactProductMatches,
+      selectedStrength
+    );
+
     if (exactProductMatch) return exactProductMatch;
   }
 
@@ -1194,7 +1230,7 @@ function findCurrentCoaRecord(
   if (parentProductId || productId) {
     const lookupParentId = parentProductId || productId;
 
-    const exactParentMatch = currentRecords.find((record) => {
+    const exactParentMatches = currentRecords.filter((record) => {
       const parentIds = getRecordIdList(
         record,
         "parentProductIds",
@@ -1213,6 +1249,11 @@ function findCurrentCoaRecord(
 
       return parentIds.includes(lookupParentId);
     });
+
+    const exactParentMatch = findCoaRecordForStrength(
+      exactParentMatches,
+      selectedStrength
+    );
 
     if (exactParentMatch) return exactParentMatch;
   }
@@ -1253,16 +1294,7 @@ function findCurrentCoaRecord(
 
   if (!candidateRecords.length) return null;
 
-  if (selectedStrength) {
-    const exactStrengthMatch = candidateRecords.find((record) => {
-      const recordStrength = getRecordStrengthText(record);
-      return recordStrength && recordStrength === selectedStrength;
-    });
-
-    return exactStrengthMatch || null;
-  }
-
-  return candidateRecords[0] || null;
+  return findCoaRecordForStrength(candidateRecords, selectedStrength);
 }
 
 const CUSTOM_ORDER_PRODUCT_IDS = [591];
@@ -2872,7 +2904,12 @@ export default function ProductDetailSection({
   const bundleCoaItems = useMemo(
     () =>
       bundleProducts.map((bundleProduct, index) => {
-        const record = findCurrentCoaRecord(bundleProduct, liveCoaRecords);
+        const record = findCurrentCoaRecord(
+          bundleProduct,
+          liveCoaRecords,
+          null,
+          BUNDLE_COMPONENT_COA_STRENGTH
+        );
 
         return {
           key: String(
