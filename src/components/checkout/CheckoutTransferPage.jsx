@@ -7,7 +7,6 @@ import {
   Lock,
   CreditCard,
   Building2,
-  Smartphone,
   Landmark,
   PackageCheck,
   Truck,
@@ -32,8 +31,8 @@ const WOO_URL =
 const PAYMENT_DISCOUNT_RATE = 0.05;
 const MAX_COMBINED_DISCOUNT_RATE = 0.25;
 const MANUAL_PAYMENT_SHIPPING_COST = 13;
-const PAYMENT_DISCOUNT_METHOD_IDS = ["venmo", "zelle", "bank"];
-const MANUAL_PAYMENT_METHOD_IDS = ["venmo", "zelle"];
+const PAYMENT_DISCOUNT_METHOD_IDS = ["zelle", "bank"];
+const MANUAL_PAYMENT_METHOD_IDS = ["zelle"];
 
 // One customer-facing protection option. ParcelGuard through ShipStation is
 // the only insurance provider used by this checkout.
@@ -43,28 +42,14 @@ const SHIPPING_PROTECTION_RATE_DOMESTIC = 1.09;
 const SHIPPING_PROTECTION_RATE_INTERNATIONAL = 1.39;
 const SHIPPING_PROTECTION_COOKIE_MAX_AGE = 60 * 60 * 24;
 
-// Manual Venmo/Zelle details.
+// Manual Zelle details.
 // Set these in your .env before publishing so the public checkout shows your real payment info.
-const VENMO_PAYMENT_URL =
-  import.meta.env.PUBLIC_VENMO_PAYMENT_URL ||
-  "https://venmo.com/code?user_id=4599396356327117666&created=1782763350.789482&printed=1";
-const VENMO_PAYMENT_HANDLE =
-  import.meta.env.PUBLIC_VENMO_PAYMENT_HANDLE || "Phase One Labz";
 const ZELLE_PAYMENT_RECIPIENT =
   import.meta.env.PUBLIC_ZELLE_PAYMENT_RECIPIENT || "Info@phaseonelabz.com";
 const ZELLE_PAYMENT_NAME =
   import.meta.env.PUBLIC_ZELLE_PAYMENT_NAME || "Phase One Labz";
 
 const MANUAL_PAYMENT_DETAILS = {
-  venmo: {
-    title: "Venmo",
-    recipientLabel: "Venmo",
-    recipientValue: VENMO_PAYMENT_HANDLE,
-    extraRecipientLine:
-      "Payment details appear here after the order is created.",
-    actionLabel: "Open Venmo",
-    actionHref: VENMO_PAYMENT_URL,
-  },
   zelle: {
     title: "Zelle",
     recipientLabel: "Zelle",
@@ -86,17 +71,6 @@ const PAYMENT_METHODS = [
     gatewayId: "",
     icon: CreditCard,
     cta: "Pay securely",
-  },
-  {
-    id: "venmo",
-    label: "Venmo",
-    title: "Venmo",
-    description: "Place the order now and receive the exact Venmo payment details.",
-    badge: "5% OFF",
-    flow: "manual_order",
-    gatewayId: "",
-    icon: Smartphone,
-    cta: "Place Venmo order",
   },
   {
     id: "zelle",
@@ -1006,7 +980,7 @@ function chooseManualThanksItems(orderItems = [], currentCartItems = []) {
 }
 
 function buildCheckoutItems(cartItems = []) {
-  /* Used for coupon validation, ACH, and manual Zelle/Venmo orders. Rewards remain visual only. */
+  /* Used for coupon validation, ACH, and manual Zelle orders. Rewards remain visual only. */
   const officialItems = getVisibleCartItems(cartItems)
     .filter((item) => !isRewardGiftItem(item))
     .map((item) => {
@@ -1727,7 +1701,7 @@ function buildWooCheckoutUrl({
   }
 
   // Important: card keeps the normal checkout flow.
-  // Venmo and Zelle are handled by the manual-payment REST endpoint.
+  // Zelle is handled by the manual-payment REST endpoint.
   // Only Bank Transfer is forced to the Yodlee/eDebit WooCommerce gateway.
   if (paymentMethod?.gatewayId) {
     url.searchParams.set("payment_method", paymentMethod.gatewayId);
@@ -3080,7 +3054,7 @@ export default function CheckoutTransferPage() {
 
     if (!isValidEmail(finalEmail)) {
       setError(
-        "Enter a valid email before generating Venmo/Zelle payment instructions.",
+        "Enter a valid email before generating Zelle payment instructions.",
       );
       setManualPaymentStatus("error");
       return;
@@ -3287,7 +3261,7 @@ export default function CheckoutTransferPage() {
         throw new Error(
           data?.message ||
             data?.error ||
-            "Unable to prepare Venmo/Zelle payment instructions.",
+            "Unable to prepare Zelle payment instructions.",
         );
       }
 
@@ -3377,7 +3351,7 @@ export default function CheckoutTransferPage() {
       setPaymentNotice("");
       setError(
         err?.message ||
-          "Unable to prepare Venmo/Zelle payment instructions. Please try again.",
+          "Unable to prepare Zelle payment instructions. Please try again.",
       );
     }
   };

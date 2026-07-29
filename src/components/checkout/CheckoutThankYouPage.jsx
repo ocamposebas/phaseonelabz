@@ -454,7 +454,7 @@ export default function CheckoutThankYouPage() {
   const manualMethodTitle =
     manualOrder?.methodTitle ||
     manualOrder?.payment_method_title ||
-    (context?.gateway === "zelle" ? "Zelle" : "Venmo");
+    (context?.gateway === "zelle" ? "Zelle" : "Manual payment");
 
   const statusContent = useMemo(() => {
     if (statusState === "paid") {
