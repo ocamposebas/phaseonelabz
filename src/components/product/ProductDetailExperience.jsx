@@ -17,6 +17,7 @@ export default function ProductDetailExperience({
       <main className="product-detail-page">
         <ProductDetailSection
           product={product}
+          recommendedProducts={recommendedProducts}
         />
 
 <SuggestedProductsSection

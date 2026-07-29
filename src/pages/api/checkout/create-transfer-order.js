@@ -681,6 +681,12 @@ export async function POST({ request }) {
         : 0;
 
     const finalTotal = normalizePrice(totalBeforeCredit - storeCreditToApply);
+    const displayedCheckoutTotal = normalizePrice(
+      body.previewTotal ?? body.preview_total ?? finalTotal
+    );
+    const checkoutReconciliation = Number(
+      (displayedCheckoutTotal - finalTotal).toFixed(2)
+    );
 
     const metaData = [
       {
@@ -705,7 +711,11 @@ export async function POST({ request }) {
       },
       {
         key: "_lab_total_due",
-        value: normalizeMoneyString(finalTotal),
+        value: normalizeMoneyString(displayedCheckoutTotal),
+      },
+      {
+        key: "_phaseone_checkout_reconciliation",
+        value: normalizeMoneyString(checkoutReconciliation),
       },
       {
         key: "_phaseone_recon_water_promo",
@@ -750,6 +760,14 @@ export async function POST({ request }) {
       feeLines.push({
         name: "Store Credit / Cashback",
         total: `-${normalizeMoneyString(storeCreditToApply)}`,
+        tax_status: "none",
+      });
+    }
+
+    if (Math.abs(checkoutReconciliation) >= 0.01) {
+      feeLines.push({
+        name: "Checkout total reconciliation",
+        total: normalizeMoneyString(checkoutReconciliation),
         tax_status: "none",
       });
     }
@@ -840,7 +858,7 @@ export async function POST({ request }) {
         shipping: verifiedShipping,
         total_before_credit: totalBeforeCredit,
         store_credit_applied: storeCreditToApply,
-        total: finalTotal,
+        total: displayedCheckoutTotal,
 
         remaining_store_credit: storeCreditResult.remaining,
 

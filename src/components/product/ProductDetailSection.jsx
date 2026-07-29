@@ -2616,6 +2616,92 @@ function FeaturedProductsSection({ products = [], addToCart }) {
   };
 }
 
+function BundleCoaSection({ items = [] }) {
+  if (!items.length) return null;
+
+  return (
+    <section className="pdp-bundle-coas" aria-labelledby="bundle-coas-heading">
+      <div className="pdp-bundle-coas-head">
+        <div className="pdp-bundle-coas-icon">
+          <Layers3 size={18} />
+        </div>
+
+        <div>
+          <small>Bundle documentation</small>
+          <h2 id="bundle-coas-heading">COAs for the products in this bundle</h2>
+          <p>Each product has its own current-lot certificate.</p>
+        </div>
+
+        <span>{items.length} COAs</span>
+      </div>
+
+      <div className="pdp-bundle-coa-list">
+        {items.map((item, index) => {
+          const panelTypes = item.record ? getCoaPanelTypes(item.record) : [];
+
+          return (
+            <article className="pdp-bundle-coa-item" key={item.key}>
+              <div className="pdp-bundle-coa-number">{String(index + 1).padStart(2, "0")}</div>
+
+              <div className="pdp-bundle-coa-copy">
+                <div className="pdp-bundle-coa-title">
+                  <strong>{item.name}</strong>
+                  {item.record ? (
+                    <span className="is-available">
+                      <CheckCircle2 size={12} /> Current lot
+                    </span>
+                  ) : (
+                    <span className="is-pending">COA not available</span>
+                  )}
+                </div>
+
+                {item.record ? (
+                  <p>
+                    {item.lot}
+                    {item.date ? ` · ${item.date}` : ""}
+                  </p>
+                ) : (
+                  <p>The current certificate for this product is being updated.</p>
+                )}
+
+                {panelTypes.length > 0 && (
+                  <div className="pdp-bundle-coa-panels">
+                    {panelTypes.map((panelType) => {
+                      const panel = getCoaPanelMeta(panelType);
+
+                      return (
+                        <span key={panelType} className={`pdp-panel-badge ${panel.className}`}>
+                          <i />
+                          {panel.label}
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {item.url ? (
+                <a
+                  href={item.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="pdp-file-action pdp-bundle-coa-action"
+                  aria-label={`View COA for ${item.name}`}
+                >
+                  View COA
+                  <ArrowUpRight size={14} />
+                </a>
+              ) : (
+                <span className="pdp-bundle-coa-unavailable">Unavailable</span>
+              )}
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 export default function ProductDetailSection({
   product,
   recommendedProducts = [],
@@ -2778,7 +2864,34 @@ export default function ProductDetailSection({
     ? getCoaPanelTypes(currentCoaRecord)
     : [];
 
+  const bundleProducts = useMemo(
+    () => getBundleProducts(product, recommendedProducts),
+    [product, recommendedProducts]
+  );
+
+  const bundleCoaItems = useMemo(
+    () =>
+      bundleProducts.map((bundleProduct, index) => {
+        const record = findCurrentCoaRecord(bundleProduct, liveCoaRecords);
+
+        return {
+          key: String(
+            bundleProduct?.id || bundleProduct?.sku || bundleProduct?.slug || index
+          ),
+          name: bundleProduct?.name || bundleProduct?.product_name || `Product ${index + 1}`,
+          record,
+          lot: record ? getRecordLot(record) : "",
+          date: record ? getRecordDate(record) : "",
+          url: record ? getRecordUrl(record) : "",
+        };
+      }),
+    [bundleProducts, liveCoaRecords]
+  );
+
   const showCurrentCoa = Boolean(currentCoaRecord);
+  // A bundle has its own organized list of product-level COAs. Showing a
+  // separate COA for the bundle itself above that list is redundant.
+  const showStandaloneCoa = showCurrentCoa && bundleCoaItems.length === 0;
   const points = Math.max(Math.floor(Number(productPrice || 0)), 0);
 
   const shortDescription = sanitizeWooHtml(product?.short_description || "");
@@ -2874,7 +2987,7 @@ export default function ProductDetailSection({
         <div className="pdp-hero">
           <div className="pdp-gallery">
             <div className="pdp-stage">
-              {showCurrentCoa && (
+              {showStandaloneCoa && (
                 <div className="pdp-lot">
                   <ShieldCheck size={14} />
                   Current lot
@@ -2957,7 +3070,7 @@ export default function ProductDetailSection({
                 </div>
               </div>
 
-              {showCurrentCoa && (
+              {showStandaloneCoa && (
                 <div
                   className="pdp-file-row"
                   data-coa-layout="inline-panels-v3"
@@ -3042,6 +3155,8 @@ export default function ProductDetailSection({
                   </div>
                 </div>
               )}
+
+              <BundleCoaSection items={bundleCoaItems} />
 
               <div className="pdp-order-console">
                 <div className="pdp-console-head">
@@ -3192,7 +3307,7 @@ export default function ProductDetailSection({
               <div className="pdp-assurance-grid">
                 <InfoRow icon={PackageCheck}>{stockStatus}</InfoRow>
                 <InfoRow icon={Truck}>Shipping calculated at checkout</InfoRow>
-                {showCurrentCoa && (
+                {showStandaloneCoa && (
                   <InfoRow icon={BadgeCheck}>Current lot COA available</InfoRow>
                 )}
               </div>
@@ -3939,6 +4054,176 @@ export default function ProductDetailSection({
           opacity: 0.45;
           pointer-events: none;
           cursor: not-allowed;
+        }
+
+        .pdp-bundle-coas {
+          margin-top: 14px;
+          overflow: hidden;
+          border: 1px solid rgba(103, 232, 249, 0.16);
+          border-radius: 19px;
+          background: linear-gradient(135deg, rgba(8, 47, 73, 0.38), rgba(2, 6, 23, 0.5));
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+        }
+
+        .pdp-bundle-coas-head {
+          display: grid;
+          grid-template-columns: 38px minmax(0, 1fr) auto;
+          align-items: center;
+          gap: 11px;
+          padding: 14px;
+          border-bottom: 1px solid rgba(165, 243, 252, 0.1);
+        }
+
+        .pdp-bundle-coas-icon {
+          display: grid;
+          width: 38px;
+          height: 38px;
+          place-items: center;
+          border: 1px solid rgba(103, 232, 249, 0.18);
+          border-radius: 12px;
+          background: rgba(103, 232, 249, 0.08);
+          color: rgb(103, 232, 249);
+        }
+
+        .pdp-bundle-coas-head small {
+          display: block;
+          color: rgba(165, 243, 252, 0.75);
+          font-size: 8px;
+          font-weight: 950;
+          letter-spacing: 0.15em;
+          text-transform: uppercase;
+        }
+
+        .pdp-bundle-coas-head h2 {
+          margin: 3px 0 0;
+          color: white;
+          font-size: 14px;
+          font-weight: 850;
+          letter-spacing: -0.02em;
+        }
+
+        .pdp-bundle-coas-head p {
+          margin: 3px 0 0;
+          color: rgba(203, 213, 225, 0.58);
+          font-size: 11px;
+          line-height: 1.35;
+        }
+
+        .pdp-bundle-coas-head > span {
+          border: 1px solid rgba(110, 231, 183, 0.18);
+          border-radius: 999px;
+          background: rgba(52, 211, 153, 0.08);
+          padding: 5px 8px;
+          color: rgb(167, 243, 208);
+          font-size: 8px;
+          font-weight: 950;
+          letter-spacing: 0.11em;
+          text-transform: uppercase;
+          white-space: nowrap;
+        }
+
+        .pdp-bundle-coa-list {
+          padding: 5px 14px;
+        }
+
+        .pdp-bundle-coa-item {
+          display: grid;
+          grid-template-columns: 26px minmax(0, 1fr) auto;
+          align-items: center;
+          gap: 10px;
+          padding: 12px 0;
+          border-bottom: 1px solid rgba(148, 163, 184, 0.09);
+        }
+
+        .pdp-bundle-coa-item:last-child {
+          border-bottom: 0;
+        }
+
+        .pdp-bundle-coa-number {
+          color: rgba(148, 163, 184, 0.52);
+          font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+          font-size: 10px;
+          font-weight: 800;
+        }
+
+        .pdp-bundle-coa-copy {
+          min-width: 0;
+        }
+
+        .pdp-bundle-coa-title {
+          display: flex;
+          min-width: 0;
+          align-items: center;
+          gap: 7px;
+        }
+
+        .pdp-bundle-coa-title strong {
+          overflow: hidden;
+          color: rgba(255, 255, 255, 0.94);
+          font-size: 13px;
+          font-weight: 850;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .pdp-bundle-coa-title span {
+          display: inline-flex;
+          flex: 0 0 auto;
+          align-items: center;
+          gap: 4px;
+          border-radius: 999px;
+          padding: 3px 6px;
+          font-size: 7px;
+          font-weight: 950;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+        }
+
+        .pdp-bundle-coa-title .is-available {
+          background: rgba(52, 211, 153, 0.1);
+          color: rgb(110, 231, 183);
+        }
+
+        .pdp-bundle-coa-title .is-pending {
+          background: rgba(148, 163, 184, 0.1);
+          color: rgba(203, 213, 225, 0.58);
+        }
+
+        .pdp-bundle-coa-copy > p {
+          overflow: hidden;
+          margin: 3px 0 0;
+          color: rgba(203, 213, 225, 0.58);
+          font-size: 10px;
+          line-height: 1.35;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .pdp-bundle-coa-panels {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 4px;
+          margin-top: 6px;
+        }
+
+        .pdp-bundle-coa-panels .pdp-panel-badge {
+          min-height: 19px;
+          padding: 3px 6px;
+          font-size: 5px;
+        }
+
+        .pdp-bundle-coa-action {
+          min-height: 34px;
+          padding: 0 10px;
+          font-size: 8px;
+        }
+
+        .pdp-bundle-coa-unavailable {
+          color: rgba(148, 163, 184, 0.55);
+          font-size: 8px;
+          font-weight: 900;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
         }
 
         .pdp-order-console {
@@ -6498,6 +6783,51 @@ export default function ProductDetailSection({
             grid-column: 1 / -1;
           }
 
+          .pdp-bundle-coas-head {
+            grid-template-columns: 34px minmax(0, 1fr);
+            gap: 9px;
+            padding: 12px;
+          }
+
+          .pdp-bundle-coas-icon {
+            width: 34px;
+            height: 34px;
+          }
+
+          .pdp-bundle-coas-head h2 {
+            font-size: 13px;
+          }
+
+          .pdp-bundle-coas-head > span {
+            grid-column: 2;
+            justify-self: start;
+          }
+
+          .pdp-bundle-coa-list {
+            padding: 4px 12px;
+          }
+
+          .pdp-bundle-coa-item {
+            grid-template-columns: 22px minmax(0, 1fr);
+            gap: 8px;
+          }
+
+          .pdp-bundle-coa-action,
+          .pdp-bundle-coa-unavailable {
+            grid-column: 2;
+            justify-self: start;
+          }
+
+          .pdp-bundle-coa-title {
+            align-items: flex-start;
+            flex-direction: column;
+            gap: 4px;
+          }
+
+          .pdp-bundle-coa-copy > p {
+            white-space: normal;
+          }
+
           .pdp-restock-email-row {
             grid-template-columns: 1fr;
           }
@@ -6572,4 +6902,167 @@ export default function ProductDetailSection({
       `}</style>
     </section>
   );
+}
+
+function isBundleProduct(product = {}) {
+  const productType = normalizeText(product?.type || "");
+  const bundleTypes = ["bundle", "bundled", "grouped", "composite", "mix and match"];
+  const bundleIdentity = normalizeText(
+    [product?.name, product?.slug, ...getCategories(product)].filter(Boolean).join(" ")
+  );
+
+  return bundleTypes.some(
+    (type) => productType === type || productType.includes(type)
+  ) || /\bbundle\b/.test(bundleIdentity);
+}
+
+function toBundleReferenceArray(value) {
+  if (value === null || value === undefined || value === "") return [];
+
+  if (Array.isArray(value)) return value.flatMap(toBundleReferenceArray);
+
+  if (typeof value === "string") {
+    const cleanValue = value.trim();
+
+    if (!cleanValue) return [];
+
+    try {
+      const parsed = JSON.parse(cleanValue);
+      if (parsed !== cleanValue) return toBundleReferenceArray(parsed);
+    } catch {
+      // Some WooCommerce bundle plugins store a comma-separated ID list.
+    }
+
+    return cleanValue.split(",").map((item) => item.trim()).filter(Boolean);
+  }
+
+  if (typeof value === "object") {
+    const productReference =
+      value?.product_id ||
+      value?.productId ||
+      value?.product_ids ||
+      value?.productIds ||
+      value?.assigned_ids ||
+      value?.assignedIds ||
+      value?.products ||
+      value?.product;
+
+    if (productReference !== undefined && productReference !== null) {
+      return toBundleReferenceArray(productReference);
+    }
+
+    if (value?.id || value?.name || value?.sku || value?.slug) return [value];
+
+    return Object.values(value).flatMap(toBundleReferenceArray);
+  }
+
+  return [];
+}
+
+function getBundleReferences(product = {}) {
+  const metaData = Array.isArray(product?.meta_data) ? product.meta_data : [];
+  const bundleKeys = new Set([
+    "bundled_items",
+    "bundle_items",
+    "bundle_products",
+    "grouped_products",
+    "composite_components",
+    "components",
+    "products",
+  ]);
+
+  const topLevelValues = [
+    product?.bundled_items,
+    product?.bundledItems,
+    product?.bundle_items,
+    product?.bundleItems,
+    product?.bundle_products,
+    product?.bundleProducts,
+    product?.grouped_products,
+    product?.groupedProducts,
+    product?.composite_components,
+    product?.compositeComponents,
+    product?.components,
+  ];
+
+  const metaValues = metaData
+    .filter((item) => {
+      const key = normalizeText(item?.key).replace(/\s+/g, "_");
+
+      return (
+        bundleKeys.has(key) ||
+        (key.includes("bundle") &&
+          (key.includes("item") || key.includes("data") || key.includes("product"))) ||
+        (key.includes("composite") && key.includes("component"))
+      );
+    })
+    .map((item) => item?.value);
+
+  return [...topLevelValues, ...metaValues].flatMap(toBundleReferenceArray);
+}
+
+function getBundleReferenceProduct(reference, products = []) {
+  if (!reference) return null;
+
+  if (typeof reference === "object") {
+    const id = normalizeId(
+      reference?.product_id ||
+        reference?.productId ||
+        reference?.id ||
+        reference?.bundled_item_id
+    );
+
+    const matchingProduct = products.find(
+      (item) => normalizeId(item?.id) === id
+    );
+
+    return matchingProduct || reference;
+  }
+
+  const referenceText = String(reference || "").trim();
+  const referenceId = normalizeId(referenceText);
+  const normalizedReference = normalizeText(referenceText);
+
+  return (
+    products.find((item) => normalizeId(item?.id) === referenceId) ||
+    products.find((item) => normalizeText(item?.sku) === normalizedReference) ||
+    products.find((item) => normalizeSlug(item?.slug) === normalizeSlug(referenceText)) ||
+    products.find((item) => normalizeText(item?.name) === normalizedReference) ||
+    { id: referenceId || referenceText, name: referenceText }
+  );
+}
+
+function getBundleProducts(product, products = []) {
+  if (!product) return [];
+
+  const references = getBundleReferences(product);
+  const resolvedProducts = references
+    .map((reference) => getBundleReferenceProduct(reference, products))
+    .filter(Boolean);
+
+  // If a bundle plugin exposes only its marketing description, match the
+  // included catalog products by name. This keeps COA access working across
+  // the common WooCommerce bundle plugins.
+  const descriptionText = normalizeText(
+    [product?.short_description, product?.description].filter(Boolean).join(" ")
+  );
+  const descriptionProducts =
+    isBundleProduct(product) && descriptionText
+      ? products.filter((item) => {
+          if (String(item?.id || "") === String(product?.id || "")) return false;
+          const itemName = normalizeText(item?.name || "");
+          return itemName.length > 2 && descriptionText.includes(itemName);
+        })
+      : [];
+
+  const seen = new Set();
+
+  return [...resolvedProducts, ...descriptionProducts]
+    .filter((item) => {
+      const key = String(item?.id || item?.sku || item?.slug || item?.name || "");
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 3);
 }
