@@ -28,7 +28,6 @@ import {
 import { useCart } from "../cart/CartContext";
 
 const COA_LIBRARY_PATH = "/wp-json/phaseone/v1/coas";
-const BUNDLE_COMPONENT_COA_STRENGTH = "10 mg";
 
 function getCoaLibraryEndpoint() {
   const explicitEndpoint =
@@ -2689,6 +2688,7 @@ function BundleCoaSection({ items = [] }) {
 
                 {item.record ? (
                   <p>
+                    {item.strength ? `${item.strength} · ` : ""}
                     {item.lot}
                     {item.date ? ` · ${item.date}` : ""}
                   </p>
@@ -2904,11 +2904,12 @@ export default function ProductDetailSection({
   const bundleCoaItems = useMemo(
     () =>
       bundleProducts.map((bundleProduct, index) => {
+        const strength = getBundleComponentStrength(product, bundleProduct);
         const record = findCurrentCoaRecord(
           bundleProduct,
           liveCoaRecords,
           null,
-          BUNDLE_COMPONENT_COA_STRENGTH
+          strength
         );
 
         return {
@@ -2916,6 +2917,7 @@ export default function ProductDetailSection({
             bundleProduct?.id || bundleProduct?.sku || bundleProduct?.slug || index
           ),
           name: bundleProduct?.name || bundleProduct?.product_name || `Product ${index + 1}`,
+          strength,
           record,
           lot: record ? getRecordLot(record) : "",
           date: record ? getRecordDate(record) : "",
@@ -7029,7 +7031,10 @@ function getBundleReferences(product = {}) {
       return (
         bundleKeys.has(key) ||
         (key.includes("bundle") &&
-          (key.includes("item") || key.includes("data") || key.includes("product"))) ||
+          (key.includes("item") ||
+            key.includes("data") ||
+            key.includes("product") ||
+            key.includes("component"))) ||
         (key.includes("composite") && key.includes("component"))
       );
     })
@@ -7075,7 +7080,10 @@ function getBundleProducts(product, products = []) {
   const references = getBundleReferences(product);
   const resolvedProducts = references
     .map((reference) => getBundleReferenceProduct(reference, products))
-    .filter(Boolean);
+    // A stock-component ID can be a variation ID rather than a catalog
+    // product. Keep only entries with an identity the customer can read;
+    // the bundle description supplies the matching parent product below.
+    .filter((item) => Boolean(item?.name || item?.product_name));
 
   // If a bundle plugin exposes only its marketing description, match the
   // included catalog products by name. This keeps COA access working across
@@ -7102,4 +7110,35 @@ function getBundleProducts(product, products = []) {
       return true;
     })
     .slice(0, 3);
+}
+
+function getBundleComponentStrength(bundle = {}, component = {}) {
+  const bundleText = stripHtml(
+    [bundle?.short_description, bundle?.description].filter(Boolean).join(" ")
+  );
+
+  const aliases = [component?.name, component?.slug]
+    .map(normalizeText)
+    .filter(Boolean);
+
+  for (const alias of aliases) {
+    const parts = alias.split(/\s+/).filter(Boolean);
+    if (!parts.length) continue;
+
+    const productPattern = parts
+      .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+      .join("[^a-z0-9]{0,8}");
+    const match = bundleText.match(
+      new RegExp(
+        `(?:^|[^a-z0-9])${productPattern}[^a-z0-9]{0,10}(\\d+(?:\\.\\d+)?\\s*(?:mg|mcg|g|ml|iu))\\b`,
+        "i"
+      )
+    );
+
+    if (match?.[1]) return normalizeText(match[1]);
+  }
+
+  // Simple products sometimes have the concentration in their catalog name
+  // or slug, while variable products receive it from the bundle description.
+  return extractStrengthText(component?.name, component?.slug);
 }
