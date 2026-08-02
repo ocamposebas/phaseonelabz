@@ -1005,6 +1005,23 @@ function findCoaRecordForStrength(records = [], selectedStrength = "") {
   );
 }
 
+function findExactlyAssociatedCoaRecord(
+  records = [],
+  selectedStrength = ""
+) {
+  if (!records.length) return null;
+
+  const strengthMatch = findCoaRecordForStrength(records, selectedStrength);
+
+  if (strengthMatch) return strengthMatch;
+
+  // IDs and SKUs come directly from the COA API association. When there is
+  // only one current record tied to that identifier, it is authoritative even
+  // if marketing copy mentions a component amount that differs from the COA's
+  // aggregate strength (for example, the GHK-Cu + KPV blend).
+  return records.length === 1 ? records[0] : null;
+}
+
 
 function getCanonicalCoaKey(...values) {
   const clean = normalizeText(values.flat(Infinity).filter(Boolean).join(" "));
@@ -1043,12 +1060,16 @@ function getCanonicalCoaKey(...values) {
 
   if (/\bklow\b/.test(clean) || clean.includes("k low")) return "klow";
 
-  if (
+  const hasGhk =
     clean.includes("ghk cu") ||
     clean.includes("ghk-cu") ||
     /\bghkcu\b/.test(clean) ||
-    /\bghk\b/.test(clean)
-  ) {
+    /\bghk\b/.test(clean);
+  const hasKpv = /\bkpv\b/.test(clean);
+
+  if (hasGhk && hasKpv) return "ghk-cu-kpv-blend";
+
+  if (hasGhk) {
     return "ghk-cu";
   }
 
@@ -1179,7 +1200,7 @@ function findCurrentCoaRecord(
       );
     });
 
-    const exactVariationMatch = findCoaRecordForStrength(
+    const exactVariationMatch = findExactlyAssociatedCoaRecord(
       exactVariationMatches,
       selectedStrength
     );
@@ -1200,7 +1221,7 @@ function findCurrentCoaRecord(
       );
     });
 
-    const exactSkuMatch = findCoaRecordForStrength(
+    const exactSkuMatch = findExactlyAssociatedCoaRecord(
       exactSkuMatches,
       selectedStrength
     );
@@ -1221,7 +1242,7 @@ function findCurrentCoaRecord(
       return productIds.includes(productId) || wooIds.includes(productId);
     });
 
-    const exactProductMatch = findCoaRecordForStrength(
+    const exactProductMatch = findExactlyAssociatedCoaRecord(
       exactProductMatches,
       selectedStrength
     );
