@@ -143,12 +143,60 @@ function normalizeMoneyString(value) {
   return normalizePrice(value).toFixed(2);
 }
 
+const SHIPPING_PROTECTION_RATE_DOMESTIC = 1.09;
+const SHIPPING_PROTECTION_RATE_INTERNATIONAL = 1.39;
+
+function getShippingProtectionRate(country = "US") {
+  return String(country || "US").toUpperCase() === "US"
+    ? SHIPPING_PROTECTION_RATE_DOMESTIC
+    : SHIPPING_PROTECTION_RATE_INTERNATIONAL;
+}
+
+function calculateShippingProtectionAmount(baseTotal = 0, country = "US") {
+  const cleanBaseTotal = Math.max(Number(baseTotal || 0), 0);
+  const rate = getShippingProtectionRate(country);
+
+  if (!cleanBaseTotal || !rate) return 0;
+
+  let fee = 0;
+
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const units = Math.max(1, Math.ceil((cleanBaseTotal + fee) / 100));
+    const nextFee = normalizePrice(units * rate);
+
+    if (Math.abs(nextFee - fee) < 0.001) {
+      fee = nextFee;
+      break;
+    }
+
+    fee = nextFee;
+  }
+
+  return normalizePrice(fee);
+}
+
+function shippingProtectionRequested(body = {}) {
+  const shippingProtection =
+    body.shippingProtection && typeof body.shippingProtection === "object"
+      ? body.shippingProtection
+      : body.shipping_protection && typeof body.shipping_protection === "object"
+        ? body.shipping_protection
+        : {};
+
+  return Boolean(
+    body.shippingProtectionSelected ||
+      body.shipping_protection_selected ||
+      shippingProtection.selected
+  );
+}
+
 const RECON_WATER_IDENTIFIERS = new Set([
   "h-recon-water",
   "recon-water-30ml",
 ]);
 const RECON_WATER_PROMO_THRESHOLD = 100;
 const RECON_WATER_PROMO_PRICE = 15;
+const RECON_WATER_PURCHASE_LIMIT = 2;
 
 function getShippingFromRequest(shipping = {}) {
   const method = sanitizeString(shipping.method || "standard").toLowerCase();
@@ -159,7 +207,7 @@ function getShippingFromRequest(shipping = {}) {
 function normalizeItems(items = []) {
   if (!Array.isArray(items)) return [];
 
-  return items
+  const normalized = items
     .map((item) => {
       const productId = Number(item.product_id || item.productId || item.id || 0);
 
@@ -172,7 +220,7 @@ function normalizeItems(items = []) {
       return {
         product_id: productId,
         variation_id: variationId,
-        quantity: Math.max(1, Math.min(99, Math.floor(quantity))),
+        quantity: Math.max(1, Math.floor(quantity)),
         variation:
           item.variation ||
           item.variation_attributes ||
@@ -182,6 +230,21 @@ function normalizeItems(items = []) {
       };
     })
     .filter((item) => item.product_id > 0 && item.quantity > 0);
+
+  const byProduct = new Map();
+
+  for (const item of normalized) {
+    const key = `${item.product_id}:${item.variation_id || 0}`;
+    const existing = byProduct.get(key);
+
+    if (existing) {
+      existing.quantity += item.quantity;
+    } else {
+      byProduct.set(key, { ...item });
+    }
+  }
+
+  return Array.from(byProduct.values());
 }
 
 function buildWooLineItems(items = []) {
@@ -220,6 +283,82 @@ function isReconWaterProduct(product = {}) {
   return [product.slug, product.sku, product.name]
     .map(normalizeProductIdentifier)
     .some((identifier) => RECON_WATER_IDENTIFIERS.has(identifier));
+}
+
+function getPurchaseLimit(product = {}, variation = {}, isReconWater = false) {
+  const limits = [];
+
+  if (product.sold_individually || variation.sold_individually) {
+    limits.push(1);
+  }
+
+  const explicitLimit = Number(
+    variation.max_purchase_quantity ??
+      variation.maxPurchaseQuantity ??
+      product.max_purchase_quantity ??
+      product.maxPurchaseQuantity ??
+      0
+  );
+
+  if (Number.isFinite(explicitLimit) && explicitLimit > 0) {
+    limits.push(Math.floor(explicitLimit));
+  }
+
+  if (isReconWater) {
+    limits.push(RECON_WATER_PURCHASE_LIMIT);
+  }
+
+  if (!limits.length) return null;
+
+  return Math.max(1, Math.min(...limits));
+}
+
+function getAvailabilitySource(product = {}, variation = {}, hasVariation = false) {
+  return hasVariation ? variation || {} : product || {};
+}
+
+function assertPurchasableStock({ product = {}, variation = {}, item, isReconWater }) {
+  const hasVariation = Number(item.variation_id || 0) > 0;
+  const source = getAvailabilitySource(product, variation, hasVariation);
+  const productName =
+    source.name || product.name || variation.name || "A product in your cart";
+
+  if (product.purchasable === false || source.purchasable === false) {
+    throw new Error(`${productName} is no longer available.`);
+  }
+
+  const stockStatus = String(
+    source.stock_status || product.stock_status || ""
+  ).toLowerCase();
+
+  if (stockStatus && stockStatus !== "instock") {
+    throw new Error(`${productName} is sold out. Please remove it from your cart.`);
+  }
+
+  const purchaseLimit = getPurchaseLimit(product, variation, isReconWater);
+  if (purchaseLimit && Number(item.quantity || 0) > purchaseLimit) {
+    throw new Error(
+      `${productName} is limited to ${purchaseLimit} per order. Please update your cart.`
+    );
+  }
+
+  const stockQuantity = Number(
+    source.stock_quantity ?? product.stock_quantity ?? NaN
+  );
+  const backordersAllowed =
+    source.backorders_allowed === true ||
+    product.backorders_allowed === true ||
+    source.backorders === "yes" ||
+    product.backorders === "yes";
+
+  if (
+    Number.isFinite(stockQuantity) &&
+    stockQuantity >= 0 &&
+    !backordersAllowed &&
+    Number(item.quantity || 0) > stockQuantity
+  ) {
+    throw new Error(`${productName} does not have enough stock for that quantity.`);
+  }
 }
 
 function getCustomerPayload(customer = {}) {
@@ -350,26 +489,66 @@ async function getProductPricingFromWoo(config, item) {
     path: `/products/${item.product_id}`,
   });
 
+  const isReconWater = isReconWaterProduct(product);
+
   if (item.variation_id > 0) {
     const variation = await wooFetch({
       ...config,
       path: `/products/${item.product_id}/variations/${item.variation_id}`,
     });
 
+    assertPurchasableStock({ product, variation, item, isReconWater });
+
     return {
       unitPrice: normalizePrice(
         variation.price || variation.sale_price || variation.regular_price || 0
       ),
-      isReconWater: isReconWaterProduct(product),
+      isReconWater,
+      purchaseLimit: getPurchaseLimit(product, variation, isReconWater),
+      purchaseLimitKey: String(product.id || item.product_id),
+      productName: variation.name || product.name || "A product in your cart",
     };
   }
+
+  assertPurchasableStock({ product, variation: {}, item, isReconWater });
 
   return {
     unitPrice: normalizePrice(
       product.price || product.sale_price || product.regular_price || 0
     ),
-    isReconWater: isReconWaterProduct(product),
+    isReconWater,
+    purchaseLimit: getPurchaseLimit(product, {}, isReconWater),
+    purchaseLimitKey: String(product.id || item.product_id),
+    productName: product.name || "A product in your cart",
   };
+}
+
+function validateAggregatePurchaseLimits(items = []) {
+  const totals = new Map();
+
+  for (const item of items) {
+    if (!item.purchaseLimit) continue;
+
+    const key = item.purchaseLimitKey || `${item.product_id}:${item.variation_id || 0}`;
+    const current =
+      totals.get(key) || {
+        quantity: 0,
+        limit: item.purchaseLimit,
+        name: item.productName || "This product",
+      };
+
+    current.quantity += Number(item.quantity || 0);
+    current.limit = Math.min(current.limit, item.purchaseLimit);
+    totals.set(key, current);
+  }
+
+  for (const total of totals.values()) {
+    if (total.quantity > total.limit) {
+      throw new Error(
+        `${total.name} is limited to ${total.limit} per order. Please update your cart.`
+      );
+    }
+  }
 }
 
 async function calculateVerifiedSubtotal(config, items = []) {
@@ -380,6 +559,8 @@ async function calculateVerifiedSubtotal(config, items = []) {
     pricedItems.push({ ...item, ...pricing });
   }
 
+  validateAggregatePurchaseLimits(pricedItems);
+
   const qualifyingSubtotal = normalizePrice(
     pricedItems.reduce(
       (total, item) =>
@@ -389,7 +570,7 @@ async function calculateVerifiedSubtotal(config, items = []) {
       0
     )
   );
-  const reconWaterPromoActive = qualifyingSubtotal > RECON_WATER_PROMO_THRESHOLD;
+  const reconWaterPromoActive = qualifyingSubtotal >= RECON_WATER_PROMO_THRESHOLD;
 
   const regularSubtotal = normalizePrice(
     pricedItems.reduce(
@@ -654,15 +835,10 @@ export async function POST({ request }) {
     const isLoggedIn = Boolean(account.authenticated && user);
     const customerId = isLoggedIn ? getUserId(user) : 0;
 
-    if (wantsStoreCredit && !isLoggedIn) {
+    if (!isLoggedIn || customerId <= 0) {
       return jsonResponse(
         {
-          error: "You must be signed in to apply cashback.",
-          debug: {
-            has_token: Boolean(token),
-            account_error: account.error || null,
-            account_details: account.details || null,
-          },
+          error: "You must be signed in to place an order.",
         },
         401
       );
@@ -671,7 +847,15 @@ export async function POST({ request }) {
     const verifiedCart = await calculateVerifiedSubtotal(config, items);
     const verifiedSubtotal = verifiedCart.subtotal;
     const verifiedShipping = normalizePrice(shippingMethod.total);
-    const totalBeforeCredit = normalizePrice(verifiedSubtotal + verifiedShipping);
+    const shippingProtectionAmount = shippingProtectionRequested(body)
+      ? calculateShippingProtectionAmount(
+          verifiedSubtotal + verifiedShipping,
+          customerPayload.billing.country
+        )
+      : 0;
+    const totalBeforeCredit = normalizePrice(
+      verifiedSubtotal + verifiedShipping + shippingProtectionAmount
+    );
 
     const realStoreCredit = isLoggedIn ? getStoreCreditFromUser(user) : 0;
 
@@ -681,12 +865,7 @@ export async function POST({ request }) {
         : 0;
 
     const finalTotal = normalizePrice(totalBeforeCredit - storeCreditToApply);
-    const displayedCheckoutTotal = normalizePrice(
-      body.previewTotal ?? body.preview_total ?? finalTotal
-    );
-    const checkoutReconciliation = Number(
-      (displayedCheckoutTotal - finalTotal).toFixed(2)
-    );
+    const displayedCheckoutTotal = finalTotal;
 
     const metaData = [
       {
@@ -714,10 +893,6 @@ export async function POST({ request }) {
         value: normalizeMoneyString(displayedCheckoutTotal),
       },
       {
-        key: "_phaseone_checkout_reconciliation",
-        value: normalizeMoneyString(checkoutReconciliation),
-      },
-      {
         key: "_phaseone_recon_water_promo",
         value: verifiedCart.reconWaterPromoActive ? "yes" : "no",
       },
@@ -736,6 +911,18 @@ export async function POST({ request }) {
       {
         key: "_phaseone_bundle_discount",
         value: normalizeMoneyString(verifiedCart.bundleDiscount),
+      },
+      {
+        key: "_phaseone_shipping_protection_selected",
+        value: shippingProtectionAmount > 0 ? "yes" : "no",
+      },
+      {
+        key: "_phaseone_shipping_protection_provider",
+        value: shippingProtectionAmount > 0 ? "parcelguard" : "none",
+      },
+      {
+        key: "_phaseone_shipping_protection_amount",
+        value: normalizeMoneyString(shippingProtectionAmount),
       },
     ];
 
@@ -764,10 +951,10 @@ export async function POST({ request }) {
       });
     }
 
-    if (Math.abs(checkoutReconciliation) >= 0.01) {
+    if (shippingProtectionAmount > 0) {
       feeLines.push({
-        name: "Checkout total reconciliation",
-        total: normalizeMoneyString(checkoutReconciliation),
+        name: "Shipping Protection",
+        total: normalizeMoneyString(shippingProtectionAmount),
         tax_status: "none",
       });
     }
@@ -856,6 +1043,7 @@ export async function POST({ request }) {
 
         subtotal: verifiedSubtotal,
         shipping: verifiedShipping,
+        shipping_protection: shippingProtectionAmount,
         total_before_credit: totalBeforeCredit,
         store_credit_applied: storeCreditToApply,
         total: displayedCheckoutTotal,

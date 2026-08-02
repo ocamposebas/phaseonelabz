@@ -19,10 +19,13 @@ final class PhaseOne_Prism_Checkout_Bridge {
     private const SECRET_HASH_OPTION = 'phaseone_prism_bridge_secret_hash';
     private const RECON_WATER_PROMO_THRESHOLD = 100.00;
     private const RECON_WATER_PROMO_PRICE     = 15.00;
+    private const RECON_WATER_PURCHASE_LIMIT  = 2;
     private const BUNDLE_REQUIRED_QUANTITY     = 5;
     private const BUNDLE_DISCOUNT_RATE         = 0.10;
     private const FREE_SHIPPING_MINIMUM        = 150.00;
     private const SHIPPING_COST                 = 13.00;
+    private const SHIPPING_PROTECTION_RATE_US   = 1.09;
+    private const SHIPPING_PROTECTION_RATE_INTL = 1.39;
 
     public static function boot(): void {
         add_action( 'rest_api_init', array( __CLASS__, 'register_route' ) );
@@ -319,6 +322,8 @@ final class PhaseOne_Prism_Checkout_Bridge {
             $order->set_address( $shipping, 'shipping' );
             $order->set_currency( get_woocommerce_currency() );
 
+            $items = self::normalize_authoritative_cart_items( $items );
+
             foreach ( $items as $item ) {
                 self::add_authoritative_product( $order, $item );
             }
@@ -348,28 +353,8 @@ final class PhaseOne_Prism_Checkout_Bridge {
             $shipping_item->set_total( $is_free_shipping ? 0 : $shipping_cost );
             $order->add_item( $shipping_item );
 
-            // The frontend is the single customer-facing quote. Reconcile the
-            // WooCommerce order to that quote after server-side pricing,
-            // coupons, shipping and optional checkout adjustments have been
-            // applied. This prevents PRISM from charging a second, higher
-            // catalog calculation.
             $order->calculate_totals( false );
-            $displayed_checkout_total = self::get_displayed_checkout_total( $payload );
-            if ( null !== $displayed_checkout_total ) {
-                $calculated_total = round( (float) $order->get_total(), 2 );
-                $reconciliation = round( $displayed_checkout_total - $calculated_total, 2 );
-
-                if ( abs( $reconciliation ) >= 0.01 ) {
-                    $adjustment = new WC_Order_Item_Fee();
-                    $adjustment->set_name( 'Checkout total reconciliation' );
-                    $adjustment->set_tax_status( 'none' );
-                    $adjustment->set_total( $reconciliation );
-                    $order->add_item( $adjustment );
-                    $order->update_meta_data( '_phaseone_checkout_displayed_total', wc_format_decimal( $displayed_checkout_total, 2 ) );
-                    $order->update_meta_data( '_phaseone_checkout_calculated_total', wc_format_decimal( $calculated_total, 2 ) );
-                    $order->update_meta_data( '_phaseone_checkout_reconciliation', wc_format_decimal( $reconciliation, 2 ) );
-                }
-            }
+            self::apply_shipping_protection( $order, $payload, $billing );
 
             self::store_custom_fields( $order, $payload );
             self::store_acknowledgements( $order, $payload );
@@ -390,6 +375,7 @@ final class PhaseOne_Prism_Checkout_Bridge {
             $order->calculate_totals( true );
             $order->add_order_note( 'Created securely from the Phase One custom checkout.' );
             $order->save();
+            self::reserve_order_stock( $order );
 
             // The vendor plugin signs the PRISM request using its server-side stored credential.
             $payment = $gateway->process_payment( $order->get_id() );
@@ -415,6 +401,7 @@ final class PhaseOne_Prism_Checkout_Bridge {
             );
         } catch ( Throwable $exception ) {
             if ( $order instanceof WC_Order ) {
+                self::release_order_stock( $order );
                 $order->update_status( 'failed', 'Custom checkout failed before PRISM redirect.' );
             }
 
@@ -422,7 +409,7 @@ final class PhaseOne_Prism_Checkout_Bridge {
 
             return new WP_Error(
                 'phaseone_prism_checkout_failed',
-                'Unable to start secure card checkout. Please try again.',
+                self::customer_safe_error_message( $exception ),
                 array( 'status' => 400 )
             );
         }
@@ -593,6 +580,49 @@ final class PhaseOne_Prism_Checkout_Bridge {
         return $user instanceof WP_User ? (int) $user->ID : 0;
     }
 
+    private static function normalize_authoritative_cart_items( array $items ): array {
+        $normalized = array();
+
+        foreach ( $items as $raw_item ) {
+            if ( ! is_array( $raw_item ) ) {
+                throw new RuntimeException( 'Invalid cart item.' );
+            }
+
+            $product_id   = absint( $raw_item['product_id'] ?? $raw_item['productId'] ?? 0 );
+            $variation_id = absint( $raw_item['variation_id'] ?? $raw_item['variationId'] ?? 0 );
+            $quantity     = absint( $raw_item['quantity'] ?? 1 );
+            $quantity     = max( 1, $quantity );
+            $lookup_id    = $variation_id ?: $product_id;
+
+            if ( $lookup_id <= 0 ) {
+                throw new RuntimeException( 'Invalid cart item.' );
+            }
+
+            $key = (string) $lookup_id;
+
+            if ( isset( $normalized[ $key ] ) ) {
+                $normalized[ $key ]['quantity'] += $quantity;
+                continue;
+            }
+
+            $normalized[ $key ] = array(
+                'product_id'   => $product_id,
+                'variation_id' => $variation_id,
+                'quantity'     => $quantity,
+            );
+        }
+
+        $validated = array_values( $normalized );
+
+        foreach ( $validated as $item ) {
+            self::validate_authoritative_product( $item );
+        }
+
+        self::validate_aggregate_purchase_limits( $validated );
+
+        return $validated;
+    }
+
     private static function add_authoritative_product( WC_Order $order, $raw_item ): void {
         if ( ! is_array( $raw_item ) ) {
             throw new RuntimeException( 'Invalid cart item.' );
@@ -600,8 +630,7 @@ final class PhaseOne_Prism_Checkout_Bridge {
 
         $product_id   = absint( $raw_item['product_id'] ?? $raw_item['productId'] ?? 0 );
         $variation_id = absint( $raw_item['variation_id'] ?? $raw_item['variationId'] ?? 0 );
-        $quantity     = absint( $raw_item['quantity'] ?? 1 );
-        $quantity     = max( 1, min( 100, $quantity ) );
+        $quantity     = max( 1, absint( $raw_item['quantity'] ?? 1 ) );
         $lookup_id    = $variation_id ?: $product_id;
         $product      = wc_get_product( $lookup_id );
 
@@ -618,10 +647,6 @@ final class PhaseOne_Prism_Checkout_Bridge {
             }
         }
 
-        if ( ! $product->is_in_stock() || ! $product->has_enough_stock( $quantity ) ) {
-            throw new RuntimeException( 'Insufficient stock for a cart item.' );
-        }
-
         $args = array();
         if ( $product instanceof WC_Product_Variation ) {
             $args['variation'] = $product->get_variation_attributes();
@@ -633,21 +658,221 @@ final class PhaseOne_Prism_Checkout_Bridge {
         }
     }
 
+    private static function validate_authoritative_product( array $raw_item ): void {
+        $product_id   = absint( $raw_item['product_id'] ?? 0 );
+        $variation_id = absint( $raw_item['variation_id'] ?? 0 );
+        $quantity     = max( 1, absint( $raw_item['quantity'] ?? 1 ) );
+        $lookup_id    = $variation_id ?: $product_id;
+        $product      = wc_get_product( $lookup_id );
+
+        if ( ! $product instanceof WC_Product || ! $product->exists() || ! $product->is_purchasable() ) {
+            throw new RuntimeException( 'A product in your cart is no longer available.' );
+        }
+
+        if ( $variation_id > 0 ) {
+            if ( ! $product instanceof WC_Product_Variation ) {
+                throw new RuntimeException( 'Invalid product variation.' );
+            }
+            if ( $product_id > 0 && (int) $product->get_parent_id() !== $product_id ) {
+                throw new RuntimeException( 'A selected product option is no longer available.' );
+            }
+        }
+
+        if ( ! $product->is_in_stock() ) {
+            throw new RuntimeException( sprintf( '%s is sold out. Please remove it from your cart.', $product->get_name() ) );
+        }
+
+        $purchase_limit = self::get_product_purchase_limit( $product );
+        if ( null !== $purchase_limit && $quantity > $purchase_limit ) {
+            throw new RuntimeException(
+                sprintf(
+                    '%s is limited to %d per order. Please update your cart.',
+                    $product->get_name(),
+                    $purchase_limit
+                )
+            );
+        }
+
+        if ( method_exists( $product, 'backorders_allowed' ) && ! $product->backorders_allowed() && method_exists( $product, 'is_on_backorder' ) && $product->is_on_backorder( $quantity ) ) {
+            throw new RuntimeException( sprintf( '%s does not have enough stock for that quantity.', $product->get_name() ) );
+        }
+
+        if ( method_exists( $product, 'has_enough_stock' ) && ! $product->has_enough_stock( $quantity ) ) {
+            throw new RuntimeException( sprintf( '%s does not have enough stock for that quantity.', $product->get_name() ) );
+        }
+    }
+
+    private static function get_product_purchase_limit( WC_Product $product ): ?int {
+        $limits = array();
+
+        if ( method_exists( $product, 'is_sold_individually' ) && $product->is_sold_individually() ) {
+            $limits[] = 1;
+        }
+
+        if ( method_exists( $product, 'get_max_purchase_quantity' ) ) {
+            $max = (int) $product->get_max_purchase_quantity();
+            if ( $max > 0 ) {
+                $limits[] = $max;
+            }
+        }
+
+        if ( self::is_recon_water_product( $product ) ) {
+            $limits[] = self::RECON_WATER_PURCHASE_LIMIT;
+        }
+
+        if ( empty( $limits ) ) {
+            return null;
+        }
+
+        return max( 1, min( $limits ) );
+    }
+
+    private static function validate_aggregate_purchase_limits( array $items ): void {
+        $totals = array();
+
+        foreach ( $items as $item ) {
+            $product_id   = absint( $item['product_id'] ?? 0 );
+            $variation_id = absint( $item['variation_id'] ?? 0 );
+            $quantity     = max( 1, absint( $item['quantity'] ?? 1 ) );
+            $product      = wc_get_product( $variation_id ?: $product_id );
+
+            if ( ! $product instanceof WC_Product ) {
+                continue;
+            }
+
+            $limit = self::get_product_purchase_limit( $product );
+            if ( null === $limit ) {
+                continue;
+            }
+
+            $parent_id = $product instanceof WC_Product_Variation
+                ? (int) $product->get_parent_id()
+                : (int) $product->get_id();
+            $key       = (string) ( $parent_id ?: $product->get_id() );
+
+            if ( ! isset( $totals[ $key ] ) ) {
+                $totals[ $key ] = array(
+                    'quantity' => 0,
+                    'limit'    => $limit,
+                    'name'     => $product->get_name(),
+                );
+            }
+
+            $totals[ $key ]['quantity'] += $quantity;
+            $totals[ $key ]['limit']     = min( $totals[ $key ]['limit'], $limit );
+        }
+
+        foreach ( $totals as $total ) {
+            if ( $total['quantity'] > $total['limit'] ) {
+                throw new RuntimeException(
+                    sprintf(
+                        '%s is limited to %d per order. Please update your cart.',
+                        $total['name'],
+                        $total['limit']
+                    )
+                );
+            }
+        }
+    }
+
+    private static function reserve_order_stock( WC_Order $order ): void {
+        if ( ! function_exists( 'wc_reserve_stock_for_order' ) ) {
+            return;
+        }
+
+        $minutes = (int) get_option( 'woocommerce_hold_stock_minutes', 0 );
+        if ( $minutes <= 0 ) {
+            return;
+        }
+
+        $result = wc_reserve_stock_for_order( $order, $minutes );
+        if ( is_wp_error( $result ) ) {
+            throw new RuntimeException( $result->get_error_message() );
+        }
+    }
+
+    private static function release_order_stock( WC_Order $order ): void {
+        if ( function_exists( 'wc_release_stock_for_order' ) ) {
+            wc_release_stock_for_order( $order );
+        }
+    }
+
+    private static function customer_safe_error_message( Throwable $exception ): string {
+        $message = trim( $exception->getMessage() );
+
+        if ( preg_match( '/sold out|stock|limited|available|variation|cart item/i', $message ) ) {
+            return $message;
+        }
+
+        return 'Unable to start secure card checkout. Please try again.';
+    }
+
     private static function normalize_product_identifier( $value ): string {
         $value = strtolower( trim( (string) $value ) );
         $value = preg_replace( '/[^a-z0-9]+/', '-', $value );
         return trim( (string) $value, '-' );
     }
 
-    private static function get_displayed_checkout_total( array $payload ): ?float {
-        $value = $payload['previewTotal'] ?? $payload['preview_total'] ?? null;
+    private static function shipping_protection_requested( array $payload ): bool {
+        $shipping_protection = isset( $payload['shippingProtection'] ) && is_array( $payload['shippingProtection'] )
+            ? $payload['shippingProtection']
+            : ( isset( $payload['shipping_protection'] ) && is_array( $payload['shipping_protection'] ) ? $payload['shipping_protection'] : array() );
 
-        if ( ! is_numeric( $value ) ) {
-            return null;
+        return ! empty( $payload['shippingProtectionSelected'] )
+            || ! empty( $payload['shipping_protection_selected'] )
+            || ! empty( $shipping_protection['selected'] );
+    }
+
+    private static function calculate_shipping_protection_amount( float $base_total, string $country ): float {
+        $base_total = max( 0, $base_total );
+        if ( $base_total <= 0 ) {
+            return 0.0;
         }
 
-        $total = round( (float) $value, 2 );
-        return $total >= 0 ? $total : null;
+        $rate = 'US' === strtoupper( trim( $country ?: 'US' ) )
+            ? self::SHIPPING_PROTECTION_RATE_US
+            : self::SHIPPING_PROTECTION_RATE_INTL;
+        $fee = 0.0;
+
+        for ( $attempt = 0; $attempt < 8; $attempt++ ) {
+            $units    = max( 1, (int) ceil( ( $base_total + $fee ) / 100 ) );
+            $next_fee = round( $units * $rate, 2 );
+
+            if ( abs( $next_fee - $fee ) < 0.001 ) {
+                $fee = $next_fee;
+                break;
+            }
+
+            $fee = $next_fee;
+        }
+
+        return round( $fee, 2 );
+    }
+
+    private static function apply_shipping_protection( WC_Order $order, array $payload, array $billing ): void {
+        if ( ! self::shipping_protection_requested( $payload ) ) {
+            $order->update_meta_data( '_phaseone_shipping_protection_selected', 'no' );
+            return;
+        }
+
+        $base_total = round( (float) $order->get_total(), 2 );
+        $amount     = self::calculate_shipping_protection_amount( $base_total, $billing['country'] ?? 'US' );
+
+        if ( $amount <= 0 ) {
+            $order->update_meta_data( '_phaseone_shipping_protection_selected', 'no' );
+            return;
+        }
+
+        $fee = new WC_Order_Item_Fee();
+        $fee->set_name( 'Shipping Protection' );
+        $fee->set_tax_status( 'none' );
+        $fee->set_total( $amount );
+        $order->add_item( $fee );
+        $order->update_meta_data( '_phaseone_shipping_protection_selected', 'yes' );
+        $order->update_meta_data( '_phaseone_shipping_protection_provider', 'parcelguard' );
+        $order->update_meta_data( '_phaseone_shipping_protection_amount', wc_format_decimal( $amount, 2 ) );
+        $order->update_meta_data( '_phaseone_shipping_protection_insured_value', wc_format_decimal( $base_total + $amount, 2 ) );
+        $order->calculate_totals( false );
     }
 
     private static function is_recon_water_product( $product ): bool {
@@ -710,7 +935,7 @@ final class PhaseOne_Prism_Checkout_Bridge {
             }
         }
 
-        $recon_promo_active = $qualifying_subtotal > self::RECON_WATER_PROMO_THRESHOLD;
+        $recon_promo_active = $qualifying_subtotal >= self::RECON_WATER_PROMO_THRESHOLD;
         $recon_water_discount = 0.0;
 
         if ( $recon_promo_active ) {

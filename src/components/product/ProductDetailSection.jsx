@@ -25,7 +25,7 @@ import {
   Truck,
   X,
 } from "lucide-react";
-import { useCart } from "../cart/CartContext";
+import { getProductPurchaseLimit, useCart } from "../cart/CartContext";
 
 const COA_LIBRARY_PATH = "/wp-json/phaseone/v1/coas";
 
@@ -2950,6 +2950,14 @@ export default function ProductDetailSection({
 
   const selectedInventoryTarget =
     needsVariationMatch && selectedVariation ? selectedVariation : product;
+  const selectedPurchaseLimit = getProductPurchaseLimit({
+    ...product,
+    variation_id: selectedVariation?.id || 0,
+    variationId: selectedVariation?.id || 0,
+  });
+  const effectiveQuantity = selectedPurchaseLimit
+    ? Math.min(quantity, selectedPurchaseLimit)
+    : quantity;
 
   const stockStatus =
     needsVariationMatch && !selectedVariation
@@ -2960,6 +2968,12 @@ export default function ProductDetailSection({
     hasValidVariation && stockStatus.toLowerCase() === "in stock";
 
   const displayImage = activeImage?.src || getProductImage(product);
+
+  useEffect(() => {
+    if (selectedPurchaseLimit && quantity > selectedPurchaseLimit) {
+      setQuantity(selectedPurchaseLimit);
+    }
+  }, [quantity, selectedPurchaseLimit]);
 
   const handleSelectAttribute = (attributeSlug, option) => {
     setSelectedAttributes((current) => ({
@@ -2999,7 +3013,7 @@ export default function ProductDetailSection({
       variationId: selectedVariation?.id || 0,
       selectedVariationId: selectedVariation?.id || 0,
 
-      quantity,
+      quantity: effectiveQuantity,
       selectedOption: selectedOptionLabel,
       selectedOptions: selectedAttributes,
       selectedAttributes,
@@ -3021,7 +3035,11 @@ export default function ProductDetailSection({
     };
 
     addToCart(cartItem);
-    setCartMessage("Added to cart.");
+    setCartMessage(
+      selectedPurchaseLimit && quantity > selectedPurchaseLimit
+        ? `Added ${selectedPurchaseLimit}, the maximum per order.`
+        : "Added to cart.",
+    );
   };
 
   return (
@@ -3279,8 +3297,18 @@ export default function ProductDetailSection({
 
                       <button
                         type="button"
-                        onClick={() => setQuantity((current) => current + 1)}
+                        onClick={() =>
+                          setQuantity((current) =>
+                            selectedPurchaseLimit
+                              ? Math.min(current + 1, selectedPurchaseLimit)
+                              : current + 1
+                          )
+                        }
                         aria-label="Increase quantity"
+                        disabled={
+                          selectedPurchaseLimit &&
+                          quantity >= selectedPurchaseLimit
+                        }
                       >
                         <Plus size={14} />
                       </button>
@@ -3296,6 +3324,12 @@ export default function ProductDetailSection({
                       Add to cart
                     </button>
                   </div>
+
+                  {selectedPurchaseLimit && (
+                    <p className="pdp-quantity-note">
+                      Maximum {selectedPurchaseLimit} per order
+                    </p>
+                  )}
 
                   {showCustomOrderRequest && (
                     <div className="pdp-custom-request-card is-below-cart">
@@ -5417,10 +5451,24 @@ export default function ProductDetailSection({
           color: rgb(165, 243, 252);
         }
 
+        .pdp-qty button:disabled {
+          cursor: not-allowed;
+          opacity: 0.42;
+        }
+
         .pdp-qty span {
           color: white;
           font-size: 15px;
           font-weight: 950;
+        }
+
+        .pdp-quantity-note {
+          margin: -2px 0 0;
+          color: rgba(253, 230, 138, 0.82);
+          font-size: 11px;
+          font-weight: 800;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
         }
 
         .pdp-add {

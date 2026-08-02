@@ -4,6 +4,7 @@ import "../styles/global.css";
 import GlobalPreloader from "../components/loading/GlobalPreloader.jsx";
 import AgeGate from "../components/age-gate/AgeGate.jsx";
 import AffiliateCouponTracker from "../components/tracking/AffiliateCouponTracker.jsx";
+import MemberAccessGate from "../components/auth/MemberAccessGate.jsx";
 
 interface Props {
   title?: string;
@@ -24,6 +25,19 @@ const {
 
 const pathname = Astro.url.pathname.replace(/\/$/, "");
 const isHome = pathname === "";
+const publicAccessPaths = new Set([
+  "/account",
+  "/register",
+  "/forgot-password",
+  "/set-password",
+]);
+const requiresMemberAccess = !publicAccessPaths.has(pathname);
+const returnTo = `${Astro.url.pathname}${Astro.url.search}`;
+const hasMemberSession = Boolean(
+  Astro.cookies.get("lab_auth_token")?.value ||
+    Astro.cookies.get("lab_token")?.value ||
+    Astro.cookies.get("auth_token")?.value
+);
 
 const canonicalUrl = new URL(Astro.url.pathname, siteUrl).toString();
 const ogImageUrl = new URL(image, siteUrl).toString();
@@ -145,6 +159,10 @@ const websiteSchema = {
       logoSrc="/TRANSPARENCIA-03.webp"
       underAgeRedirectUrl="https://www.google.com"
     />
+
+    {requiresMemberAccess && (
+      <MemberAccessGate client:load returnTo={returnTo} initialHasSession={hasMemberSession} />
+    )}
 
     <GlobalPreloader client:load logoSrc="/TRANSPARENCIA-03.webp" />
 

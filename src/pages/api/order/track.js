@@ -96,7 +96,14 @@ function formatDate(value = "") {
 }
 
 function getOrderMeta(order = {}, keys = []) {
-  const meta = Array.isArray(order.meta_data) ? order.meta_data : [];
+  const meta = [
+    ...(Array.isArray(order.meta_data) ? order.meta_data : []),
+    ...(Array.isArray(order.shipping_lines)
+      ? order.shipping_lines.flatMap((line) =>
+          Array.isArray(line?.meta_data) ? line.meta_data : []
+        )
+      : []),
+  ];
 
   for (const key of keys) {
     const found = meta.find((item) => item?.key === key);
@@ -279,6 +286,19 @@ function getTrackingItems(order = {}) {
   return [];
 }
 
+function normalizeShipmentTrackingResponse(payload) {
+  if (Array.isArray(payload)) return normalizeTrackingValue(payload);
+  if (!payload || typeof payload !== "object") return [];
+
+  return normalizeTrackingValue(
+    payload.tracking_items ||
+      payload.shipment_trackings ||
+      payload.shipmentTrackingItems ||
+      payload.data ||
+      payload
+  );
+}
+
 function getCustomerVisibleStatus(order = {}, trackingItems = []) {
   const status = String(order.status || "").toLowerCase();
   const hasTracking = trackingItems.length > 0;
@@ -367,8 +387,10 @@ function getCustomerVisibleStatus(order = {}, trackingItems = []) {
   };
 }
 
-function normalizeOrder(order = {}) {
-  const trackingItems = getTrackingItems(order);
+function normalizeOrder(order = {}, externalTrackingItems = []) {
+  const trackingItems = externalTrackingItems.length
+    ? externalTrackingItems
+    : getTrackingItems(order);
   const visibleStatus = getCustomerVisibleStatus(order, trackingItems);
   const primaryTracking = trackingItems[0] || null;
 
@@ -451,6 +473,36 @@ async function wooFetch(config, path) {
   }
 
   return data;
+}
+
+async function fetchShipmentTrackingItems(config, orderId) {
+  if (!orderId) return [];
+
+  const paths = [
+    `/wp-json/wc-shipment-tracking/v3/orders/${orderId}/shipment-trackings`,
+    `/wp-json/wc-ast/v1/orders/${orderId}/shipment-trackings`,
+  ];
+
+  for (const path of paths) {
+    try {
+      const response = await fetchWithTimeout(`${config.cleanWooUrl}${path}`, {
+        method: "GET",
+        headers: {
+          Authorization: getBasicAuthHeader(config.consumerKey, config.consumerSecret),
+          Accept: "application/json",
+          "User-Agent": "Phase One Labs Order Tracking",
+        },
+      });
+
+      if (!response.ok) continue;
+
+      const payload = await response.json().catch(() => null);
+      const trackingItems = normalizeShipmentTrackingResponse(payload);
+      if (trackingItems.length > 0) return trackingItems;
+    } catch {}
+  }
+
+  return [];
 }
 
 async function findOrder(config, orderNumber) {
@@ -556,10 +608,12 @@ export async function POST({ request }) {
       );
     }
 
+    const externalTrackingItems = await fetchShipmentTrackingItems(config, order.id);
+
     return jsonResponse(
       {
         success: true,
-        order: normalizeOrder(order),
+        order: normalizeOrder(order, externalTrackingItems),
       },
       200
     );

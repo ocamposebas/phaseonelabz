@@ -2445,7 +2445,7 @@ export default function ShopCatalogSection({
         );
 
         return total + unitPrice * Number(item.quantity || 1);
-      }, 0) > 100,
+      }, 0) >= 100,
     [cartItems]
   );
 

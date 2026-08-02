@@ -28,6 +28,7 @@ const RECON_WATER_IDENTIFIERS = new Set([
 ]);
 const RECON_WATER_PROMO_THRESHOLD = 100;
 const RECON_WATER_PROMO_PRICE = 15;
+const RECON_WATER_PURCHASE_LIMIT = 2;
 const BUNDLE_REQUIRED_QUANTITY = 5;
 const BUNDLE_DISCOUNT_RATE = 0.1;
 
@@ -600,7 +601,21 @@ function getProductId(item = {}) {
 }
 
 export function getProductPurchaseLimit(item = {}) {
-  return null;
+  if (isReconWaterProduct(item)) return RECON_WATER_PURCHASE_LIMIT;
+
+  const explicitLimit = Number(
+    item.purchase_limit ??
+      item.purchaseLimit ??
+      item.max_purchase_quantity ??
+      item.maxPurchaseQuantity ??
+      item.max_quantity ??
+      item.maxQuantity ??
+      0,
+  );
+
+  return Number.isFinite(explicitLimit) && explicitLimit > 0
+    ? Math.floor(explicitLimit)
+    : null;
 }
 
 function normalizeProductIdentifier(value = "") {
@@ -724,7 +739,7 @@ function normalizeCartItems(items = []) {
     );
   }, 0);
 
-  const promoActive = qualifyingSubtotal > RECON_WATER_PROMO_THRESHOLD;
+  const promoActive = qualifyingSubtotal >= RECON_WATER_PROMO_THRESHOLD;
 
   const itemsWithProductPromotions = normalizedItems.map((item) => {
     if (!isReconWaterProduct(item)) return item;

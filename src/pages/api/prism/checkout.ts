@@ -56,6 +56,58 @@ function cleanBaseUrl(value: string): string {
   return value.trim().replace(/\/$/, "");
 }
 
+function getCookieValue(cookieHeader: string, name: string): string {
+  const target = cookieHeader
+    .split(";")
+    .map((item) => item.trim())
+    .find((item) => item.toLowerCase().startsWith(`${name.toLowerCase()}=`));
+
+  return target ? decodeURIComponent(target.split("=").slice(1).join("=")) : "";
+}
+
+function getAccountToken(request: Request): string {
+  const authorization = request.headers.get("authorization") || "";
+  const bearerToken = authorization.replace(/^Bearer\s+/i, "").trim();
+  if (bearerToken) return bearerToken;
+
+  const cookieHeader = request.headers.get("cookie") || "";
+  return (
+    getCookieValue(cookieHeader, "lab_auth_token") ||
+    getCookieValue(cookieHeader, "lab_token") ||
+    getCookieValue(cookieHeader, "auth_token")
+  );
+}
+
+async function getAuthenticatedAccount(
+  request: Request,
+  wordpressUrl: string,
+): Promise<Record<string, unknown> | null> {
+  const token = getAccountToken(request);
+  if (!token) return null;
+
+  try {
+    const response = await fetch(`${wordpressUrl}/wp-json/lab/v1/account-token`, {
+      method: "GET",
+      cache: "no-store",
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${token}`,
+        "User-Agent": "Phase One Labs Checkout Account",
+      },
+    });
+
+    if (!response.ok) return null;
+    const data = await response.json().catch(() => null) as Record<string, unknown> | null;
+    const user = data?.user || data?.customer || data;
+    if (!user || typeof user !== "object") return null;
+
+    const account = user as Record<string, unknown>;
+    return account.id || account.customer_id ? account : null;
+  } catch {
+    return null;
+  }
+}
+
 function originAllowed(request: Request): boolean {
   const origin = request.headers.get("origin");
   if (!origin) return true;
@@ -104,6 +156,14 @@ export const POST: APIRoute = async ({ request }) => {
     );
   }
 
+  const account = await getAuthenticatedAccount(request, wordpressUrl);
+  if (!account) {
+    return json(
+      { success: false, error: "You must be signed in to start checkout." },
+      401,
+    );
+  }
+
   const rawBody = await request.text();
   if (!rawBody || new TextEncoder().encode(rawBody).byteLength > MAX_BODY_BYTES) {
     return json({ success: false, error: "Invalid checkout payload." }, 400);
@@ -113,6 +173,14 @@ export const POST: APIRoute = async ({ request }) => {
     const parsed = JSON.parse(rawBody) as Record<string, unknown>;
     if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.items)) {
       return json({ success: false, error: "Invalid checkout payload." }, 400);
+    }
+
+    const accountEmail = String(account.email || "").trim().toLowerCase();
+    if (accountEmail && parsed.billing && typeof parsed.billing === "object") {
+      parsed.billing = {
+        ...(parsed.billing as Record<string, unknown>),
+        email: accountEmail,
+      };
     }
 
     const response = await fetch(

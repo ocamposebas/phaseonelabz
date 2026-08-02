@@ -1595,10 +1595,59 @@ function Pagination({ currentPage, totalPages, onPageChange }) {
   );
 }
 
+function CoaHistoryLibrary({ documents, isLoading, onOpenFamily }) {
+  if (isLoading) return <LoadingState />;
+
+  if (documents.length === 0) {
+    return (
+      <div className="mt-8 rounded-[1.5rem] border border-blue-200/10 bg-white/[0.018] px-5 py-12 text-center">
+        <History size={24} className="mx-auto text-blue-200/60" />
+        <h3 className="mt-4 text-lg font-semibold text-white">No archived reports yet</h3>
+        <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">
+          Previous COAs will appear here automatically when a new shipping lot replaces them.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-8">
+      <div className="mb-5 flex items-end justify-between gap-4">
+        <div>
+          <p className="text-[8px] font-black uppercase tracking-[0.22em] text-blue-300/55">COA archive</p>
+          <h3 className="mt-1.5 text-[23px] font-semibold tracking-[-0.045em] text-white sm:text-[28px]">Report history</h3>
+        </div>
+        <span className="rounded-full border border-blue-200/10 bg-blue-400/[0.06] px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.13em] text-blue-100/70">
+          {documents.length} archived
+        </span>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {documents.map((document) => (
+          <article key={document.key} className="rounded-[1.35rem] border border-blue-200/10 bg-[#07111e]/75 p-4 shadow-[0_16px_45px_rgba(0,0,0,0.16)]">
+            <div className="flex items-start justify-between gap-3">
+              <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-blue-300/12 bg-blue-400/[0.07] text-blue-200"><FileText size={16} /></div>
+              <span className="rounded-full border border-white/[0.07] bg-white/[0.025] px-2 py-1 text-[8px] font-black uppercase tracking-[0.12em] text-slate-500">{formatDate(document.date)}</span>
+            </div>
+            <p className="mt-4 text-[8px] font-black uppercase tracking-[0.17em] text-blue-300/60">{document.productName}</p>
+            <h4 className="mt-1 truncate text-sm font-semibold text-white">{cleanDisplayText(document.label, "Archived COA")}</h4>
+            <p className="mt-1 text-[11px] text-slate-500">{document.strength}{document.batch ? ` · Batch ${document.batch}` : ""}</p>
+            <div className="mt-4 flex items-center gap-2">
+              {document.url && <a href={document.url} target="_blank" rel="noreferrer" className="inline-flex min-h-9 items-center rounded-xl bg-blue-200 px-3 text-[8px] font-black uppercase tracking-[0.12em] text-slate-950 transition hover:bg-white">Open report <ArrowUpRight size={12} className="ml-1.5" /></a>}
+              <button type="button" onClick={() => onOpenFamily(document.familyKey)} className="inline-flex min-h-9 items-center rounded-xl border border-white/[0.08] px-3 text-[8px] font-black uppercase tracking-[0.12em] text-slate-400 transition hover:border-blue-300/25 hover:text-blue-100">View family</button>
+            </div>
+          </article>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function COALookupSection({
   apiUrl = DEFAULT_COA_API_URL,
 } = {}) {
   const [query, setQuery] = useState("");
+  const [activeView, setActiveView] = useState("catalog");
   const [activeFilter, setActiveFilter] = useState("All");
   const [selectedFamilyKey, setSelectedFamilyKey] = useState("");
   const [activeSignal, setActiveSignal] = useState("");
@@ -1703,6 +1752,30 @@ export default function COALookupSection({
   }, [apiUrl, reloadKey]);
 
   const allGroups = useMemo(() => groupCoaRecords(coaRecords), [coaRecords]);
+
+  const historyDocuments = useMemo(() => {
+    const documents = [];
+
+    allGroups.forEach((group) => {
+      group.strengthGroups.forEach((strengthGroup) => {
+        strengthGroup.records.forEach((record) => {
+          (record.history || []).forEach((historyItem, index) => {
+            documents.push({
+              ...historyItem,
+              key: `${group.key}-${strengthGroup.key}-${record.id}-history-${index}`,
+              familyKey: group.key,
+              productName: group.name,
+              strength: strengthGroup.label,
+              batch: historyItem.batch || record.batch || record.lot || "",
+              url: getCertificateUrl(historyItem),
+            });
+          });
+        });
+      });
+    });
+
+    return documents.sort((a, b) => dateValue(b.date) - dateValue(a.date));
+  }, [allGroups]);
 
   const quickFilters = useMemo(() => {
     return allGroups
@@ -1842,6 +1915,35 @@ export default function COALookupSection({
           </p>
         </header>
 
+        <div className="mx-auto mt-8 grid max-w-sm grid-cols-2 gap-1 rounded-2xl border border-blue-200/10 bg-[#06101d]/80 p-1.5">
+          <button
+            type="button"
+            onClick={() => setActiveView("catalog")}
+            className={cx(
+              "inline-flex min-h-10 items-center justify-center gap-2 rounded-xl text-[9px] font-black uppercase tracking-[0.14em] transition",
+              activeView === "catalog"
+                ? "bg-blue-300 text-slate-950"
+                : "text-slate-500 hover:text-blue-100"
+            )}
+          >
+            <FlaskConical size={13} /> Catalog
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveView("history")}
+            className={cx(
+              "inline-flex min-h-10 items-center justify-center gap-2 rounded-xl text-[9px] font-black uppercase tracking-[0.14em] transition",
+              activeView === "history"
+                ? "bg-blue-300 text-slate-950"
+                : "text-slate-500 hover:text-blue-100"
+            )}
+          >
+            <History size={13} /> History
+          </button>
+        </div>
+
+        {activeView === "catalog" ? (
+          <>
         <ReportSignalDeck
           activeSignal={activeSignal}
           onChange={setActiveSignal}
@@ -2019,6 +2121,14 @@ export default function COALookupSection({
             </p>
           </div>
         </div>
+          </>
+        ) : (
+          <CoaHistoryLibrary
+            documents={historyDocuments}
+            isLoading={isLoading && coaRecords.length === 0}
+            onOpenFamily={setOpenGroupKey}
+          />
+        )}
       </div>
 
       {selectedGroup && (

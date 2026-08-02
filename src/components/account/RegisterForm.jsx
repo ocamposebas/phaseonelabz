@@ -8,6 +8,15 @@ import {
   UserPlus,
 } from "lucide-react";
 
+function getSafeReturnTo() {
+  if (typeof window === "undefined") return "/account";
+
+  const returnTo = new URLSearchParams(window.location.search).get("return_to") || "";
+  return returnTo.startsWith("/") && !returnTo.startsWith("//")
+    ? returnTo
+    : "/account";
+}
+
 export default function RegisterForm() {
   const [status, setStatus] = useState("idle");
   const [error, setError] = useState("");
@@ -44,7 +53,7 @@ export default function RegisterForm() {
       }
 
       setStatus("success");
-      window.location.href = "/account";
+      window.location.assign(getSafeReturnTo());
     } catch (err) {
       setStatus("error");
       setError("Registration failed. Please try again.");
