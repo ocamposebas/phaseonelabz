@@ -17,6 +17,8 @@ import {
   CircleDollarSign,
   Truck,
   Handshake,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 
 const POINTS_PER_REWARD = 500;
@@ -1799,6 +1801,7 @@ export default function AccountDashboard() {
   const [account, setAccount] = useState(null);
   const [status, setStatus] = useState("loading");
   const [loginStatus, setLoginStatus] = useState("idle");
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState("overview");
@@ -2002,6 +2005,7 @@ export default function AccountDashboard() {
 
       setLoginStatus("success");
       setForm({ email: "", password: "" });
+      setShowLoginPassword(false);
 
       await loadAccount();
     } catch {
@@ -2199,6 +2203,7 @@ export default function AccountDashboard() {
     setAccount(null);
     setStatus("unauthenticated");
     setLoginStatus("idle");
+    setShowLoginPassword(false);
     setRedeemStatus("idle");
     setRedeemMessage("");
     setTrackingByOrder({});
@@ -2253,7 +2258,7 @@ export default function AccountDashboard() {
               and rewards activity connected to your account.
             </p>
 
-            <div className="mt-7 grid grid-cols-2 gap-3 sm:mt-8 lg:max-w-xl">
+            <div className="mt-7 hidden grid-cols-2 gap-3 sm:mt-8 sm:grid lg:max-w-xl">
               <div className="rounded-[1.25rem] border border-cyan-200/10 bg-white/[0.018] p-4 text-left backdrop-blur-xl sm:rounded-2xl">
                 <BadgeCheck size={18} className="mb-3 text-cyan-200" />
                 <p className="text-[13.5px] font-semibold text-white sm:text-sm">
@@ -2311,50 +2316,56 @@ export default function AccountDashboard() {
                         email: event.target.value,
                       }))
                     }
-                    className="min-h-[52px] w-full rounded-2xl border border-cyan-200/10 bg-[#020617]/65 px-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-200/35"
+                    autoComplete="email"
+                    autoCapitalize="none"
+                    spellCheck="false"
+                    className="min-h-[52px] w-full rounded-2xl border border-cyan-200/10 bg-[#020617]/65 px-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-200/35 focus:ring-4 focus:ring-cyan-300/[0.05]"
                     placeholder="customer@email.com"
                     required
                   />
                 </label>
 
                 <label className="block">
-                  <span className="mb-2 block text-[9px] font-black uppercase tracking-[0.18em] text-cyan-200/55 sm:text-[10px] sm:tracking-[0.2em]">
-                    Password
+                  <span className="mb-2 flex items-center justify-between gap-4">
+                    <span className="text-[9px] font-black uppercase tracking-[0.18em] text-cyan-200/55 sm:text-[10px] sm:tracking-[0.2em]">
+                      Password
+                    </span>
+                    <a
+                      href="/forgot-password"
+                      className="text-[10px] font-semibold text-cyan-200/70 transition hover:text-white"
+                    >
+                      Forgot password?
+                    </a>
                   </span>
-                  <input
-                    type="password"
-                    value={form.password}
-                    onChange={(event) =>
-                      setForm((prev) => ({
-                        ...prev,
-                        password: event.target.value,
-                      }))
-                    }
-                    className="min-h-[52px] w-full rounded-2xl border border-cyan-200/10 bg-[#020617]/65 px-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-200/35"
-                    placeholder="••••••••"
-                    required
-                  />
+                  <span className="relative block">
+                    <input
+                      type={showLoginPassword ? "text" : "password"}
+                      value={form.password}
+                      onChange={(event) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          password: event.target.value,
+                        }))
+                      }
+                      autoComplete="current-password"
+                      className="min-h-[52px] w-full rounded-2xl border border-cyan-200/10 bg-[#020617]/65 px-4 pr-12 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-200/35 focus:ring-4 focus:ring-cyan-300/[0.05]"
+                      placeholder="••••••••"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowLoginPassword((current) => !current)}
+                      className="absolute right-2 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-xl text-cyan-100/55 transition hover:bg-cyan-300/[0.07] hover:text-white"
+                      aria-label={showLoginPassword ? "Hide password" : "Show password"}
+                    >
+                      {showLoginPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                    </button>
+                  </span>
                 </label>
               </div>
 
-              <div className="mt-4 rounded-2xl border border-cyan-200/10 bg-[#020617]/35 px-4 py-3">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <p className="text-xs leading-5 text-slate-500">
-                    Having trouble accessing your account?
-                  </p>
-
-                  <a
-                    href="/forgot-password"
-                    className="group inline-flex w-fit items-center gap-2 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-200/75 transition hover:text-white"
-                  >
-                    Reset password
-                    <span className="h-px w-6 bg-cyan-200/40 transition group-hover:w-8 group-hover:bg-white" />
-                  </a>
-                </div>
-              </div>
-
               {error && (
-                <p className="mt-4 rounded-2xl border border-red-400/15 bg-red-400/10 px-4 py-3 text-sm leading-6 text-red-200">
+                <p role="alert" className="mt-4 rounded-2xl border border-red-400/15 bg-red-400/10 px-4 py-3 text-sm leading-6 text-red-200">
                   {error}
                 </p>
               )}

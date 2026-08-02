@@ -810,6 +810,16 @@ function removeStoredCart({ clearCheckoutSessions = false } = {}) {
   }
 }
 
+function redirectExpiredCheckoutToCatalog() {
+  if (typeof window === "undefined") return;
+
+  const pathname = String(window.location.pathname || "").replace(/\/$/, "");
+
+  if (pathname === "/checkout") {
+    window.location.replace("/shop");
+  }
+}
+
 function readStoredCart() {
   if (typeof window === "undefined") {
     return { items: [], expiresAt: 0 };
@@ -1515,6 +1525,7 @@ export function CartProvider({ children }) {
       setCartItems([]);
       setShippingProtectionSelectedState(false);
       persistShippingProtectionSelection({ selected: false });
+      redirectExpiredCheckoutToCatalog();
       return undefined;
     }
 
@@ -1523,6 +1534,7 @@ export function CartProvider({ children }) {
       setCartItems([]);
       setShippingProtectionSelectedState(false);
       persistShippingProtectionSelection({ selected: false });
+      redirectExpiredCheckoutToCatalog();
     }, remainingMs);
 
     return () => window.clearTimeout(expirationTimer);

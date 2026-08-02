@@ -1758,6 +1758,7 @@ export default function CheckoutTransferPage() {
 
   const [session, setSession] = useState(null);
   const [localCartItems, setLocalCartItems] = useState([]);
+  const [checkoutStorageReady, setCheckoutStorageReady] = useState(false);
   const [accountLoading, setAccountLoading] = useState(true);
   const [accountUser, setAccountUser] = useState(null);
   const [couponInput, setCouponInput] = useState("");
@@ -1892,6 +1893,8 @@ export default function CheckoutTransferPage() {
       setCouponData(null);
       setDiscountToken("");
     }
+
+    setCheckoutStorageReady(true);
   }, []);
 
   useEffect(() => {
@@ -2089,6 +2092,14 @@ export default function CheckoutTransferPage() {
 
   const previewTotal = Math.max(subtotalAfterCoupon - cashbackToApply, 0);
   const hasItems = cartItems.length > 0;
+
+  useEffect(() => {
+    if (!checkoutStorageReady || hasItems || typeof window === "undefined") {
+      return;
+    }
+
+    window.location.replace("/shop");
+  }, [checkoutStorageReady, hasItems]);
 
   const selectedPaymentMethod =
     PAYMENT_METHODS.find((method) => method.id === selectedPaymentMethodId) ||
@@ -3404,10 +3415,10 @@ export default function CheckoutTransferPage() {
   if (!hasItems) {
     return (
       <main className="checkout-page checkout-empty-page">
-        <section className="checkout-empty">
-          <p>Checkout</p>
-          <h1>Your cart is empty</h1>
-          <a href="/shop">Back to shop</a>
+        <section className="checkout-empty" role="status">
+          <Sparkles size={24} aria-hidden="true" />
+          <p>Returning to catalog</p>
+          <h1>Preparing the shop for you...</h1>
         </section>
 
         <style>{styles}</style>
@@ -5236,6 +5247,11 @@ const styles = `
     border-radius: 20px;
     padding: 34px;
     text-align: center;
+  }
+
+  .checkout-empty > svg {
+    margin: 0 auto 14px;
+    color: #67e8f9;
   }
 
   .checkout-empty p,

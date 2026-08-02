@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Check, Loader2, LockKeyhole, ShieldCheck, Sparkles } from "lucide-react";
+import { Check, Eye, EyeOff, Loader2, LockKeyhole, ShieldCheck, Sparkles } from "lucide-react";
 
 function getSavedAuthToken() {
   if (typeof window === "undefined") return "";
@@ -22,6 +22,7 @@ export default function MemberAccessGate({ initialHasSession = false }) {
   const [mode, setMode] = useState("login");
   const [error, setError] = useState("");
   const [ageConfirmed, setAgeConfirmed] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [loginForm, setLoginForm] = useState({ email: "", password: "" });
   const [registerForm, setRegisterForm] = useState({
     first_name: "",
@@ -85,6 +86,7 @@ export default function MemberAccessGate({ initialHasSession = false }) {
 
   const switchMode = (nextMode) => {
     setError("");
+    setShowPassword(false);
     setMode(nextMode);
   };
 
@@ -191,6 +193,17 @@ export default function MemberAccessGate({ initialHasSession = false }) {
         </aside>
 
         <div className="phase-member-gate__panel">
+          {status === "checking" && (
+            <div className="phase-member-gate__checking" role="status">
+              <div className="phase-member-gate__checking-icon">
+                <Loader2 size={22} className="phase-member-gate__spin" />
+              </div>
+              <strong>Checking secure access</strong>
+              <span>Restoring your client session.</span>
+            </div>
+          )}
+
+          <div className={`phase-member-gate__panel-content${status === "checking" ? " is-checking" : ""}`}>
           <div className="phase-member-gate__panel-header">
             <span className="phase-member-gate__panel-kicker">Client access</span>
             <ShieldCheck size={18} />
@@ -213,7 +226,15 @@ export default function MemberAccessGate({ initialHasSession = false }) {
                 <label>Last name<input type="text" value={registerForm.last_name} onChange={(event) => setRegisterForm((current) => ({ ...current, last_name: event.target.value }))} autoComplete="family-name" required /></label>
               </div>
               <label>Email address<input type="email" value={registerForm.email} onChange={(event) => setRegisterForm((current) => ({ ...current, email: event.target.value }))} autoComplete="email" required /></label>
-              <label>Password<input type="password" value={registerForm.password} onChange={(event) => setRegisterForm((current) => ({ ...current, password: event.target.value }))} autoComplete="new-password" minLength={8} required /></label>
+              <label>
+                Password
+                <span className="phase-member-gate__password-field">
+                  <input type={showPassword ? "text" : "password"} value={registerForm.password} onChange={(event) => setRegisterForm((current) => ({ ...current, password: event.target.value }))} autoComplete="new-password" minLength={8} required />
+                  <button type="button" onClick={() => setShowPassword((current) => !current)} aria-label={showPassword ? "Hide password" : "Show password"}>
+                    {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                  </button>
+                </span>
+              </label>
               <p className="phase-member-gate__hint"><Sparkles size={14} /> Use 8 or more characters to protect your account.</p>
               <label className="phase-member-gate__age-confirmation"><input type="checkbox" checked={ageConfirmed} onChange={(event) => setAgeConfirmed(event.target.checked)} /> <span>I confirm that I am 21 or older.</span></label>
               {error && <p className="phase-member-gate__error">{error}</p>}
@@ -224,8 +245,16 @@ export default function MemberAccessGate({ initialHasSession = false }) {
             </form>
           ) : (
             <form className="phase-member-gate__form" onSubmit={handleLogin}>
-              <label>Email address<input type="email" value={loginForm.email} onChange={(event) => setLoginForm((current) => ({ ...current, email: event.target.value }))} autoComplete="email" required /></label>
-              <label>Password<input type="password" value={loginForm.password} onChange={(event) => setLoginForm((current) => ({ ...current, password: event.target.value }))} autoComplete="current-password" required /></label>
+              <label>Email address<input type="email" value={loginForm.email} onChange={(event) => setLoginForm((current) => ({ ...current, email: event.target.value }))} autoComplete="email" autoCapitalize="none" spellCheck="false" required /></label>
+              <label>
+                Password
+                <span className="phase-member-gate__password-field">
+                  <input type={showPassword ? "text" : "password"} value={loginForm.password} onChange={(event) => setLoginForm((current) => ({ ...current, password: event.target.value }))} autoComplete="current-password" required />
+                  <button type="button" onClick={() => setShowPassword((current) => !current)} aria-label={showPassword ? "Hide password" : "Show password"}>
+                    {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                  </button>
+                </span>
+              </label>
               <div className="phase-member-gate__forgot"><a href="/forgot-password">Forgot your password?</a></div>
               <label className="phase-member-gate__age-confirmation"><input type="checkbox" checked={ageConfirmed} onChange={(event) => setAgeConfirmed(event.target.checked)} /> <span>I confirm that I am 21 or older.</span></label>
               {error && <p className="phase-member-gate__error">{error}</p>}
@@ -237,6 +266,7 @@ export default function MemberAccessGate({ initialHasSession = false }) {
           )}
 
           <p className="phase-member-gate__legal">By continuing, you confirm you are 21+ and agree to our client access requirements.</p>
+          </div>
         </div>
       </div>
 
@@ -261,6 +291,12 @@ export default function MemberAccessGate({ initialHasSession = false }) {
         .phase-member-gate__proof span { display: inline-flex; align-items: center; gap: 6px; }
         .phase-member-gate__proof svg { color: #67e8f9; }
         .phase-member-gate__panel { position: relative; display: flex; flex-direction: column; padding: 38px 42px 30px; background: linear-gradient(180deg, rgba(10, 20, 37, .93), rgba(3, 9, 20, .98)); }
+        .phase-member-gate__panel-content { display: flex; min-height: 100%; flex: 1; flex-direction: column; transition: opacity .18s ease; }
+        .phase-member-gate__panel-content.is-checking { visibility: hidden; opacity: 0; }
+        .phase-member-gate__checking { position: absolute; inset: 0; z-index: 3; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 9px; padding: 30px; text-align: center; }
+        .phase-member-gate__checking-icon { display: grid; width: 52px; height: 52px; margin-bottom: 7px; place-items: center; border: 1px solid rgba(103, 232, 249, .2); border-radius: 16px; background: rgba(34, 211, 238, .08); color: #a5f3fc; }
+        .phase-member-gate__checking strong { color: #f8fafc; font-size: 16px; letter-spacing: -.02em; }
+        .phase-member-gate__checking span { color: rgba(148, 163, 184, .86); font-size: 12px; }
         .phase-member-gate__panel-header { display: flex; align-items: center; justify-content: space-between; color: #a5f3fc; }
         .phase-member-gate__panel-kicker { font-size: 10px; font-weight: 900; letter-spacing: .19em; text-transform: uppercase; }
         .phase-member-gate__form-copy { margin: 36px 0 23px; }
@@ -274,6 +310,10 @@ export default function MemberAccessGate({ initialHasSession = false }) {
         .phase-member-gate__form label { display: grid; gap: 7px; color: rgba(186, 230, 253, .72); font-size: 9px; font-weight: 900; letter-spacing: .15em; text-transform: uppercase; }
         .phase-member-gate__form input { box-sizing: border-box; width: 100%; min-height: 47px; border: 1px solid rgba(186, 230, 253, .14); border-radius: 11px; background: rgba(2, 6, 23, .56); padding: 0 13px; color: #f8fafc; font-size: 14px; letter-spacing: normal; outline: none; transition: border-color .2s ease, box-shadow .2s ease; }
         .phase-member-gate__form input:focus { border-color: rgba(103, 232, 249, .72); box-shadow: 0 0 0 3px rgba(34, 211, 238, .09); }
+        .phase-member-gate__password-field { position: relative; display: block; }
+        .phase-member-gate__password-field input { padding-right: 46px; }
+        .phase-member-gate__password-field button { position: absolute; top: 50%; right: 7px; display: grid; width: 34px; height: 34px; place-items: center; border: 0; border-radius: 9px; background: transparent; color: rgba(165, 243, 252, .7); cursor: pointer; transform: translateY(-50%); }
+        .phase-member-gate__password-field button:hover { background: rgba(103, 232, 249, .08); color: #e0f2fe; }
         .phase-member-gate__forgot { margin-top: -1px; text-align: right; }
         .phase-member-gate__forgot a { color: rgba(165, 243, 252, .83); font-size: 11px; text-decoration: none; }
         .phase-member-gate__hint { display: flex; align-items: center; gap: 7px; margin: -2px 0 0; color: rgba(148, 163, 184, .82); font-size: 11px; }
@@ -287,7 +327,7 @@ export default function MemberAccessGate({ initialHasSession = false }) {
         .phase-member-gate__legal { margin: auto 0 0; padding-top: 20px; color: rgba(100, 116, 139, .85); font-size: 10px; line-height: 1.55; text-align: center; }
         .phase-member-gate__spin { animation: phase-member-gate-spin .8s linear infinite; }
         @keyframes phase-member-gate-spin { to { transform: rotate(360deg); } }
-        @media (max-width: 790px) { .phase-member-gate { display: block; padding: 14px 14px calc(22px + env(safe-area-inset-bottom)); } .phase-member-gate__shell { display: block; min-height: 0; margin: 0 auto; } .phase-member-gate__story { min-height: 0; padding: 21px 22px; } .phase-member-gate__story-copy { margin-top: 17px; } .phase-member-gate__story-copy > p { display: none; } .phase-member-gate h1 { margin: 9px 0 0; font-size: clamp(30px, 9vw, 40px); } .phase-member-gate__proof { display: none; } .phase-member-gate__panel { padding: 23px 22px 22px; } .phase-member-gate__form-copy { margin: 22px 0 18px; } .phase-member-gate__form-copy h2 { font-size: 27px; } .phase-member-gate__legal { margin-top: 18px; padding-top: 0; } }
+        @media (max-width: 790px) { .phase-member-gate { display: block; padding: 14px 14px calc(22px + env(safe-area-inset-bottom)); } .phase-member-gate__shell { display: block; min-height: 0; margin: 0 auto; } .phase-member-gate__story { min-height: 0; padding: 17px 22px; } .phase-member-gate__story-copy, .phase-member-gate__proof { display: none; } .phase-member-gate__panel { padding: 23px 22px 22px; } .phase-member-gate__form-copy { margin: 22px 0 18px; } .phase-member-gate__form-copy h2 { font-size: 27px; } .phase-member-gate__legal { margin-top: 18px; padding-top: 0; } }
         @media (max-width: 420px) { .phase-member-gate { padding: 10px 10px calc(18px + env(safe-area-inset-bottom)); } .phase-member-gate__name-grid { grid-template-columns: 1fr; } .phase-member-gate__story { padding: 18px; } .phase-member-gate__panel { padding: 20px 18px; } .phase-member-gate__brand span { font-size: 9px; } }
       `}</style>
     </section>
