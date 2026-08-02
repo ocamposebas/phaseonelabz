@@ -126,6 +126,67 @@ function safeJsonParse(value) {
   }
 }
 
+function inferTrackingCarrier(value = "") {
+  const clean = String(value || "").toLowerCase();
+
+  if (clean.includes("fedex")) return "FedEx";
+  if (clean.includes("ups")) return "UPS";
+  if (clean.includes("usps") || clean.includes("postal service")) return "USPS";
+  if (clean.includes("dhl")) return "DHL";
+
+  return "";
+}
+
+function extractTrackingNumber(value = "") {
+  const clean = String(value || "").trim();
+
+  if (!clean) return "";
+
+  const labeledNumber = clean.match(
+    /(?:tracking(?:\s+(?:number|no\.?))?|(?:n[uú]mero\s+de\s+)?seguimiento)\s*(?:#|:|es|is)?\s*(1Z[A-Z0-9]{16}|\d{10,22}|[A-Z0-9-]{8,40})\b/i,
+  );
+
+  if (labeledNumber?.[1]) {
+    return labeledNumber[1].replace(/-/g, "");
+  }
+
+  const upsNumber = clean.match(/\b1Z[A-Z0-9]{16}\b/i)?.[0];
+  if (upsNumber) return upsNumber;
+
+  const numericNumber = clean.match(/\b\d{10,22}\b/)?.[0];
+  if (numericNumber) return numericNumber;
+
+  if (/^[A-Z0-9-]{8,40}$/i.test(clean)) {
+    return clean.replace(/-/g, "");
+  }
+
+  return "";
+}
+
+function buildTrackingUrl(carrier = "", trackingNumber = "") {
+  if (!trackingNumber) return "";
+
+  const encodedNumber = encodeURIComponent(trackingNumber);
+
+  if (carrier === "FedEx") {
+    return `https://www.fedex.com/fedextrack/?trknbr=${encodedNumber}`;
+  }
+
+  if (carrier === "UPS") {
+    return `https://www.ups.com/track?tracknum=${encodedNumber}`;
+  }
+
+  if (carrier === "USPS") {
+    return `https://tools.usps.com/go/TrackConfirmAction?tLabels=${encodedNumber}`;
+  }
+
+  if (carrier === "DHL") {
+    return `https://www.dhl.com/us-en/home/tracking.html?tracking-id=${encodedNumber}`;
+  }
+
+  return "";
+}
+
 function normalizeTrackingItem(item = {}) {
   if (!item || typeof item !== "object") return null;
 
@@ -141,7 +202,7 @@ function normalizeTrackingItem(item = {}) {
     item.service ||
     "";
 
-  const number =
+  const rawNumber =
     item.tracking_number ||
     item.number ||
     item.trackingNumber ||
@@ -149,6 +210,11 @@ function normalizeTrackingItem(item = {}) {
     item.trackingCode ||
     item.shipment_id ||
     "";
+
+  const inferredCarrier = inferTrackingCarrier(
+    `${provider} ${rawNumber} ${item.note || item.content || ""}`,
+  );
+  const number = extractTrackingNumber(rawNumber);
 
   const url =
     item.tracking_link ||
@@ -168,10 +234,12 @@ function normalizeTrackingItem(item = {}) {
 
   if (!number && !url) return null;
 
+  const carrier = inferTrackingCarrier(provider) || inferredCarrier;
+
   return {
-    carrier: String(provider || "").trim(),
-    tracking_number: String(number || "").trim(),
-    tracking_url: String(url || "").trim(),
+    carrier,
+    tracking_number: number,
+    tracking_url: String(url || "").trim() || buildTrackingUrl(carrier, number),
     shipped_date: date ? formatDate(date) : "",
   };
 }
@@ -203,13 +271,11 @@ function normalizeTrackingValue(value) {
     }
 
     return [
-      {
-        carrier: "",
+      normalizeTrackingItem({
         tracking_number: clean,
-        tracking_url: "",
-        shipped_date: "",
-      },
-    ];
+        tracking_provider: inferTrackingCarrier(clean),
+      }),
+    ].filter(Boolean);
   }
 
   return [];
@@ -273,14 +339,13 @@ function getTrackingItems(order = {}) {
   ]);
 
   if (trackingNumber || trackingUrl) {
-    return [
-      {
-        carrier: String(carrier || "").trim(),
-        tracking_number: String(trackingNumber || "").trim(),
-        tracking_url: String(trackingUrl || "").trim(),
-        shipped_date: "",
-      },
-    ];
+    const trackingItem = normalizeTrackingItem({
+      tracking_provider: carrier,
+      tracking_number: trackingNumber,
+      tracking_url: trackingUrl,
+    });
+
+    return trackingItem ? [trackingItem] : [];
   }
 
   return [];
@@ -505,6 +570,30 @@ async function fetchShipmentTrackingItems(config, orderId) {
   return [];
 }
 
+async function fetchOrderNoteTrackingItems(config, orderId) {
+  if (!orderId) return [];
+
+  try {
+    const notes = await wooFetch(config, `/orders/${orderId}/notes?per_page=100`);
+
+    if (!Array.isArray(notes)) return [];
+
+    return notes
+      .map((note) =>
+        normalizeTrackingItem({
+          tracking_provider: inferTrackingCarrier(
+            `${note?.note || ""} ${note?.content || ""}`,
+          ),
+          tracking_number: note?.note || note?.content || "",
+          date_shipped: note?.date_created || "",
+        }),
+      )
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
 async function findOrder(config, orderNumber) {
   const cleanOrderNumber = String(orderNumber || "").trim();
 
@@ -608,7 +697,11 @@ export async function POST({ request }) {
       );
     }
 
-    const externalTrackingItems = await fetchShipmentTrackingItems(config, order.id);
+    let externalTrackingItems = await fetchShipmentTrackingItems(config, order.id);
+
+    if (!externalTrackingItems.length) {
+      externalTrackingItems = await fetchOrderNoteTrackingItems(config, order.id);
+    }
 
     return jsonResponse(
       {
