@@ -17,6 +17,27 @@ const DEFAULT_COA_API_URL =
 
 const EMPTY_FALLBACK_RECORDS = [];
 
+function getShippingLotApiUrl(apiUrl, currentShippingLot) {
+  const fallbackOrigin =
+    typeof window !== "undefined" ? window.location.origin : "http://localhost";
+  const url = new URL(apiUrl, fallbackOrigin);
+
+  url.searchParams.set(
+    "currentShippingLot",
+    currentShippingLot ? "true" : "false"
+  );
+
+  return url.toString();
+}
+
+function getCoaPayloadRecords(payload) {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.records)) return payload.records;
+  if (Array.isArray(payload?.coas)) return payload.coas;
+  if (Array.isArray(payload?.data)) return payload.data;
+  return [];
+}
+
 const quickSearches = [
   "BPC",
   "PL-Sm",
@@ -483,31 +504,49 @@ export default function COALookupSection({
       setErrorMessage("");
 
       try {
-        const response = await fetch(apiUrl, {
+        const requestOptions = {
           method: "GET",
           cache: "no-store",
           signal: controller.signal,
           headers: {
             Accept: "application/json",
           },
-        });
+        };
+        const [currentResponse, storedResponse] = await Promise.all([
+          fetch(getShippingLotApiUrl(apiUrl, true), requestOptions),
+          fetch(getShippingLotApiUrl(apiUrl, false), requestOptions),
+        ]);
 
-        if (!response.ok) {
-          throw new Error(`COA API responded with ${response.status}`);
+        if (!currentResponse.ok || !storedResponse.ok) {
+          throw new Error(
+            `COA API responded with current=${currentResponse.status}, stored=${storedResponse.status}`
+          );
         }
 
-        const payload = await response.json();
-        const records = Array.isArray(payload)
-          ? payload
-          : Array.isArray(payload?.records)
-            ? payload.records
-            : Array.isArray(payload?.coas)
-              ? payload.coas
-              : Array.isArray(payload?.data)
-                ? payload.data
-                : [];
+        const [currentPayload, storedPayload] = await Promise.all([
+          currentResponse.json(),
+          storedResponse.json(),
+        ]);
+        const recordsByKey = new Map();
 
-        setCoaRecords(records.map(normalizeCoaRecord));
+        [
+          ...getCoaPayloadRecords(currentPayload),
+          ...getCoaPayloadRecords(storedPayload),
+        ].forEach((record, index) => {
+          const key = String(
+            record?.id ||
+              record?.wpPostId ||
+              record?.coaNumber ||
+              record?.coa_number ||
+              `${record?.batch || record?.lot || "coa"}-${index}`
+          );
+
+          recordsByKey.set(key, record);
+        });
+
+        setCoaRecords(
+          Array.from(recordsByKey.values()).map(normalizeCoaRecord)
+        );
       } catch (error) {
         if (error.name === "AbortError") return;
 

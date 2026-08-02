@@ -20,11 +20,44 @@ import {
 
 const GROUPS_PER_PAGE = 12;
 const COA_REQUEST_TIMEOUT_MS = 10000;
-const COA_CACHE_KEY = "phaseone-coa-manager-report-signals-v7";
+const COA_CACHE_KEY = "phaseone-coa-manager-report-signals-v8";
 
 const DEFAULT_COA_API_URL =
   import.meta.env.PUBLIC_WP_COA_API_URL ||
   "/wp-json/phaseone/v1/coas";
+
+function getShippingLotApiUrl(apiUrl, currentShippingLot) {
+  const fallbackOrigin =
+    typeof window !== "undefined" ? window.location.origin : "http://localhost";
+  const url = new URL(apiUrl, fallbackOrigin);
+
+  url.searchParams.set(
+    "currentShippingLot",
+    currentShippingLot ? "true" : "false"
+  );
+
+  return url.toString();
+}
+
+function mergeCoaPayloads(...payloads) {
+  const recordsByKey = new Map();
+
+  payloads.flat().forEach((record, index) => {
+    if (!record || typeof record !== "object") return;
+
+    const key = String(
+      record.id ||
+        record.wpPostId ||
+        record.coaNumber ||
+        record.coa_number ||
+        `${record.batch || record.lot || "coa"}-${index}`
+    );
+
+    recordsByKey.set(key, record);
+  });
+
+  return Array.from(recordsByKey.values());
+}
 
 const FILTERS = [
   { label: "All families", value: "All" },
@@ -1697,20 +1730,37 @@ export default function COALookupSection({
         if (!hasCachedRecords) setIsLoading(true);
         setLoadError("");
 
-        const response = await fetch(apiUrl, {
+        const requestOptions = {
           method: "GET",
           headers: { Accept: "application/json" },
           cache: "no-store",
           credentials: "same-origin",
           signal: controller.signal,
-        });
+        };
+        const [currentResponse, storedResponse] = await Promise.all([
+          fetch(getShippingLotApiUrl(apiUrl, true), requestOptions),
+          fetch(getShippingLotApiUrl(apiUrl, false), requestOptions),
+        ]);
 
-        if (!response.ok) {
-          throw new Error("COA API returned " + response.status);
+        if (!currentResponse.ok || !storedResponse.ok) {
+          throw new Error(
+            `COA API returned current=${currentResponse.status}, stored=${storedResponse.status}`
+          );
         }
 
-        const payload = await response.json();
-        const normalizedRecords = normalizeCoaPayload(payload);
+        const [currentPayload, storedPayload] = await Promise.all([
+          currentResponse.json(),
+          storedResponse.json(),
+        ]);
+        const getPayloadRecords = (payload) =>
+          Array.isArray(payload)
+            ? payload
+            : payload?.records || payload?.coas || payload?.data || [];
+        const mergedPayload = mergeCoaPayloads(
+          getPayloadRecords(currentPayload),
+          getPayloadRecords(storedPayload)
+        );
+        const normalizedRecords = normalizeCoaPayload(mergedPayload);
 
         if (!isMounted) return;
 
