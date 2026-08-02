@@ -905,6 +905,15 @@ function isCurrentCoaRecord(record) {
       .join(" ")
   );
 
+  if (
+    status.includes("stored lot") ||
+    status.includes("lote almacenado") ||
+    status.includes("archived") ||
+    status.includes("archive")
+  ) {
+    return false;
+  }
+
   return Boolean(
     record?.current === true ||
       record?.isCurrent === true ||

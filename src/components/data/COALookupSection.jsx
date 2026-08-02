@@ -234,6 +234,97 @@ function isCurrentShippingLot(record, currentCoa) {
   );
 }
 
+function getCoaAssociationTokens(record = {}, { namesOnly = false } = {}) {
+  const tokens = [];
+
+  if (!namesOnly) {
+    [
+      ...(record.wooIds || []),
+      ...(record.productIds || []),
+      ...(record.parentProductIds || []),
+      ...(record.variationIds || []),
+    ].forEach((value) => {
+      const clean = String(value || "").trim();
+      if (clean) tokens.push(`id:${clean}`);
+    });
+
+    (record.skus || []).forEach((value) => {
+      const clean = normalizeText(value);
+      if (clean) tokens.push(`sku:${clean}`);
+    });
+  }
+
+  if (namesOnly) {
+    [
+      record.familyKey,
+      record.familyName,
+      record.productName,
+      record.compound,
+      ...(record.aliases || []),
+    ].forEach((value) => {
+      const clean = normalizeText(value);
+      if (clean) tokens.push(`name:${clean}`);
+    });
+  }
+
+  return new Set(tokens);
+}
+
+function recordsShareCoaAssociation(left, right, { namesOnly = false } = {}) {
+  const leftTokens = getCoaAssociationTokens(left, { namesOnly });
+  const rightTokens = getCoaAssociationTokens(right, { namesOnly });
+
+  return [...leftTokens].some((token) => rightTokens.has(token));
+}
+
+function moveStoredLotsIntoHistory(records = []) {
+  const currentRecords = records.filter((record) =>
+    isCurrentShippingLot(record, getCurrentCoa(record))
+  );
+  const storedRecords = records.filter(
+    (record) => !isCurrentShippingLot(record, getCurrentCoa(record))
+  );
+  const storedHistoryByRecordId = new Map();
+
+  storedRecords.forEach((storedRecord) => {
+    const target =
+      currentRecords.find((record) =>
+        recordsShareCoaAssociation(record, storedRecord)
+      ) ||
+      currentRecords.find((record) =>
+        recordsShareCoaAssociation(record, storedRecord, { namesOnly: true })
+      );
+
+    if (!target) return;
+
+    const storedCoa = getCurrentCoa(storedRecord);
+    const historyItem = normalizeCoaVersion({
+      ...storedCoa,
+      id: storedRecord.id,
+      coaNumber: storedRecord.coaNumber,
+      batch: storedRecord.batch || storedRecord.lot || "",
+      label: "Stored lot",
+      status: "Stored lot",
+      verifyUrl:
+        storedCoa.verifyUrl || storedRecord.verifyUrl || storedRecord.coaUrl,
+      fileUrl: storedCoa.fileUrl || storedRecord.fileUrl,
+      currentShippingLot: false,
+    });
+    const items = storedHistoryByRecordId.get(target.id) || [];
+
+    items.push(historyItem);
+    storedHistoryByRecordId.set(target.id, items);
+  });
+
+  return currentRecords.map((record) => ({
+    ...record,
+    history: [
+      ...(record.history || []),
+      ...(storedHistoryByRecordId.get(record.id) || []),
+    ],
+  }));
+}
+
 function scoreRecord(record, query) {
   const cleanQuery = normalizeText(query);
 
@@ -443,10 +534,15 @@ export default function COALookupSection({
     ).length;
   }, [coaRecords]);
 
+  const catalogCoaRecords = useMemo(
+    () => moveStoredLotsIntoHistory(coaRecords),
+    [coaRecords]
+  );
+
   const filteredRecords = useMemo(() => {
     const cleanQuery = debouncedQuery.trim();
 
-    let results = coaRecords.map((record) => ({
+    let results = catalogCoaRecords.map((record) => ({
       record,
       score: scoreRecord(record, cleanQuery),
     }));
@@ -468,7 +564,7 @@ export default function COALookupSection({
     return results
       .sort((a, b) => b.score - a.score)
       .map((item) => item.record);
-  }, [coaRecords, debouncedQuery, activeFilter]);
+  }, [catalogCoaRecords, debouncedQuery, activeFilter]);
 
   const hasActiveFilters = query.trim().length > 0 || activeFilter !== "all";
 

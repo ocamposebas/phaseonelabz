@@ -1753,12 +1753,54 @@ export default function COALookupSection({
 
   const allGroups = useMemo(() => groupCoaRecords(coaRecords), [coaRecords]);
 
+  const catalogGroups = useMemo(() => {
+    const currentGroups = groupCoaRecords(
+      coaRecords.filter((record) => isCurrentShippingLot(record))
+    );
+    const completeGroupsByKey = new Map(
+      allGroups.map((group) => [group.key, group])
+    );
+
+    return currentGroups.map((group) => {
+      const completeGroup = completeGroupsByKey.get(group.key);
+      const hasStoredLots = Boolean(
+        completeGroup?.records.some((record) => !isCurrentShippingLot(record))
+      );
+
+      return {
+        ...group,
+        reportCount: completeGroup?.reportCount || group.reportCount,
+        hasHistory: Boolean(
+          group.hasHistory || completeGroup?.hasHistory || hasStoredLots
+        ),
+      };
+    });
+  }, [allGroups, coaRecords]);
+
   const historyDocuments = useMemo(() => {
     const documents = [];
 
     allGroups.forEach((group) => {
       group.strengthGroups.forEach((strengthGroup) => {
         strengthGroup.records.forEach((record) => {
+          if (!isCurrentShippingLot(record)) {
+            const storedCoa = getCurrentCoa(record);
+
+            documents.push({
+              ...storedCoa,
+              key: `${group.key}-${strengthGroup.key}-${record.id}-stored-lot`,
+              familyKey: group.key,
+              productName: group.name,
+              strength: strengthGroup.label,
+              batch: record.batch || record.lot || "",
+              coaNumber: record.coaNumber || "",
+              label: "Stored lot",
+              status: "Stored lot",
+              url:
+                getCertificateUrl(storedCoa) || getCertificateUrl(record),
+            });
+          }
+
           (record.history || []).forEach((historyItem, index) => {
             documents.push({
               ...historyItem,
@@ -1778,19 +1820,19 @@ export default function COALookupSection({
   }, [allGroups]);
 
   const quickFilters = useMemo(() => {
-    return allGroups
+    return catalogGroups
       .map((group) => ({
         key: group.key,
         label: cleanDisplayText(group.name, ""),
       }))
       .filter((item) => item.key && item.label)
       .sort((a, b) => a.label.localeCompare(b.label));
-  }, [allGroups]);
+  }, [catalogGroups]);
 
   const filteredGroups = useMemo(() => {
     const cleanQuery = query.trim();
 
-    return allGroups
+    return catalogGroups
       .map((group) => {
         const familyScore = normalizeText(group.name).includes(
           normalizeText(cleanQuery)
@@ -1844,7 +1886,7 @@ export default function COALookupSection({
         return a.group.name.localeCompare(b.group.name);
       })
       .map((item) => item.group);
-  }, [allGroups, query, activeFilter, selectedFamilyKey, activeSignal]);
+  }, [catalogGroups, query, activeFilter, selectedFamilyKey, activeSignal]);
 
   const totalPages = Math.max(
     1,
@@ -2033,7 +2075,7 @@ export default function COALookupSection({
 
             <div className="flex items-center gap-3 px-1 text-[9px] font-bold text-slate-600">
               <span>
-                <strong className="text-slate-300">{allGroups.length}</strong>{" "}
+                <strong className="text-slate-300">{catalogGroups.length}</strong>{" "}
                 families
               </span>
               <span className="h-3 w-px bg-white/10" />
