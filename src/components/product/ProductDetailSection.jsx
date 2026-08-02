@@ -3426,15 +3426,41 @@ export default function ProductDetailSection({
                       <ShoppingCart size={16} />
                       Add to cart
                     </button>
-                  </div>
 
-                  {selectedPurchaseLimit && (
-                    <p className="pdp-quantity-note">
-                      {selectedCartQuantity > 0
-                        ? `${selectedCartQuantity} in cart · ${remainingPurchaseQuantity} remaining`
-                        : `Maximum ${selectedPurchaseLimit} available`}
-                    </p>
-                  )}
+                    {selectedPurchaseLimit && (
+                      <div
+                        className={`pdp-quantity-note ${
+                          remainingPurchaseQuantity === 0 ? "is-limit" : ""
+                        }`}
+                        role="status"
+                        aria-live="polite"
+                      >
+                        <span className="pdp-quantity-note-icon" aria-hidden="true">
+                          <PackageCheck size={16} />
+                        </span>
+
+                        <span className="pdp-quantity-note-copy">
+                          <strong>
+                            {remainingPurchaseQuantity === 0
+                              ? "Cart limit reached"
+                              : "Available to add"}
+                          </strong>
+                          <small>
+                            {selectedCartQuantity > 0
+                              ? `${selectedCartQuantity} already in cart`
+                              : "Current inventory"}
+                          </small>
+                        </span>
+
+                        <span className="pdp-quantity-note-value">
+                          {remainingPurchaseQuantity}
+                          <small>
+                            {remainingPurchaseQuantity === 1 ? "unit" : "units"}
+                          </small>
+                        </span>
+                      </div>
+                    )}
+                  </div>
 
                   {showCustomOrderRequest && (
                     <div className="pdp-custom-request-card is-below-cart">
@@ -5568,12 +5594,79 @@ export default function ProductDetailSection({
         }
 
         .pdp-quantity-note {
-          margin: -2px 0 0;
-          color: rgba(253, 230, 138, 0.82);
-          font-size: 11px;
+          grid-column: 1 / -1;
+          display: grid;
+          grid-template-columns: 34px minmax(0, 1fr) auto;
+          align-items: center;
+          gap: 10px;
+          margin: 0;
+          border: 1px solid rgba(165, 243, 252, 0.1);
+          border-radius: 14px;
+          background: rgba(103, 232, 249, 0.035);
+          padding: 9px 11px;
+        }
+
+        .pdp-quantity-note-icon {
+          display: grid;
+          width: 34px;
+          height: 34px;
+          place-items: center;
+          border: 1px solid rgba(103, 232, 249, 0.13);
+          border-radius: 10px;
+          background: rgba(103, 232, 249, 0.07);
+          color: rgba(165, 243, 252, 0.88);
+        }
+
+        .pdp-quantity-note-copy {
+          display: grid;
+          gap: 2px;
+          min-width: 0;
+        }
+
+        .pdp-quantity-note-copy strong {
+          color: rgba(236, 254, 255, 0.9);
+          font-size: 9px;
+          font-weight: 900;
+          letter-spacing: 0.12em;
+          line-height: 1.2;
+          text-transform: uppercase;
+        }
+
+        .pdp-quantity-note-copy small {
+          color: rgba(148, 163, 184, 0.72);
+          font-size: 10px;
+          font-weight: 650;
+          line-height: 1.35;
+        }
+
+        .pdp-quantity-note-value {
+          display: inline-flex;
+          align-items: baseline;
+          gap: 4px;
+          color: white;
+          font-size: 15px;
+          font-variant-numeric: tabular-nums;
+          font-weight: 900;
+          white-space: nowrap;
+        }
+
+        .pdp-quantity-note-value small {
+          color: rgba(165, 243, 252, 0.68);
+          font-size: 9px;
           font-weight: 800;
           letter-spacing: 0.08em;
           text-transform: uppercase;
+        }
+
+        .pdp-quantity-note.is-limit {
+          border-color: rgba(251, 191, 36, 0.16);
+          background: rgba(251, 191, 36, 0.05);
+        }
+
+        .pdp-quantity-note.is-limit .pdp-quantity-note-icon {
+          border-color: rgba(251, 191, 36, 0.18);
+          background: rgba(251, 191, 36, 0.08);
+          color: rgba(253, 230, 138, 0.88);
         }
 
         .pdp-add {
