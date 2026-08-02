@@ -31,6 +31,7 @@ const COA_LIBRARY_PATH = "/wp-json/phaseone/v1/coas";
 
 function getCoaLibraryEndpoint() {
   const explicitEndpoint =
+    import.meta.env.PUBLIC_WP_COA_API_URL ||
     import.meta.env.PUBLIC_COA_API_URL ||
     import.meta.env.PUBLIC_COA_ENDPOINT;
 
@@ -924,10 +925,13 @@ function extractStrengthText(...values) {
     .join(" ");
 
   const match = String(joined).match(
-    /\b\d+(?:\.\d+)?\s*(mg|mcg|g|ml|iu)\b/i
+    /\b(\d+(?:\.\d+)?)\s*(mg|mcg|g|ml|iu)\b/i
   );
 
-  return match ? normalizeText(match[0]) : "";
+  // WooCommerce product names often omit the unit separator (for example
+  // `10ML`), while the COA Manager returns `10 mL`. Store both forms as the
+  // same canonical value so an exact product/variation match is not rejected.
+  return match ? `${match[1]}${match[2].toLowerCase()}` : "";
 }
 
 function getRecordAliases(record) {

@@ -13,8 +13,6 @@ import {
   ShieldCheck,
   Sparkles,
   Tag,
-  UserRound,
-  Wallet,
   X,
 } from "lucide-react";
 import { useCart } from "../cart/CartContext";
