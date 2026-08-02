@@ -112,6 +112,8 @@ export const REWARD_TIERS = [];
 
 const emptyCartContext = {
   cartItems: [],
+  cartNotice: "",
+  clearCartNotice: () => {},
   isCartOpen: false,
   setIsCartOpen: () => {},
   addToCart: () => {},
@@ -605,7 +607,11 @@ function getProductId(item = {}) {
 }
 
 export function getProductPurchaseLimit(item = {}) {
-  if (isReconWaterProduct(item)) return RECON_WATER_PURCHASE_LIMIT;
+  const limits = [];
+
+  if (item.sold_individually === true || item.soldIndividually === true) {
+    limits.push(1);
+  }
 
   const explicitLimit = Number(
     item.purchase_limit ??
@@ -617,9 +623,55 @@ export function getProductPurchaseLimit(item = {}) {
       0,
   );
 
-  return Number.isFinite(explicitLimit) && explicitLimit > 0
-    ? Math.floor(explicitLimit)
-    : null;
+  if (Number.isFinite(explicitLimit) && explicitLimit > 0) {
+    limits.push(Math.floor(explicitLimit));
+  }
+
+  const storeApiMaximum = Number(
+    item.add_to_cart?.maximum ??
+      item.addToCart?.maximum ??
+      item.add_to_cart_maximum ??
+      item.addToCartMaximum ??
+      0,
+  );
+
+  if (Number.isFinite(storeApiMaximum) && storeApiMaximum > 0) {
+    limits.push(Math.floor(storeApiMaximum));
+  }
+
+  const backordersAllowed = Boolean(
+    item.backorders_allowed === true ||
+      item.backordersAllowed === true ||
+      item.is_on_backorder === true ||
+      item.isOnBackorder === true ||
+      item.backorders === "yes" ||
+      item.backorders === "notify",
+  );
+  const stockQuantity = Number(
+    item.stock_quantity ??
+      item.stockQuantity ??
+      item.inventory_quantity ??
+      item.inventoryQuantity ??
+      item.available_quantity ??
+      item.availableQuantity ??
+      item.low_stock_remaining ??
+      item.lowStockRemaining ??
+      NaN,
+  );
+
+  if (
+    !backordersAllowed &&
+    Number.isFinite(stockQuantity) &&
+    stockQuantity > 0
+  ) {
+    limits.push(Math.floor(stockQuantity));
+  }
+
+  if (isReconWaterProduct(item)) {
+    limits.push(RECON_WATER_PURCHASE_LIMIT);
+  }
+
+  return limits.length ? Math.max(1, Math.min(...limits)) : null;
 }
 
 function normalizeProductIdentifier(value = "") {
@@ -719,6 +771,94 @@ function normalizeCartItem(item = {}) {
     price: basePrice,
     phaseone_base_price: basePrice,
   };
+}
+
+function getLiveInventoryEndpoint(item = {}) {
+  const wooUrl = cleanWooUrl(
+    import.meta.env.PUBLIC_WOOCOMMERCE_URL ||
+      import.meta.env.PUBLIC_WP_SITE_URL ||
+      "",
+  );
+  const inventoryId = getVariationId(item) || getProductId(item);
+
+  if (!wooUrl || !inventoryId) return "";
+
+  return `${wooUrl}/wp-json/wc/store/v1/products/${inventoryId}`;
+}
+
+async function getLiveInventorySnapshot(item = {}) {
+  if (typeof window === "undefined") {
+    return {
+      checked: false,
+      available: true,
+      item,
+      purchaseLimit: getProductPurchaseLimit(item),
+    };
+  }
+
+  const endpoint = getLiveInventoryEndpoint(item);
+
+  if (!endpoint) {
+    return {
+      checked: false,
+      available: true,
+      item,
+      purchaseLimit: getProductPurchaseLimit(item),
+    };
+  }
+
+  try {
+    const response = await fetch(`${endpoint}?phaseone_stock=${Date.now()}`, {
+      method: "GET",
+      cache: "no-store",
+      credentials: "omit",
+      headers: {
+        Accept: "application/json",
+        "Cache-Control": "no-cache",
+      },
+    });
+
+    if (!response.ok) throw new Error(`Inventory request failed: ${response.status}`);
+
+    const liveProduct = await response.json();
+    const liveMaximum = Number(liveProduct?.add_to_cart?.maximum);
+    const enrichedItem = {
+      ...item,
+      add_to_cart: liveProduct?.add_to_cart ?? item.add_to_cart,
+      stock_quantity:
+        liveProduct?.stock_quantity ??
+        liveProduct?.low_stock_remaining ??
+        (Number.isFinite(liveMaximum) && liveMaximum > 0
+          ? liveMaximum
+          : item.stock_quantity),
+      low_stock_remaining:
+        liveProduct?.low_stock_remaining ?? item.low_stock_remaining,
+      is_in_stock: liveProduct?.is_in_stock,
+      is_purchasable: liveProduct?.is_purchasable,
+      is_on_backorder: liveProduct?.is_on_backorder,
+    };
+    const available =
+      liveProduct?.is_in_stock !== false &&
+      liveProduct?.is_purchasable !== false;
+
+    return {
+      checked: true,
+      available,
+      item: enrichedItem,
+      purchaseLimit: available ? getProductPurchaseLimit(enrichedItem) : 0,
+    };
+  } catch (error) {
+    console.warn("[Phase One] Live inventory could not be refreshed:", error);
+
+    // The local limit still protects the interaction. The server performs the
+    // final authoritative validation when the order is created.
+    return {
+      checked: false,
+      available: true,
+      item,
+      purchaseLimit: getProductPurchaseLimit(item),
+    };
+  }
 }
 
 function getPaidSubtotal(items = []) {
@@ -1486,6 +1626,7 @@ export function CartProvider({ children }) {
   });
 
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [cartNotice, setCartNotice] = useState("");
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [checkoutCoupon, setCheckoutCouponState] = useState(() =>
     getSavedCheckoutCoupon(),
@@ -1643,13 +1784,26 @@ export function CartProvider({ children }) {
     setCheckoutCouponState("");
   };
 
-  const addToCart = (product) => {
-    const requestedQuantity = Math.max(1, Number(product?.quantity || 1));
+  const clearCartNotice = () => setCartNotice("");
 
-    const normalizedProduct = normalizeCartItem({
+  const addToCart = async (product) => {
+    const requestedQuantity = Math.max(1, Number(product?.quantity || 1));
+    const initialProduct = normalizeCartItem({
       ...product,
       quantity: requestedQuantity,
     });
+    const liveInventory = await getLiveInventorySnapshot(initialProduct);
+    const normalizedProduct = normalizeCartItem({
+      ...liveInventory.item,
+      quantity: requestedQuantity,
+    });
+
+    if (!liveInventory.available || liveInventory.purchaseLimit === 0) {
+      const message = "This product is currently out of stock.";
+      setCartNotice(message);
+      setIsCartOpen(true);
+      return { addedQuantity: 0, purchaseLimit: 0, message };
+    }
 
     const incomingKey = normalizedProduct.cartKey;
 
@@ -1665,6 +1819,13 @@ export function CartProvider({ children }) {
       existingQuantity + requestedQuantity,
     );
     const quantityActuallyAdded = Math.max(0, nextQuantity - existingQuantity);
+    const purchaseLimit = getProductPurchaseLimit(normalizedProduct);
+    const wasLimited = quantityActuallyAdded < requestedQuantity;
+    const message = wasLimited
+      ? purchaseLimit
+        ? `Only ${purchaseLimit} unit${purchaseLimit === 1 ? " is" : "s are"} available. Your cart was adjusted to the current stock.`
+        : "Your cart was adjusted to the available stock."
+      : "";
 
     let trackingItems;
 
@@ -1722,24 +1883,36 @@ export function CartProvider({ children }) {
           index === existingIndex
             ? {
                 ...item,
+                ...normalizedProduct,
+                cartKey: incomingKey,
                 quantity: clampCartItemQuantity(
-                  item,
+                  { ...item, ...normalizedProduct, cartKey: incomingKey },
                   Number(item.quantity || 1) + requestedQuantity,
                 ),
               }
             : item,
         );
       } else {
-        nextItems = [...normalizedPrev, normalizedProduct];
+        nextItems = [
+          ...normalizedPrev,
+          { ...normalizedProduct, quantity: nextQuantity },
+        ];
       }
 
       return nextItems;
     });
 
+    setCartNotice(message);
     setIsCartOpen(true);
+    return {
+      addedQuantity: quantityActuallyAdded,
+      purchaseLimit,
+      message,
+    };
   };
 
   const removeFromCart = (cartKey) => {
+    setCartNotice("");
     setCartItems((prevItems) => {
       const normalizedPrev = normalizeCartItems(prevItems);
       const nextItems = normalizedPrev.filter(
@@ -1750,7 +1923,33 @@ export function CartProvider({ children }) {
     });
   };
 
-  const updateQuantity = (cartKey, amount) => {
+  const updateQuantity = async (cartKey, amount) => {
+    const requestedChange = Number(amount || 0);
+    const currentItem = normalizeCartItems(cartItems).find(
+      (item) => item.cartKey === cartKey,
+    );
+
+    if (!currentItem) return;
+
+    const liveInventory =
+      requestedChange > 0
+        ? await getLiveInventorySnapshot(currentItem)
+        : {
+            available: true,
+            item: currentItem,
+            purchaseLimit: getProductPurchaseLimit(currentItem),
+          };
+
+    if (!liveInventory.available || liveInventory.purchaseLimit === 0) {
+      setCartItems((prevItems) =>
+        normalizeCartItems(prevItems).filter((item) => item.cartKey !== cartKey),
+      );
+      setCartNotice("This product is now out of stock and was removed from your cart.");
+      return;
+    }
+
+    let limited = false;
+
     setCartItems((prevItems) => {
       const normalizedPrev = normalizeCartItems(prevItems);
 
@@ -1758,22 +1957,57 @@ export function CartProvider({ children }) {
         .map((item) => {
           if (item.cartKey !== cartKey) return item;
 
-          const newQty = Number(item.quantity || 1) + amount;
+          const inventoryItem = { ...item, ...liveInventory.item, cartKey };
+          const newQty = Number(item.quantity || 1) + requestedChange;
           if (newQty <= 0) return null;
 
+          const clampedQuantity = clampCartItemQuantity(inventoryItem, newQty);
+          limited = clampedQuantity < newQty;
+
           return {
-            ...item,
-            quantity: clampCartItemQuantity(item, newQty),
+            ...inventoryItem,
+            quantity: clampedQuantity,
           };
         })
         .filter(Boolean);
 
       return nextItems;
     });
+
+    const purchaseLimit = liveInventory.purchaseLimit;
+    setCartNotice(
+      limited && purchaseLimit
+        ? `Only ${purchaseLimit} unit${purchaseLimit === 1 ? " is" : "s are"} available.`
+        : "",
+    );
   };
 
-  const setQuantity = (cartKey, quantity) => {
+  const setQuantity = async (cartKey, quantity) => {
     const nextQuantity = Number(quantity || 1);
+    const currentItem = normalizeCartItems(cartItems).find(
+      (item) => item.cartKey === cartKey,
+    );
+
+    if (!currentItem) return;
+
+    const liveInventory =
+      nextQuantity > Number(currentItem.quantity || 0)
+        ? await getLiveInventorySnapshot(currentItem)
+        : {
+            available: true,
+            item: currentItem,
+            purchaseLimit: getProductPurchaseLimit(currentItem),
+          };
+
+    if (!liveInventory.available || liveInventory.purchaseLimit === 0) {
+      setCartItems((prevItems) =>
+        normalizeCartItems(prevItems).filter((item) => item.cartKey !== cartKey),
+      );
+      setCartNotice("This product is now out of stock and was removed from your cart.");
+      return;
+    }
+
+    let limited = false;
 
     setCartItems((prevItems) => {
       const normalizedPrev = normalizeCartItems(prevItems);
@@ -1783,15 +2017,26 @@ export function CartProvider({ children }) {
           if (item.cartKey !== cartKey) return item;
           if (nextQuantity <= 0) return null;
 
-          return {
-            ...item,
-            quantity: clampCartItemQuantity(item, nextQuantity),
-          };
+          const inventoryItem = { ...item, ...liveInventory.item, cartKey };
+          const clampedQuantity = clampCartItemQuantity(
+            inventoryItem,
+            nextQuantity,
+          );
+          limited = clampedQuantity < nextQuantity;
+
+          return { ...inventoryItem, quantity: clampedQuantity };
         })
         .filter(Boolean);
 
       return nextItems;
     });
+
+    const purchaseLimit = liveInventory.purchaseLimit;
+    setCartNotice(
+      limited && purchaseLimit
+        ? `Only ${purchaseLimit} unit${purchaseLimit === 1 ? " is" : "s are"} available.`
+        : "",
+    );
   };
 
   const normalizedCartItems = normalizeCartItems(cartItems);
@@ -1876,11 +2121,55 @@ export function CartProvider({ children }) {
     );
   };
 
-  const checkout = () => {
+  const checkout = async () => {
     if (checkoutLoading) return;
 
     if (!cartItems || cartItems.length === 0) {
       setIsCartOpen(true);
+      return;
+    }
+
+    setCheckoutLoading(true);
+
+    const itemsBeforeCheckout = normalizeCartItems(cartItems);
+    const inventoryResults = await Promise.all(
+      itemsBeforeCheckout.map((item) => getLiveInventorySnapshot(item)),
+    );
+    const reconciledItems = [];
+    let inventoryChanged = false;
+
+    inventoryResults.forEach((result, index) => {
+      const currentItem = itemsBeforeCheckout[index];
+
+      if (!result.available || result.purchaseLimit === 0) {
+        inventoryChanged = true;
+        return;
+      }
+
+      const inventoryItem = {
+        ...currentItem,
+        ...result.item,
+        cartKey: currentItem.cartKey,
+      };
+      const quantity = clampCartItemQuantity(
+        inventoryItem,
+        currentItem.quantity,
+      );
+
+      if (quantity !== Number(currentItem.quantity || 0)) {
+        inventoryChanged = true;
+      }
+
+      reconciledItems.push({ ...inventoryItem, quantity });
+    });
+
+    if (inventoryChanged) {
+      setCartItems(normalizeCartItems(reconciledItems));
+      setCartNotice(
+        "Stock changed while you were shopping. We updated your cart; please review it before checkout.",
+      );
+      setIsCartOpen(true);
+      setCheckoutLoading(false);
       return;
     }
 
@@ -1909,8 +2198,6 @@ export function CartProvider({ children }) {
       shipping_protection_amount: shippingProtectionAmount,
     });
 
-    setCheckoutLoading(true);
-
     console.log("Sending cart to WordPress checkout:", checkoutUrl);
 
     window.location.href = checkoutUrl;
@@ -1920,6 +2207,8 @@ export function CartProvider({ children }) {
     <CartContext.Provider
       value={{
         cartItems: normalizedCartItems,
+        cartNotice,
+        clearCartNotice,
         isCartOpen,
         setIsCartOpen,
         addToCart,

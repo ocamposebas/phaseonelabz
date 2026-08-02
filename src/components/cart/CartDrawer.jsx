@@ -9,6 +9,7 @@ import {
   Truck,
   ShieldCheck,
   Check,
+  AlertTriangle,
 } from "lucide-react";
 import { getProductPurchaseLimit, useCart } from "./CartContext";
 
@@ -64,6 +65,8 @@ export default function CartDrawer() {
     isCartOpen,
     setIsCartOpen,
     cartItems,
+    cartNotice,
+    clearCartNotice,
     updateQuantity,
     removeFromCart,
     cartTotal,
@@ -177,6 +180,21 @@ export default function CartDrawer() {
         </div>
 
         <div className="cart-scroll flex-1 overflow-y-auto px-5 py-5">
+          {cartNotice && (
+            <div className="mb-4 flex items-start gap-3 rounded-2xl border border-amber-300/20 bg-amber-300/[0.08] px-4 py-3 text-amber-100">
+              <AlertTriangle size={17} className="mt-0.5 shrink-0" />
+              <p className="flex-1 text-sm leading-5">{cartNotice}</p>
+              <button
+                type="button"
+                onClick={clearCartNotice}
+                aria-label="Dismiss stock notice"
+                className="grid h-6 w-6 shrink-0 place-items-center rounded-full text-amber-100/60 transition hover:bg-white/10 hover:text-amber-50"
+              >
+                <X size={13} />
+              </button>
+            </div>
+          )}
+
           {!hasItems ? (
             <div className="flex h-full flex-col items-center justify-center text-center">
               <div className="grid h-16 w-16 place-items-center rounded-full border border-cyan-200/10 bg-cyan-300/[0.04] text-cyan-200">
@@ -264,7 +282,7 @@ export default function CartDrawer() {
 
                             {purchaseLimit && !isRewardGift && (
                               <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.12em] text-amber-200/80">
-                                50% off · Maximum {purchaseLimit} per order
+                                Maximum {purchaseLimit} available
                               </p>
                             )}
                           </div>

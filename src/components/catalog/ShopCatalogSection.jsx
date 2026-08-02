@@ -2531,6 +2531,7 @@ export default function ShopCatalogSection({
 
       addToCart({
         ...product,
+        ...(selectedOption?.variation || {}),
         // `id` must remain a real WooCommerce ID. The old composite string
         // (`product-variation-label`) was later sent as a product ID.
         id: variationId || productId,

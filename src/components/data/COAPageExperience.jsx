@@ -1633,41 +1633,126 @@ function CoaHistoryLibrary({ documents, isLoading, onOpenFamily }) {
 
   if (documents.length === 0) {
     return (
-      <div className="mt-8 rounded-[1.5rem] border border-blue-200/10 bg-white/[0.018] px-5 py-12 text-center">
-        <History size={24} className="mx-auto text-blue-200/60" />
-        <h3 className="mt-4 text-lg font-semibold text-white">No archived reports yet</h3>
+      <div className="mx-auto mt-8 max-w-4xl rounded-2xl border border-blue-200/10 bg-[#07111e]/70 px-5 py-12 text-center">
+        <div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl border border-blue-300/15 bg-blue-400/[0.07] text-blue-200">
+          <History size={21} />
+        </div>
+        <h3 className="mt-4 text-lg font-semibold text-white">
+          No archived reports yet
+        </h3>
         <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">
-          Previous COAs will appear here automatically when a new shipping lot replaces them.
+          Stored lots will appear here automatically when they leave the active
+          catalog.
         </p>
       </div>
     );
   }
 
   return (
-    <div className="mt-8">
-      <div className="mb-5 flex items-end justify-between gap-4">
-        <div>
-          <p className="text-[8px] font-black uppercase tracking-[0.22em] text-blue-300/55">COA archive</p>
-          <h3 className="mt-1.5 text-[23px] font-semibold tracking-[-0.045em] text-white sm:text-[28px]">Report history</h3>
+    <div className="mx-auto mt-8 max-w-5xl">
+      <div className="relative overflow-hidden rounded-2xl border border-blue-200/10 bg-gradient-to-r from-[#09172a] to-[#06101d] p-4 sm:flex sm:items-center sm:justify-between sm:gap-6 sm:p-5">
+        <div className="pointer-events-none absolute -left-12 top-1/2 h-32 w-32 -translate-y-1/2 rounded-full bg-blue-400/10 blur-3xl" />
+        <div className="relative flex items-center gap-4">
+          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-blue-300/15 bg-blue-400/[0.08] text-blue-100">
+            <History size={19} />
+          </div>
+          <div>
+            <p className="text-[8px] font-black uppercase tracking-[0.2em] text-blue-300/60">
+              COA archive
+            </p>
+            <h3 className="mt-1 text-xl font-semibold tracking-[-0.035em] text-white sm:text-2xl">
+              Stored lot history
+            </h3>
+            <p className="mt-1 text-[11px] leading-5 text-slate-500 sm:text-xs">
+              Previous laboratory reports kept for batch traceability.
+            </p>
+          </div>
         </div>
-        <span className="rounded-full border border-blue-200/10 bg-blue-400/[0.06] px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.13em] text-blue-100/70">
-          {documents.length} archived
-        </span>
+
+        <div className="relative mt-4 inline-flex items-center gap-2 rounded-xl border border-blue-200/10 bg-black/15 px-3 py-2 sm:mt-0">
+          <span className="h-1.5 w-1.5 rounded-full bg-blue-300 shadow-[0_0_10px_rgba(147,197,253,0.8)]" />
+          <span className="text-[9px] font-black uppercase tracking-[0.14em] text-blue-100/75">
+            {documents.length} {documents.length === 1 ? "record" : "records"}
+          </span>
+        </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {documents.map((document) => (
-          <article key={document.key} className="rounded-[1.35rem] border border-blue-200/10 bg-[#07111e]/75 p-4 shadow-[0_16px_45px_rgba(0,0,0,0.16)]">
-            <div className="flex items-start justify-between gap-3">
-              <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-blue-300/12 bg-blue-400/[0.07] text-blue-200"><FileText size={16} /></div>
-              <span className="rounded-full border border-white/[0.07] bg-white/[0.025] px-2 py-1 text-[8px] font-black uppercase tracking-[0.12em] text-slate-500">{formatDate(document.date)}</span>
-            </div>
-            <p className="mt-4 text-[8px] font-black uppercase tracking-[0.17em] text-blue-300/60">{document.productName}</p>
-            <h4 className="mt-1 truncate text-sm font-semibold text-white">{cleanDisplayText(document.label, "Archived COA")}</h4>
-            <p className="mt-1 text-[11px] text-slate-500">{document.strength}{document.batch ? ` · Batch ${document.batch}` : ""}</p>
-            <div className="mt-4 flex items-center gap-2">
-              {document.url && <a href={document.url} target="_blank" rel="noreferrer" className="inline-flex min-h-9 items-center rounded-xl bg-blue-200 px-3 text-[8px] font-black uppercase tracking-[0.12em] text-slate-950 transition hover:bg-white">Open report <ArrowUpRight size={12} className="ml-1.5" /></a>}
-              <button type="button" onClick={() => onOpenFamily(document.familyKey)} className="inline-flex min-h-9 items-center rounded-xl border border-white/[0.08] px-3 text-[8px] font-black uppercase tracking-[0.12em] text-slate-400 transition hover:border-blue-300/25 hover:text-blue-100">View family</button>
+      <div className="mt-4 space-y-3">
+        {documents.map((document, index) => (
+          <article
+            key={document.key}
+            className="group relative overflow-hidden rounded-2xl border border-blue-200/10 bg-[#07111e]/70 p-4 transition duration-300 hover:border-blue-300/20 hover:bg-[#091525] sm:p-5"
+          >
+            <div className="absolute inset-y-0 left-0 w-0.5 bg-gradient-to-b from-blue-300/70 via-cyan-300/30 to-transparent opacity-60" />
+
+            <div className="grid gap-4 sm:grid-cols-[48px_minmax(0,1fr)_auto] sm:items-center sm:gap-5">
+              <div className="flex items-center gap-3 sm:block">
+                <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-blue-300/15 bg-blue-400/[0.07] text-blue-200 transition group-hover:bg-blue-400/[0.11] group-hover:text-blue-100">
+                  <FileText size={18} />
+                </div>
+                <span className="text-[8px] font-black tracking-[0.18em] text-slate-700 sm:mt-2 sm:block sm:text-center">
+                  {String(index + 1).padStart(2, "0")}
+                </span>
+              </div>
+
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[8px] font-black uppercase tracking-[0.18em] text-blue-300/65">
+                    Archived COA
+                  </span>
+                  <span className="rounded-md border border-amber-300/15 bg-amber-300/[0.06] px-2 py-1 text-[7px] font-black uppercase tracking-[0.13em] text-amber-100/70">
+                    Stored lot
+                  </span>
+                </div>
+
+                <h4 className="mt-2 truncate text-base font-semibold tracking-[-0.025em] text-white sm:text-lg">
+                  {cleanDisplayText(document.productName, "Archived product")}
+                </h4>
+
+                <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-[10px] text-slate-500 sm:text-[11px]">
+                  {document.batch && (
+                    <span>
+                      Batch{" "}
+                      <strong className="font-semibold text-slate-300">
+                        {document.batch}
+                      </strong>
+                    </span>
+                  )}
+                  <span>
+                    Strength{" "}
+                    <strong className="font-semibold text-slate-300">
+                      {document.strength || "Standard"}
+                    </strong>
+                  </span>
+                  <span>{formatDate(document.date)}</span>
+                  {document.coaNumber && (
+                    <span className="font-mono text-[9px] text-slate-600">
+                      {document.coaNumber}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 sm:justify-end">
+                {document.url && (
+                  <a
+                    href={document.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex min-h-10 flex-1 items-center justify-center rounded-xl bg-blue-200 px-4 text-[8px] font-black uppercase tracking-[0.12em] text-slate-950 transition hover:bg-white sm:flex-none"
+                  >
+                    Open report
+                    <ArrowUpRight size={12} className="ml-1.5" />
+                  </a>
+                )}
+                <button
+                  type="button"
+                  onClick={() => onOpenFamily(document.familyKey)}
+                  className="inline-flex min-h-10 flex-1 items-center justify-center rounded-xl border border-white/[0.08] px-4 text-[8px] font-black uppercase tracking-[0.12em] text-slate-400 transition hover:border-blue-300/25 hover:bg-blue-400/[0.05] hover:text-blue-100 sm:flex-none"
+                >
+                  Family
+                </button>
+              </div>
             </div>
           </article>
         ))}
@@ -2007,12 +2092,12 @@ export default function COALookupSection({
           </p>
         </header>
 
-        <div className="mx-auto mt-8 grid max-w-sm grid-cols-2 gap-1 rounded-2xl border border-blue-200/10 bg-[#06101d]/80 p-1.5">
+        <div className="mx-auto mt-7 grid max-w-[300px] grid-cols-2 gap-1 rounded-xl border border-blue-200/10 bg-[#06101d]/80 p-1">
           <button
             type="button"
             onClick={() => setActiveView("catalog")}
             className={cx(
-              "inline-flex min-h-10 items-center justify-center gap-2 rounded-xl text-[9px] font-black uppercase tracking-[0.14em] transition",
+              "inline-flex min-h-9 items-center justify-center gap-2 rounded-lg text-[8px] font-black uppercase tracking-[0.14em] transition",
               activeView === "catalog"
                 ? "bg-blue-300 text-slate-950"
                 : "text-slate-500 hover:text-blue-100"
@@ -2024,7 +2109,7 @@ export default function COALookupSection({
             type="button"
             onClick={() => setActiveView("history")}
             className={cx(
-              "inline-flex min-h-10 items-center justify-center gap-2 rounded-xl text-[9px] font-black uppercase tracking-[0.14em] transition",
+              "inline-flex min-h-9 items-center justify-center gap-2 rounded-lg text-[8px] font-black uppercase tracking-[0.14em] transition",
               activeView === "history"
                 ? "bg-blue-300 text-slate-950"
                 : "text-slate-500 hover:text-blue-100"

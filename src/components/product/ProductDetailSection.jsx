@@ -2986,11 +2986,44 @@ export default function ProductDetailSection({
     needsVariationMatch && selectedVariation ? selectedVariation : product;
   const selectedPurchaseLimit = getProductPurchaseLimit({
     ...product,
+    stock_quantity:
+      selectedInventoryTarget?.stock_quantity ?? product?.stock_quantity,
+    stockQuantity:
+      selectedInventoryTarget?.stockQuantity ?? product?.stockQuantity,
+    manage_stock:
+      selectedInventoryTarget?.manage_stock ?? product?.manage_stock,
+    backorders:
+      selectedInventoryTarget?.backorders ?? product?.backorders,
+    backorders_allowed:
+      selectedInventoryTarget?.backorders_allowed ??
+      product?.backorders_allowed,
+    sold_individually:
+      selectedInventoryTarget?.sold_individually ?? product?.sold_individually,
+    add_to_cart:
+      selectedInventoryTarget?.add_to_cart ?? product?.add_to_cart,
     variation_id: selectedVariation?.id || 0,
     variationId: selectedVariation?.id || 0,
   });
-  const effectiveQuantity = selectedPurchaseLimit
-    ? Math.min(quantity, selectedPurchaseLimit)
+  const selectedProductId = Number(product?.id || 0);
+  const selectedVariationId = Number(selectedVariation?.id || 0);
+  const selectedCartQuantity = (cart?.cartItems || []).reduce((total, item) => {
+    const itemProductId = Number(
+      item?.product_id || item?.parent_id || item?.productId || item?.id || 0,
+    );
+    const itemVariationId = Number(
+      item?.variation_id || item?.variationId || item?.selectedVariationId || 0,
+    );
+
+    return itemProductId === selectedProductId &&
+      itemVariationId === selectedVariationId
+      ? total + Number(item?.quantity || 0)
+      : total;
+  }, 0);
+  const remainingPurchaseQuantity = selectedPurchaseLimit
+    ? Math.max(selectedPurchaseLimit - selectedCartQuantity, 0)
+    : null;
+  const effectiveQuantity = remainingPurchaseQuantity !== null
+    ? Math.min(quantity, remainingPurchaseQuantity)
     : quantity;
 
   const stockStatus =
@@ -3004,10 +3037,14 @@ export default function ProductDetailSection({
   const displayImage = activeImage?.src || getProductImage(product);
 
   useEffect(() => {
-    if (selectedPurchaseLimit && quantity > selectedPurchaseLimit) {
-      setQuantity(selectedPurchaseLimit);
+    if (
+      remainingPurchaseQuantity !== null &&
+      remainingPurchaseQuantity > 0 &&
+      quantity > remainingPurchaseQuantity
+    ) {
+      setQuantity(remainingPurchaseQuantity);
     }
-  }, [quantity, selectedPurchaseLimit]);
+  }, [quantity, remainingPurchaseQuantity]);
 
   const handleSelectAttribute = (attributeSlug, option) => {
     setSelectedAttributes((current) => ({
@@ -3018,7 +3055,7 @@ export default function ProductDetailSection({
     setCartMessage("");
   };
 
-  const handleAddToCart = () => {
+  const handleAddToCart = async () => {
     setCartMessage("");
 
     if (!addToCart) {
@@ -3033,6 +3070,14 @@ export default function ProductDetailSection({
 
     if (!hasValidVariation) {
       setCartMessage("Please choose a valid product option before adding to cart.");
+      return;
+    }
+
+    if (remainingPurchaseQuantity === 0) {
+      setCartMessage(
+        `You already have all ${selectedPurchaseLimit} available unit${selectedPurchaseLimit === 1 ? "" : "s"} in your cart.`,
+      );
+      cart?.setIsCartOpen?.(true);
       return;
     }
 
@@ -3066,14 +3111,30 @@ export default function ProductDetailSection({
         : name,
       name,
       sku: selectedVariation?.sku || product?.sku,
+      stock_quantity:
+        selectedInventoryTarget?.stock_quantity ?? product?.stock_quantity,
+      stockQuantity:
+        selectedInventoryTarget?.stockQuantity ?? product?.stockQuantity,
+      manage_stock:
+        selectedInventoryTarget?.manage_stock ?? product?.manage_stock,
+      backorders:
+        selectedInventoryTarget?.backorders ?? product?.backorders,
+      backorders_allowed:
+        selectedInventoryTarget?.backorders_allowed ??
+        product?.backorders_allowed,
+      sold_individually:
+        selectedInventoryTarget?.sold_individually ?? product?.sold_individually,
+      add_to_cart:
+        selectedInventoryTarget?.add_to_cart ?? product?.add_to_cart,
     };
 
-    addToCart(cartItem);
-    setCartMessage(
-      selectedPurchaseLimit && quantity > selectedPurchaseLimit
-        ? `Added ${selectedPurchaseLimit}, the maximum per order.`
-        : "Added to cart.",
-    );
+    const result = await addToCart(cartItem);
+
+    if (!result || result.addedQuantity > 0) {
+      setCartMessage(result?.message || "Added to cart.");
+    } else {
+      setCartMessage(result.message || "No more units are currently available.");
+    }
   };
 
   return (
@@ -3334,14 +3395,18 @@ export default function ProductDetailSection({
                         onClick={() =>
                           setQuantity((current) =>
                             selectedPurchaseLimit
-                              ? Math.min(current + 1, selectedPurchaseLimit)
+                              ? Math.min(
+                                  current + 1,
+                                  Math.max(remainingPurchaseQuantity || 1, 1),
+                                )
                               : current + 1
                           )
                         }
                         aria-label="Increase quantity"
                         disabled={
-                          selectedPurchaseLimit &&
-                          quantity >= selectedPurchaseLimit
+                          remainingPurchaseQuantity !== null &&
+                          (remainingPurchaseQuantity === 0 ||
+                            quantity >= remainingPurchaseQuantity)
                         }
                       >
                         <Plus size={14} />
@@ -3352,7 +3417,11 @@ export default function ProductDetailSection({
                       type="button"
                       className="pdp-add"
                       onClick={handleAddToCart}
-                      disabled={!addToCart || !hasValidVariation}
+                      disabled={
+                        !addToCart ||
+                        !hasValidVariation ||
+                        remainingPurchaseQuantity === 0
+                      }
                     >
                       <ShoppingCart size={16} />
                       Add to cart
@@ -3361,7 +3430,9 @@ export default function ProductDetailSection({
 
                   {selectedPurchaseLimit && (
                     <p className="pdp-quantity-note">
-                      Maximum {selectedPurchaseLimit} per order
+                      {selectedCartQuantity > 0
+                        ? `${selectedCartQuantity} in cart · ${remainingPurchaseQuantity} remaining`
+                        : `Maximum ${selectedPurchaseLimit} available`}
                     </p>
                   )}
 
