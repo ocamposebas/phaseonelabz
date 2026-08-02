@@ -856,23 +856,48 @@ final class PhaseOne_Prism_Checkout_Bridge {
         }
 
         $base_total = round( (float) $order->get_total(), 2 );
-        $amount     = self::calculate_shipping_protection_amount( $base_total, $billing['country'] ?? 'US' );
-
-        if ( $amount <= 0 ) {
-            $order->update_meta_data( '_phaseone_shipping_protection_selected', 'no' );
-            return;
-        }
-
-        $fee = new WC_Order_Item_Fee();
-        $fee->set_name( 'Shipping Protection' );
-        $fee->set_tax_status( 'none' );
-        $fee->set_total( $amount );
-        $order->add_item( $fee );
         $order->update_meta_data( '_phaseone_shipping_protection_selected', 'yes' );
         $order->update_meta_data( '_phaseone_shipping_protection_provider', 'parcelguard' );
+        $order->update_meta_data( '_phaseone_shipping_protection', 'yes' );
+        $order->update_meta_data( '_phaseone_shipping_protection_value', wc_format_decimal( $base_total, 2 ) );
+        $order->calculate_totals( false );
+
+        $amount = self::get_existing_shipping_protection_fee( $order );
+
+        if ( null === $amount ) {
+            $amount = self::calculate_shipping_protection_amount( $base_total, $billing['country'] ?? 'US' );
+
+            if ( $amount <= 0 ) {
+                $order->update_meta_data( '_phaseone_shipping_protection_selected', 'no' );
+                return;
+            }
+
+            $fee = new WC_Order_Item_Fee();
+            $fee->set_name( 'Shipping Protection' );
+            $fee->set_tax_status( 'none' );
+            $fee->set_total( $amount );
+            $order->add_item( $fee );
+            $order->calculate_totals( false );
+        }
+
         $order->update_meta_data( '_phaseone_shipping_protection_amount', wc_format_decimal( $amount, 2 ) );
         $order->update_meta_data( '_phaseone_shipping_protection_insured_value', wc_format_decimal( $base_total + $amount, 2 ) );
-        $order->calculate_totals( false );
+    }
+
+    private static function get_existing_shipping_protection_fee( WC_Order $order ): ?float {
+        foreach ( $order->get_items( 'fee' ) as $fee ) {
+            if ( ! $fee instanceof WC_Order_Item_Fee ) {
+                continue;
+            }
+
+            if ( 'shipping-protection' !== self::normalize_product_identifier( $fee->get_name() ) ) {
+                continue;
+            }
+
+            return max( 0.0, round( (float) $fee->get_total(), 2 ) );
+        }
+
+        return null;
     }
 
     private static function is_recon_water_product( $product ): bool {

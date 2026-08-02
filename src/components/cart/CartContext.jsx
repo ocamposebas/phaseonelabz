@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 
 // Public URL used only for Omnisend abandoned-cart recovery links.
 // IMPORTANT:
@@ -14,6 +14,10 @@ const SHIPPING_PROTECTION_AMOUNT_COOKIE_KEY =
   "phaseone_shipping_protection_amount";
 const SHIPPING_PROTECTION_VALUE_COOKIE_KEY =
   "phaseone_shipping_protection_value";
+const CART_STORAGE_KEY = "lab_cart";
+const CART_STORAGE_TTL_MS = 30 * 60 * 1000;
+const PENDING_CHECKOUT_STORAGE_KEY = "phaseone_pending_checkout";
+const CHECKOUT_SESSION_STORAGE_PREFIX = "phaseone_checkout_session_";
 
 // One customer-facing domestic rate, regardless of whether the final label is
 // USPS or FedEx. ShipStation/ParcelGuard remains the only insurance provider.
@@ -782,6 +786,77 @@ function normalizeCartItems(items = []) {
   });
 }
 
+function clearStoredCheckoutSessions() {
+  if (typeof window === "undefined") return;
+
+  try {
+    localStorage.removeItem(PENDING_CHECKOUT_STORAGE_KEY);
+
+    Object.keys(localStorage)
+      .filter((key) => key.startsWith(CHECKOUT_SESSION_STORAGE_PREFIX))
+      .forEach((key) => localStorage.removeItem(key));
+  } catch {}
+}
+
+function removeStoredCart({ clearCheckoutSessions = false } = {}) {
+  if (typeof window === "undefined") return;
+
+  try {
+    localStorage.removeItem(CART_STORAGE_KEY);
+  } catch {}
+
+  if (clearCheckoutSessions) {
+    clearStoredCheckoutSessions();
+  }
+}
+
+function readStoredCart() {
+  if (typeof window === "undefined") {
+    return { items: [], expiresAt: 0 };
+  }
+
+  try {
+    const parsed = safeJsonParse(localStorage.getItem(CART_STORAGE_KEY), null);
+
+    if (Array.isArray(parsed)) {
+      removeStoredCart({ clearCheckoutSessions: true });
+      return { items: [], expiresAt: 0 };
+    }
+
+    const expiresAt = Number(parsed?.expiresAt || 0);
+
+    if (!Array.isArray(parsed?.items) || expiresAt <= Date.now()) {
+      if (parsed) {
+        removeStoredCart({ clearCheckoutSessions: true });
+      }
+
+      return { items: [], expiresAt: 0 };
+    }
+
+    return {
+      items: normalizeCartItems(parsed.items),
+      expiresAt,
+    };
+  } catch {
+    removeStoredCart({ clearCheckoutSessions: true });
+    return { items: [], expiresAt: 0 };
+  }
+}
+
+function persistCart(items = [], expiresAt = 0) {
+  if (typeof window === "undefined") return;
+
+  try {
+    localStorage.setItem(
+      CART_STORAGE_KEY,
+      JSON.stringify({
+        items: normalizeCartItems(items),
+        expiresAt,
+      }),
+    );
+  } catch {}
+}
+
 function buildCheckoutPayload(cartItems = []) {
   /*
     This preserves the real WooCommerce numeric IDs by resolving them from
@@ -1092,6 +1167,7 @@ function persistCheckoutSession({
   shippingProtectionSelected = false,
   shippingProtectionAmount = 0,
   shippingProtectionInsuredValue = 0,
+  cartExpiresAt = 0,
   source = "phaseone_cart_drawer_custom_checkout",
 } = {}) {
   if (typeof window === "undefined") return "";
@@ -1108,6 +1184,10 @@ function persistCheckoutSession({
   const customerName = String(
     account?.name || account?.display_name || "",
   ).trim();
+  const checkoutExpiresAt =
+    Number(cartExpiresAt) > Date.now()
+      ? Number(cartExpiresAt)
+      : Date.now() + CART_STORAGE_TTL_MS;
   const bundleUnlocked = normalizedItems.some(
     (item) => item.phaseone_bundle_active,
   );
@@ -1125,6 +1205,8 @@ function persistCheckoutSession({
   const session = {
     session_id: sessionId,
     created_at: new Date().toISOString(),
+    cart_expires_at: new Date(checkoutExpiresAt).toISOString(),
+    cartExpiresAt: checkoutExpiresAt,
     source,
 
     cart_items: normalizedItems,
@@ -1283,6 +1365,7 @@ function createCheckoutRecoveryUrl(items = [], options = {}, baseUrl = "") {
     shippingProtectionSelected,
     shippingProtectionAmount,
     shippingProtectionInsuredValue,
+    cartExpiresAt: options.cartExpiresAt,
     source: options.source || "phaseone_omnisend_abandoned_cart",
   });
 
@@ -1383,15 +1466,13 @@ function encodeCheckoutPayload(payload) {
 }
 
 export function CartProvider({ children }) {
+  const cartExpiryRef = useRef(0);
+  const isInitialCartPersistenceRef = useRef(true);
   const [cartItems, setCartItems] = useState(() => {
-    if (typeof window !== "undefined") {
-      const savedCart = localStorage.getItem("lab_cart");
-      const parsed = safeJsonParse(savedCart, []);
+    const storedCart = readStoredCart();
+    cartExpiryRef.current = storedCart.expiresAt;
 
-      return Array.isArray(parsed) ? normalizeCartItems(parsed) : [];
-    }
-
-    return [];
+    return storedCart.items;
   });
 
   const [isCartOpen, setIsCartOpen] = useState(false);
@@ -1406,7 +1487,45 @@ export function CartProvider({ children }) {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    localStorage.setItem("lab_cart", JSON.stringify(cartItems));
+    if (!cartItems.length) {
+      cartExpiryRef.current = 0;
+      removeStoredCart();
+      return;
+    }
+
+    const keepStoredExpiration =
+      isInitialCartPersistenceRef.current && cartExpiryRef.current > Date.now();
+
+    isInitialCartPersistenceRef.current = false;
+
+    if (keepStoredExpiration) return;
+
+    const expiresAt = Date.now() + CART_STORAGE_TTL_MS;
+    cartExpiryRef.current = expiresAt;
+    persistCart(cartItems, expiresAt);
+  }, [cartItems]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !cartItems.length) return undefined;
+
+    const remainingMs = cartExpiryRef.current - Date.now();
+
+    if (remainingMs <= 0) {
+      removeStoredCart({ clearCheckoutSessions: true });
+      setCartItems([]);
+      setShippingProtectionSelectedState(false);
+      persistShippingProtectionSelection({ selected: false });
+      return undefined;
+    }
+
+    const expirationTimer = window.setTimeout(() => {
+      removeStoredCart({ clearCheckoutSessions: true });
+      setCartItems([]);
+      setShippingProtectionSelectedState(false);
+      persistShippingProtectionSelection({ selected: false });
+    }, remainingMs);
+
+    return () => window.clearTimeout(expirationTimer);
   }, [cartItems]);
 
   useEffect(() => {
@@ -1720,7 +1839,7 @@ export function CartProvider({ children }) {
     persistShippingProtectionSelection({ selected: false });
 
     if (typeof window !== "undefined") {
-      localStorage.removeItem("lab_cart");
+      removeStoredCart({ clearCheckoutSessions: true });
     }
   };
 
@@ -1738,6 +1857,7 @@ export function CartProvider({ children }) {
         shippingProtectionSelected,
         shippingProtectionAmount,
         shippingProtectionInsuredValue,
+        cartExpiresAt: cartExpiryRef.current,
         source: "phaseone_cart_drawer_custom_checkout",
       },
       `${window.location.origin}/checkout`,

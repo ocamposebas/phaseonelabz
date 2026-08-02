@@ -1459,25 +1459,57 @@ function getSessionIdFromUrl() {
   );
 }
 
+function isExpiredCartCheckoutSession(session) {
+  const numericExpiry = Number(session?.cartExpiresAt || 0);
+  const isoExpiry = Date.parse(session?.cart_expires_at || "");
+  const expiresAt = Number.isFinite(numericExpiry) && numericExpiry > 0
+    ? numericExpiry
+    : isoExpiry;
+
+  return !Number.isFinite(expiresAt) || expiresAt <= Date.now();
+}
+
+function removeExpiredCartCheckoutSessions() {
+  try {
+    localStorage.removeItem("lab_cart");
+    localStorage.removeItem("phaseone_pending_checkout");
+
+    Object.keys(localStorage)
+      .filter((key) => key.startsWith("phaseone_checkout_session_"))
+      .forEach((key) => localStorage.removeItem(key));
+  } catch {}
+}
+
+function readActiveCartCheckoutSession(storageKey) {
+  const session = safeJsonParse(localStorage.getItem(storageKey), null);
+
+  if (!session) return null;
+
+  if (isExpiredCartCheckoutSession(session)) {
+    removeExpiredCartCheckoutSessions();
+    return null;
+  }
+
+  return session;
+}
+
 function readPendingCheckoutSession() {
   if (typeof window === "undefined") return null;
 
   const sessionId = getSessionIdFromUrl();
 
   if (sessionId) {
-    const direct = safeJsonParse(
-      localStorage.getItem(`phaseone_checkout_session_${sessionId}`),
-      null,
+    const direct = readActiveCartCheckoutSession(
+      `phaseone_checkout_session_${sessionId}`,
     );
 
     if (direct)
       return { ...direct, session_id: direct.session_id || sessionId };
+
+    return null;
   }
 
-  const pending = safeJsonParse(
-    localStorage.getItem("phaseone_pending_checkout"),
-    null,
-  );
+  const pending = readActiveCartCheckoutSession("phaseone_pending_checkout");
 
   if (pending) return pending;
 
