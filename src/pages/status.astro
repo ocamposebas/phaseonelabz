@@ -1,0 +1,51 @@
+---
+export const prerender = false;
+
+import StatusLayout from "../layouts/StatusLayout.astro";
+import StatusExperience from "../components/status/StatusExperience.jsx";
+import StatusAccessGate from "../components/status/StatusAccessGate.jsx";
+import { getStatusSnapshot } from "../lib/statusMonitor.js";
+import {
+  hasPrivateStatusAccess,
+  isStatusAccessConfigured,
+} from "../lib/statusAccess.js";
+
+Astro.response.headers.set("Cache-Control", "private, no-store, max-age=0");
+Astro.response.headers.set("Pragma", "no-cache");
+Astro.response.headers.set("Vary", "Cookie");
+Astro.response.headers.set("X-Robots-Tag", "noindex, nofollow, noarchive");
+
+const accessConfigured = isStatusAccessConfigured();
+const hasAccess = accessConfigured && hasPrivateStatusAccess(Astro.cookies);
+
+const emptySnapshot = {
+  status: "unknown",
+  checkedAt: null,
+  services: [],
+  incidents: [],
+  maintenance: null,
+  unavailable: true,
+};
+
+let initialSnapshot = emptySnapshot;
+
+try {
+  if (!hasAccess) throw new Error("Private access required.");
+
+  const payload = await getStatusSnapshot();
+
+  if (payload && typeof payload === "object") {
+    initialSnapshot = JSON.parse(JSON.stringify(payload));
+  }
+} catch {
+  // The client keeps this safe fallback and retries after hydration.
+}
+---
+
+<StatusLayout authenticated={hasAccess}>
+  {hasAccess ? (
+    <StatusExperience client:load initialSnapshot={initialSnapshot} />
+  ) : (
+    <StatusAccessGate client:load configured={accessConfigured} />
+  )}
+</StatusLayout>

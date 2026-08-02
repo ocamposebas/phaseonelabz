@@ -1,0 +1,276 @@
+---
+import "../styles/global.css";
+
+interface Props {
+  title?: string;
+  description?: string;
+  authenticated?: boolean;
+}
+
+const {
+  title = "System Status | Phase One Labz",
+  description =
+    "Live availability, incidents, and scheduled maintenance for Phase One Labz services.",
+  authenticated = false,
+} = Astro.props;
+
+const canonicalUrl = new URL("/status", "https://phaseonelabz.com").toString();
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta name="robots" content="noindex, nofollow, noarchive" />
+    <meta name="theme-color" content="#020617" />
+    <meta name="color-scheme" content="dark" />
+    <link rel="canonical" href={canonicalUrl} />
+    <link rel="icon" type="image/png" href="/favicon.png?v=6" />
+    <link rel="apple-touch-icon" href="/favicon.png?v=6" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Phase One Labz" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonicalUrl} />
+  </head>
+
+  <body class="status-document">
+    <a class="status-skip-link" href="#status-content">Skip to system status</a>
+
+    <header class="status-site-header">
+      <div class="status-site-header__inner">
+        <a class="status-site-header__brand" href="/" aria-label="Phase One Labz home">
+          <img src="/TRANSPARENCIA-03.webp" alt="Phase One Labz" />
+        </a>
+
+        <div class="status-site-header__label" aria-label="Private system status portal">
+          <span aria-hidden="true"></span>
+          {authenticated ? "Private system status" : "Restricted access"}
+        </div>
+
+        <a class="status-site-header__return" href="/">
+          <span>Back to website</span>
+          <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <path d="M4.25 10h11.5M11.25 5.5 15.75 10l-4.5 4.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>
+          </svg>
+        </a>
+      </div>
+    </header>
+
+    <div id="status-content">
+      <slot />
+    </div>
+
+    <footer class="status-site-footer">
+      <div class="status-site-footer__inner">
+        <p>Phase One Labz private service status</p>
+
+        <div>
+          <a href="mailto:support@phaseonelabz.com">Contact support</a>
+          <span aria-hidden="true">&middot;</span>
+          <a href="/">phaseonelabz.com</a>
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>
+
+<style>
+  .status-document {
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+
+  .status-skip-link {
+    position: fixed;
+    left: 1rem;
+    top: 1rem;
+    z-index: 1000;
+    transform: translateY(-180%);
+    border: 1px solid rgba(103, 232, 249, 0.35);
+    border-radius: 0.75rem;
+    background: #07111f;
+    padding: 0.7rem 1rem;
+    color: #cffafe;
+    font-size: 0.8rem;
+    font-weight: 800;
+    transition: transform 160ms ease;
+  }
+
+  .status-skip-link:focus {
+    transform: translateY(0);
+    outline: none;
+  }
+
+  .status-site-header {
+    position: relative;
+    z-index: 20;
+    border-bottom: 1px solid rgba(125, 211, 252, 0.1);
+    background: rgba(2, 6, 23, 0.72);
+    backdrop-filter: blur(20px) saturate(130%);
+    -webkit-backdrop-filter: blur(20px) saturate(130%);
+  }
+
+  .status-site-header__inner,
+  .status-site-footer__inner {
+    width: min(calc(100% - 2.5rem), 72rem);
+    margin-inline: auto;
+  }
+
+  .status-site-header__inner {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    min-height: 5rem;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .status-site-header__brand {
+    display: inline-flex;
+    width: fit-content;
+    align-items: center;
+  }
+
+  .status-site-header__brand img {
+    display: block;
+    width: auto;
+    height: 2.75rem;
+    object-fit: contain;
+  }
+
+  .status-site-header__label {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.65rem;
+    color: rgba(224, 242, 254, 0.72);
+    font-size: 0.66rem;
+    font-weight: 900;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+  }
+
+  .status-site-header__label span {
+    width: 0.42rem;
+    height: 0.42rem;
+    border-radius: 999px;
+    background: #67e8f9;
+    box-shadow: 0 0 1rem rgba(103, 232, 249, 0.7);
+  }
+
+  .status-site-header__return {
+    display: inline-flex;
+    min-height: 2.5rem;
+    width: fit-content;
+    align-items: center;
+    justify-self: end;
+    gap: 0.55rem;
+    border: 1px solid rgba(125, 211, 252, 0.1);
+    border-radius: 0.75rem;
+    background: rgba(15, 23, 42, 0.28);
+    padding-inline: 0.85rem;
+    color: rgba(203, 213, 225, 0.72);
+    font-size: 0.72rem;
+    font-weight: 750;
+    transition: border-color 160ms ease, background 160ms ease, color 160ms ease;
+  }
+
+  .status-site-header__return:hover,
+  .status-site-header__return:focus-visible {
+    border-color: rgba(103, 232, 249, 0.24);
+    background: rgba(103, 232, 249, 0.07);
+    color: #cffafe;
+    outline: none;
+  }
+
+  .status-site-header__return svg {
+    width: 1rem;
+    height: 1rem;
+  }
+
+  .status-site-footer {
+    border-top: 1px solid rgba(125, 211, 252, 0.08);
+    color: rgba(100, 116, 139, 0.9);
+  }
+
+  .status-site-footer__inner {
+    display: flex;
+    min-height: 5.25rem;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+  }
+
+  .status-site-footer__inner div {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+  }
+
+  .status-site-footer a {
+    transition: color 160ms ease;
+  }
+
+  .status-site-footer a:hover,
+  .status-site-footer a:focus-visible {
+    color: #a5f3fc;
+    outline: none;
+  }
+
+  @media (max-width: 640px) {
+    .status-site-header__inner,
+    .status-site-footer__inner {
+      width: min(calc(100% - 2rem), 72rem);
+    }
+
+    .status-site-header__inner {
+      grid-template-columns: 1fr auto;
+      min-height: 4.5rem;
+    }
+
+    .status-site-header__brand img {
+      height: 2.35rem;
+      max-width: 9.5rem;
+    }
+
+    .status-site-header__label {
+      display: none;
+    }
+
+    .status-site-header__return {
+      min-height: 2.35rem;
+      padding-inline: 0.7rem;
+    }
+
+    .status-site-header__return span {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+    }
+
+    .status-site-footer__inner {
+      min-height: 6.5rem;
+      flex-direction: column;
+      justify-content: center;
+      text-align: center;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .status-skip-link,
+    .status-site-header__return,
+    .status-site-footer a {
+      transition-duration: 1ms;
+    }
+  }
+</style>

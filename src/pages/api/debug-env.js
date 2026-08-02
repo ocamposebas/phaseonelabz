@@ -1,14 +1,29 @@
 export const prerender = false;
 
 export async function GET() {
+  if (!import.meta.env.DEV) {
+    return new Response(JSON.stringify({ error: "Not found." }), {
+      status: 404,
+      headers: {
+        "Content-Type": "application/json; charset=utf-8",
+        "Cache-Control": "no-store",
+        "X-Content-Type-Options": "nosniff",
+      },
+    });
+  }
+
   return new Response(
     JSON.stringify(
       {
-        cwd: process.cwd(),
-        WOOCOMMERCE_URL2: import.meta.env.WOOCOMMERCE_URL2 || null,
-        WOOCOMMERCE_URL: import.meta.env.WOOCOMMERCE_URL || null,
-        envKeys: Object.keys(import.meta.env).filter((key) =>
-          key.includes("WOO")
+        development: true,
+        wordpressConfigured: Boolean(
+          import.meta.env.WORDPRESS_URL ||
+            import.meta.env.WOOCOMMERCE_URL2 ||
+            import.meta.env.WOOCOMMERCE_URL,
+        ),
+        wooCredentialsConfigured: Boolean(
+          import.meta.env.WOOCOMMERCE_CONSUMER_KEY &&
+            import.meta.env.WOOCOMMERCE_CONSUMER_SECRET,
         ),
       },
       null,
@@ -17,7 +32,9 @@ export async function GET() {
     {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        "Content-Type": "application/json; charset=utf-8",
+        "Cache-Control": "no-store",
+        "X-Content-Type-Options": "nosniff",
       },
     }
   );

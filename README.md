@@ -1,5 +1,25 @@
 # Astro Starter Kit: Basics
 
+## Private system status
+
+The internal dashboard is available at `/status` and is intentionally absent
+from navigation and the sitemap. Both the page and `/api/status/health` require
+the dedicated status session; customer and WordPress sessions do not grant
+access.
+
+Configure these server-side environment variables before deployment:
+
+```dotenv
+STATUS_ACCESS_PASSWORD=use-a-strong-private-password
+STATUS_SESSION_SECRET=use-a-separate-long-random-secret
+```
+
+The password is required and must contain at least 12 characters. A separate
+session secret is recommended; when omitted, the password signs the session.
+Access is stored in a signed, HTTP-only, same-site cookie for 12 hours. If the
+password is missing or invalid, the dashboard fails closed and exposes no
+status snapshot.
+
 ## Signed checkout agreements
 
 The custom checkout requires an electronic signature for every payment method.
