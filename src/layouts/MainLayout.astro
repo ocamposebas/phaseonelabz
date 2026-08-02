@@ -2,7 +2,6 @@
 import "../styles/global.css";
 
 import GlobalPreloader from "../components/loading/GlobalPreloader.jsx";
-import AgeGate from "../components/age-gate/AgeGate.jsx";
 import AffiliateCouponTracker from "../components/tracking/AffiliateCouponTracker.jsx";
 import MemberAccessGate from "../components/auth/MemberAccessGate.jsx";
 
@@ -153,12 +152,6 @@ const websiteSchema = {
 
   <body class={isHome ? "is-home-page" : ""}>
     <AffiliateCouponTracker client:load />
-
-    <AgeGate
-      client:load
-      logoSrc="/TRANSPARENCIA-03.webp"
-      underAgeRedirectUrl="https://www.google.com"
-    />
 
     {requiresMemberAccess && (
       <MemberAccessGate client:load returnTo={returnTo} initialHasSession={hasMemberSession} />
