@@ -20,6 +20,25 @@ Access is stored in a signed, HTTP-only, same-site cookie for 12 hours. If the
 password is missing or invalid, the dashboard fails closed and exposes no
 status snapshot.
 
+The next maintenance window is scheduled automatically for the 25th day of
+each month at 09:00 UTC for 90 minutes. The dashboard rotates three or four
+clearly labeled planned tasks for each window. Verified WordPress plugin,
+theme, and core updates are listed separately with their installed and
+available versions; planned work is never presented as already completed.
+The date and duration can be overridden with
+`STATUS_MAINTENANCE_DAY_OF_MONTH`, `STATUS_MAINTENANCE_HOUR_UTC`, and
+`STATUS_MAINTENANCE_DURATION_MINUTES`.
+
+Maintenance uses a unified task list. Verified extension updates are labeled
+`Plugins`, source changes found in local development are labeled `Development`,
+and repeated live-service or browser failures are labeled `Bug`. Browser
+diagnostics collect only sanitized error categories, messages, asset names, and
+generic page paths; they never collect form values, query strings, cookies,
+customer details, or full stack traces. A browser issue becomes actionable only
+after three matching reports within 15 minutes. These aggregates are held in
+memory and reset on restart; configure `STATUS_RELEASE_SHA` (or Coolify's
+`SOURCE_COMMIT`) to identify the deployed revision in the private snapshot.
+
 ## Signed checkout agreements
 
 The custom checkout requires an electronic signature for every payment method.

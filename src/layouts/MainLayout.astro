@@ -4,6 +4,7 @@ import "../styles/global.css";
 import GlobalPreloader from "../components/loading/GlobalPreloader.jsx";
 import AffiliateCouponTracker from "../components/tracking/AffiliateCouponTracker.jsx";
 import MemberAccessGate from "../components/auth/MemberAccessGate.jsx";
+import ClientDiagnostics from "../components/monitoring/ClientDiagnostics.astro";
 
 interface Props {
   title?: string;
@@ -110,6 +111,8 @@ const websiteSchema = {
 
     <link rel="preconnect" href="https://omnisnippet1.com" crossorigin />
     <link rel="preconnect" href="https://embed.tawk.to" crossorigin />
+
+    <ClientDiagnostics />
 
     <script
       async

@@ -1,5 +1,6 @@
 ---
 import CheckoutThankYouPage from "../../components/checkout/CheckoutThankYouPage.jsx";
+import ClientDiagnostics from "../../components/monitoring/ClientDiagnostics.astro";
 
 export const prerender = false;
 ---
@@ -15,6 +16,7 @@ export const prerender = false;
     <meta name="theme-color" content="#050912" />
     <meta name="robots" content="noindex, nofollow" />
     <title>Order Confirmation | Phase One Labz</title>
+    <ClientDiagnostics />
 
     <script is:inline>
       (() => {

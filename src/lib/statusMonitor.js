@@ -1,10 +1,16 @@
 import { Buffer } from "node:buffer";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 
 import {
+  getMonthlyMaintenanceTasks,
   MONTHLY_MAINTENANCE,
   STATUS_INCIDENT_HISTORY,
   STATUS_MAINTENANCE_HISTORY,
 } from "../data/statusConfig.js";
+import { getClientIssueSummary } from "./clientIssueStore.js";
+
+const execFileAsync = promisify(execFile);
 
 const CACHE_TTL_MS = 60 * 1000;
 const SNAPSHOT_BUDGET_MS = 8 * 1000;
@@ -34,6 +40,7 @@ globalThis.__phaseoneStatusMonitorState = statusState;
 statusState.maintenanceProbe ??= null;
 statusState.maintenanceProbeExpiresAt ??= 0;
 statusState.maintenanceProbeInFlight ??= null;
+statusState.developmentFingerprint ??= null;
 
 function firstValue(...values) {
   return values.find((value) => String(value || "").trim()) || "";
@@ -76,6 +83,13 @@ function absoluteEndpoint(value, baseUrl, fallbackPath) {
 function getConfiguration() {
   const wordpressBase = normalizeBaseUrl(
     firstValue(
+      process.env.WORDPRESS_URL,
+      process.env.WP_SITE_URL,
+      process.env.WORDPRESS_API_URL,
+      process.env.WOOCOMMERCE_URL2,
+      process.env.WOOCOMMERCE_URL,
+      process.env.PUBLIC_WP_SITE_URL,
+      process.env.PUBLIC_WOOCOMMERCE_URL,
       import.meta.env.WORDPRESS_URL,
       import.meta.env.WP_SITE_URL,
       import.meta.env.WORDPRESS_API_URL,
@@ -90,6 +104,9 @@ function getConfiguration() {
     wordpressBase,
     coaEndpoint: absoluteEndpoint(
       firstValue(
+        process.env.PUBLIC_WP_COA_API_URL,
+        process.env.PUBLIC_COA_API_URL,
+        process.env.PUBLIC_COA_ENDPOINT,
         import.meta.env.PUBLIC_WP_COA_API_URL,
         import.meta.env.PUBLIC_COA_API_URL,
         import.meta.env.PUBLIC_COA_ENDPOINT,
@@ -98,36 +115,168 @@ function getConfiguration() {
       "/wp-json/phaseone/v1/coas",
     ),
     restockEndpoint: absoluteEndpoint(
-      import.meta.env.PUBLIC_RESTOCK_API_URL,
+      firstValue(
+        process.env.PUBLIC_RESTOCK_API_URL,
+        import.meta.env.PUBLIC_RESTOCK_API_URL,
+      ),
       wordpressBase,
       "/wp-json/phase/v1/restocks",
     ),
     wooKey: String(
       firstValue(
+        process.env.WOOCOMMERCE_CONSUMER_KEY,
+        process.env.CONSUMER_KEY,
         import.meta.env.WOOCOMMERCE_CONSUMER_KEY,
         import.meta.env.CONSUMER_KEY,
       ),
     ).trim(),
     wooSecret: String(
       firstValue(
+        process.env.WOOCOMMERCE_CONSUMER_SECRET,
+        process.env.CONSUMER_SECRET,
         import.meta.env.WOOCOMMERCE_CONSUMER_SECRET,
         import.meta.env.CONSUMER_SECRET,
       ),
     ).trim(),
-    omnisendKey: String(import.meta.env.OMNISEND_API_KEY || "").trim(),
+    omnisendKey: String(
+      firstValue(process.env.OMNISEND_API_KEY, import.meta.env.OMNISEND_API_KEY),
+    ).trim(),
     maintenanceDay: Number(
-      import.meta.env.STATUS_MAINTENANCE_DAY_OF_MONTH || 0,
+      firstValue(
+        process.env.STATUS_MAINTENANCE_DAY_OF_MONTH,
+        import.meta.env.STATUS_MAINTENANCE_DAY_OF_MONTH,
+        25,
+      ),
     ),
     maintenanceHourUtc: Number(
-      import.meta.env.STATUS_MAINTENANCE_HOUR_UTC || 9,
+      firstValue(
+        process.env.STATUS_MAINTENANCE_HOUR_UTC,
+        import.meta.env.STATUS_MAINTENANCE_HOUR_UTC,
+        9,
+      ),
     ),
     maintenanceDurationMinutes: Number(
-      import.meta.env.STATUS_MAINTENANCE_DURATION_MINUTES || 90,
+      firstValue(
+        process.env.STATUS_MAINTENANCE_DURATION_MINUTES,
+        import.meta.env.STATUS_MAINTENANCE_DURATION_MINUTES,
+        90,
+      ),
     ),
     lastMaintenanceAt: String(
-      import.meta.env.STATUS_LAST_MAINTENANCE_AT || "",
+      firstValue(
+        process.env.STATUS_LAST_MAINTENANCE_AT,
+        import.meta.env.STATUS_LAST_MAINTENANCE_AT,
+      ),
     ).trim(),
   };
+}
+
+function getConfiguredReleaseSha() {
+  const candidate = String(
+    firstValue(
+      process.env.STATUS_RELEASE_SHA,
+      process.env.SOURCE_COMMIT,
+      process.env.VERCEL_GIT_COMMIT_SHA,
+      import.meta.env.STATUS_RELEASE_SHA,
+      import.meta.env.SOURCE_COMMIT,
+      import.meta.env.VERCEL_GIT_COMMIT_SHA,
+    ),
+  ).trim();
+
+  return /^[0-9a-f]{7,64}$/i.test(candidate) ? candidate.slice(0, 12) : "";
+}
+
+function developmentAreaForPath(filePath) {
+  const normalized = String(filePath || "").replace(/\\/g, "/").toLowerCase();
+
+  if (/^(package|npm-shrinkwrap)|\/package/.test(normalized)) {
+    return "Dependencies";
+  }
+  if (/docker|coolify|nginx|vercel|\.github\//.test(normalized)) {
+    return "Deployment";
+  }
+  if (/wordpress|\.php$/.test(normalized)) return "WordPress";
+  if (/status|monitor|diagnostic/.test(normalized)) return "Monitoring";
+  if (/checkout|cart|order|payment|prism/.test(normalized)) return "Commerce";
+  if (/coa|product|catalog|inventory|restock/.test(normalized)) {
+    return "Catalog & COA";
+  }
+  if (/src\/(components|pages|layouts|styles)/.test(normalized)) {
+    return "Storefront";
+  }
+  if (/readme|docs?\//.test(normalized)) return "Documentation";
+  return "Platform";
+}
+
+async function inspectDevelopmentState() {
+  const configuredReleaseSha = getConfiguredReleaseSha();
+
+  if (!import.meta.env.DEV) {
+    return {
+      inspectionStatus: configuredReleaseSha ? "release_only" : "unavailable",
+      releaseSha: configuredReleaseSha,
+      dirty: null,
+      changedFileCount: null,
+      areas: [],
+      changedSinceLastCheck: false,
+    };
+  }
+
+  try {
+    const [{ stdout: rawStatus }, { stdout: rawCommit }] = await Promise.all([
+      execFileAsync(
+        "git",
+        ["status", "--porcelain=v1", "--untracked-files=normal"],
+        {
+          cwd: process.cwd(),
+          timeout: 1500,
+          windowsHide: true,
+          maxBuffer: 64 * 1024,
+        },
+      ),
+      execFileAsync("git", ["rev-parse", "--short=12", "HEAD"], {
+        cwd: process.cwd(),
+        timeout: 1500,
+        windowsHide: true,
+        maxBuffer: 1024,
+      }),
+    ]);
+    const changes = String(rawStatus || "")
+      .split(/\r?\n/)
+      .map((line) => line.trimEnd())
+      .filter(Boolean);
+    const areas = Array.from(
+      new Set(changes.map((line) => developmentAreaForPath(line.slice(3)))),
+    ).sort();
+    const gitReleaseSha = String(rawCommit || "").trim();
+    const releaseSha = /^[0-9a-f]{7,64}$/i.test(gitReleaseSha)
+      ? gitReleaseSha.slice(0, 12)
+      : configuredReleaseSha;
+    const fingerprint = `${releaseSha}|${changes.join("|")}`;
+    const changedSinceLastCheck = Boolean(
+      statusState.developmentFingerprint &&
+        statusState.developmentFingerprint !== fingerprint,
+    );
+    statusState.developmentFingerprint = fingerprint;
+
+    return {
+      inspectionStatus: "complete",
+      releaseSha,
+      dirty: changes.length > 0,
+      changedFileCount: changes.length,
+      areas,
+      changedSinceLastCheck,
+    };
+  } catch {
+    return {
+      inspectionStatus: configuredReleaseSha ? "release_only" : "unavailable",
+      releaseSha: configuredReleaseSha,
+      dirty: null,
+      changedFileCount: null,
+      areas: [],
+      changedSinceLastCheck: false,
+    };
+  }
 }
 
 function createLimiter(maxConcurrent) {
@@ -340,11 +489,140 @@ async function getCachedMaintenanceProbe(factory) {
   return statusState.maintenanceProbeInFlight;
 }
 
-function analyzePlatformMaintenance(probe, configured) {
+function cleanSoftwareValue(value, maximumLength = 160) {
+  return String(value || "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, maximumLength);
+}
+
+function compareSoftwareVersions(left, right) {
+  const partsFor = (value) =>
+    String(value || "")
+      .split(/[^0-9]+/)
+      .filter(Boolean)
+      .map((part) => Number(part));
+  const leftParts = partsFor(left);
+  const rightParts = partsFor(right);
+  const length = Math.max(leftParts.length, rightParts.length);
+
+  for (let index = 0; index < length; index += 1) {
+    const difference = (leftParts[index] || 0) - (rightParts[index] || 0);
+    if (difference !== 0) return difference;
+  }
+
+  return 0;
+}
+
+function getLatestWordPressVersion(coreVersionProbe) {
+  if (!coreVersionProbe?.ok) return "";
+
+  const offers = extractArray(coreVersionProbe.data, ["offers"]) || [];
+  return offers
+    .map((offer) => cleanSoftwareValue(offer?.current || offer?.version, 40))
+    .filter(Boolean)
+    .sort((left, right) => compareSoftwareVersions(right, left))[0] || "";
+}
+
+function collectDetectedUpdates(systemStatus, coreVersionProbe) {
+  if (!isObject(systemStatus)) return [];
+
+  const updates = new Map();
+  const addUpdate = ({
+    type,
+    name,
+    currentVersion,
+    availableVersion,
+    active = true,
+    source,
+  }) => {
+    const safeType = cleanSoftwareValue(type, 30).toLowerCase();
+    const safeName = cleanSoftwareValue(name);
+    const safeCurrent = cleanSoftwareValue(currentVersion, 40);
+    const safeAvailable = cleanSoftwareValue(availableVersion, 40);
+
+    if (
+      !safeType ||
+      !safeName ||
+      !safeCurrent ||
+      !safeAvailable ||
+      compareSoftwareVersions(safeAvailable, safeCurrent) <= 0
+    ) {
+      return;
+    }
+
+    const key = `${safeType}:${safeName.toLowerCase()}:${safeAvailable}`;
+    updates.set(key, {
+      id: `detected-${key.replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")}`,
+      kind: "detected_update",
+      type: safeType,
+      name: safeName,
+      currentVersion: safeCurrent,
+      availableVersion: safeAvailable,
+      active: Boolean(active),
+      source: cleanSoftwareValue(source, 60),
+    });
+  };
+
+  for (const [plugins, active] of [
+    [systemStatus.active_plugins, true],
+    [systemStatus.inactive_plugins, false],
+  ]) {
+    for (const plugin of Array.isArray(plugins) ? plugins : []) {
+      addUpdate({
+        type: "plugin",
+        name: plugin?.name || plugin?.plugin,
+        currentVersion: plugin?.version,
+        availableVersion: plugin?.version_latest,
+        active,
+        source: "WordPress",
+      });
+    }
+  }
+
+  const theme = systemStatus.theme;
+  if (isObject(theme)) {
+    addUpdate({
+      type: "theme",
+      name: theme.name || "Active theme",
+      currentVersion: theme.version,
+      availableVersion: theme.version_latest,
+      active: true,
+      source: "WordPress",
+    });
+    addUpdate({
+      type: "theme",
+      name: theme.parent_name || "Parent theme",
+      currentVersion: theme.parent_version,
+      availableVersion: theme.parent_version_latest,
+      active: true,
+      source: "WordPress",
+    });
+  }
+
+  addUpdate({
+    type: "core",
+    name: "WordPress Core",
+    currentVersion: systemStatus.environment?.wp_version,
+    availableVersion: getLatestWordPressVersion(coreVersionProbe),
+    active: true,
+    source: "WordPress.org",
+  });
+
+  return Array.from(updates.values()).sort((left, right) => {
+    if (left.active !== right.active) return left.active ? -1 : 1;
+    if (left.type !== right.type) return left.type.localeCompare(right.type);
+    return left.name.localeCompare(right.name);
+  });
+}
+
+function analyzePlatformMaintenance(probe, configured, coreVersionProbe) {
   if (!configured || !probe?.configured) {
     return {
       status: "unknown",
       pendingUpdates: null,
+      detectedUpdates: [],
+      updateInventoryStatus: "unavailable",
       checks: { passed: 0, total: PLATFORM_MAINTENANCE_CHECK_COUNT },
     };
   }
@@ -353,6 +631,8 @@ function analyzePlatformMaintenance(probe, configured) {
     return {
       status: "outage",
       pendingUpdates: null,
+      detectedUpdates: [],
+      updateInventoryStatus: "unavailable",
       checks: { passed: 0, total: PLATFORM_MAINTENANCE_CHECK_COUNT },
     };
   }
@@ -383,15 +663,13 @@ function analyzePlatformMaintenance(probe, configured) {
     /stock.?guard/.test(pluginSignatures),
   ];
   const passed = checks.filter(Boolean).length;
-  const pendingUpdates = plugins.filter((plugin) => {
-    const current = String(plugin?.version || "").trim();
-    const latest = String(plugin?.version_latest || "").trim();
-    return current && latest && current !== latest;
-  }).length;
+  const detectedUpdates = collectDetectedUpdates(probe.data, coreVersionProbe);
 
   return {
     status: passed === checks.length ? "operational" : "degraded",
-    pendingUpdates,
+    pendingUpdates: detectedUpdates.length,
+    detectedUpdates,
+    updateInventoryStatus: coreVersionProbe?.ok ? "complete" : "partial",
     checks: { passed, total: checks.length },
   };
 }
@@ -403,7 +681,128 @@ function getFirstSunday(year, month, hourUtc) {
   return first;
 }
 
-function getMonthlyWindow(now, config, platformMaintenance = {}) {
+function softwareUpdateCategory(type) {
+  if (type === "plugin") return "plugins";
+  if (type === "theme") return "themes";
+  if (type === "core") return "wordpress";
+  return "development";
+}
+
+function buildMaintenanceTasks({
+  plannedTasks,
+  detectedUpdates,
+  services = [],
+  development = {},
+  clientIssues = {},
+  checkedAt,
+}) {
+  const tasks = [];
+
+  for (const item of services) {
+    if (!["outage", "degraded", "unknown"].includes(item.status)) continue;
+
+    const needsInvestigation = ["outage", "degraded"].includes(item.status);
+    tasks.push({
+      id: `diagnostic-${item.id}`,
+      category: needsInvestigation ? "bug" : "development",
+      kind: "diagnostic",
+      title: needsInvestigation
+        ? `Investigate ${item.name}`
+        : `Complete monitoring verification for ${item.name}`,
+      detail: item.message,
+      status: "attention",
+      source: "Live service monitor",
+      priority: item.criticality || "medium",
+      detectedAt: checkedAt,
+    });
+  }
+
+  for (const issue of Array.isArray(clientIssues.issues)
+    ? clientIssues.issues
+    : []) {
+    tasks.push({
+      id: `bug-${issue.id}`,
+      category: "bug",
+      kind: "client_diagnostic",
+      title: `Investigate repeated ${issue.errorName || "browser error"}`,
+      detail: `${issue.message} · ${issue.recentCount} reports in ${
+        clientIssues.windowMinutes || 15
+      } minutes across ${Math.max(1, issue.pages?.length || 0)} ${
+        Math.max(1, issue.pages?.length || 0) === 1 ? "page" : "pages"
+      }`,
+      status: "attention",
+      source: "Anonymous browser diagnostics",
+      priority: issue.type === "resource_error" ? "medium" : "high",
+      detectedAt: issue.lastSeen,
+    });
+  }
+
+  for (const update of detectedUpdates) {
+    tasks.push({
+      id: `task-${update.id}`,
+      category: softwareUpdateCategory(update.type),
+      kind: "software_update",
+      title: `Update ${update.name}`,
+      detail: `${update.currentVersion} → ${update.availableVersion}${
+        update.active ? "" : " · Inactive"
+      }`,
+      status: "available",
+      source: update.source || "Live software inventory",
+      priority: update.active ? "medium" : "low",
+      currentVersion: update.currentVersion,
+      availableVersion: update.availableVersion,
+      active: update.active,
+      detectedAt: checkedAt,
+    });
+  }
+
+  if (development.dirty && development.changedFileCount > 0) {
+    tasks.push({
+      id: "development-local-changes",
+      category: "development",
+      kind: "development_change",
+      title: development.changedSinceLastCheck
+        ? "Review newly detected development changes"
+        : "Review development changes before deployment",
+      detail: `${development.changedFileCount} changed file${
+        development.changedFileCount === 1 ? "" : "s"
+      } across ${development.areas.join(", ") || "the application"}.${
+        development.releaseSha ? ` Release ${development.releaseSha}.` : ""
+      }`,
+      status: "attention",
+      source: "Local development workspace",
+      priority: "medium",
+      detectedAt: checkedAt,
+    });
+  }
+
+  for (const task of plannedTasks) {
+    tasks.push({
+      ...task,
+      category: task.category || "maintenance",
+      kind: "planned",
+      detail: task.detail || "Planned preventive maintenance task.",
+      status: "scheduled",
+      source: "Monthly maintenance plan",
+      priority: "low",
+    });
+  }
+
+  const priorityRank = { critical: 4, high: 3, medium: 2, low: 1 };
+  return Array.from(new Map(tasks.map((task) => [task.id, task])).values()).sort(
+    (left, right) =>
+      (priorityRank[right.priority] || 0) -
+        (priorityRank[left.priority] || 0) ||
+      left.title.localeCompare(right.title),
+  );
+}
+
+function getMonthlyWindow(
+  now,
+  config,
+  platformMaintenance = {},
+  diagnostics = {},
+) {
   const validHour = Math.min(
     23,
     Math.max(0, Number.isFinite(config.maintenanceHourUtc)
@@ -452,19 +851,44 @@ function getMonthlyWindow(now, config, platformMaintenance = {}) {
   const completionAgeDays = hasValidCompletion
     ? Math.floor((now.getTime() - lastCompletedDate.getTime()) / 86400000)
     : null;
+  const plannedTasks = getMonthlyMaintenanceTasks(startsAt);
+  const detectedUpdates = Array.isArray(platformMaintenance.detectedUpdates)
+    ? platformMaintenance.detectedUpdates
+    : [];
+  const maintenancePeriod = `${startsAt.getUTCFullYear()}-${String(
+    startsAt.getUTCMonth() + 1,
+  ).padStart(2, "0")}`;
+  const tasks = buildMaintenanceTasks({
+    plannedTasks,
+    detectedUpdates,
+    services: diagnostics.services,
+    development: diagnostics.development,
+    clientIssues: diagnostics.clientIssues,
+    checkedAt: diagnostics.checkedAt || now.toISOString(),
+  });
 
   return {
     ...MONTHLY_MAINTENANCE,
+    id: `${MONTHLY_MAINTENANCE.id}-${maintenancePeriod}`,
     cadence:
       configuredDay > 0
         ? `Day ${configuredDay} of every month`
         : MONTHLY_MAINTENANCE.cadence,
     summary:
-      platformMaintenance.pendingUpdates > 0
-        ? `${platformMaintenance.pendingUpdates} routine software ${
-            platformMaintenance.pendingUpdates === 1 ? "update is" : "updates are"
-          } queued for the next maintenance window.`
+      detectedUpdates.length > 0
+        ? `${detectedUpdates.length} verified software ${
+            detectedUpdates.length === 1 ? "update is" : "updates are"
+          } available and queued for review in the next maintenance window.`
         : MONTHLY_MAINTENANCE.summary,
+    checklist: plannedTasks.map((task) => task.title),
+    plannedTasks,
+    detectedUpdates,
+    tasks,
+    releaseSha: diagnostics.development?.releaseSha || "",
+    developmentInspectionStatus:
+      diagnostics.development?.inspectionStatus || "unavailable",
+    updateInventoryStatus:
+      platformMaintenance.updateInventoryStatus || "unavailable",
     status,
     startsAt: startsAt.toISOString(),
     endsAt: endsAt.toISOString(),
@@ -593,6 +1017,7 @@ function summarize(services, activeIncidents) {
 async function buildStatusSnapshot() {
   const config = getConfiguration();
   const checkedAt = new Date().toISOString();
+  const developmentProbe = inspectDevelopmentState();
   const budgetController = new AbortController();
   const budgetTimeout = setTimeout(
     () => budgetController.abort(),
@@ -663,6 +1088,9 @@ async function buildStatusSnapshot() {
     "https://omnisnippet1.com/inshop/launcher-v2.js",
     { headers: { Accept: "application/javascript,*/*;q=0.8" } },
   );
+  const wordpressCoreVersionProbe = request(
+    "https://api.wordpress.org/core/version-check/1.7/",
+  );
 
   const wooAuthReady = Boolean(config.wooKey && config.wooSecret);
   const wooAuthHeader = wooAuthReady
@@ -724,6 +1152,7 @@ async function buildStatusSnapshot() {
     verifyPassProbe,
     googleAdsProbe,
     omnisendLauncherProbe,
+    wordpressCoreVersionProbe,
     orderProbe,
     systemStatusProbe,
     omnisendProbe,
@@ -750,6 +1179,7 @@ async function buildStatusSnapshot() {
     verifyPass,
     googleAds,
     omnisendLauncher,
+    wordpressCoreVersion,
     orders,
     systemStatus,
     omnisend,
@@ -797,6 +1227,7 @@ async function buildStatusSnapshot() {
   const platformMaintenance = analyzePlatformMaintenance(
     systemStatus,
     wooAuthReady,
+    wordpressCoreVersion,
   );
   services.push(
     service({
@@ -1174,10 +1605,18 @@ async function buildStatusSnapshot() {
     }),
   );
 
+  const development = await developmentProbe;
+  const clientIssues = getClientIssueSummary();
   const maintenance = getMonthlyWindow(
     new Date(checkedAt),
     config,
     platformMaintenance,
+    {
+      services,
+      development,
+      clientIssues,
+      checkedAt,
+    },
   );
   const automaticIncidents = buildAutomaticIncidents(services, checkedAt);
   const configuredActiveIncidents = STATUS_INCIDENT_HISTORY.filter(
@@ -1209,6 +1648,7 @@ async function buildStatusSnapshot() {
     maintenance,
     scheduledMaintenances: [maintenance],
     maintenanceHistory: STATUS_MAINTENANCE_HISTORY,
+    development: { ...development, clientIssues },
     monitoringNotice:
       "Readiness checks never create orders, charges, subscriptions or customer messages.",
   };

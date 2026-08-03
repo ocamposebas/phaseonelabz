@@ -75,6 +75,33 @@ const STATUS_META = {
   },
 };
 
+const TASK_CATEGORY_META = {
+  plugins: {
+    label: "Plugins",
+    className: "border-violet-300/20 bg-violet-300/[0.08] text-violet-100",
+  },
+  wordpress: {
+    label: "WordPress",
+    className: "border-blue-300/20 bg-blue-300/[0.08] text-blue-100",
+  },
+  themes: {
+    label: "Themes",
+    className: "border-fuchsia-300/20 bg-fuchsia-300/[0.08] text-fuchsia-100",
+  },
+  development: {
+    label: "Development",
+    className: "border-cyan-300/20 bg-cyan-300/[0.08] text-cyan-100",
+  },
+  bug: {
+    label: "Bug",
+    className: "border-rose-300/20 bg-rose-300/[0.08] text-rose-100",
+  },
+  maintenance: {
+    label: "Maintenance",
+    className: "border-sky-300/18 bg-sky-300/[0.07] text-sky-100",
+  },
+};
+
 function cleanText(value) {
   return String(value ?? "").trim();
 }
@@ -466,6 +493,106 @@ function extractIncidents(source) {
     });
 }
 
+function normalizeMaintenanceTasks(candidate) {
+  const tasks = firstNonEmptyCollection(
+    candidate.tasks,
+    candidate.plannedTasks,
+    candidate.planned_tasks,
+    candidate.tasks,
+    candidate.checklist
+  );
+
+  return tasks
+    .map((task, index) => {
+      const title = cleanText(
+        typeof task === "string"
+          ? task
+          : firstValue(task?.title, task?.name, task?.label, task?.message)
+      );
+
+      if (!title) return null;
+
+      return {
+        id:
+          cleanText(
+            typeof task === "object"
+              ? firstValue(task?.id, task?.slug, task?.__key)
+              : ""
+          ) || `planned-task-${index}`,
+        title,
+        status:
+          cleanText(typeof task === "object" ? task?.status : "") ||
+          "scheduled",
+        category:
+          normalizeToken(
+            typeof task === "object"
+              ? firstValue(task?.category, task?.group)
+              : ""
+          ) || "maintenance",
+        kind:
+          normalizeToken(typeof task === "object" ? task?.kind : "") ||
+          "planned",
+        detail: cleanText(
+          typeof task === "object"
+            ? firstValue(task?.detail, task?.description, task?.message)
+            : ""
+        ),
+        source: cleanText(typeof task === "object" ? task?.source : ""),
+        priority:
+          normalizeToken(typeof task === "object" ? task?.priority : "") ||
+          "low",
+        detectedAt:
+          typeof task === "object"
+            ? firstValue(task?.detectedAt, task?.detected_at)
+            : null,
+      };
+    })
+    .filter(Boolean);
+}
+
+function normalizeDetectedUpdates(candidate) {
+  return firstNonEmptyCollection(
+    candidate.detectedUpdates,
+    candidate.detected_updates,
+    candidate.softwareUpdates,
+    candidate.software_updates
+  )
+    .map((update, index) => {
+      if (!update || typeof update !== "object") return null;
+
+      const name = cleanText(
+        firstValue(update.name, update.title, update.label)
+      );
+      const currentVersion = cleanText(
+        firstValue(update.currentVersion, update.current_version, update.current)
+      );
+      const availableVersion = cleanText(
+        firstValue(
+          update.availableVersion,
+          update.available_version,
+          update.latestVersion,
+          update.latest_version,
+          update.latest
+        )
+      );
+
+      if (!name || !currentVersion || !availableVersion) return null;
+
+      return {
+        id:
+          cleanText(firstValue(update.id, update.slug, update.__key)) ||
+          `detected-update-${index}`,
+        name,
+        type: humanizeKey(firstValue(update.type, update.kind, "software")),
+        currentVersion,
+        availableVersion,
+        active: update.active !== false,
+        source: cleanText(update.source),
+      };
+    })
+    .filter(Boolean);
+}
+
 function normalizeMaintenance(source) {
   const maintenanceRoot = firstMeaningfulValue(
     source.nextMaintenance,
@@ -522,6 +649,28 @@ function normalizeMaintenance(source) {
       firstValue(candidate.recurrence, candidate.frequency, candidate.schedule, candidate.cadence)
     ),
     status: humanizeKey(firstValue(candidate.status, candidate.state)) || "Scheduled",
+    tasks: normalizeMaintenanceTasks(candidate),
+    plannedTasks: normalizeMaintenanceTasks(candidate).filter(
+      (task) => task.kind === "planned"
+    ),
+    detectedUpdates: normalizeDetectedUpdates(candidate),
+    updateInventoryStatus:
+      normalizeToken(
+        firstValue(
+          candidate.updateInventoryStatus,
+          candidate.update_inventory_status
+        )
+      ) || "unavailable",
+    releaseSha: cleanText(
+      firstValue(candidate.releaseSha, candidate.release_sha)
+    ).slice(0, 12),
+    developmentInspectionStatus:
+      normalizeToken(
+        firstValue(
+          candidate.developmentInspectionStatus,
+          candidate.development_inspection_status
+        )
+      ) || "unavailable",
   }));
 
   if (!normalized.length) {
@@ -533,6 +682,12 @@ function normalizeMaintenance(source) {
       endsAt: null,
       recurrence: "Monthly",
       status: "Date pending",
+      tasks: [],
+      plannedTasks: [],
+      detectedUpdates: [],
+      updateInventoryStatus: "unavailable",
+      releaseSha: "",
+      developmentInspectionStatus: "unavailable",
     };
   }
 
@@ -811,6 +966,57 @@ function IncidentCard({ incident }) {
         </ol>
       )}
     </article>
+  );
+}
+
+function MaintenanceTaskCard({ task, index }) {
+  const category = TASK_CATEGORY_META[task.category] || TASK_CATEGORY_META.maintenance;
+  const isDetected = task.kind !== "planned";
+  const needsAttention = task.status === "attention";
+
+  return (
+    <li
+      className={`rounded-xl border px-3 py-3 ${
+        needsAttention
+          ? "border-rose-300/12 bg-rose-300/[0.035]"
+          : isDetected
+            ? "border-cyan-200/10 bg-cyan-300/[0.025]"
+            : "border-white/[0.07] bg-white/[0.02]"
+      }`}
+    >
+      <div className="flex items-start gap-2.5">
+        <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full border border-sky-200/15 bg-sky-300/[0.06] text-[7px] font-black text-sky-100/70">
+          {index + 1}
+        </span>
+
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span
+              className={`rounded-full border px-2 py-1 text-[7px] font-black uppercase tracking-[0.12em] ${category.className}`}
+            >
+              {category.label}
+            </span>
+            <span className="text-[7px] font-black uppercase tracking-[0.12em] text-slate-600">
+              {isDetected ? "Detected" : "Planned"}
+            </span>
+          </div>
+
+          <p className="mt-2 text-[10px] font-semibold leading-5 text-slate-200">
+            {task.title}
+          </p>
+          {task.detail && (
+            <p className="mt-1 text-[9px] leading-4 text-slate-500">
+              {task.detail}
+            </p>
+          )}
+          {task.source && (
+            <p className="mt-1.5 text-[7px] font-bold uppercase tracking-[0.1em] text-slate-700">
+              {task.source}
+            </p>
+          )}
+        </div>
+      </div>
+    </li>
   );
 }
 
@@ -1168,6 +1374,39 @@ export default function StatusExperience({ initialSnapshot = {} }) {
                   {maintenance.description || "Routine monthly checks and preventive platform maintenance."}
                 </p>
 
+                <div className="mt-5 rounded-2xl border border-cyan-200/10 bg-[#020617]/35 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <h4 className="text-[8px] font-black uppercase tracking-[0.18em] text-cyan-100/65">
+                      Tasks for this window
+                    </h4>
+                    <span className="rounded-full border border-cyan-200/15 bg-cyan-300/[0.07] px-2 py-1 text-[7px] font-black uppercase tracking-[0.13em] text-cyan-100">
+                      {maintenance.tasks.length} total
+                    </span>
+                  </div>
+
+                  {maintenance.tasks.length > 0 ? (
+                    <ol className="mt-3 space-y-2.5">
+                      {maintenance.tasks.map((task, index) => (
+                        <MaintenanceTaskCard
+                          key={task.id}
+                          task={task}
+                          index={index}
+                        />
+                      ))}
+                    </ol>
+                  ) : (
+                    <p className="mt-3 flex items-center gap-2 text-[10px] leading-5 text-emerald-200/65">
+                      <CheckCircle2 size={13} className="shrink-0" aria-hidden="true" />
+                      No maintenance or diagnostic tasks require attention.
+                    </p>
+                  )}
+
+                  <p className="mt-3 border-t border-white/[0.06] pt-3 text-[8px] leading-4 text-slate-600">
+                    Live software updates, repeated browser errors and service
+                    anomalies are added automatically alongside the monthly plan.
+                  </p>
+                </div>
+
                 <dl className="mt-5 grid gap-3 border-t border-white/[0.08] pt-5">
                   <div>
                     <dt className="text-[8px] font-black uppercase tracking-[0.18em] text-slate-600">Next window</dt>
@@ -1191,6 +1430,15 @@ export default function StatusExperience({ initialSnapshot = {} }) {
                       {maintenance.recurrence || "Monthly"}
                     </dd>
                   </div>
+
+                  {maintenance.releaseSha && (
+                    <div>
+                      <dt className="text-[8px] font-black uppercase tracking-[0.18em] text-slate-600">Current release</dt>
+                      <dd className="mt-1.5 font-mono text-[10px] font-semibold tracking-[0.08em] text-cyan-100/70">
+                        {maintenance.releaseSha}
+                      </dd>
+                    </div>
+                  )}
                 </dl>
               </div>
             </article>

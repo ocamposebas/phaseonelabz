@@ -1,0 +1,11 @@
+.git
+.gitignore
+.astro
+.vercel
+.vscode
+.env
+.env.*
+node_modules
+dist
+cookies.txt
+*.log

@@ -1,0 +1,162 @@
+---
+const rawBuildId = String(
+  import.meta.env.PUBLIC_RELEASE_SHA ||
+    import.meta.env.STATUS_RELEASE_SHA ||
+    import.meta.env.SOURCE_COMMIT ||
+    "",
+).trim();
+const buildId = /^[A-Za-z0-9._-]{7,64}$/.test(rawBuildId)
+  ? rawBuildId.slice(0, 12)
+  : "";
+---
+
+<script is:inline define:vars={{ buildId }}>
+  (() => {
+    if (window.__phaseoneDiagnosticsInstalled) return;
+    window.__phaseoneDiagnosticsInstalled = true;
+
+    const endpoint = "/api/status/client-errors";
+    const maximumReports = 5;
+    const duplicateWindowMs = 10 * 60 * 1000;
+    const ignoredMessages = new Set([
+      "ResizeObserver loop limit exceeded",
+      "ResizeObserver loop completed with undelivered notifications.",
+    ]);
+    let reportCount = 0;
+    const seenThisPage = new Set();
+
+    function cleanMessage(value) {
+      return String(value || "Browser runtime error")
+        .replace(/https?:\/\/\S+/gi, "[url]")
+        .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[email]")
+        .replace(/\b\d{7,}\b/g, "[number]")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 240);
+    }
+
+    function hash(value) {
+      let result = 2166136261;
+      for (let index = 0; index < value.length; index += 1) {
+        result ^= value.charCodeAt(index);
+        result = Math.imul(result, 16777619);
+      }
+      return (result >>> 0).toString(36);
+    }
+
+    function recentlyReported(fingerprint) {
+      if (seenThisPage.has(fingerprint)) return true;
+      seenThisPage.add(fingerprint);
+
+      try {
+        const key = `phaseone-diagnostic-${fingerprint}`;
+        const previous = Number(sessionStorage.getItem(key) || 0);
+        const now = Date.now();
+        if (previous && now - previous < duplicateWindowMs) return true;
+        sessionStorage.setItem(key, String(now));
+      } catch {
+        // Session storage is optional; in-page deduplication still applies.
+      }
+
+      return false;
+    }
+
+    function send(payload) {
+      if (reportCount >= maximumReports) return;
+
+      const message = cleanMessage(payload.message);
+      if (ignoredMessages.has(message)) return;
+
+      const normalized = {
+        ...payload,
+        message,
+        pagePath: window.location.pathname || "/",
+        buildId,
+      };
+      const fingerprint = hash(
+        [
+          normalized.type,
+          normalized.errorName,
+          normalized.message,
+          normalized.assetOrigin,
+          normalized.assetFile,
+          normalized.line,
+        ].join("|"),
+      );
+
+      if (recentlyReported(fingerprint)) return;
+      reportCount += 1;
+
+      fetch(endpoint, {
+        method: "POST",
+        credentials: "omit",
+        keepalive: true,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(normalized),
+      }).catch(() => {});
+    }
+
+    function assetDetails(value) {
+      try {
+        const url = new URL(String(value || ""), window.location.origin);
+        if (!/^https?:$/.test(url.protocol)) return null;
+        const segments = url.pathname.split("/").filter(Boolean);
+        return {
+          assetOrigin:
+            url.origin === window.location.origin ? "self" : url.hostname,
+          assetFile: segments.at(-1) || "resource",
+        };
+      } catch {
+        return null;
+      }
+    }
+
+    window.addEventListener(
+      "error",
+      (event) => {
+        const target = event.target;
+
+        if (target && target !== window) {
+          const tag = String(target.tagName || "").toUpperCase();
+          if (!["SCRIPT", "LINK", "IMG"].includes(tag)) return;
+
+          const asset = assetDetails(target.currentSrc || target.src || target.href);
+          if (!asset) return;
+
+          send({
+            type: "resource_error",
+            errorName: "ResourceError",
+            message: `${tag.toLowerCase()} resource failed to load`,
+            assetKind:
+              tag === "SCRIPT" ? "script" : tag === "LINK" ? "style" : "image",
+            ...asset,
+          });
+          return;
+        }
+
+        const asset = assetDetails(event.filename) || {};
+        send({
+          type: "javascript_error",
+          errorName: event.error?.name || "Error",
+          message: event.message || "Unhandled JavaScript error",
+          line: Number(event.lineno) || 0,
+          column: Number(event.colno) || 0,
+          ...asset,
+        });
+      },
+      true,
+    );
+
+    window.addEventListener("unhandledrejection", (event) => {
+      const reason = event.reason;
+      send({
+        type: "unhandled_rejection",
+        errorName: reason?.name || "UnhandledRejection",
+        message:
+          typeof reason === "string"
+            ? reason
+            : reason?.message || "Unhandled promise rejection",
+      });
+    });
+  })();
+</script>
