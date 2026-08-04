@@ -2570,6 +2570,23 @@ export default function SiteHeader({
           .sh-nav-card {
             border-radius: 0;
           }
+
+          .sh-announcement {
+            transition:
+              height 220ms cubic-bezier(0.16, 1, 0.3, 1),
+              opacity 150ms ease,
+              visibility 0s linear 0s;
+          }
+
+          .sh-announcement.is-hidden {
+            height: 0;
+            border-bottom-width: 0;
+            transform: none;
+          }
+
+          .sh-announcement.is-hidden + .sh-nav-card {
+            transform: none;
+          }
         }
 
         .sh-header-home .sh-nav-card.sh-nav-clear.sh-nav-top {

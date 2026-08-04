@@ -14,7 +14,7 @@ export default function AccountExperience() {
           isHome={false}
         />
 
-        <main className="min-h-screen bg-[#020617] pt-[102px] sm:pt-[118px]">
+        <main className="min-h-screen bg-[#020617] pt-[118px]">
           <AccountDashboard />
         </main>
 

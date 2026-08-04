@@ -2828,7 +2828,7 @@ export default function AccountDashboard() {
   }
 
   return (
-    <section className="account-page-shell relative isolate min-h-[100svh] overflow-x-hidden bg-[#020617] px-4 pb-32 pt-4 text-white sm:px-6 sm:py-16 lg:py-20">
+    <section className="account-page-shell relative isolate min-h-[100svh] overflow-x-hidden bg-[#020617] px-4 pb-32 pt-10 text-white sm:px-6 sm:py-16 lg:py-20">
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute left-[7%] top-8 h-72 w-72 rounded-full bg-cyan-300/8 blur-[120px]" />
         <div className="absolute right-[-8%] top-[28%] h-96 w-96 rounded-full bg-blue-500/8 blur-[130px]" />
