@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   ArrowRight,
   BadgeCheck,
@@ -39,7 +40,7 @@ const dashboardTabs = [
   { id: "personal", label: "Personal Info", shortLabel: "Info", icon: User },
   { id: "rewards", label: "Rewards", shortLabel: "Rewards", icon: Gift },
   { id: "orders", label: "Orders", shortLabel: "Orders", icon: ReceiptText },
-  { id: "affiliate", label: "Affiliate", shortLabel: "Affiliate", icon: Handshake },
+  { id: "affiliate", label: "Affiliate", shortLabel: "Partner", icon: Handshake },
 ];
 
 const moneyFormatters = new Map();
@@ -2017,7 +2018,9 @@ function OrderEvidenceGallery({ order }) {
         </p>
       </div>
 
-      {selectedEvidence && (
+      {selectedEvidence &&
+        typeof document !== "undefined" &&
+        createPortal(
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center bg-[#01040b]/95 p-3 backdrop-blur-md sm:p-8"
           role="dialog"
@@ -2093,7 +2096,8 @@ function OrderEvidenceGallery({ order }) {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </section>
   );
@@ -2901,7 +2905,7 @@ export default function AccountDashboard() {
             ].map(([label, value], index) => (
               <div
                 key={label}
-                className={`px-4 py-4 sm:px-6 sm:py-5 ${
+                className={`${index > 1 ? "hidden sm:block" : ""} px-4 py-4 sm:px-6 sm:py-5 ${
                   index % 2 !== 0 ? "border-l border-white/[0.06]" : ""
                 } ${index > 1 ? "border-t border-white/[0.06] sm:border-t-0" : ""} ${
                   index === 2 ? "sm:border-l" : ""
@@ -2935,7 +2939,7 @@ export default function AccountDashboard() {
                       </p>
 
                       <div className="mt-4 flex flex-wrap items-end gap-2 sm:mt-5 sm:gap-3">
-                        <span className="text-[56px] font-semibold leading-none tracking-[-0.08em] text-white sm:text-[96px]">
+                        <span className="text-[48px] font-semibold leading-none tracking-[-0.08em] text-white sm:text-[96px]">
                           {pointsBalance.toLocaleString("en-US")}
                         </span>
                         <span className="pb-2 text-base font-semibold tracking-[-0.04em] text-cyan-100/80 sm:pb-3 sm:text-xl">
@@ -2949,7 +2953,7 @@ export default function AccountDashboard() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 border-y border-white/[0.06] sm:grid-cols-4 sm:divide-x sm:divide-white/[0.06]">
+                  <div className="hidden grid-cols-2 border-y border-white/[0.06] sm:grid sm:grid-cols-4 sm:divide-x sm:divide-white/[0.06]">
                     <MiniStat
                       label="Recent earned"
                       value={earnedFromRecentOrders.toLocaleString("en-US")}
@@ -2993,7 +2997,7 @@ export default function AccountDashboard() {
                 </div>
               </div>
 
-              <SectionCard>
+              <SectionCard className="hidden sm:block">
                 <SectionHeading
                   eyebrow="Quick Summary"
                   title="Account snapshot"
