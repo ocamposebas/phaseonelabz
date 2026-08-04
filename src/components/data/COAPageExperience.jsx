@@ -1070,6 +1070,146 @@ function CardTestingMatrix({ panelTypes }) {
   );
 }
 
+function getMobileProductTitle(group, strengthGroup) {
+  const groupName = cleanDisplayText(group?.name, "COA product");
+  const strength = cleanDisplayText(strengthGroup?.label, "");
+
+  if (!strength || /^(default|general|all|not reported)$/i.test(strength)) {
+    return groupName;
+  }
+
+  return normalizeText(groupName).includes(normalizeText(strength))
+    ? groupName
+    : `${groupName} ${strength}`;
+}
+
+function MobileCoaFamilyCard({ group, strengthGroup, onOpen }) {
+  const records = [...(strengthGroup?.records || [])]
+    .filter((record) => isCurrentShippingLot(record))
+    .sort((a, b) => {
+      const aCoa = getCurrentCoa(a);
+      const bCoa = getCurrentCoa(b);
+      return dateValue(bCoa.date || b.date) - dateValue(aCoa.date || a.date);
+    });
+  const title = getMobileProductTitle(group, strengthGroup);
+
+  if (records.length === 0) return null;
+
+  return (
+    <article className="overflow-hidden rounded-[1.35rem] border border-blue-100/10 bg-[#09131f]/92 p-4 shadow-[0_18px_55px_rgba(0,0,0,0.22)]">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="text-[16px] font-semibold leading-6 tracking-[-0.025em] text-slate-100">
+            {title}
+          </h3>
+          <p className="mt-1.5 text-[11px] text-slate-600">
+            {records.length} active {records.length === 1 ? "batch" : "batches"}
+          </p>
+        </div>
+        <span className="mt-0.5 inline-flex shrink-0 items-center gap-1.5 rounded-full border border-emerald-300/15 bg-emerald-300/[0.055] px-2.5 py-1 text-[7px] font-black uppercase tracking-[0.12em] text-emerald-200/85">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-300 shadow-[0_0_8px_rgba(110,231,183,0.8)]" />
+          Shipping lot
+        </span>
+      </div>
+
+      <div className="mt-4 space-y-2">
+        {records.map((record, index) => {
+          const currentCoa = getCurrentCoa(record);
+          const url =
+            getCertificateUrl(currentCoa) || getCertificateUrl(record);
+          const rawBatch = cleanDisplayText(
+            record.batch || record.lot || record.coaNumber,
+            "Batch pending"
+          );
+          const batch =
+            rawBatch === "Batch pending" || rawBatch.startsWith("#")
+              ? rawBatch
+              : `#${rawBatch}`;
+          const purity = cleanDisplayText(
+            currentCoa.purity || record.purity,
+            "Verified"
+          );
+          const reportDate = formatDate(
+            currentCoa.date || record.date || ""
+          );
+
+          return (
+            <div
+              key={record.id || `${strengthGroup.key}-${index}`}
+              className="grid min-h-[72px] grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-xl border border-white/[0.065] bg-[#050d17]/78 px-3 py-2.5"
+            >
+              <div className="min-w-0">
+                <div className="flex min-w-0 items-center gap-2">
+                  <p className="truncate text-[12px] font-semibold tracking-[0.01em] text-slate-300">
+                    {batch}
+                  </p>
+                  {index === 0 && (
+                    <span className="shrink-0 rounded-md border border-emerald-300/15 bg-emerald-300/[0.07] px-1.5 py-0.5 text-[7px] font-black uppercase tracking-[0.08em] text-emerald-300">
+                      Latest
+                    </span>
+                  )}
+                </div>
+                <div className="mt-1.5 flex min-w-0 items-center gap-2 text-[9px]">
+                  <span className="shrink-0 font-bold text-emerald-300/90">
+                    {purity}
+                  </span>
+                  <span className="h-1 w-1 shrink-0 rounded-full bg-slate-700" />
+                  <span className="truncate text-slate-600">
+                    {reportDate || "Date pending"}
+                  </span>
+                </div>
+              </div>
+
+              {url ? (
+                <a
+                  href={url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex min-h-10 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-blue-200/12 bg-blue-300/[0.055] px-3 text-[8px] font-black uppercase tracking-[0.1em] text-blue-100 transition active:scale-[0.98]"
+                  aria-label={`View COA for batch ${rawBatch}`}
+                >
+                  View COA
+                  <ArrowUpRight size={11} />
+                </a>
+              ) : (
+                <span className="inline-flex min-h-10 shrink-0 items-center rounded-xl border border-white/[0.055] px-3 text-[8px] font-black uppercase tracking-[0.09em] text-slate-700">
+                  Pending
+                </span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      <button
+        type="button"
+        onClick={() => onOpen(group.key, strengthGroup.key)}
+        className="mt-3 flex min-h-10 w-full items-center justify-center gap-1.5 rounded-xl text-[8px] font-black uppercase tracking-[0.13em] text-blue-200/55 transition active:bg-blue-300/[0.05] active:text-blue-100"
+      >
+        View full test details
+        <ChevronRight size={12} />
+      </button>
+    </article>
+  );
+}
+
+function MobileCoaCatalog({ groups, onOpen }) {
+  return (
+    <div className="space-y-3">
+      {groups.flatMap((group) =>
+        group.strengthGroups.map((strengthGroup) => (
+          <MobileCoaFamilyCard
+            key={`${group.key}-${strengthGroup.key}`}
+            group={group}
+            strengthGroup={strengthGroup}
+            onOpen={onOpen}
+          />
+        ))
+      )}
+    </div>
+  );
+}
+
 function FamilyCard({ group, onOpen }) {
   const strengths = group.strengthGroups.map((item) => item.label);
   const preview = strengths.slice(0, 3);
@@ -1214,9 +1354,11 @@ function DocumentRow({ document, index }) {
   );
 }
 
-function FamilyModal({ group, onClose }) {
+function FamilyModal({ group, initialStrengthKey = "", onClose }) {
   const [selectedStrengthKey, setSelectedStrengthKey] = useState(
-    group.strengthGroups[0]?.key || ""
+    group.strengthGroups.some((item) => item.key === initialStrengthKey)
+      ? initialStrengthKey
+      : group.strengthGroups[0]?.key || ""
   );
 
   const selectedStrength =
@@ -1771,6 +1913,7 @@ export default function COALookupSection({
   const [activeSignal, setActiveSignal] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [openGroupKey, setOpenGroupKey] = useState(null);
+  const [openStrengthKey, setOpenStrengthKey] = useState("");
   const [coaRecords, setCoaRecords] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -2049,7 +2192,10 @@ export default function COALookupSection({
   }, [query, activeFilter, selectedFamilyKey, activeSignal]);
 
   useEffect(() => {
-    if (openGroupKey && !selectedGroup) setOpenGroupKey(null);
+    if (openGroupKey && !selectedGroup) {
+      setOpenGroupKey(null);
+      setOpenStrengthKey("");
+    }
   }, [openGroupKey, selectedGroup]);
 
   const clearFilters = () => {
@@ -2062,6 +2208,16 @@ export default function COALookupSection({
 
   const handlePageChange = (page) => {
     setCurrentPage(Math.min(Math.max(page, 1), totalPages));
+  };
+
+  const handleOpenGroup = (groupKey, strengthKey = "") => {
+    setOpenGroupKey(groupKey);
+    setOpenStrengthKey(strengthKey);
+  };
+
+  const handleCloseGroup = () => {
+    setOpenGroupKey(null);
+    setOpenStrengthKey("");
   };
 
   return (
@@ -2121,6 +2277,73 @@ export default function COALookupSection({
 
         {activeView === "catalog" ? (
           <>
+        <div className="md:hidden">
+          <div className="relative mt-6">
+            <Search
+              size={17}
+              className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-blue-200/55"
+            />
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              type="search"
+              placeholder="Search by product, strength or batch..."
+              disabled={isLoading && coaRecords.length === 0}
+              className="min-h-[56px] w-full rounded-2xl border border-blue-100/10 bg-[#08111b]/95 py-3 pl-11 pr-11 text-[13px] font-medium text-white shadow-[0_16px_45px_rgba(0,0,0,0.2)] outline-none transition placeholder:text-slate-700 focus:border-blue-300/30"
+            />
+            {query && (
+              <button
+                type="button"
+                onClick={() => setQuery("")}
+                className="absolute right-2.5 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-xl text-slate-600"
+                aria-label="Clear search"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+
+          <div className="mb-3 mt-5 flex items-center justify-between gap-3 px-1">
+            <p className="text-[8px] font-black uppercase tracking-[0.16em] text-blue-200/45">
+              Current COA batches
+            </p>
+            <span className="text-[9px] font-bold text-slate-600">
+              {filteredGroups.length} products
+            </span>
+          </div>
+
+          {isLoading && coaRecords.length === 0 ? (
+            <LoadingState />
+          ) : loadError && coaRecords.length === 0 ? (
+            <ErrorState
+              message={loadError}
+              onRetry={() => setReloadKey((value) => value + 1)}
+            />
+          ) : filteredGroups.length === 0 ? (
+            <EmptyState onClear={clearFilters} />
+          ) : (
+            <MobileCoaCatalog
+              groups={paginatedGroups}
+              onOpen={handleOpenGroup}
+            />
+          )}
+
+          <Pagination
+            currentPage={safeCurrentPage}
+            totalPages={totalPages}
+            onPageChange={handlePageChange}
+          />
+
+          <div className="mt-6 flex items-start gap-3 rounded-2xl border border-blue-100/[0.08] bg-blue-300/[0.025] p-4">
+            <BadgeCheck size={16} className="mt-0.5 shrink-0 text-blue-200/65" />
+            <p className="text-[10px] leading-5 text-slate-600">
+              Every certificate is matched to its active shipping batch. Stored
+              lots remain available separately in History.
+            </p>
+          </div>
+        </div>
+
+        <div className="hidden md:block">
         <ReportSignalDeck
           activeSignal={activeSignal}
           onChange={setActiveSignal}
@@ -2271,7 +2494,7 @@ export default function COALookupSection({
               <FamilyCard
                 key={group.key}
                 group={group}
-                onOpen={setOpenGroupKey}
+                onOpen={handleOpenGroup}
               />
             ))
           )}
@@ -2298,21 +2521,23 @@ export default function COALookupSection({
             </p>
           </div>
         </div>
+        </div>
           </>
         ) : (
           <CoaHistoryLibrary
             documents={historyDocuments}
             isLoading={isLoading && coaRecords.length === 0}
-            onOpenFamily={setOpenGroupKey}
+            onOpenFamily={handleOpenGroup}
           />
         )}
       </div>
 
       {selectedGroup && (
         <FamilyModal
-          key={selectedGroup.key}
+          key={`${selectedGroup.key}-${openStrengthKey}`}
           group={selectedGroup}
-          onClose={() => setOpenGroupKey(null)}
+          initialStrengthKey={openStrengthKey}
+          onClose={handleCloseGroup}
         />
       )}
     </section>

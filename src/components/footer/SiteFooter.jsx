@@ -61,10 +61,10 @@ export default function SiteFooter({
       <div className="mx-auto max-w-6xl">
         <div className="h-px w-full bg-white/10" />
 
-        <div className="grid gap-7 py-8 lg:grid-cols-[1.05fr_1.55fr_0.95fr] lg:items-start lg:gap-10 lg:py-10">
+        <div className="grid gap-7 py-8 md:grid-cols-2 md:items-start lg:gap-10 lg:py-10 xl:grid-cols-[1.05fr_1.55fr_0.95fr]">
           {/* Brand */}
-          <div className="text-center lg:text-left">
-            <a href="/" className="inline-flex justify-center lg:justify-start">
+          <div className="text-center md:text-left">
+            <a href="/" className="inline-flex justify-center md:justify-start">
               <img
                 src={logoSrc}
                 alt={logoAlt}
@@ -73,14 +73,14 @@ export default function SiteFooter({
               />
             </a>
 
-            <p className="mx-auto mt-4 max-w-[310px] text-[12.5px] leading-6 text-slate-500 sm:max-w-sm sm:text-sm sm:leading-7 lg:mx-0">
+            <p className="mx-auto mt-4 max-w-[310px] text-[12.5px] leading-6 text-slate-500 sm:max-w-sm sm:text-sm sm:leading-7 md:mx-0">
               Research-focused catalog built around COA access, batch clarity,
               responsible presentation, and secure account tools.
             </p>
           </div>
 
           {/* Links */}
-          <div className="grid grid-cols-3 gap-3 rounded-[1.35rem] border border-white/10 bg-transparent p-4 sm:gap-6 sm:p-5 lg:border-0 lg:p-0">
+          <div className="grid grid-cols-3 gap-3 rounded-[1.35rem] border border-white/10 bg-transparent p-4 sm:gap-6 sm:p-5 xl:border-0 xl:p-0">
             {footerColumns.map((column) => (
               <div key={column.title} className="min-w-0">
                 <h3 className="mb-3 text-[8px] font-black uppercase tracking-[0.18em] text-cyan-200/55 sm:text-[10px] sm:tracking-[0.26em]">
@@ -104,39 +104,61 @@ export default function SiteFooter({
           </div>
 
           {/* Need help */}
-          <div className="rounded-[1.35rem] border border-white/10 bg-transparent p-4 text-center sm:rounded-2xl sm:p-5 lg:text-left">
-            <p className="text-[8.5px] font-black uppercase tracking-[0.22em] text-cyan-200/55 sm:text-[10px] sm:tracking-[0.24em]">
-              Need Help?
-            </p>
+          <div className="rounded-[1.35rem] border border-cyan-200/10 bg-cyan-300/[0.025] p-4 sm:rounded-2xl sm:p-5 md:col-span-2 xl:col-span-1">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-[8.5px] font-black uppercase tracking-[0.22em] text-cyan-200/60 sm:text-[10px] sm:tracking-[0.24em]">
+                Need Help?
+              </p>
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300/10 bg-emerald-300/[0.045] px-2 py-1 text-[7px] font-black uppercase tracking-[0.1em] text-emerald-200/75">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-300" />
+                Support
+              </span>
+            </div>
 
             <a
-              href="tel:7205171541"
-              className="mt-2 block text-[24px] font-black leading-none tracking-[-0.04em] text-white transition hover:text-cyan-100 sm:mt-3 sm:text-[28px]"
+              href="tel:+17205171541"
+              className="mt-3 block max-w-full whitespace-nowrap text-[clamp(22px,6.5vw,28px)] font-black leading-none tracking-[-0.045em] text-white transition hover:text-cyan-100 md:text-[28px]"
             >
               (720) 517-1541
             </a>
 
-            <div className="mx-auto mt-4 grid max-w-[320px] gap-2 text-[12px] leading-5 text-slate-500 sm:text-sm sm:leading-6 lg:mx-0">
-              <p>
-                <span className="font-bold text-white/85">Call:</span>{" "}
-                Mon–Fri 8am–5pm MT
+            <div className="mt-4 grid gap-2 border-t border-white/[0.065] pt-4 text-[11px] leading-5 text-slate-500 sm:grid-cols-2 sm:text-xs xl:grid-cols-1 2xl:grid-cols-2">
+              <p className="min-w-0">
+                <span className="block text-[7px] font-black uppercase tracking-[0.14em] text-cyan-200/45">
+                  Call hours
+                </span>
+                <span className="mt-0.5 block">Mon–Fri · 8am–5pm MT</span>
               </p>
 
-              <p>
-                <span className="font-bold text-white/85">Text:</span>{" "}
-                7 days 7am–8pm MT
-              </p>
-
-              <p className="break-words">
-                <span className="font-bold text-white/85">Email:</span>{" "}
-                <a
-                  href="mailto:support@phaseonelabz.com"
-                  className="transition hover:text-cyan-100"
-                >
-                  support@phaseonelabz.com
-                </a>
+              <p className="min-w-0">
+                <span className="block text-[7px] font-black uppercase tracking-[0.14em] text-cyan-200/45">
+                  Text hours
+                </span>
+                <span className="mt-0.5 block">Every day · 7am–8pm MT</span>
               </p>
             </div>
+
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <a
+                href="tel:+17205171541"
+                className="inline-flex min-h-11 items-center justify-center rounded-xl border border-cyan-200/15 bg-cyan-300/[0.045] px-3 text-center text-[8px] font-black uppercase tracking-[0.13em] text-cyan-100 transition hover:border-cyan-200/30 hover:bg-cyan-300/[0.09]"
+              >
+                Call support
+              </a>
+              <a
+                href="sms:+17205171541"
+                className="inline-flex min-h-11 items-center justify-center rounded-xl bg-cyan-300 px-3 text-center text-[8px] font-black uppercase tracking-[0.13em] text-slate-950 transition hover:bg-cyan-200"
+              >
+                Text support
+              </a>
+            </div>
+
+            <a
+              href="mailto:support@phaseonelabz.com"
+              className="mt-3 block break-all text-center text-[10px] font-semibold text-slate-500 transition hover:text-cyan-100"
+            >
+              support@phaseonelabz.com
+            </a>
           </div>
         </div>
 

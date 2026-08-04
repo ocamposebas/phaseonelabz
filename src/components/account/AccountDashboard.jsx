@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowRight,
   BadgeCheck,
@@ -19,6 +19,16 @@ import {
   Handshake,
   Eye,
   EyeOff,
+  Camera,
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
+  Fingerprint,
+  Images,
+  Mail,
+  Maximize2,
+  PackageCheck,
+  X,
 } from "lucide-react";
 
 const POINTS_PER_REWARD = 500;
@@ -44,6 +54,16 @@ const redemptionDateFormatter = new Intl.DateTimeFormat("en-US", {
   year: "numeric",
   hour: "numeric",
   minute: "2-digit",
+});
+const evidenceDateFormatter = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+});
+const evidenceTimeFormatter = new Intl.DateTimeFormat("en-US", {
+  hour: "numeric",
+  minute: "2-digit",
+  timeZoneName: "short",
 });
 
 function getMoneyFormatter(currency = "USD", decimals = 0) {
@@ -90,12 +110,59 @@ function formatRedemptionDate(dateString) {
     : dateString || "Pending date";
 }
 
+function formatEvidenceTimestamp(dateString) {
+  const date = parseDashboardDate(dateString);
+
+  if (!date) {
+    return {
+      date: "Date unavailable",
+      time: "Time unavailable",
+      full: "Upload time unavailable",
+    };
+  }
+
+  const formattedDate = evidenceDateFormatter.format(date);
+  const formattedTime = evidenceTimeFormatter.format(date);
+
+  return {
+    date: formattedDate,
+    time: formattedTime,
+    full: `${formattedDate} at ${formattedTime}`,
+  };
+}
+
 function normalizeStatus(status) {
   if (!status) return "Pending";
 
   return String(status)
     .replaceAll("-", " ")
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function getAccountInitials(name = "") {
+  const initials = String(name)
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join("");
+
+  return initials || "PO";
+}
+
+function getOrderStatusTone(status) {
+  const normalized = String(status || "").toLowerCase();
+
+  if (["completed", "processing"].includes(normalized)) {
+    return "border-emerald-300/20 bg-emerald-300/[0.08] text-emerald-200";
+  }
+
+  if (["on-hold", "pending"].includes(normalized)) {
+    return "border-amber-300/20 bg-amber-300/[0.07] text-amber-100";
+  }
+
+  return "border-cyan-200/15 bg-cyan-300/[0.07] text-cyan-100";
 }
 
 function getTrackingStatus(order = {}) {
@@ -225,9 +292,30 @@ function getRewardCreditStats(points) {
 
 
 function DashboardMenu({ activeTab, setActiveTab }) {
+  const handleTabSelect = (tabId) => {
+    setActiveTab(tabId);
+
+    if (
+      typeof window !== "undefined" &&
+      window.matchMedia("(max-width: 639px)").matches
+    ) {
+      window.requestAnimationFrame(() => {
+        const hero = document.querySelector(".account-member-hero");
+        const contentTop = hero
+          ? window.scrollY + hero.getBoundingClientRect().bottom + 12
+          : 0;
+
+        window.scrollTo({ top: contentTop, behavior: "auto" });
+      });
+    }
+  };
+
   return (
-    <div className="mb-5 rounded-[1.45rem] border border-cyan-200/10 bg-[#020617]/38 p-2 shadow-[0_24px_90px_rgba(0,0,0,0.16)] backdrop-blur-xl sm:mb-6 sm:rounded-[1.7rem]">
-      <div className="account-tabs-scroll flex gap-2 overflow-x-auto pb-1 sm:grid sm:grid-cols-5 sm:overflow-visible sm:pb-0">
+    <nav
+      aria-label="Account sections"
+      className="account-dashboard-menu fixed inset-x-3 bottom-3 z-[80] mb-0 rounded-[1.25rem] border border-cyan-100/15 bg-[#030a14]/95 p-1.5 shadow-[0_18px_60px_rgba(0,0,0,0.58)] sm:static sm:mb-7 sm:rounded-[1.7rem] sm:border-white/[0.075] sm:bg-[#030a14]/90 sm:p-2 sm:shadow-[0_20px_60px_rgba(0,0,0,0.2)]"
+    >
+      <div className="account-tabs-scroll grid grid-cols-5 gap-1 sm:gap-2">
         {dashboardTabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -236,13 +324,17 @@ function DashboardMenu({ activeTab, setActiveTab }) {
             <button
               key={tab.id}
               type="button"
-              onClick={() => setActiveTab(tab.id)}
-              className={`group inline-flex min-h-[48px] shrink-0 items-center justify-center gap-2 rounded-[1.1rem] border px-4 text-[9px] font-black uppercase tracking-[0.14em] transition sm:min-h-[54px] sm:w-full sm:rounded-[1.25rem] sm:text-[10px] sm:tracking-[0.16em] ${
+              onClick={() => handleTabSelect(tab.id)}
+              aria-current={isActive ? "page" : undefined}
+              className={`group relative inline-flex min-h-[58px] min-w-0 flex-col items-center justify-center gap-1 overflow-hidden rounded-[0.95rem] border px-1 text-[8px] font-black uppercase tracking-[0.06em] transition duration-200 sm:min-h-[58px] sm:w-full sm:flex-row sm:gap-2 sm:rounded-[1.25rem] sm:px-4 sm:text-[10px] sm:tracking-[0.16em] ${
                 isActive
-                  ? "border-cyan-200/25 bg-cyan-300/[0.12] text-cyan-100 shadow-[0_0_28px_rgba(103,232,249,0.08)]"
-                  : "border-transparent bg-white/[0.012] text-slate-500 hover:border-cyan-200/12 hover:bg-cyan-300/[0.035] hover:text-cyan-100"
+                  ? "border-cyan-200/20 bg-gradient-to-b from-cyan-300/[0.13] to-cyan-300/[0.055] text-cyan-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.07),0_10px_28px_rgba(8,145,178,0.08)]"
+                  : "border-transparent bg-transparent text-slate-500 hover:border-white/[0.06] hover:bg-white/[0.025] hover:text-slate-200"
               }`}
             >
+              {isActive && (
+                <span className="absolute inset-x-5 top-0 h-px bg-gradient-to-r from-transparent via-cyan-200/80 to-transparent" />
+              )}
               <Icon
                 size={15}
                 className={`transition ${
@@ -251,21 +343,22 @@ function DashboardMenu({ activeTab, setActiveTab }) {
                     : "text-slate-500 group-hover:text-cyan-100"
                 }`}
               />
-              <span className="sm:hidden">{tab.shortLabel}</span>
+              <span className="max-w-full truncate sm:hidden">{tab.shortLabel}</span>
               <span className="hidden sm:inline">{tab.label}</span>
             </button>
           );
         })}
       </div>
-    </div>
+    </nav>
   );
 }
 
 function SectionCard({ children, className = "" }) {
   return (
     <div
-      className={`rounded-[1.7rem] border border-cyan-200/10 bg-white/[0.02] p-5 backdrop-blur-xl sm:rounded-[2rem] sm:p-8 ${className}`}
+      className={`relative overflow-hidden rounded-[1.7rem] border border-white/[0.075] bg-[linear-gradient(145deg,rgba(6,15,28,0.94),rgba(3,9,18,0.94))] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.025),0_22px_70px_rgba(0,0,0,0.18)] sm:rounded-[2rem] sm:p-8 ${className}`}
     >
+      <span className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-cyan-100/15 to-transparent" />
       {children}
     </div>
   );
@@ -273,19 +366,19 @@ function SectionCard({ children, className = "" }) {
 
 function SectionHeading({ eyebrow, title, description, right }) {
   return (
-    <div className="mb-5 flex flex-col gap-3 text-center sm:mb-6 sm:flex-row sm:items-end sm:justify-between sm:text-left">
+    <div className="relative z-10 mb-5 flex flex-col gap-3 text-left sm:mb-7 sm:flex-row sm:items-end sm:justify-between">
       <div>
-        <p className="text-[9px] font-black uppercase tracking-[0.22em] text-cyan-200/60 sm:text-[10px] sm:tracking-[0.28em]">
+        <p className="text-[9px] font-black uppercase tracking-[0.24em] text-cyan-200/55 sm:text-[10px] sm:tracking-[0.3em]">
           {eyebrow}
         </p>
 
-        <h2 className="mt-2 text-[24px] font-semibold tracking-[-0.04em] text-white sm:text-2xl">
+        <h2 className="mt-2 text-[26px] font-semibold tracking-[-0.045em] text-white sm:text-[30px]">
           {title}
         </h2>
       </div>
 
       {description ? (
-        <p className="mx-auto max-w-md text-[13px] leading-6 text-slate-500 sm:mx-0 sm:text-right sm:text-sm">
+        <p className="max-w-md text-[13px] leading-6 text-slate-500 sm:text-right sm:text-sm">
           {description}
         </p>
       ) : (
@@ -297,7 +390,7 @@ function SectionHeading({ eyebrow, title, description, right }) {
 
 function MiniStat({ label, value, accent = false }) {
   return (
-    <div className="rounded-2xl border border-cyan-200/10 bg-[#020617]/45 p-3 sm:p-4">
+    <div className="min-w-0 px-2 py-3 sm:px-4 sm:py-4">
       <p className="text-[8px] font-black uppercase tracking-[0.12em] text-slate-500 sm:text-[10px] sm:tracking-[0.18em]">
         {label}
       </p>
@@ -312,10 +405,61 @@ function MiniStat({ label, value, accent = false }) {
   );
 }
 
+function AccountShortcut({ icon: Icon, eyebrow, title, description, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="group relative flex items-center gap-4 border-b border-white/[0.06] px-1 py-4 text-left transition duration-300 last:border-b-0 hover:pl-2"
+    >
+      <span className="grid h-10 w-10 shrink-0 place-items-center text-cyan-200 transition group-hover:text-cyan-100">
+        <Icon size={18} strokeWidth={1.8} />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-[8px] font-black uppercase tracking-[0.18em] text-cyan-200/50">
+          {eyebrow}
+        </span>
+        <span className="mt-1 block text-sm font-semibold text-white">{title}</span>
+        <span className="mt-1 block text-xs leading-5 text-slate-500">
+          {description}
+        </span>
+      </span>
+      <ArrowRight
+        size={16}
+        className="shrink-0 text-cyan-200/60 transition group-hover:translate-x-1 group-hover:text-cyan-100"
+      />
+    </button>
+  );
+}
+
+function ProfileDetailCard({ icon: Icon, label, children, accent = false }) {
+  return (
+    <div className="group border-b border-white/[0.06] px-1 py-4 last:border-b-0 lg:border-b-0 lg:border-r lg:px-5 lg:py-2 lg:last:border-r-0">
+      <div className="flex items-start gap-3.5">
+        <span
+          className={`grid h-10 w-10 shrink-0 place-items-center ${
+            accent
+              ? "text-emerald-200"
+              : "text-cyan-200"
+          }`}
+        >
+          <Icon size={17} strokeWidth={1.8} />
+        </span>
+        <div className="min-w-0">
+          <p className="text-[9px] font-black uppercase tracking-[0.17em] text-slate-500">
+            {label}
+          </p>
+          <div className="mt-2 text-sm font-semibold text-white">{children}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function WaysToEarnCard({ icon: Icon, title, description }) {
   return (
-    <div className="rounded-[1.25rem] border border-cyan-200/10 bg-[#020617]/45 p-4 transition hover:border-cyan-200/20 hover:bg-cyan-300/[0.025] sm:rounded-2xl">
-      <div className="mb-4 grid h-10 w-10 place-items-center rounded-2xl border border-cyan-200/10 bg-cyan-300/[0.055] text-cyan-200 sm:h-11 sm:w-11">
+    <div className="border-b border-white/[0.06] py-5 last:border-b-0 sm:border-b-0 sm:border-r sm:px-5 sm:py-1 sm:last:border-r-0">
+      <div className="mb-3 grid h-10 w-10 place-items-center text-cyan-200 sm:h-11 sm:w-11">
         <Icon size={18} className="sm:hidden" />
         <Icon size={19} className="hidden sm:block" />
       </div>
@@ -335,7 +479,7 @@ function RedemptionHistoryCard({ redemptions = [] }) {
   const hasRedemptions = redemptions.length > 0;
 
   return (
-    <SectionCard>
+    <div className="py-2 sm:py-3">
       <SectionHeading
         eyebrow="Redemption History"
         title="Store credit activity"
@@ -416,7 +560,7 @@ function RedemptionHistoryCard({ redemptions = [] }) {
           })}
         </div>
       )}
-    </SectionCard>
+    </div>
   );
 }
 
@@ -442,7 +586,7 @@ function RewardCreditConverter({
   const pointsAfterConversion = Math.max(pointsBalance - pointsToConvert, 0);
 
   return (
-    <SectionCard>
+    <div className="py-2 sm:py-3">
       <SectionHeading
         eyebrow="Store Credit"
         title="Convert points into balance"
@@ -647,7 +791,7 @@ function RewardCreditConverter({
           )}
         </div>
       </div>
-    </SectionCard>
+    </div>
   );
 }
 
@@ -825,7 +969,7 @@ function AffiliateStatsDashboard({
   };
 
   return (
-    <SectionCard className="relative overflow-hidden border-cyan-200/12 bg-[radial-gradient(circle_at_top_right,rgba(103,232,249,0.075),transparent_34%),linear-gradient(145deg,rgba(4,12,24,0.98),rgba(8,18,34,0.92))]">
+    <div className="relative py-2 sm:py-3">
       <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-cyan-300/10 blur-[120px]" />
       <div className="pointer-events-none absolute -left-24 bottom-0 h-64 w-64 rounded-full bg-blue-500/8 blur-[130px]" />
 
@@ -1049,7 +1193,7 @@ function AffiliateStatsDashboard({
           </>
         )}
       </div>
-    </SectionCard>
+    </div>
   );
 }
 
@@ -1709,6 +1853,252 @@ function AffiliateApplicationPanel({ account }) {
     </div>
   );
 }
+function OrderEvidenceGallery({ order }) {
+  const [selectedEvidenceId, setSelectedEvidenceId] = useState(null);
+  const touchStartX = useRef(null);
+  const evidence = Array.isArray(order?.packaging_evidence)
+    ? order.packaging_evidence
+    : [];
+  const selectedIndex = evidence.findIndex(
+    (record) => record.id === selectedEvidenceId
+  );
+  const selectedEvidence = selectedIndex >= 0 ? evidence[selectedIndex] : null;
+
+  const showEvidence = (index) => {
+    const normalizedIndex = (index + evidence.length) % evidence.length;
+    setSelectedEvidenceId(evidence[normalizedIndex]?.id || null);
+  };
+
+  const handleViewerTouchStart = (event) => {
+    touchStartX.current = event.changedTouches?.[0]?.clientX ?? null;
+  };
+
+  const handleViewerTouchEnd = (event) => {
+    if (touchStartX.current === null || evidence.length < 2) return;
+
+    const touchEndX = event.changedTouches?.[0]?.clientX ?? touchStartX.current;
+    const distance = touchEndX - touchStartX.current;
+    touchStartX.current = null;
+
+    if (Math.abs(distance) < 48) return;
+    showEvidence(selectedIndex + (distance < 0 ? 1 : -1));
+  };
+
+  useEffect(() => {
+    if (!selectedEvidence) return undefined;
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") setSelectedEvidenceId(null);
+      if (event.key === "ArrowLeft") {
+        setSelectedEvidenceId(
+          evidence[(selectedIndex - 1 + evidence.length) % evidence.length]?.id ||
+            null
+        );
+      }
+      if (event.key === "ArrowRight") {
+        setSelectedEvidenceId(
+          evidence[(selectedIndex + 1) % evidence.length]?.id || null
+        );
+      }
+    };
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [evidence, selectedEvidence, selectedIndex]);
+
+  if (evidence.length === 0) return null;
+
+  const evidenceUrl = (record) =>
+    `/api/account/order-evidence?order=${encodeURIComponent(
+      order.id
+    )}&evidence=${encodeURIComponent(record.id)}`;
+
+  return (
+    <section className="relative mt-6 border-t border-white/[0.07] pt-6">
+      <div className="relative pb-5">
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-4">
+            <span className="relative grid h-12 w-12 shrink-0 place-items-center text-cyan-100">
+              <Camera size={21} strokeWidth={1.8} />
+              <span className="absolute right-0 top-0 grid h-5 w-5 place-items-center rounded-full bg-emerald-300 text-[#032016]">
+                <BadgeCheck size={12} strokeWidth={3} />
+              </span>
+            </span>
+
+            <div>
+              <div className="flex flex-wrap items-center gap-2.5">
+                <p className="text-base font-bold tracking-tight text-white sm:text-lg">
+                  Packing record
+                </p>
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300/20 bg-emerald-300/[0.09] px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.16em] text-emerald-200">
+                  <ShieldCheck size={11} />
+                  Verified
+                </span>
+              </div>
+              <p className="mt-1.5 max-w-xl text-xs leading-5 text-slate-400 sm:text-sm">
+                A private visual record captured by our fulfillment team while
+                preparing your order.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4 self-start sm:self-auto">
+            <span className="inline-flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.14em] text-cyan-100/65">
+              <Images size={13} />
+              {evidence.length} photo{evidence.length === 1 ? "" : "s"}
+            </span>
+            <span className="text-[9px] font-black uppercase tracking-[0.14em] text-slate-500">
+              Order #{order.number}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div className="account-evidence-scroll relative flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2 sm:grid sm:grid-cols-2 sm:overflow-visible sm:pb-0 lg:grid-cols-3">
+        {evidence.map((record, index) => {
+          const timestamp = formatEvidenceTimestamp(record.captured_at);
+
+          return (
+            <button
+              key={record.id}
+              type="button"
+              onClick={() => showEvidence(index)}
+              className={`group relative min-h-[235px] w-[82vw] max-w-[330px] shrink-0 snap-start overflow-hidden rounded-2xl border border-white/10 bg-[#020617] text-left shadow-[0_14px_35px_rgba(0,0,0,0.22)] transition duration-300 hover:-translate-y-0.5 hover:border-cyan-200/35 hover:shadow-[0_18px_45px_rgba(8,145,178,0.14)] focus:outline-none focus:ring-2 focus:ring-cyan-200/45 sm:min-h-[270px] sm:w-auto sm:max-w-none ${
+                evidence.length % 3 === 1 && index === 0
+                  ? "lg:col-span-2"
+                  : ""
+              }`}
+              aria-label={`View ${record.label || "packaging evidence"}, uploaded ${timestamp.full}`}
+            >
+              <img
+                src={evidenceUrl(record)}
+                alt={record.label || "Packaging evidence"}
+                loading="lazy"
+                decoding="async"
+                className="absolute inset-0 h-full w-full object-cover transition duration-500 ease-out group-hover:scale-[1.04]"
+              />
+              <span className="absolute inset-0 bg-gradient-to-t from-[#010713] via-[#010713]/15 to-black/5 transition group-hover:via-transparent" />
+
+              <span className="absolute left-3 top-3 rounded-full border border-white/15 bg-[#020817]/75 px-2.5 py-1.5 text-[8px] font-black uppercase tracking-[0.16em] text-white/75 backdrop-blur-md">
+                Photo {String(index + 1).padStart(2, "0")}
+              </span>
+              <span className="absolute right-3 top-3 grid h-9 w-9 place-items-center rounded-full border border-white/15 bg-[#020817]/70 text-white opacity-80 backdrop-blur-md transition group-hover:scale-105 group-hover:border-cyan-100/30 group-hover:bg-cyan-300/15 group-hover:text-cyan-100">
+                <Maximize2 size={14} />
+              </span>
+
+              <span className="absolute inset-x-0 bottom-0 p-4 sm:p-5">
+                <span className="block text-sm font-bold text-white sm:text-base">
+                  {record.label || "Package evidence"}
+                </span>
+                <span className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[10px] font-semibold text-slate-300/85">
+                  <span className="inline-flex items-center gap-1.5">
+                    <Clock3 size={12} className="text-cyan-200" />
+                    Uploaded {timestamp.time}
+                  </span>
+                  <span className="text-slate-500">•</span>
+                  <span>{timestamp.date}</span>
+                </span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="relative mt-4 flex items-start gap-3 border-t border-white/[0.055] pt-4 sm:items-center">
+        <ShieldCheck size={15} className="mt-0.5 shrink-0 text-cyan-200 sm:mt-0" />
+        <p className="text-[10px] leading-5 text-slate-500 sm:text-xs">
+          These images are encrypted, private, and only available from your
+          authenticated account.
+        </p>
+      </div>
+
+      {selectedEvidence && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-[#01040b]/95 p-3 backdrop-blur-md sm:p-8"
+          role="dialog"
+          aria-modal="true"
+          aria-label={selectedEvidence.label || "Packaging evidence"}
+          onClick={() => setSelectedEvidenceId(null)}
+        >
+          <button
+            type="button"
+            onClick={() => setSelectedEvidenceId(null)}
+            className="absolute right-4 top-4 z-20 grid h-11 w-11 place-items-center rounded-full border border-white/15 bg-[#07111f]/90 text-white shadow-xl transition hover:scale-105 hover:bg-white/10 sm:right-7 sm:top-7"
+            aria-label="Close evidence photo"
+          >
+            <X size={20} />
+          </button>
+
+          <div
+            className="relative w-full max-w-6xl overflow-hidden rounded-[26px] border border-cyan-100/15 bg-[#06101d] shadow-[0_35px_120px_rgba(0,0,0,0.7)]"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div
+              className="relative flex min-h-[50vh] touch-pan-y items-center justify-center bg-[#01050c] sm:min-h-[65vh]"
+              onTouchStart={handleViewerTouchStart}
+              onTouchEnd={handleViewerTouchEnd}
+            >
+              <img
+                key={selectedEvidence.id}
+                src={evidenceUrl(selectedEvidence)}
+                alt={selectedEvidence.label || "Packaging evidence"}
+                className="max-h-[72vh] w-full object-contain"
+              />
+
+              {evidence.length > 1 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => showEvidence(selectedIndex - 1)}
+                    className="absolute left-2 grid h-11 w-11 place-items-center rounded-full border border-white/15 bg-[#020817]/75 text-white shadow-xl backdrop-blur-md transition hover:scale-105 hover:border-cyan-100/30 hover:bg-cyan-300/15 sm:left-4"
+                    aria-label="View previous photo"
+                  >
+                    <ChevronLeft size={21} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => showEvidence(selectedIndex + 1)}
+                    className="absolute right-2 grid h-11 w-11 place-items-center rounded-full border border-white/15 bg-[#020817]/75 text-white shadow-xl backdrop-blur-md transition hover:scale-105 hover:border-cyan-100/30 hover:bg-cyan-300/15 sm:right-4"
+                    aria-label="View next photo"
+                  >
+                    <ChevronRight size={21} />
+                  </button>
+                </>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-3 border-t border-cyan-100/10 bg-gradient-to-r from-cyan-300/[0.04] to-transparent px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+              <div>
+                <p className="text-sm font-bold text-white sm:text-base">
+                  {selectedEvidence.label || "Package evidence"}
+                </p>
+                <p className="mt-1 inline-flex items-center gap-1.5 text-[10px] font-semibold text-cyan-100/60 sm:text-xs">
+                  <Clock3 size={12} />
+                  Uploaded {formatEvidenceTimestamp(selectedEvidence.captured_at).full}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="rounded-full border border-white/10 bg-white/[0.035] px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.13em] text-slate-400">
+                  {selectedIndex + 1} / {evidence.length}
+                </span>
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300/15 bg-emerald-300/[0.07] px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.13em] text-emerald-200">
+                  <ShieldCheck size={11} />
+                  Secure record
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
 function OrderTrackingPanel({ trackedOrder }) {
   const trackingStatus = getTrackingStatus(trackedOrder);
   const primaryTracking = getPrimaryTracking(trackedOrder);
@@ -1722,7 +2112,7 @@ function OrderTrackingPanel({ trackedOrder }) {
   };
 
   return (
-    <div className="mt-4 rounded-2xl border border-cyan-200/10 bg-[#020617]/42 p-4">
+    <div className="mt-5 border-t border-cyan-200/10 pt-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="text-[9px] font-black uppercase tracking-[0.18em] text-cyan-200/55">
@@ -1849,6 +2239,16 @@ export default function AccountDashboard() {
       return total + Number(order.points_earned || 0);
     }, 0);
   }, [recentOrders]);
+
+  const evidencePhotoCount = useMemo(() => {
+    return visibleOrders.reduce((total, order) => {
+      const records = Array.isArray(order?.packaging_evidence)
+        ? order.packaging_evidence
+        : [];
+
+      return total + records.length;
+    }, 0);
+  }, [visibleOrders]);
 
   const apiPointsBalance = Number(account?.points || 0);
   const hasApiPoints = account?.points !== undefined && account?.points !== null;
@@ -2424,69 +2824,108 @@ export default function AccountDashboard() {
   }
 
   return (
-    <section className="account-page-shell relative isolate min-h-[100svh] overflow-x-hidden bg-[#020617] px-5 py-16 text-white sm:px-6 sm:py-20 lg:py-24">
+    <section className="account-page-shell relative isolate min-h-[100svh] overflow-x-hidden bg-[#020617] px-4 pb-32 pt-10 text-white sm:px-6 sm:py-16 lg:py-20">
       <div className="pointer-events-none absolute inset-0">
-        <div className="absolute left-1/2 top-10 h-72 w-72 -translate-x-1/2 rounded-full bg-cyan-300/7 blur-[120px] lg:left-[8%] lg:top-12 lg:h-72 lg:w-72 lg:translate-x-0" />
-        <div className="absolute right-[-25%] top-[35%] h-80 w-80 rounded-full bg-blue-500/8 blur-[130px] lg:right-[-8%] lg:bg-blue-500/10" />
+        <div className="absolute left-[7%] top-8 h-72 w-72 rounded-full bg-cyan-300/8 blur-[120px]" />
+        <div className="absolute right-[-8%] top-[28%] h-96 w-96 rounded-full bg-blue-500/8 blur-[130px]" />
       </div>
 
       <div className="relative mx-auto max-w-7xl">
-        <div className="mb-8 flex flex-col items-center gap-5 text-center sm:mb-10 lg:flex-row lg:items-end lg:justify-between lg:text-left">
-          <div className="w-full">
-            <div className="mb-4 inline-flex items-center justify-center gap-3 lg:mb-5 lg:justify-start">
-              <span className="h-2 w-2 rounded-full bg-cyan-300 shadow-[0_0_18px_rgba(103,232,249,0.75)]" />
+        <header className="account-member-hero relative mb-4 overflow-hidden rounded-[24px] border border-white/[0.085] bg-[linear-gradient(128deg,rgba(8,22,39,0.98),rgba(3,10,20,0.98)_56%,rgba(5,25,37,0.96))] shadow-[0_24px_70px_rgba(0,0,0,0.24)] sm:mb-7 sm:rounded-[36px] sm:shadow-[0_32px_100px_rgba(0,0,0,0.28)]">
+          <div className="pointer-events-none absolute -right-24 -top-32 h-80 w-80 rounded-full bg-cyan-300/[0.1] blur-[100px]" />
+          <div className="pointer-events-none absolute inset-x-14 top-0 h-px bg-gradient-to-r from-transparent via-cyan-100/30 to-transparent" />
 
-              <span className="text-[9px] font-black uppercase tracking-[0.28em] text-cyan-200/70 sm:text-[10px] sm:tracking-[0.32em]">
-                Account Dashboard
-              </span>
+          <div className="relative flex flex-col gap-5 p-4 sm:gap-7 sm:p-7 lg:flex-row lg:items-center lg:justify-between lg:p-9">
+            <div className="flex min-w-0 flex-row items-center gap-3.5 text-left sm:gap-5">
+              <div className="relative">
+                <div className="grid h-16 w-16 place-items-center rounded-[20px] border border-cyan-100/20 bg-gradient-to-br from-cyan-200/20 via-cyan-300/[0.08] to-blue-500/10 text-xl font-semibold tracking-[-0.05em] text-cyan-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_14px_34px_rgba(8,145,178,0.1)] sm:h-[88px] sm:w-[88px] sm:rounded-[27px] sm:text-[28px] sm:shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_18px_44px_rgba(8,145,178,0.12)]">
+                  {getAccountInitials(account.name)}
+                </div>
+                <span className="absolute -bottom-1.5 -right-1.5 grid h-7 w-7 place-items-center rounded-full border-[3px] border-[#071321] bg-emerald-300 text-[#032016]">
+                  <BadgeCheck size={15} strokeWidth={3} />
+                </span>
+              </div>
+
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center justify-start gap-2">
+                  <span className="text-[9px] font-black uppercase tracking-[0.28em] text-cyan-200/55">
+                    Private Client Portal
+                  </span>
+                  <span className="h-1 w-1 rounded-full bg-cyan-200/40" />
+                  <span className="text-[9px] font-black uppercase tracking-[0.18em] text-emerald-200/70">
+                    Active
+                  </span>
+                </div>
+                <h1 className="mt-2 truncate text-[28px] font-semibold leading-none tracking-[-0.055em] text-white sm:mt-3 sm:text-[46px] lg:text-[52px]">
+                  {account.name}
+                </h1>
+                <p className="mt-2.5 flex items-center justify-start gap-2 truncate text-xs text-slate-400 sm:mt-3 sm:text-sm">
+                  <Mail size={13} className="shrink-0 text-cyan-200/60" />
+                  <span className="truncate">{account.email}</span>
+                </p>
+              </div>
             </div>
 
-            <h1 className="mx-auto max-w-[390px] text-[40px] font-semibold leading-[0.92] tracking-[-0.075em] text-white sm:max-w-4xl sm:text-[54px] lg:mx-0 lg:text-[68px] lg:leading-[1.03] lg:tracking-[-0.055em]">
-              Welcome back,
-              <span className="block bg-gradient-to-r from-cyan-100 via-cyan-200 to-white bg-clip-text text-transparent lg:bg-none lg:text-cyan-200/85">
-                {account.name}
-              </span>
-            </h1>
+            <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:justify-center lg:justify-end">
+              <button
+                type="button"
+                onClick={() => loadAccount({ silent: true })}
+                disabled={refreshing}
+                className="inline-flex min-h-[46px] items-center justify-center gap-2.5 rounded-2xl border border-cyan-200/15 bg-cyan-300/[0.065] px-4 text-[9px] font-black uppercase tracking-[0.15em] text-cyan-100 transition hover:border-cyan-200/25 hover:bg-cyan-300/[0.11] disabled:opacity-60"
+              >
+                {refreshing ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <Sparkles size={14} />
+                )}
+                Refresh
+              </button>
 
-            <p className="mx-auto mt-5 max-w-[360px] text-[13.5px] leading-7 text-slate-300/65 sm:max-w-xl sm:text-[15px] sm:leading-8 lg:mx-0">
-              View your personal information, rewards, store credit, and order
-              activity.
-            </p>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="inline-flex min-h-[46px] items-center justify-center gap-2.5 rounded-2xl border border-white/[0.08] bg-white/[0.025] px-4 text-[9px] font-black uppercase tracking-[0.15em] text-slate-400 transition hover:border-white/15 hover:bg-white/[0.05] hover:text-white"
+              >
+                <LogOut size={14} />
+                Logout
+              </button>
+            </div>
           </div>
 
-          <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:justify-center lg:justify-end">
-            <button
-              type="button"
-              onClick={() => loadAccount({ silent: true })}
-              disabled={refreshing}
-              className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-full border border-cyan-200/12 bg-white/[0.025] px-4 text-[8px] font-black uppercase tracking-[0.12em] text-white/75 transition hover:border-cyan-200/25 hover:bg-cyan-300/[0.06] hover:text-white disabled:opacity-60 sm:w-fit sm:gap-3 sm:px-5 sm:py-3 sm:text-[10px] sm:tracking-[0.18em]"
-            >
-              {refreshing ? (
-                <Loader2 size={14} className="animate-spin" />
-              ) : (
-                <Sparkles size={14} />
-              )}
-              Refresh
-            </button>
-
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-full border border-cyan-200/12 bg-white/[0.025] px-4 text-[8px] font-black uppercase tracking-[0.12em] text-white/75 transition hover:border-cyan-200/25 hover:bg-cyan-300/[0.06] hover:text-white sm:w-fit sm:gap-3 sm:px-5 sm:py-3 sm:text-[10px] sm:tracking-[0.18em]"
-            >
-              <LogOut size={14} />
-              Logout
-            </button>
+          <div className="relative grid grid-cols-2 border-t border-white/[0.06] bg-black/[0.09] sm:grid-cols-4">
+            {[
+              ["Points balance", pointsBalance.toLocaleString("en-US")],
+              ["Store credit", formatMoney(storeCreditBalance)],
+              ["Active orders", visibleOrders.length.toLocaleString("en-US")],
+              ["Private photos", evidencePhotoCount.toLocaleString("en-US")],
+            ].map(([label, value], index) => (
+              <div
+                key={label}
+                className={`px-4 py-4 sm:px-6 sm:py-5 ${
+                  index % 2 !== 0 ? "border-l border-white/[0.06]" : ""
+                } ${index > 1 ? "border-t border-white/[0.06] sm:border-t-0" : ""} ${
+                  index === 2 ? "sm:border-l" : ""
+                }`}
+              >
+                <p className="text-[8px] font-black uppercase tracking-[0.17em] text-slate-500 sm:text-[9px]">
+                  {label}
+                </p>
+                <p className="mt-1.5 text-lg font-semibold tracking-[-0.035em] text-white sm:text-xl">
+                  {value}
+                </p>
+              </div>
+            ))}
           </div>
-        </div>
+        </header>
 
         <DashboardMenu activeTab={activeTab} setActiveTab={setActiveTab} />
 
         {activeTab === "overview" && (
           <div className="space-y-4 sm:space-y-5">
             <div className="grid gap-4 sm:gap-5 lg:grid-cols-[1.05fr_0.95fr]">
-              <div className="relative overflow-hidden rounded-[1.7rem] border border-cyan-200/10 bg-[linear-gradient(145deg,rgba(4,12,24,0.96),rgba(8,38,56,0.66),rgba(4,12,24,0.96))] p-5 shadow-[0_24px_90px_rgba(0,0,0,0.25)] backdrop-blur-xl sm:rounded-[2rem] sm:p-8">
+              <div className="relative overflow-hidden rounded-[1.7rem] border border-cyan-100/15 bg-[linear-gradient(140deg,rgba(5,17,31,0.98),rgba(7,39,55,0.82),rgba(3,11,22,0.98))] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.045),0_28px_80px_rgba(0,0,0,0.24)] sm:rounded-[2rem] sm:p-8">
                 <div className="pointer-events-none absolute -right-20 -top-20 h-72 w-72 rounded-full bg-cyan-300/12 blur-[110px]" />
+                <div className="pointer-events-none absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-cyan-100/35 to-transparent" />
 
                 <div className="relative z-10">
                   <div className="mb-7 flex items-start justify-between gap-4 sm:mb-10 sm:gap-6">
@@ -2510,7 +2949,7 @@ export default function AccountDashboard() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
+                  <div className="grid grid-cols-2 border-y border-white/[0.06] sm:grid-cols-4 sm:divide-x sm:divide-white/[0.06]">
                     <MiniStat
                       label="Recent earned"
                       value={earnedFromRecentOrders.toLocaleString("en-US")}
@@ -2527,12 +2966,29 @@ export default function AccountDashboard() {
                     />
                   </div>
 
-                  <div className="mt-5 rounded-2xl border border-cyan-200/10 bg-[#020617]/45 p-4 sm:mt-6">
-                    <p className="text-xs leading-6 text-slate-400">
-                      Rewards are calculated from eligible paid orders. Current
-                      rule: 1 USD = 1 point. Every 500 points can be converted
-                      into $5 store credit.
-                    </p>
+                  <div className="mt-5 border-t border-cyan-200/10 pt-4 sm:mt-6">
+                    <div className="flex items-center justify-between gap-4">
+                      <p className="text-[9px] font-black uppercase tracking-[0.16em] text-cyan-100/65">
+                        Next reward progress
+                      </p>
+                      <p className="text-[10px] font-semibold text-slate-400">
+                        {rewardStats.currentProgressPoints} / {POINTS_PER_REWARD}
+                      </p>
+                    </div>
+                    <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/[0.06]">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-cyan-400 via-cyan-200 to-white shadow-[0_0_14px_rgba(103,232,249,0.45)]"
+                        style={{ width: `${rewardStats.progressPercent}%` }}
+                      />
+                    </div>
+                    <div className="mt-3 flex items-center justify-between gap-4 text-[10px] text-slate-500 sm:text-xs">
+                      <span>500 points unlocks $5 credit</span>
+                      <span className="font-semibold text-cyan-100/75">
+                        {rewardStats.pointsToNextReward > 0
+                          ? `${rewardStats.pointsToNextReward} to go`
+                          : "Reward ready"}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -2544,83 +3000,38 @@ export default function AccountDashboard() {
                   description="A quick view of your profile, rewards, and order activity."
                 />
 
-                <div className="grid gap-3">
-                  <button
-                    type="button"
+                <div className="grid">
+                  <AccountShortcut
+                    icon={User}
+                    eyebrow="Identity"
+                    title="Personal information"
+                    description="View your identity and verified account status."
                     onClick={() => setActiveTab("personal")}
-                    className="group flex items-center justify-between gap-4 rounded-2xl border border-cyan-200/10 bg-[#020617]/45 p-4 text-left transition hover:border-cyan-200/20 hover:bg-cyan-300/[0.025]"
-                  >
-                    <div>
-                      <p className="text-sm font-semibold text-white">
-                        Personal information
-                      </p>
-                      <p className="mt-1 text-xs leading-5 text-slate-500">
-                        View your name, email, and account status.
-                      </p>
-                    </div>
-                    <ArrowRight
-                      size={16}
-                      className="shrink-0 text-cyan-200 transition group-hover:translate-x-1"
-                    />
-                  </button>
+                  />
 
-                  <button
-                    type="button"
+                  <AccountShortcut
+                    icon={Gift}
+                    eyebrow="Benefits"
+                    title="Rewards and credit"
+                    description="Convert points and review your redemption history."
                     onClick={() => setActiveTab("rewards")}
-                    className="group flex items-center justify-between gap-4 rounded-2xl border border-cyan-200/10 bg-[#020617]/45 p-4 text-left transition hover:border-cyan-200/20 hover:bg-cyan-300/[0.025]"
-                  >
-                    <div>
-                      <p className="text-sm font-semibold text-white">
-                        Rewards and credit
-                      </p>
-                      <p className="mt-1 text-xs leading-5 text-slate-500">
-                        Convert points into store credit and review redemptions.
-                      </p>
-                    </div>
-                    <ArrowRight
-                      size={16}
-                      className="shrink-0 text-cyan-200 transition group-hover:translate-x-1"
-                    />
-                  </button>
+                  />
 
-                  <button
-                    type="button"
+                  <AccountShortcut
+                    icon={PackageCheck}
+                    eyebrow="Fulfillment"
+                    title="Orders and evidence"
+                    description="Track shipments and inspect private packing records."
                     onClick={() => setActiveTab("orders")}
-                    className="group flex items-center justify-between gap-4 rounded-2xl border border-cyan-200/10 bg-[#020617]/45 p-4 text-left transition hover:border-cyan-200/20 hover:bg-cyan-300/[0.025]"
-                  >
-                    <div>
-                      <p className="text-sm font-semibold text-white">
-                        Orders and tracking
-                      </p>
-                      <p className="mt-1 text-xs leading-5 text-slate-500">
-                        View order activity and track shipment status.
-                      </p>
-                    </div>
-                    <ArrowRight
-                      size={16}
-                      className="shrink-0 text-cyan-200 transition group-hover:translate-x-1"
-                    />
-                  </button>
+                  />
 
-                  <button
-                    type="button"
+                  <AccountShortcut
+                    icon={Handshake}
+                    eyebrow="Partnerships"
+                    title="Affiliate program"
+                    description="Manage your research-use-only referral application."
                     onClick={() => setActiveTab("affiliate")}
-                    className="group flex items-center justify-between gap-4 rounded-2xl border border-cyan-200/10 bg-[#020617]/45 p-4 text-left transition hover:border-cyan-200/20 hover:bg-cyan-300/[0.025]"
-                  >
-                    <div>
-                      <p className="text-sm font-semibold text-white">
-                        Affiliate program
-                      </p>
-                      <p className="mt-1 text-xs leading-5 text-slate-500">
-                        Apply for your research-use-only referral coupon.
-                      </p>
-                    </div>
-                    <ArrowRight
-                      size={16}
-                      className="shrink-0 text-cyan-200 transition group-hover:translate-x-1"
-                    />
-                  </button>
-
+                  />
                 </div>
               </SectionCard>
             </div>
@@ -2635,37 +3046,26 @@ export default function AccountDashboard() {
               description="Basic customer information connected to your account."
             />
 
-            <div className="grid gap-3 lg:grid-cols-3">
-              <div className="rounded-2xl border border-cyan-200/10 bg-[#020617]/45 p-4">
-                <p className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-500 sm:text-[10px] sm:tracking-[0.18em]">
-                  Name
-                </p>
-                <p className="mt-2 text-sm font-semibold text-white">
-                  {account.name}
-                </p>
-              </div>
+            <div className="grid lg:grid-cols-3">
+              <ProfileDetailCard icon={User} label="Account holder">
+                {account.name}
+              </ProfileDetailCard>
 
-              <div className="rounded-2xl border border-cyan-200/10 bg-[#020617]/45 p-4">
-                <p className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-500 sm:text-[10px] sm:tracking-[0.18em]">
-                  Email
-                </p>
-                <p className="mt-2 break-all text-sm font-semibold text-white">
+              <ProfileDetailCard icon={Mail} label="Verified email">
+                <span className="break-all">
                   {account.email}
-                </p>
-              </div>
+                </span>
+              </ProfileDetailCard>
 
-              <div className="rounded-2xl border border-cyan-200/10 bg-[#020617]/45 p-4">
-                <p className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-500 sm:text-[10px] sm:tracking-[0.18em]">
-                  Account status
-                </p>
-                <p className="mt-2 inline-flex items-center gap-2 text-sm font-semibold text-cyan-100">
-                  <BadgeCheck size={16} />
+              <ProfileDetailCard icon={Fingerprint} label="Membership" accent>
+                <span className="text-emerald-100">
                   Active rewards member
-                </p>
-              </div>
+                </span>
+              </ProfileDetailCard>
             </div>
 
-            <div className="mt-4 rounded-2xl border border-cyan-200/10 bg-cyan-300/[0.035] p-4">
+            <div className="mt-4 flex items-start gap-3 border-t border-cyan-200/10 pt-5">
+              <ShieldCheck size={17} className="mt-0.5 shrink-0 text-cyan-200" />
               <p className="text-xs leading-6 text-slate-400">
                 Need to update your personal details? Contact support with your
                 account email so the team can help verify and update your
@@ -2696,7 +3096,7 @@ export default function AccountDashboard() {
                   </span>
                 </div>
 
-                <div className="mt-6 grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
+                <div className="mt-6 grid grid-cols-2 border-y border-white/[0.06] sm:grid-cols-4 sm:divide-x sm:divide-white/[0.06]">
                   <MiniStat
                     label="Recent earned"
                     value={earnedFromRecentOrders.toLocaleString("en-US")}
@@ -2735,7 +3135,7 @@ export default function AccountDashboard() {
                 description="Convert every 500 points into $5 of store credit."
               />
 
-              <div className="grid gap-3 sm:grid-cols-3">
+              <div className="grid sm:grid-cols-3">
                 <WaysToEarnCard
                   icon={ShoppingBag}
                   title="Shop eligible products"
@@ -2755,7 +3155,7 @@ export default function AccountDashboard() {
                 />
               </div>
 
-              <div className="mt-4 rounded-2xl border border-cyan-200/10 bg-cyan-300/[0.035] p-4">
+              <div className="mt-4 border-t border-cyan-200/10 pt-4">
                 <p className="text-xs leading-6 text-slate-400">
                   Store credit is saved to your account balance after transfer.
                   The checkout discount step reads that balance when you apply
@@ -2767,7 +3167,7 @@ export default function AccountDashboard() {
         )}
 
         {activeTab === "orders" && (
-          <SectionCard>
+          <div className="py-2 sm:py-3">
             <SectionHeading
               eyebrow="Orders"
               title="Order activity"
@@ -2789,8 +3189,8 @@ export default function AccountDashboard() {
                 </p>
               </div>
             ) : (
-              <div className="space-y-3">
-                {visibleOrders.map((order) => {
+              <div className="space-y-4 sm:space-y-5">
+                {visibleOrders.map((order, orderIndex) => {
                   const trackedOrder = trackingByOrder[order.id];
                   const isTrackingOpen = openTrackingOrderId === order.id;
                   const isTrackingLoading = Boolean(
@@ -2804,36 +3204,38 @@ export default function AccountDashboard() {
                   return (
                     <article
                       key={order.id}
-                      className="rounded-2xl border border-cyan-200/10 bg-[#020617]/45 p-4 transition hover:border-cyan-200/20 hover:bg-cyan-300/[0.025]"
+                      className="group/order relative overflow-hidden rounded-[26px] border border-white/[0.08] bg-[linear-gradient(145deg,rgba(3,10,20,0.9),rgba(4,14,27,0.76))] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.025),0_18px_50px_rgba(0,0,0,0.16)] transition duration-300 hover:border-cyan-200/15 sm:p-6"
                     >
-                      <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-center">
-                        <div>
-                          <div className="flex flex-wrap items-center gap-3">
-                            <p className="text-sm font-semibold text-white">
-                              Order #{order.number}
+                      <span className="pointer-events-none absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-cyan-100/20 to-transparent" />
+
+                      <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-center">
+                        <div className="flex min-w-0 items-center gap-4">
+                          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-cyan-200/10 bg-cyan-300/[0.055] text-cyan-200 sm:h-14 sm:w-14">
+                            <ReceiptText size={20} strokeWidth={1.7} />
+                          </span>
+                          <div className="min-w-0">
+                            <p className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-500 sm:text-[9px]">
+                              Order record {String(orderIndex + 1).padStart(2, "0")}
                             </p>
-
-                            <span className="rounded-full border border-cyan-200/10 bg-cyan-300/[0.055] px-3 py-1 text-[9px] font-black uppercase tracking-[0.16em] text-cyan-100/75">
+                            <div className="mt-1.5 flex flex-wrap items-center gap-2.5">
+                              <h3 className="text-lg font-semibold tracking-[-0.035em] text-white sm:text-xl">
+                                Order #{order.number}
+                              </h3>
+                              <span
+                                className={`rounded-full border px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.15em] ${getOrderStatusTone(
+                                  order.status
+                                )}`}
+                              >
                               {normalizeStatus(order.status)}
-                            </span>
-                          </div>
-
-                          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2 text-sm text-slate-500">
-                            <span className="inline-flex items-center gap-2">
-                              <Clock3 size={14} />
-                              {formatDate(order.date)}
-                            </span>
-
-                            <span>Total: {formatMoney(order.total, order.currency)}</span>
-
-                            <span>
-                              Points:{" "}
-                              {hasPoints
-                                ? `+${Number(
-                                    order.points_earned || 0
-                                  ).toLocaleString("en-US")}`
-                                : "Pending"}
-                            </span>
+                              </span>
+                              {Array.isArray(order?.packaging_evidence) &&
+                                order.packaging_evidence.length > 0 && (
+                                  <span className="inline-flex items-center gap-1.5 rounded-full border border-cyan-200/15 bg-cyan-300/[0.06] px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.14em] text-cyan-100/75">
+                                    <Camera size={10} />
+                                    Packing verified
+                                  </span>
+                                )}
+                            </div>
                           </div>
                         </div>
 
@@ -2841,7 +3243,7 @@ export default function AccountDashboard() {
                           type="button"
                           onClick={() => handleTrackOrder(order)}
                           disabled={isTrackingLoading}
-                          className="inline-flex min-h-[42px] items-center justify-center gap-2 rounded-2xl border border-cyan-200/12 bg-cyan-300/[0.075] px-4 text-[9px] font-black uppercase tracking-[0.14em] text-cyan-100 transition hover:border-cyan-200/25 hover:bg-cyan-300/[0.12] hover:text-white disabled:cursor-wait disabled:opacity-60"
+                          className="inline-flex min-h-[46px] items-center justify-center gap-2 rounded-2xl border border-cyan-200/15 bg-cyan-300/[0.07] px-5 text-[9px] font-black uppercase tracking-[0.15em] text-cyan-100 transition hover:border-cyan-200/25 hover:bg-cyan-300/[0.12] hover:text-white disabled:cursor-wait disabled:opacity-60"
                         >
                           {isTrackingLoading ? (
                             <>
@@ -2857,6 +3259,44 @@ export default function AccountDashboard() {
                         </button>
                       </div>
 
+                      <div className="mt-5 grid grid-cols-3 border-y border-white/[0.06]">
+                        <div className="min-w-0 p-3 sm:p-4">
+                          <p className="flex items-center gap-1.5 text-[8px] font-black uppercase tracking-[0.14em] text-slate-500 sm:text-[9px]">
+                            <CalendarDays size={11} className="text-cyan-200/60" />
+                            Placed
+                          </p>
+                          <p className="mt-1.5 truncate text-[11px] font-semibold text-slate-200 sm:text-sm">
+                            {formatDate(order.date)}
+                          </p>
+                        </div>
+
+                        <div className="min-w-0 border-l border-white/[0.06] p-3 sm:p-4">
+                          <p className="flex items-center gap-1.5 text-[8px] font-black uppercase tracking-[0.14em] text-slate-500 sm:text-[9px]">
+                            <CircleDollarSign size={11} className="text-cyan-200/60" />
+                            Total
+                          </p>
+                          <p className="mt-1.5 truncate text-[11px] font-semibold text-white sm:text-sm">
+                            {formatMoney(order.total, order.currency)}
+                          </p>
+                        </div>
+
+                        <div className="min-w-0 border-l border-white/[0.06] p-3 sm:p-4">
+                          <p className="flex items-center gap-1.5 text-[8px] font-black uppercase tracking-[0.14em] text-slate-500 sm:text-[9px]">
+                            <Sparkles size={11} className="text-cyan-200/60" />
+                            Rewards
+                          </p>
+                          <p className="mt-1.5 truncate text-[11px] font-semibold text-cyan-100 sm:text-sm">
+                            {hasPoints
+                              ? `+${Number(
+                                  order.points_earned || 0
+                                ).toLocaleString("en-US")}`
+                              : "Pending"}
+                          </p>
+                        </div>
+                      </div>
+
+                      <OrderEvidenceGallery order={order} />
+
                       {trackingError && (
                         <p className="mt-4 rounded-2xl border border-red-400/15 bg-red-400/10 px-4 py-3 text-sm leading-6 text-red-200">
                           {trackingError}
@@ -2871,7 +3311,7 @@ export default function AccountDashboard() {
                 })}
               </div>
             )}
-          </SectionCard>
+          </div>
         )}
 
         {activeTab === "affiliate" && (
@@ -2900,8 +3340,26 @@ export default function AccountDashboard() {
           max-width: 100vw;
           overflow-x: clip;
           background:
-            radial-gradient(circle at 50% -12%, rgba(103, 232, 249, 0.08), transparent 34%),
+            linear-gradient(rgba(103, 232, 249, 0.018) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(103, 232, 249, 0.018) 1px, transparent 1px),
+            radial-gradient(circle at 50% -12%, rgba(103, 232, 249, 0.09), transparent 34%),
             linear-gradient(180deg, #020617 0%, #03101f 42%, #020617 100%);
+          background-size: 64px 64px, 64px 64px, auto, auto;
+          background-position: center top;
+        }
+
+        .account-member-hero::after {
+          position: absolute;
+          inset: 0;
+          border-radius: inherit;
+          background: linear-gradient(
+            115deg,
+            transparent 0%,
+            rgba(255, 255, 255, 0.025) 35%,
+            transparent 57%
+          );
+          content: "";
+          pointer-events: none;
         }
 
 
@@ -2973,6 +3431,15 @@ export default function AccountDashboard() {
           display: none;
         }
 
+        .account-evidence-scroll {
+          scrollbar-width: none;
+          overscroll-behavior-x: contain;
+        }
+
+        .account-evidence-scroll::-webkit-scrollbar {
+          display: none;
+        }
+
         @media (max-width: 767px) {
           html,
           body,
@@ -2983,8 +3450,23 @@ export default function AccountDashboard() {
           .account-page-shell {
             min-height: 100svh;
             overflow-x: clip;
-            background-color: #020617;
+            background: linear-gradient(180deg, #020617 0%, #03101f 48%, #020617 100%);
             -webkit-overflow-scrolling: touch;
+            contain: none;
+          }
+
+          .account-page-shell > .pointer-events-none.absolute.inset-0 {
+            display: none;
+          }
+
+          .account-dashboard-menu {
+            bottom: calc(0.75rem + env(safe-area-inset-bottom));
+          }
+
+          .account-page-shell button,
+          .account-page-shell a {
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
           }
 
           .account-page-shell [class*="blur-[120px]"],

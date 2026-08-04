@@ -137,8 +137,9 @@ function inferTrackingCarrier(value = "") {
   return "";
 }
 
-function extractTrackingNumber(value = "") {
+export function extractTrackingNumber(value = "", options = {}) {
   const clean = String(value || "").trim();
+  const requireLabel = Boolean(options.requireLabel);
 
   if (!clean) return "";
 
@@ -149,6 +150,10 @@ function extractTrackingNumber(value = "") {
   if (labeledNumber?.[1]) {
     return labeledNumber[1].replace(/-/g, "");
   }
+
+  // Order notes also contain agreement IDs, payment references and hashes.
+  // When parsing a note, an explicit tracking label is mandatory.
+  if (requireLabel) return "";
 
   const upsNumber = clean.match(/\b1Z[A-Z0-9]{16}\b/i)?.[0];
   if (upsNumber) return upsNumber;
@@ -208,13 +213,14 @@ function normalizeTrackingItem(item = {}) {
     item.trackingNumber ||
     item.tracking_code ||
     item.trackingCode ||
-    item.shipment_id ||
     "";
 
   const inferredCarrier = inferTrackingCarrier(
     `${provider} ${rawNumber} ${item.note || item.content || ""}`,
   );
-  const number = extractTrackingNumber(rawNumber);
+  const number = extractTrackingNumber(rawNumber, {
+    requireLabel: Boolean(item.require_labeled_tracking),
+  });
 
   const url =
     item.tracking_link ||
@@ -570,6 +576,24 @@ async function fetchShipmentTrackingItems(config, orderId) {
   return [];
 }
 
+/**
+ * Confirm that a free-form WooCommerce note explicitly identifies a tracking
+ * number. Long operational IDs are deliberately rejected.
+ */
+export function isExplicitTrackingNote(value = "") {
+  const clean = String(value || "").trim();
+
+  if (!clean) return false;
+
+  const hasTrackingLabel =
+    /\btracking\s*(?:number|no\.?|#|code)\b/i.test(clean) ||
+    /\b(?:n[uú]mero\s+de\s+)?seguimiento\b/i.test(clean);
+
+  if (!hasTrackingLabel) return false;
+
+  return Boolean(extractTrackingNumber(clean, { requireLabel: true }));
+}
+
 async function fetchOrderNoteTrackingItems(config, orderId) {
   if (!orderId) return [];
 
@@ -579,15 +603,18 @@ async function fetchOrderNoteTrackingItems(config, orderId) {
     if (!Array.isArray(notes)) return [];
 
     return notes
-      .map((note) =>
-        normalizeTrackingItem({
-          tracking_provider: inferTrackingCarrier(
-            `${note?.note || ""} ${note?.content || ""}`,
-          ),
-          tracking_number: note?.note || note?.content || "",
+      .map((note) => {
+        const noteText = String(note?.note || note?.content || "").trim();
+
+        if (!isExplicitTrackingNote(noteText)) return null;
+
+        return normalizeTrackingItem({
+          tracking_provider: inferTrackingCarrier(noteText),
+          tracking_number: noteText,
           date_shipped: note?.date_created || "",
-        }),
-      )
+          require_labeled_tracking: true,
+        });
+      })
       .filter(Boolean);
   } catch {
     return [];

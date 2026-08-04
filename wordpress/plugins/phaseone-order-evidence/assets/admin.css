@@ -1,0 +1,198 @@
+:root {
+  --poe-bg: #050b18;
+  --poe-panel: #0a1424;
+  --poe-border: rgba(145, 220, 239, 0.16);
+  --poe-text: #f7fbff;
+  --poe-muted: #91a1b8;
+  --poe-accent: #85e5f5;
+  --poe-accent-dark: #04111d;
+}
+
+body.woocommerce_page_phaseone-order-evidence { background: var(--poe-bg); }
+
+.poe-shell {
+  max-width: 1180px;
+  margin: 0 auto 50px;
+  color: var(--poe-text);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.poe-shell * { box-sizing: border-box; }
+
+.poe-hero {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 30px;
+  margin: 18px 0 22px;
+  padding: 34px 38px;
+  overflow: hidden;
+  border: 1px solid var(--poe-border);
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at 87% 15%, rgba(133, 229, 245, 0.16), transparent 34%),
+    linear-gradient(145deg, #0b1728, #07101e 65%);
+  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.27);
+}
+
+.poe-kicker {
+  display: block;
+  color: #83d7e8;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .22em;
+}
+
+.poe-hero h1,
+.poe-order-heading h2 {
+  margin: 9px 0 8px;
+  color: #fff;
+  font-size: clamp(30px, 4vw, 46px);
+  line-height: 1.05;
+  letter-spacing: -.045em;
+}
+
+.poe-hero p,
+.poe-order-heading p { margin: 0; color: var(--poe-muted); font-size: 15px; }
+
+.poe-secure {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  flex: 0 0 auto;
+  padding: 10px 14px;
+  border: 1px solid rgba(133, 229, 245, .2);
+  border-radius: 999px;
+  background: rgba(133, 229, 245, .07);
+  color: #c8f7ff;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.poe-secure span { width: 7px; height: 7px; border-radius: 50%; background: #74edbd; box-shadow: 0 0 14px #74edbd; }
+.poe-grid { display: grid; grid-template-columns: minmax(280px, .72fr) minmax(0, 1.28fr); gap: 20px; align-items: start; }
+
+.poe-panel {
+  position: relative;
+  padding: 28px;
+  border: 1px solid var(--poe-border);
+  border-radius: 25px;
+  background: linear-gradient(155deg, rgba(13, 27, 46, .97), rgba(7, 15, 28, .98));
+  box-shadow: 0 24px 65px rgba(0, 0, 0, .24);
+}
+
+.poe-step { color: rgba(133, 229, 245, .42); font-size: 11px; font-weight: 900; letter-spacing: .2em; }
+.poe-panel h2 { margin: 7px 0 20px; color: #fff; font-size: 23px; letter-spacing: -.025em; }
+.poe-search { display: grid; gap: 10px; }
+
+.poe-search input,
+.poe-capture-box select {
+  width: 100%;
+  min-height: 49px;
+  margin: 0;
+  padding: 0 15px;
+  border: 1px solid rgba(159, 211, 232, .18) !important;
+  border-radius: 14px !important;
+  outline: none;
+  background: rgba(2, 8, 19, .74) !important;
+  color: #fff !important;
+  box-shadow: none !important;
+}
+
+.poe-search input:focus,
+.poe-capture-box select:focus { border-color: rgba(133, 229, 245, .58) !important; box-shadow: 0 0 0 3px rgba(133, 229, 245, .08) !important; }
+.poe-search button,
+.poe-upload { min-height: 49px; border: 0; border-radius: 14px; background: var(--poe-accent); color: var(--poe-accent-dark); font-weight: 900; cursor: pointer; }
+.poe-search button:hover,
+.poe-upload:hover { filter: brightness(1.06); transform: translateY(-1px); }
+.poe-status { min-height: 20px; margin-top: 11px; color: var(--poe-muted); font-size: 12px; }
+.poe-status[data-tone="success"] { color: #77e8b9; }
+.poe-status[data-tone="error"] { color: #ff9f9f; }
+.poe-status[data-tone="working"] { color: #aeeffc; }
+.poe-results { display: grid; gap: 9px; margin-top: 8px; }
+
+.poe-result-card {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: 100%;
+  padding: 15px;
+  border: 1px solid rgba(141, 206, 228, .12);
+  border-radius: 15px;
+  background: rgba(3, 10, 21, .68);
+  color: var(--poe-text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.poe-result-card:hover { border-color: rgba(133, 229, 245, .38); background: rgba(17, 38, 58, .72); }
+.poe-result-top { display: flex; justify-content: space-between; gap: 12px; }
+.poe-result-name { color: #dbe7f1; }
+.poe-result-card small { color: var(--poe-muted); line-height: 1.45; }
+.poe-order-status { color: #8ce9c2; font-size: 9px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
+.poe-order-status-large { padding: 8px 11px; border: 1px solid rgba(140, 233, 194, .17); border-radius: 999px; background: rgba(140, 233, 194, .06); }
+.poe-empty { margin: 11px 0 0; color: var(--poe-muted); line-height: 1.6; }
+.poe-order-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 15px; }
+.poe-order-heading h2 { font-size: 31px; }
+.poe-items { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0 24px; }
+.poe-items span { padding: 7px 10px; border: 1px solid rgba(153, 211, 231, .12); border-radius: 9px; background: rgba(2, 8, 18, .55); color: #aebdd0; font-size: 11px; }
+.poe-items strong { color: #d9f8ff; }
+
+.poe-capture-box {
+  padding: 20px;
+  border: 1px solid rgba(133, 229, 245, .15);
+  border-radius: 20px;
+  background: rgba(2, 8, 18, .5);
+}
+
+.poe-capture-box > label:first-child { display: block; margin: 0 0 8px; color: #98a9bd; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .1em; }
+.poe-camera-button { display: flex; align-items: center; justify-content: center; gap: 14px; min-height: 88px; margin-top: 13px; border: 1px dashed rgba(133, 229, 245, .42); border-radius: 17px; background: rgba(133, 229, 245, .075); color: #e8fbff; cursor: pointer; }
+.poe-camera-button:hover { background: rgba(133, 229, 245, .12); }
+.poe-camera-icon { display: grid; place-items: center; width: 36px; height: 36px; border: 2px solid #8aeafa; border-radius: 50%; color: #8aeafa; font-size: 13px; }
+.poe-camera-button strong,
+.poe-camera-button small { display: block; }
+.poe-camera-button strong { font-size: 15px; }
+.poe-camera-button small { margin-top: 3px; color: #86a0b8; font-size: 11px; }
+.poe-visible-toggle { display: flex; align-items: center; gap: 9px; margin: 14px 1px; color: #b8c6d5; font-size: 12px; }
+.poe-visible-toggle input { accent-color: #82e5f5; }
+.poe-preview { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; margin: 12px 0; }
+.poe-preview:empty { margin: 0; }
+.poe-preview-card { position: relative; aspect-ratio: 1; overflow: hidden; border-radius: 13px; background: #020812; }
+.poe-preview-card img { width: 100%; height: 100%; object-fit: cover; }
+.poe-preview-remove { position: absolute; top: 6px; right: 6px; display: grid; place-items: center; width: 25px; height: 25px; padding: 0; border: 1px solid rgba(255,255,255,.25); border-radius: 50%; background: rgba(1,6,13,.82); color: #fff; cursor: pointer; }
+.poe-upload { width: 100%; }
+.poe-upload:disabled { opacity: .36; cursor: not-allowed; transform: none; }
+.poe-divider { height: 1px; margin: 26px 0 22px; background: rgba(152, 211, 230, .12); }
+.poe-gallery-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.poe-gallery-heading h3 { margin: 0; color: #fff; font-size: 17px; }
+.poe-gallery-heading span { color: #7890a6; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .11em; }
+.poe-gallery { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
+.poe-gallery-empty { grid-column: 1 / -1; padding: 25px; border: 1px dashed rgba(152, 211, 230, .15); border-radius: 15px; text-align: center; }
+.poe-evidence-card { overflow: hidden; border: 1px solid rgba(152, 211, 230, .13); border-radius: 16px; background: rgba(2, 8, 18, .66); }
+.poe-evidence-card > img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; background: #020812; }
+.poe-evidence-body { display: flex; flex-direction: column; gap: 5px; padding: 12px; }
+.poe-evidence-body strong { color: #edfaff; }
+.poe-evidence-body small { min-height: 30px; color: #7f91a7; line-height: 1.45; }
+.poe-remove { align-self: flex-start; padding: 5px 0; border: 0; background: transparent; color: #ff9f9f; font-size: 11px; font-weight: 800; cursor: pointer; }
+
+@media (max-width: 900px) {
+  #wpcontent { padding-left: 10px; }
+  .poe-shell { margin-right: 10px; }
+  .poe-grid { grid-template-columns: 1fr; }
+  .poe-search-panel { position: static; }
+}
+
+@media (max-width: 600px) {
+  .poe-hero { padding: 25px 21px; border-radius: 21px; }
+  .poe-secure { display: none; }
+  .poe-panel { padding: 21px; border-radius: 20px; }
+  .poe-order-heading { flex-direction: column; }
+  .poe-order-status-large { align-self: flex-start; }
+  .poe-gallery { grid-template-columns: 1fr; }
+  .poe-preview { grid-template-columns: repeat(2, 1fr); }
+  .poe-camera-button { min-height: 102px; }
+}
+
