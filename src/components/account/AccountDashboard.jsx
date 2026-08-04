@@ -1969,7 +1969,7 @@ function OrderEvidenceGallery({ order }) {
               key={record.id}
               type="button"
               onClick={() => showEvidence(index)}
-              className={`group relative min-h-[235px] w-[82vw] max-w-[330px] shrink-0 snap-start overflow-hidden rounded-2xl border border-white/10 bg-[#020617] text-left shadow-[0_14px_35px_rgba(0,0,0,0.22)] transition duration-300 hover:-translate-y-0.5 hover:border-cyan-200/35 hover:shadow-[0_18px_45px_rgba(8,145,178,0.14)] focus:outline-none focus:ring-2 focus:ring-cyan-200/45 sm:min-h-[270px] sm:w-auto sm:max-w-none ${
+              className={`group relative min-h-[235px] w-full max-w-none shrink-0 snap-start overflow-hidden rounded-2xl border border-white/10 bg-[#020617] text-left shadow-[0_14px_35px_rgba(0,0,0,0.22)] transition duration-300 hover:-translate-y-0.5 hover:border-cyan-200/35 hover:shadow-[0_18px_45px_rgba(8,145,178,0.14)] focus:outline-none focus:ring-2 focus:ring-cyan-200/45 sm:min-h-[270px] sm:w-auto ${
                 evidence.length % 3 === 1 && index === 0
                   ? "lg:col-span-2"
                   : ""
@@ -2038,11 +2038,11 @@ function OrderEvidenceGallery({ order }) {
           </button>
 
           <div
-            className="relative w-full max-w-6xl overflow-hidden rounded-[26px] border border-cyan-100/15 bg-[#06101d] shadow-[0_35px_120px_rgba(0,0,0,0.7)]"
+            className="relative max-h-[calc(100dvh-1rem)] w-full max-w-6xl overflow-y-auto rounded-[22px] border border-cyan-100/15 bg-[#06101d] shadow-[0_35px_120px_rgba(0,0,0,0.7)] sm:overflow-hidden sm:rounded-[26px]"
             onClick={(event) => event.stopPropagation()}
           >
             <div
-              className="relative flex min-h-[50vh] touch-pan-y items-center justify-center bg-[#01050c] sm:min-h-[65vh]"
+              className="relative flex touch-pan-y items-center justify-center bg-[#01050c] sm:min-h-[65vh]"
               onTouchStart={handleViewerTouchStart}
               onTouchEnd={handleViewerTouchEnd}
             >
@@ -2050,7 +2050,7 @@ function OrderEvidenceGallery({ order }) {
                 key={selectedEvidence.id}
                 src={evidenceUrl(selectedEvidence)}
                 alt={selectedEvidence.label || "Packaging evidence"}
-                className="max-h-[72vh] w-full object-contain"
+                className="h-auto w-full sm:max-h-[72vh] sm:object-contain"
               />
 
               {evidence.length > 1 && (
@@ -2828,7 +2828,7 @@ export default function AccountDashboard() {
   }
 
   return (
-    <section className="account-page-shell relative isolate min-h-[100svh] overflow-x-hidden bg-[#020617] px-4 pb-32 pt-10 text-white sm:px-6 sm:py-16 lg:py-20">
+    <section className="account-page-shell relative isolate min-h-[100svh] overflow-x-hidden bg-[#020617] px-4 pb-32 pt-4 text-white sm:px-6 sm:py-16 lg:py-20">
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute left-[7%] top-8 h-72 w-72 rounded-full bg-cyan-300/8 blur-[120px]" />
         <div className="absolute right-[-8%] top-[28%] h-96 w-96 rounded-full bg-blue-500/8 blur-[130px]" />
