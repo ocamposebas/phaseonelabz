@@ -314,7 +314,7 @@ function DashboardMenu({ activeTab, setActiveTab }) {
   return (
     <nav
       aria-label="Account sections"
-      className="account-dashboard-menu fixed inset-x-3 bottom-3 z-[80] mb-0 rounded-[1.25rem] border border-cyan-100/15 bg-[#030a14]/95 p-1.5 shadow-[0_18px_60px_rgba(0,0,0,0.58)] sm:static sm:mb-7 sm:rounded-[1.7rem] sm:border-white/[0.075] sm:bg-[#030a14]/90 sm:p-2 sm:shadow-[0_20px_60px_rgba(0,0,0,0.2)]"
+      className="account-dashboard-menu fixed inset-x-3 bottom-3 z-[80] mb-0 rounded-[1.25rem] border border-cyan-100/15 bg-[#030a14]/95 p-1.5 shadow-[0_18px_60px_rgba(0,0,0,0.58)] sm:static sm:mb-7 sm:rounded-[1.7rem] sm:border-white/[0.075] sm:bg-[#030a14]/90 sm:p-2 sm:shadow-[0_20px_60px_rgba(0,0,0,0.2)] lg:mb-4 lg:rounded-[1.35rem] lg:p-1"
     >
       <div className="account-tabs-scroll grid grid-cols-5 gap-1 sm:gap-2">
         {dashboardTabs.map((tab) => {
@@ -327,7 +327,7 @@ function DashboardMenu({ activeTab, setActiveTab }) {
               type="button"
               onClick={() => handleTabSelect(tab.id)}
               aria-current={isActive ? "page" : undefined}
-              className={`group relative inline-flex min-h-[58px] min-w-0 flex-col items-center justify-center gap-1 overflow-hidden rounded-[0.95rem] border px-1 text-[8px] font-black uppercase tracking-[0.06em] transition duration-200 sm:min-h-[58px] sm:w-full sm:flex-row sm:gap-2 sm:rounded-[1.25rem] sm:px-4 sm:text-[10px] sm:tracking-[0.16em] ${
+              className={`group relative inline-flex min-h-[58px] min-w-0 flex-col items-center justify-center gap-1 overflow-hidden rounded-[0.95rem] border px-1 text-[8px] font-black uppercase tracking-[0.06em] transition duration-200 sm:min-h-[58px] sm:w-full sm:flex-row sm:gap-2 sm:rounded-[1.25rem] sm:px-4 sm:text-[10px] sm:tracking-[0.16em] lg:min-h-[44px] lg:rounded-[1rem] lg:text-[9px] ${
                 isActive
                   ? "border-cyan-200/20 bg-gradient-to-b from-cyan-300/[0.13] to-cyan-300/[0.055] text-cyan-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.07),0_10px_28px_rgba(8,145,178,0.08)]"
                   : "border-transparent bg-transparent text-slate-500 hover:border-white/[0.06] hover:bg-white/[0.025] hover:text-slate-200"
@@ -357,7 +357,7 @@ function DashboardMenu({ activeTab, setActiveTab }) {
 function SectionCard({ children, className = "" }) {
   return (
     <div
-      className={`relative overflow-hidden rounded-[1.7rem] border border-white/[0.075] bg-[linear-gradient(145deg,rgba(6,15,28,0.94),rgba(3,9,18,0.94))] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.025),0_22px_70px_rgba(0,0,0,0.18)] sm:rounded-[2rem] sm:p-8 ${className}`}
+      className={`relative overflow-hidden rounded-[1.7rem] border border-white/[0.075] bg-[linear-gradient(145deg,rgba(6,15,28,0.94),rgba(3,9,18,0.94))] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.025),0_22px_70px_rgba(0,0,0,0.18)] sm:rounded-[2rem] sm:p-8 lg:rounded-[1.5rem] lg:p-5 ${className}`}
     >
       <span className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-cyan-100/15 to-transparent" />
       {children}
@@ -367,13 +367,13 @@ function SectionCard({ children, className = "" }) {
 
 function SectionHeading({ eyebrow, title, description, right }) {
   return (
-    <div className="relative z-10 mb-5 flex flex-col gap-3 text-left sm:mb-7 sm:flex-row sm:items-end sm:justify-between">
+    <div className="relative z-10 mb-5 flex flex-col gap-3 text-left sm:mb-7 sm:flex-row sm:items-end sm:justify-between lg:mb-5">
       <div>
         <p className="text-[9px] font-black uppercase tracking-[0.24em] text-cyan-200/55 sm:text-[10px] sm:tracking-[0.3em]">
           {eyebrow}
         </p>
 
-        <h2 className="mt-2 text-[26px] font-semibold tracking-[-0.045em] text-white sm:text-[30px]">
+        <h2 className="mt-2 text-[26px] font-semibold tracking-[-0.045em] text-white sm:text-[30px] lg:text-[26px]">
           {title}
         </h2>
       </div>
@@ -1986,11 +1986,7 @@ function OrderEvidenceGallery({ order }) {
               key={record.id}
               type="button"
               onClick={() => showEvidence(index)}
-              className={`group relative min-h-[235px] w-full max-w-none shrink-0 snap-start overflow-hidden rounded-2xl border border-white/10 bg-[#020617] text-left shadow-[0_14px_35px_rgba(0,0,0,0.22)] transition duration-300 hover:-translate-y-0.5 hover:border-cyan-200/35 hover:shadow-[0_18px_45px_rgba(8,145,178,0.14)] focus:outline-none focus:ring-2 focus:ring-cyan-200/45 sm:min-h-[270px] sm:w-auto ${
-                evidence.length % 3 === 1 && index === 0
-                  ? "lg:col-span-2"
-                  : ""
-              }`}
+              className="group relative min-h-[235px] w-full max-w-none shrink-0 snap-start overflow-hidden rounded-2xl border border-white/10 bg-[#020617] text-left shadow-[0_14px_35px_rgba(0,0,0,0.22)] transition duration-300 hover:-translate-y-0.5 hover:border-cyan-200/35 hover:shadow-[0_18px_45px_rgba(8,145,178,0.14)] focus:outline-none focus:ring-2 focus:ring-cyan-200/45 sm:min-h-[270px] sm:w-auto lg:min-h-[210px] lg:rounded-xl"
               aria-label={`View ${record.label || "packaging evidence"}, uploaded ${timestamp.full}`}
             >
               <img
@@ -2055,12 +2051,25 @@ function OrderEvidenceGallery({ order }) {
         })}
       </div>
 
-      <div className="relative mt-4 flex items-start gap-3 border-t border-white/[0.055] pt-4 sm:items-center">
-        <ShieldCheck size={15} className="mt-0.5 shrink-0 text-cyan-200 sm:mt-0" />
-        <p className="text-[10px] leading-5 text-slate-500 sm:text-xs">
-          These images are encrypted, private, and only available from your
-          authenticated account.
-        </p>
+      <div className="relative mt-4 flex flex-col gap-4 border-t border-white/[0.055] pt-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-start gap-3 sm:items-center">
+          <ShieldCheck size={15} className="mt-0.5 shrink-0 text-cyan-200 sm:mt-0" />
+          <p className="text-[10px] leading-5 text-slate-500 sm:text-xs">
+            These images are encrypted, private, and only available from your
+            authenticated account.
+          </p>
+        </div>
+
+        <a
+          href={`mailto:Support@phaseonelabz.com?subject=${encodeURIComponent(
+            `Claim for Order #${order.number || order.id}`
+          )}`}
+          className="inline-flex min-h-[44px] w-full shrink-0 items-center justify-center gap-2 rounded-xl border border-cyan-200/20 bg-cyan-300/[0.08] px-4 text-[9px] font-black uppercase tracking-[0.15em] text-cyan-100 transition hover:border-cyan-200/35 hover:bg-cyan-300/[0.14] hover:text-white focus:outline-none focus:ring-2 focus:ring-cyan-200/45 sm:w-auto"
+          aria-label={`File a claim for order #${order.number || order.id}`}
+        >
+          <Mail size={14} />
+          File a claim
+        </a>
       </div>
 
       {selectedEvidence &&
@@ -2911,21 +2920,21 @@ export default function AccountDashboard() {
   }
 
   return (
-    <section className="account-page-shell relative isolate min-h-[100svh] overflow-x-hidden bg-[#020617] px-4 pb-32 pt-10 text-white sm:px-6 sm:py-16 lg:py-20">
+    <section className="account-page-shell relative isolate min-h-[100svh] overflow-x-hidden bg-[#020617] px-4 pb-32 pt-10 text-white sm:px-6 sm:py-16 lg:px-8 lg:pb-10 lg:pt-8">
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute left-[7%] top-8 h-72 w-72 rounded-full bg-cyan-300/8 blur-[120px]" />
         <div className="absolute right-[-8%] top-[28%] h-96 w-96 rounded-full bg-blue-500/8 blur-[130px]" />
       </div>
 
-      <div className="relative mx-auto max-w-7xl">
-        <header className="account-member-hero relative mb-4 overflow-hidden rounded-[24px] border border-white/[0.085] bg-[linear-gradient(128deg,rgba(8,22,39,0.98),rgba(3,10,20,0.98)_56%,rgba(5,25,37,0.96))] shadow-[0_24px_70px_rgba(0,0,0,0.24)] sm:mb-7 sm:rounded-[36px] sm:shadow-[0_32px_100px_rgba(0,0,0,0.28)]">
+      <div className="relative mx-auto max-w-[1120px]">
+        <header className="account-member-hero relative mb-4 overflow-hidden rounded-[24px] border border-white/[0.085] bg-[linear-gradient(128deg,rgba(8,22,39,0.98),rgba(3,10,20,0.98)_56%,rgba(5,25,37,0.96))] shadow-[0_24px_70px_rgba(0,0,0,0.24)] sm:mb-7 sm:rounded-[36px] sm:shadow-[0_32px_100px_rgba(0,0,0,0.28)] lg:mb-4 lg:rounded-[26px]">
           <div className="pointer-events-none absolute -right-24 -top-32 h-80 w-80 rounded-full bg-cyan-300/[0.1] blur-[100px]" />
           <div className="pointer-events-none absolute inset-x-14 top-0 h-px bg-gradient-to-r from-transparent via-cyan-100/30 to-transparent" />
 
-          <div className="relative flex flex-col gap-5 p-4 sm:gap-7 sm:p-7 lg:flex-row lg:items-center lg:justify-between lg:p-9">
+          <div className="relative flex flex-col gap-5 p-4 sm:gap-7 sm:p-7 lg:flex-row lg:items-center lg:justify-between lg:gap-5 lg:p-5">
             <div className="flex min-w-0 flex-row items-center gap-3.5 text-left sm:gap-5">
               <div className="relative">
-                <div className="grid h-16 w-16 place-items-center rounded-[20px] border border-cyan-100/20 bg-gradient-to-br from-cyan-200/20 via-cyan-300/[0.08] to-blue-500/10 text-xl font-semibold tracking-[-0.05em] text-cyan-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_14px_34px_rgba(8,145,178,0.1)] sm:h-[88px] sm:w-[88px] sm:rounded-[27px] sm:text-[28px] sm:shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_18px_44px_rgba(8,145,178,0.12)]">
+                <div className="grid h-16 w-16 place-items-center rounded-[20px] border border-cyan-100/20 bg-gradient-to-br from-cyan-200/20 via-cyan-300/[0.08] to-blue-500/10 text-xl font-semibold tracking-[-0.05em] text-cyan-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_14px_34px_rgba(8,145,178,0.1)] sm:h-[88px] sm:w-[88px] sm:rounded-[27px] sm:text-[28px] sm:shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_18px_44px_rgba(8,145,178,0.12)] lg:h-16 lg:w-16 lg:rounded-[19px] lg:text-xl">
                   {getAccountInitials(account.name)}
                 </div>
                 <span className="absolute -bottom-1.5 -right-1.5 grid h-7 w-7 place-items-center rounded-full border-[3px] border-[#071321] bg-emerald-300 text-[#032016]">
@@ -2943,7 +2952,7 @@ export default function AccountDashboard() {
                     Active
                   </span>
                 </div>
-                <h1 className="mt-2 truncate text-[28px] font-semibold leading-none tracking-[-0.055em] text-white sm:mt-3 sm:text-[46px] lg:text-[52px]">
+                <h1 className="mt-2 truncate text-[28px] font-semibold leading-none tracking-[-0.055em] text-white sm:mt-3 sm:text-[46px] lg:mt-2 lg:text-[36px]">
                   {account.name}
                 </h1>
                 <p className="mt-2.5 flex items-center justify-start gap-2 truncate text-xs text-slate-400 sm:mt-3 sm:text-sm">
@@ -2958,7 +2967,7 @@ export default function AccountDashboard() {
                 type="button"
                 onClick={() => loadAccount({ silent: true })}
                 disabled={refreshing}
-                className="inline-flex min-h-[46px] items-center justify-center gap-2.5 rounded-2xl border border-cyan-200/15 bg-cyan-300/[0.065] px-4 text-[9px] font-black uppercase tracking-[0.15em] text-cyan-100 transition hover:border-cyan-200/25 hover:bg-cyan-300/[0.11] disabled:opacity-60"
+                className="inline-flex min-h-[46px] items-center justify-center gap-2.5 rounded-2xl border border-cyan-200/15 bg-cyan-300/[0.065] px-4 text-[9px] font-black uppercase tracking-[0.15em] text-cyan-100 transition hover:border-cyan-200/25 hover:bg-cyan-300/[0.11] disabled:opacity-60 lg:min-h-[40px] lg:rounded-xl lg:px-3.5"
               >
                 {refreshing ? (
                   <Loader2 size={14} className="animate-spin" />
@@ -2971,7 +2980,7 @@ export default function AccountDashboard() {
               <button
                 type="button"
                 onClick={handleLogout}
-                className="inline-flex min-h-[46px] items-center justify-center gap-2.5 rounded-2xl border border-white/[0.08] bg-white/[0.025] px-4 text-[9px] font-black uppercase tracking-[0.15em] text-slate-400 transition hover:border-white/15 hover:bg-white/[0.05] hover:text-white"
+                className="inline-flex min-h-[46px] items-center justify-center gap-2.5 rounded-2xl border border-white/[0.08] bg-white/[0.025] px-4 text-[9px] font-black uppercase tracking-[0.15em] text-slate-400 transition hover:border-white/15 hover:bg-white/[0.05] hover:text-white lg:min-h-[40px] lg:rounded-xl lg:px-3.5"
               >
                 <LogOut size={14} />
                 Logout
@@ -2988,7 +2997,7 @@ export default function AccountDashboard() {
             ].map(([label, value], index) => (
               <div
                 key={label}
-                className={`${index > 1 ? "hidden sm:block" : ""} px-4 py-4 sm:px-6 sm:py-5 ${
+                className={`${index > 1 ? "hidden sm:block" : ""} px-4 py-4 sm:px-6 sm:py-5 lg:px-4 lg:py-2.5 ${
                   index % 2 !== 0 ? "border-l border-white/[0.06]" : ""
                 } ${index > 1 ? "border-t border-white/[0.06] sm:border-t-0" : ""} ${
                   index === 2 ? "sm:border-l" : ""
@@ -2997,7 +3006,7 @@ export default function AccountDashboard() {
                 <p className="text-[8px] font-black uppercase tracking-[0.17em] text-slate-500 sm:text-[9px]">
                   {label}
                 </p>
-                <p className="mt-1.5 text-lg font-semibold tracking-[-0.035em] text-white sm:text-xl">
+                <p className="mt-1.5 text-lg font-semibold tracking-[-0.035em] text-white sm:text-xl lg:text-base">
                   {value}
                 </p>
               </div>
@@ -3010,19 +3019,19 @@ export default function AccountDashboard() {
         {activeTab === "overview" && (
           <div className="space-y-4 sm:space-y-5">
             <div className="grid gap-4 sm:gap-5 lg:grid-cols-[1.05fr_0.95fr]">
-              <div className="relative overflow-hidden rounded-[1.7rem] border border-cyan-100/15 bg-[linear-gradient(140deg,rgba(5,17,31,0.98),rgba(7,39,55,0.82),rgba(3,11,22,0.98))] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.045),0_28px_80px_rgba(0,0,0,0.24)] sm:rounded-[2rem] sm:p-8">
+              <div className="relative overflow-hidden rounded-[1.7rem] border border-cyan-100/15 bg-[linear-gradient(140deg,rgba(5,17,31,0.98),rgba(7,39,55,0.82),rgba(3,11,22,0.98))] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.045),0_28px_80px_rgba(0,0,0,0.24)] sm:rounded-[2rem] sm:p-8 lg:rounded-[1.5rem] lg:p-5">
                 <div className="pointer-events-none absolute -right-20 -top-20 h-72 w-72 rounded-full bg-cyan-300/12 blur-[110px]" />
                 <div className="pointer-events-none absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-cyan-100/35 to-transparent" />
 
                 <div className="relative z-10">
-                  <div className="mb-7 flex items-start justify-between gap-4 sm:mb-10 sm:gap-6">
+                  <div className="mb-7 flex items-start justify-between gap-4 sm:mb-10 sm:gap-6 lg:mb-6">
                     <div className="min-w-0">
                       <p className="text-[9px] font-black uppercase tracking-[0.22em] text-cyan-100/70 sm:text-[10px] sm:tracking-[0.28em]">
                         Rewards Balance
                       </p>
 
                       <div className="mt-4 flex flex-wrap items-end gap-2 sm:mt-5 sm:gap-3">
-                        <span className="text-[48px] font-semibold leading-none tracking-[-0.08em] text-white sm:text-[96px]">
+                        <span className="text-[48px] font-semibold leading-none tracking-[-0.08em] text-white sm:text-[96px] lg:text-[62px]">
                           {pointsBalance.toLocaleString("en-US")}
                         </span>
                         <span className="pb-2 text-base font-semibold tracking-[-0.04em] text-cyan-100/80 sm:pb-3 sm:text-xl">
@@ -3164,7 +3173,7 @@ export default function AccountDashboard() {
 
         {activeTab === "rewards" && (
           <div className="space-y-4 sm:space-y-5">
-            <div className="relative overflow-hidden rounded-[1.7rem] border border-cyan-200/10 bg-[linear-gradient(145deg,rgba(4,12,24,0.96),rgba(8,38,56,0.66),rgba(4,12,24,0.96))] p-5 shadow-[0_24px_90px_rgba(0,0,0,0.25)] backdrop-blur-xl sm:rounded-[2rem] sm:p-8">
+            <div className="relative overflow-hidden rounded-[1.7rem] border border-cyan-200/10 bg-[linear-gradient(145deg,rgba(4,12,24,0.96),rgba(8,38,56,0.66),rgba(4,12,24,0.96))] p-5 shadow-[0_24px_90px_rgba(0,0,0,0.25)] backdrop-blur-xl sm:rounded-[2rem] sm:p-8 lg:rounded-[1.5rem] lg:p-5">
               <div className="pointer-events-none absolute -right-20 -top-20 h-72 w-72 rounded-full bg-cyan-300/12 blur-[110px]" />
 
               <div className="relative z-10">
@@ -3175,7 +3184,7 @@ export default function AccountDashboard() {
                 />
 
                 <div className="flex flex-wrap items-end gap-2 sm:gap-3">
-                  <span className="text-[56px] font-semibold leading-none tracking-[-0.08em] text-white sm:text-[96px]">
+                  <span className="text-[56px] font-semibold leading-none tracking-[-0.08em] text-white sm:text-[96px] lg:text-[62px]">
                     {pointsBalance.toLocaleString("en-US")}
                   </span>
                   <span className="pb-2 text-base font-semibold tracking-[-0.04em] text-cyan-100/80 sm:pb-3 sm:text-xl">
@@ -3291,7 +3300,7 @@ export default function AccountDashboard() {
                   return (
                     <article
                       key={order.id}
-                      className="group/order relative overflow-hidden rounded-[26px] border border-white/[0.08] bg-[linear-gradient(145deg,rgba(3,10,20,0.9),rgba(4,14,27,0.76))] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.025),0_18px_50px_rgba(0,0,0,0.16)] transition duration-300 hover:border-cyan-200/15 sm:p-6"
+                      className="group/order relative overflow-hidden rounded-[26px] border border-white/[0.08] bg-[linear-gradient(145deg,rgba(3,10,20,0.9),rgba(4,14,27,0.76))] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.025),0_18px_50px_rgba(0,0,0,0.16)] transition duration-300 hover:border-cyan-200/15 sm:p-6 lg:rounded-[20px] lg:p-4"
                     >
                       <span className="pointer-events-none absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-cyan-100/20 to-transparent" />
 
@@ -3330,7 +3339,7 @@ export default function AccountDashboard() {
                           type="button"
                           onClick={() => handleTrackOrder(order)}
                           disabled={isTrackingLoading}
-                          className="inline-flex min-h-[46px] items-center justify-center gap-2 rounded-2xl border border-cyan-200/15 bg-cyan-300/[0.07] px-5 text-[9px] font-black uppercase tracking-[0.15em] text-cyan-100 transition hover:border-cyan-200/25 hover:bg-cyan-300/[0.12] hover:text-white disabled:cursor-wait disabled:opacity-60"
+                          className="inline-flex min-h-[46px] items-center justify-center gap-2 rounded-2xl border border-cyan-200/15 bg-cyan-300/[0.07] px-5 text-[9px] font-black uppercase tracking-[0.15em] text-cyan-100 transition hover:border-cyan-200/25 hover:bg-cyan-300/[0.12] hover:text-white disabled:cursor-wait disabled:opacity-60 lg:min-h-[40px] lg:rounded-xl lg:px-4"
                         >
                           {isTrackingLoading ? (
                             <>
