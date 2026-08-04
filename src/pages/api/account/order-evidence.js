@@ -12,7 +12,9 @@ function jsonError(message, status) {
 
 export async function GET({ cookies, request }) {
   const wordpressUrl = import.meta.env.WOOCOMMERCE_URL2;
-  const token = cookies.get("lab_auth_token")?.value;
+  const authorization = request.headers.get("authorization") || "";
+  const bearerToken = authorization.match(/^Bearer\s+(.+)$/i)?.[1] || "";
+  const token = cookies.get("lab_auth_token")?.value || bearerToken;
 
   if (!wordpressUrl) return jsonError("WordPress is not configured.", 500);
   if (!token) return jsonError("Not authenticated.", 401);
@@ -52,10 +54,17 @@ export async function GET({ cookies, request }) {
       return jsonError("The evidence service returned an invalid file.", 502);
     }
 
-    return new Response(response.body, {
+    const imageBytes = await response.arrayBuffer();
+
+    if (imageBytes.byteLength === 0) {
+      return jsonError("The evidence service returned an empty file.", 502);
+    }
+
+    return new Response(imageBytes, {
       status: 200,
       headers: {
         "Content-Type": contentType,
+        "Content-Length": String(imageBytes.byteLength),
         "Cache-Control": "private, no-store, max-age=0",
         "Content-Disposition": "inline",
         "X-Content-Type-Options": "nosniff",
@@ -66,4 +75,3 @@ export async function GET({ cookies, request }) {
     return jsonError("Evidence image is temporarily unavailable.", 502);
   }
 }
-

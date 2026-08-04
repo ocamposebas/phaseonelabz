@@ -1856,6 +1856,9 @@ function AffiliateApplicationPanel({ account }) {
 }
 function OrderEvidenceGallery({ order }) {
   const [selectedEvidenceId, setSelectedEvidenceId] = useState(null);
+  const [thumbnailState, setThumbnailState] = useState({});
+  const [viewerState, setViewerState] = useState("loading");
+  const [viewerAttempt, setViewerAttempt] = useState(0);
   const touchStartX = useRef(null);
   const evidence = Array.isArray(order?.packaging_evidence)
     ? order.packaging_evidence
@@ -1869,6 +1872,12 @@ function OrderEvidenceGallery({ order }) {
     const normalizedIndex = (index + evidence.length) % evidence.length;
     setSelectedEvidenceId(evidence[normalizedIndex]?.id || null);
   };
+
+  useEffect(() => {
+    if (!selectedEvidenceId) return;
+    setViewerState("loading");
+    setViewerAttempt(0);
+  }, [selectedEvidenceId]);
 
   const handleViewerTouchStart = (event) => {
     touchStartX.current = event.changedTouches?.[0]?.clientX ?? null;
@@ -1903,11 +1912,18 @@ function OrderEvidenceGallery({ order }) {
       }
     };
 
+    const shouldLockBody = window.matchMedia("(min-width: 640px)").matches;
     const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+
+    if (shouldLockBody) {
+      document.body.style.overflow = "hidden";
+    }
+
     window.addEventListener("keydown", handleKeyDown);
     return () => {
-      document.body.style.overflow = previousOverflow;
+      if (shouldLockBody) {
+        document.body.style.overflow = previousOverflow;
+      }
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [evidence, selectedEvidence, selectedIndex]);
@@ -1963,6 +1979,7 @@ function OrderEvidenceGallery({ order }) {
       <div className="account-evidence-scroll relative flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2 sm:grid sm:grid-cols-2 sm:overflow-visible sm:pb-0 lg:grid-cols-3">
         {evidence.map((record, index) => {
           const timestamp = formatEvidenceTimestamp(record.captured_at);
+          const photoState = thumbnailState[record.id] || "loading";
 
           return (
             <button
@@ -1979,10 +1996,38 @@ function OrderEvidenceGallery({ order }) {
               <img
                 src={evidenceUrl(record)}
                 alt={record.label || "Packaging evidence"}
-                loading="lazy"
+                loading={index === 0 ? "eager" : "lazy"}
+                fetchPriority={index === 0 ? "high" : "auto"}
                 decoding="async"
-                className="absolute inset-0 h-full w-full object-cover transition duration-500 ease-out group-hover:scale-[1.04]"
+                onLoad={() =>
+                  setThumbnailState((current) => ({
+                    ...current,
+                    [record.id]: "loaded",
+                  }))
+                }
+                onError={() =>
+                  setThumbnailState((current) => ({
+                    ...current,
+                    [record.id]: "error",
+                  }))
+                }
+                className={`absolute inset-0 h-full w-full object-cover transition duration-300 ease-out group-hover:scale-[1.04] ${
+                  photoState === "loaded" ? "opacity-100" : "opacity-0"
+                }`}
               />
+              {photoState === "loading" && (
+                <span className="absolute inset-0 grid place-items-center bg-[#020817] text-cyan-200">
+                  <Loader2 size={20} className="animate-spin" />
+                </span>
+              )}
+              {photoState === "error" && (
+                <span className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-[#020817] px-5 text-center">
+                  <Images size={22} className="text-slate-600" />
+                  <span className="text-[9px] font-black uppercase tracking-[0.14em] text-slate-500">
+                    Tap to retry
+                  </span>
+                </span>
+              )}
               <span className="absolute inset-0 bg-gradient-to-t from-[#010713] via-[#010713]/15 to-black/5 transition group-hover:via-transparent" />
 
               <span className="absolute left-3 top-3 rounded-full border border-white/15 bg-[#020817]/75 px-2.5 py-1.5 text-[8px] font-black uppercase tracking-[0.16em] text-white/75 backdrop-blur-md">
@@ -2042,16 +2087,54 @@ function OrderEvidenceGallery({ order }) {
             onClick={(event) => event.stopPropagation()}
           >
             <div
-              className="relative flex touch-pan-y items-center justify-center bg-[#01050c] sm:min-h-[65vh]"
+              className={`relative flex touch-pan-y items-center justify-center bg-[#01050c] sm:min-h-[65vh] ${
+                viewerState === "loaded" ? "" : "min-h-[260px]"
+              }`}
               onTouchStart={handleViewerTouchStart}
               onTouchEnd={handleViewerTouchEnd}
             >
               <img
                 key={selectedEvidence.id}
-                src={evidenceUrl(selectedEvidence)}
+                src={`${evidenceUrl(selectedEvidence)}&attempt=${viewerAttempt}`}
                 alt={selectedEvidence.label || "Packaging evidence"}
-                className="h-auto w-full sm:max-h-[72vh] sm:object-contain"
+                onLoad={() => setViewerState("loaded")}
+                onError={() => setViewerState("error")}
+                className={`h-auto w-full transition-opacity duration-200 sm:max-h-[72vh] sm:object-contain ${
+                  viewerState === "loaded" ? "opacity-100" : "opacity-0"
+                }`}
               />
+
+              {viewerState === "loading" && (
+                <div className="absolute inset-0 grid min-h-[260px] place-items-center bg-[#01050c] text-cyan-200">
+                  <div className="text-center">
+                    <Loader2 size={24} className="mx-auto animate-spin" />
+                    <p className="mt-3 text-[9px] font-black uppercase tracking-[0.16em] text-slate-500">
+                      Loading secure photo
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {viewerState === "error" && (
+                <div className="absolute inset-0 grid min-h-[260px] place-items-center bg-[#01050c] px-6 text-center">
+                  <div>
+                    <Images size={28} className="mx-auto text-slate-600" />
+                    <p className="mt-3 text-sm font-semibold text-white">
+                      Photo could not load
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setViewerState("loading");
+                        setViewerAttempt((current) => current + 1);
+                      }}
+                      className="mt-4 min-h-[44px] rounded-xl border border-cyan-200/15 bg-cyan-300/[0.08] px-5 text-[9px] font-black uppercase tracking-[0.14em] text-cyan-100"
+                    >
+                      Try again
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {evidence.length > 1 && (
                 <>
