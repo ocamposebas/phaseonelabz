@@ -615,6 +615,54 @@ export default function CheckoutThankYouPage() {
                 </article>
               </div>
 
+              <section
+                className="required-payment-memo"
+                role="alert"
+                aria-labelledby="required-payment-memo-title"
+              >
+                <div className="required-payment-memo-heading">
+                  <span className="required-payment-memo-icon">
+                    <AlertTriangle size={22} />
+                  </span>
+                  <div>
+                    <p>Required payment memo</p>
+                    <h2 id="required-payment-memo-title">
+                      Your payment note must match exactly
+                    </h2>
+                  </div>
+                </div>
+
+                <div className="required-payment-memo-value">
+                  <span>Enter only</span>
+                  <button
+                    type="button"
+                    onClick={copyReference}
+                    disabled={!paymentReference}
+                    aria-label="Copy the exact required payment memo"
+                  >
+                    <strong>{paymentReference || "Check your email"}</strong>
+                    {paymentReference &&
+                      (copied ? <Check size={19} /> : <Copy size={19} />)}
+                    <small>{copied ? "Copied" : "Copy exact memo"}</small>
+                  </button>
+                </div>
+
+                <p className="required-payment-memo-rule">
+                  <strong>
+                    Do not include any peptide, compound, product, order-item
+                    name, or additional message.
+                  </strong>{" "}
+                  The generated memo above must be copied exactly.
+                </p>
+
+                <p className="required-payment-memo-policy">
+                  <strong>Company policy:</strong> failure to use the exact
+                  generated memo will result in the account being permanently
+                  banned from future Zelle/Venmo orders, and the transferred
+                  funds will not be returned.
+                </p>
+              </section>
+
               <div className="details-grid">
                 <article className="detail-card">
                   <header>
@@ -706,14 +754,6 @@ export default function CheckoutThankYouPage() {
                 </article>
               </div>
 
-              <div className="manual-warning">
-                <AlertTriangle size={17} />
-                <p>
-                  Write only <strong>{paymentReference}</strong> in the payment
-                  note. Do not include product names. Unpaid manual orders are
-                  cancelled automatically after 24 hours.
-                </p>
-              </div>
             </>
           )}
 
@@ -1235,6 +1275,128 @@ const styles = `
     text-decoration: none;
   }
 
+  .required-payment-memo {
+    margin-top: 18px;
+    border: 2px solid #ef5b4d;
+    border-radius: 20px;
+    background:
+      radial-gradient(circle at 100% 0%, rgba(239, 91, 77, 0.14), transparent 34%),
+      rgba(69, 15, 17, 0.24);
+    padding: clamp(20px, 3vw, 30px);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.035),
+      0 18px 45px rgba(66, 12, 16, 0.16);
+  }
+
+  .required-payment-memo-heading {
+    display: flex;
+    align-items: center;
+    gap: 13px;
+  }
+
+  .required-payment-memo-icon {
+    display: grid;
+    width: 46px;
+    height: 46px;
+    flex: 0 0 46px;
+    place-items: center;
+    border: 1px solid rgba(248, 113, 113, 0.32);
+    border-radius: 14px;
+    background: rgba(127, 29, 29, 0.3);
+    color: #fca5a5;
+  }
+
+  .required-payment-memo-heading p {
+    margin: 0;
+    color: #fca5a5;
+    font-size: 0.66rem;
+    font-weight: 950;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+  }
+
+  .required-payment-memo-heading h2 {
+    margin: 5px 0 0;
+    color: #fff7f5;
+    font-size: clamp(1.08rem, 2.4vw, 1.42rem);
+    line-height: 1.2;
+    letter-spacing: -0.025em;
+  }
+
+  .required-payment-memo-value {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-top: 24px;
+  }
+
+  .required-payment-memo-value > span {
+    color: #fff1ee;
+    font-size: clamp(1.15rem, 2.7vw, 1.55rem);
+    font-weight: 900;
+    white-space: nowrap;
+  }
+
+  .required-payment-memo-value button {
+    display: flex;
+    min-width: 0;
+    min-height: 58px;
+    align-items: center;
+    gap: 10px;
+    border: 1px solid rgba(252, 165, 165, 0.48);
+    border-radius: 14px;
+    background: #fff8f6;
+    padding: 8px 12px 8px 17px;
+    color: #9f2f25;
+    font: inherit;
+    cursor: pointer;
+    box-shadow: 0 12px 30px rgba(45, 6, 10, 0.18);
+  }
+
+  .required-payment-memo-value button:disabled {
+    cursor: default;
+    opacity: 0.72;
+  }
+
+  .required-payment-memo-value button strong {
+    overflow-wrap: anywhere;
+    font-size: clamp(1.25rem, 3.2vw, 1.75rem);
+    letter-spacing: 0.035em;
+  }
+
+  .required-payment-memo-value button svg {
+    flex: 0 0 auto;
+  }
+
+  .required-payment-memo-value button small {
+    border-left: 1px solid rgba(159, 47, 37, 0.18);
+    padding-left: 10px;
+    font-size: 0.62rem;
+    font-weight: 950;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .required-payment-memo-rule,
+  .required-payment-memo-policy {
+    margin: 22px 0 0;
+    color: #ffd8d2;
+    font-size: 0.88rem;
+    line-height: 1.75;
+  }
+
+  .required-payment-memo-rule strong,
+  .required-payment-memo-policy strong {
+    color: #fff3f0;
+  }
+
+  .required-payment-memo-policy {
+    border-top: 1px solid rgba(248, 113, 113, 0.22);
+    padding-top: 18px;
+    color: #f5b8af;
+  }
+
   .manual-warning {
     display: flex;
     align-items: flex-start;
@@ -1653,6 +1815,73 @@ const styles = `
       padding: 12px 14px;
     }
 
+    .required-payment-memo {
+      margin-top: 14px;
+      border-width: 2px;
+      border-radius: 17px;
+      padding: 17px;
+    }
+
+    .required-payment-memo-heading {
+      align-items: flex-start;
+      gap: 10px;
+    }
+
+    .required-payment-memo-icon {
+      width: 40px;
+      height: 40px;
+      flex-basis: 40px;
+      border-radius: 12px;
+    }
+
+    .required-payment-memo-heading p {
+      font-size: 0.58rem;
+      letter-spacing: 0.18em;
+    }
+
+    .required-payment-memo-heading h2 {
+      margin-top: 4px;
+      font-size: 1rem;
+    }
+
+    .required-payment-memo-value {
+      display: grid;
+      gap: 9px;
+      margin-top: 19px;
+    }
+
+    .required-payment-memo-value > span {
+      font-size: 1rem;
+    }
+
+    .required-payment-memo-value button {
+      width: 100%;
+      min-height: 58px;
+      justify-content: flex-start;
+      padding: 8px 11px 8px 14px;
+    }
+
+    .required-payment-memo-value button strong {
+      min-width: 0;
+      font-size: clamp(1.18rem, 7vw, 1.55rem);
+    }
+
+    .required-payment-memo-value button small {
+      margin-left: auto;
+      font-size: 0.55rem;
+    }
+
+    .required-payment-memo-rule,
+    .required-payment-memo-policy {
+      margin-top: 17px;
+      font-size: 0.79rem;
+      line-height: 1.65;
+    }
+
+    .required-payment-memo-policy {
+      padding-top: 15px;
+    }
+
     .manual-warning {
       gap: 9px;
       padding: 13px;
@@ -1869,6 +2098,20 @@ const styles = `
 
     .reference-value strong {
       max-width: calc(100% - 44px);
+    }
+
+    .required-payment-memo-value button {
+      flex-wrap: wrap;
+    }
+
+    .required-payment-memo-value button small {
+      width: 100%;
+      margin-left: 0;
+      border-top: 1px solid rgba(159, 47, 37, 0.18);
+      border-left: 0;
+      padding-top: 7px;
+      padding-left: 0;
+      text-align: left;
     }
   }
 `;
