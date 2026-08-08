@@ -7,6 +7,7 @@ const navItems = [
   { label: "Home", href: "/" },
   { label: "Catalog", href: "/shop" },
   { label: "COA", href: "/coa" },
+  { label: "Track Order", href: "/track-order" },
   { label: "Restocks", href: "/restock-status" },
   { label: "Military", href: "/military-discount" },
 ];
