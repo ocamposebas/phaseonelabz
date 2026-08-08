@@ -5,6 +5,8 @@ import GlobalPreloader from "../components/loading/GlobalPreloader.jsx";
 import AffiliateCouponTracker from "../components/tracking/AffiliateCouponTracker.jsx";
 import MemberAccessGate from "../components/auth/MemberAccessGate.jsx";
 import ClientDiagnostics from "../components/monitoring/ClientDiagnostics.astro";
+import MaintenanceMode from "../components/maintenance/MaintenanceMode.astro";
+import { getSiteControlConfig } from "../lib/siteControl.js";
 
 interface Props {
   title?: string;
@@ -39,10 +41,24 @@ const hasMemberSession = Boolean(
     Astro.cookies.get("auth_token")?.value
 );
 
+const siteControl = await getSiteControlConfig();
+const maintenance = siteControl.maintenance;
+
+if (maintenance.enabled) {
+  Astro.response.status = 503;
+  Astro.response.headers.set("Retry-After", "900");
+  Astro.response.headers.set("Cache-Control", "no-store, max-age=0");
+  Astro.response.headers.set("X-Robots-Tag", "noindex, nofollow");
+}
+
 const canonicalUrl = new URL(Astro.url.pathname, siteUrl).toString();
 const ogImageUrl = new URL(image, siteUrl).toString();
 
-const fullTitle = title.includes(siteName) ? title : `${title} | ${siteName}`;
+const displayTitle = maintenance.enabled ? "Scheduled Maintenance" : title;
+const displayDescription = maintenance.enabled ? maintenance.message : description;
+const fullTitle = displayTitle.includes(siteName)
+  ? displayTitle
+  : `${displayTitle} | ${siteName}`;
 
 const organizationSchema = {
   "@context": "https://schema.org",
@@ -70,10 +86,10 @@ const websiteSchema = {
 
     <title>{fullTitle}</title>
 
-    <meta name="description" content={description} />
+    <meta name="description" content={displayDescription} />
     <meta
       name="robots"
-      content={noindex ? "noindex, nofollow" : "index, follow, max-image-preview:large"}
+      content={noindex || maintenance.enabled ? "noindex, nofollow" : "index, follow, max-image-preview:large"}
     />
 
     <link rel="canonical" href={canonicalUrl} />
@@ -88,7 +104,7 @@ const websiteSchema = {
     <meta property="og:site_name" content={siteName} />
     <link rel="sitemap" href="/sitemap-index.xml" />
     <meta property="og:title" content={fullTitle} />
-    <meta property="og:description" content={description} />
+    <meta property="og:description" content={displayDescription} />
     <meta property="og:type" content={isHome ? "website" : "article"} />
     <meta property="og:url" content={canonicalUrl} />
     <meta property="og:image" content={ogImageUrl} />
@@ -97,7 +113,7 @@ const websiteSchema = {
 
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={fullTitle} />
-    <meta name="twitter:description" content={description} />
+    <meta name="twitter:description" content={displayDescription} />
     <meta name="twitter:image" content={ogImageUrl} />
 
     <meta
@@ -154,15 +170,23 @@ const websiteSchema = {
   </head>
 
   <body class={isHome ? "is-home-page" : ""}>
-    <AffiliateCouponTracker client:load />
+    {maintenance.enabled ? (
+      <MaintenanceMode
+        title={maintenance.title}
+        message={maintenance.message}
+        supportEmail={maintenance.supportEmail}
+      />
+    ) : (
+      <>
+        <AffiliateCouponTracker client:load />
 
-    {requiresMemberAccess && (
-      <MemberAccessGate client:load returnTo={returnTo} initialHasSession={hasMemberSession} />
-    )}
+        {requiresMemberAccess && (
+          <MemberAccessGate client:load returnTo={returnTo} initialHasSession={hasMemberSession} />
+        )}
 
-    <GlobalPreloader client:load logoSrc="/TRANSPARENCIA-03.webp" />
+        <GlobalPreloader client:load logoSrc="/TRANSPARENCIA-03.webp" />
 
-    <script is:inline type="text/javascript">
+        <script is:inline type="text/javascript">
       window.omnisend = window.omnisend || [];
       window.omnisend.push(["brandID", "6a20666d078df331c0cd01d7"]);
       window.omnisend.push(["track", "$pageViewed"]);
@@ -188,11 +212,30 @@ const websiteSchema = {
           setTimeout(loadOmnisend, 1800);
         });
       }
-    </script>
+        </script>
 
-    <main class="site-main">
-      <slot />
-    </main>
+        <main class="site-main">
+          <slot />
+        </main>
+
+        <script is:inline>
+          (function () {
+            var wasInMaintenance = false;
+            window.setInterval(function () {
+              fetch("/api/site-control?ts=" + Date.now(), { cache: "no-store" })
+                .then(function (response) { return response.ok ? response.json() : null; })
+                .then(function (data) {
+                  if (data && data.maintenance && data.maintenance.enabled && !wasInMaintenance) {
+                    wasInMaintenance = true;
+                    window.location.reload();
+                  }
+                })
+                .catch(function () {});
+            }, 15000);
+          })();
+        </script>
+      </>
+    )}
 
   </body>
 </html>

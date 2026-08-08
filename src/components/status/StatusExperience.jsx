@@ -10,6 +10,7 @@ import {
   Info,
   Loader2,
   LogOut,
+  Power,
   RefreshCw,
   Server,
   ShieldCheck,
@@ -1020,11 +1021,20 @@ function MaintenanceTaskCard({ task, index }) {
   );
 }
 
-export default function StatusExperience({ initialSnapshot = {} }) {
+export default function StatusExperience({
+  initialSnapshot = {},
+  initialSiteControl = {},
+  maintenanceControlConfigured = false,
+}) {
   const [snapshot, setSnapshot] = useState(initialSnapshot || {});
   const [refreshing, setRefreshing] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [refreshError, setRefreshError] = useState("");
+  const [siteMaintenance, setSiteMaintenance] = useState(
+    initialSiteControl?.maintenance || { enabled: false },
+  );
+  const [maintenanceChanging, setMaintenanceChanging] = useState(false);
+  const [maintenanceControlError, setMaintenanceControlError] = useState("");
   const requestRef = useRef(null);
 
   const loadStatus = useCallback(async () => {
@@ -1096,6 +1106,49 @@ export default function StatusExperience({ initialSnapshot = {} }) {
     }
   }, [signingOut]);
 
+  const toggleMaintenance = useCallback(async () => {
+    if (maintenanceChanging || !maintenanceControlConfigured) return;
+
+    const enabled = !siteMaintenance.enabled;
+    if (
+      enabled &&
+      !window.confirm(
+        "Activate the maintenance screen across the public website? The private status page will remain available.",
+      )
+    ) {
+      return;
+    }
+
+    setMaintenanceChanging(true);
+    setMaintenanceControlError("");
+
+    try {
+      const response = await fetch("/api/status/maintenance", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { Accept: "application/json", "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled }),
+      });
+      const data = await response.json().catch(() => null);
+
+      if (response.status === 401) {
+        window.location.reload();
+        return;
+      }
+      if (!response.ok || !data?.maintenance) {
+        throw new Error(data?.error || "Maintenance mode could not be changed.");
+      }
+
+      setSiteMaintenance(data.maintenance);
+    } catch (error) {
+      setMaintenanceControlError(
+        error?.message || "Maintenance mode could not be changed.",
+      );
+    } finally {
+      setMaintenanceChanging(false);
+    }
+  }, [maintenanceChanging, maintenanceControlConfigured, siteMaintenance.enabled]);
+
   useEffect(() => {
     const needsInitialRetry =
       initialSnapshot?.unavailable ||
@@ -1157,6 +1210,30 @@ export default function StatusExperience({ initialSnapshot = {} }) {
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
+                onClick={toggleMaintenance}
+                disabled={maintenanceChanging || !maintenanceControlConfigured}
+                className={`inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl border px-4 text-[9px] font-black uppercase tracking-[0.15em] transition focus-visible:outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-45 ${
+                  siteMaintenance.enabled
+                    ? "border-emerald-300/22 bg-emerald-300/[0.09] text-emerald-100 hover:bg-emerald-300/[0.15] focus-visible:ring-emerald-200/35"
+                    : "border-rose-300/18 bg-rose-300/[0.065] text-rose-100 hover:border-rose-300/30 hover:bg-rose-300/[0.11] focus-visible:ring-rose-200/35"
+                }`}
+                aria-label={siteMaintenance.enabled ? "Bring public website online" : "Activate public maintenance screen"}
+                title={!maintenanceControlConfigured ? "Configure PHASEONE_SITE_CONTROL_TOKEN on the Astro server" : undefined}
+              >
+                {maintenanceChanging ? (
+                  <Loader2 size={14} className="animate-spin motion-reduce:animate-none" aria-hidden="true" />
+                ) : (
+                  <Power size={14} aria-hidden="true" />
+                )}
+                {maintenanceChanging
+                  ? "Updating"
+                  : siteMaintenance.enabled
+                    ? "Bring site online"
+                    : "Maintenance mode"}
+              </button>
+
+              <button
+                type="button"
                 onClick={loadStatus}
                 disabled={refreshing}
                 className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl border border-cyan-200/14 bg-cyan-300/[0.07] px-4 text-[9px] font-black uppercase tracking-[0.17em] text-cyan-100 transition hover:border-cyan-200/28 hover:bg-cyan-300/[0.12] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200/40 disabled:cursor-wait disabled:opacity-65"
@@ -1187,8 +1264,15 @@ export default function StatusExperience({ initialSnapshot = {} }) {
             </div>
 
             <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-slate-600">
-              Automatic refresh every 60 seconds
+              {maintenanceControlConfigured
+                ? `Public site: ${siteMaintenance.enabled ? "maintenance" : "online"}`
+                : "Add the site-control token to enable maintenance switching"}
             </p>
+            {maintenanceControlError && (
+              <p className="max-w-md text-right text-[10px] leading-4 text-rose-300" role="alert">
+                {maintenanceControlError}
+              </p>
+            )}
           </div>
         </header>
 

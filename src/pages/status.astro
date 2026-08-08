@@ -9,6 +9,11 @@ import {
   hasPrivateStatusAccess,
   isStatusAccessConfigured,
 } from "../lib/statusAccess.js";
+import {
+  getSiteControlConfig,
+  getSiteControlEndpoint,
+  getSiteControlToken,
+} from "../lib/siteControl.js";
 
 Astro.response.headers.set("Cache-Control", "private, no-store, max-age=0");
 Astro.response.headers.set("Pragma", "no-cache");
@@ -28,6 +33,10 @@ const emptySnapshot = {
 };
 
 let initialSnapshot = emptySnapshot;
+const initialSiteControl = await getSiteControlConfig();
+const maintenanceControlConfigured = Boolean(
+  getSiteControlEndpoint() && getSiteControlToken(),
+);
 
 try {
   if (!hasAccess) throw new Error("Private access required.");
@@ -44,7 +53,12 @@ try {
 
 <StatusLayout authenticated={hasAccess}>
   {hasAccess ? (
-    <StatusExperience client:load initialSnapshot={initialSnapshot} />
+    <StatusExperience
+      client:load
+      initialSnapshot={initialSnapshot}
+      initialSiteControl={initialSiteControl}
+      maintenanceControlConfigured={maintenanceControlConfigured}
+    />
   ) : (
     <StatusAccessGate client:load configured={accessConfigured} />
   )}

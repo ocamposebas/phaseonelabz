@@ -12,7 +12,7 @@ import SiteFooter from "../footer/SiteFooter.jsx";
 import New from "../footer/NewsletterSection.jsx";
 import MilitaryDiscountBanner from "../promos/MilitaryDiscountBanner.jsx";
 
-export default function ShopExperience({ products = [] }) {
+export default function ShopExperience({ products = [], promo = null }) {
   return (
     <CartProvider>
       <Header
@@ -22,7 +22,7 @@ export default function ShopExperience({ products = [] }) {
       />
 
       <main className="pt-0">
-        <Hero videoSrc="/prueba.mp4" />
+        <Hero videoSrc="/prueba.mp4" promo={promo} />
 
         <Trust />
 

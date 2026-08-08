@@ -1,5 +1,36 @@
 # Astro Starter Kit: Basics
 
+## WordPress promotion and maintenance controls
+
+The `Phase One Site Controls` plugin lives at
+`wordpress/plugins/phaseone-site-controls`. After installing and activating it,
+open **Site Controls** in WordPress to:
+
+- show or hide a live countdown inside the existing homepage video hero;
+- set its duration in hours, headline, supporting copy, and CTA;
+- restart an active countdown without relying on a visitor's local clock;
+- activate or disable the full-site maintenance experience.
+
+The public configuration endpoint is
+`/wp-json/phaseone/v1/site-control`. Astro derives it from the existing
+`WOOCOMMERCE_URL`/`WORDPRESS_URL`, or it can be set explicitly:
+
+```dotenv
+PHASEONE_SITE_CONTROL_URL=https://your-wordpress.example/wp-json/phaseone/v1/site-control
+```
+
+To use the maintenance switch inside the private `/status` dashboard, copy the
+secure token shown by the plugin into the Astro server environment:
+
+```dotenv
+PHASEONE_SITE_CONTROL_TOKEN=copy-the-token-from-wordpress
+```
+
+Keep this token server-side. The browser calls the protected Astro status API;
+the token is never sent to visitors. Configuration is refreshed every 15
+seconds, so an open homepage can show or hide the countdown and an open public
+page can enter maintenance without a manual reload.
+
 ## Private system status
 
 The internal dashboard is available at `/status` and is intentionally absent
