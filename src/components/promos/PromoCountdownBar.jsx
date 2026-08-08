@@ -113,7 +113,7 @@ export default function PromoCountdownBar({ promo }) {
         .promo-countdown-shell {
           position: absolute;
           z-index: 30;
-          top: 94px;
+          top: 106px;
           left: 50%;
           width: min(calc(100% - 32px), 1180px);
           transform: translateX(-50%);
@@ -297,7 +297,7 @@ export default function PromoCountdownBar({ promo }) {
 
         @media (max-width: 640px) {
           .promo-countdown-shell {
-            top: 78px;
+            top: 88px;
             width: calc(100% - 20px);
             border-radius: 17px;
           }
@@ -322,7 +322,7 @@ export default function PromoCountdownBar({ promo }) {
           .promo-countdown-unit span { font-size: 6.5px; }
 
           .promo-countdown-shell ~ .hero-inner {
-            padding-top: calc(228px + env(safe-area-inset-top)) !important;
+            padding-top: calc(238px + env(safe-area-inset-top)) !important;
           }
         }
 
