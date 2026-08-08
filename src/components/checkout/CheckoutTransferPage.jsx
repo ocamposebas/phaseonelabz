@@ -2028,6 +2028,26 @@ export default function CheckoutTransferPage() {
         0,
       )
     : 0;
+  const cartProductQuantity = cartItems.reduce(
+    (total, item) => total + Number(item.quantity || 0),
+    0,
+  );
+  const bundleDiscountPercent = bundleUnlocked
+    ? Number(
+        hasProviderCartItems
+          ? cart.bundleDiscountPercent
+          : session?.bundle_discount_percent ||
+              session?.bundleDiscountPercent ||
+              Math.max(
+                0,
+                ...cartItems.map((item) =>
+                  Number(item.phaseone_bundle_discount_percent || 0),
+                ),
+              ) ||
+              (cartProductQuantity >= 10 ? 30 : 10),
+      )
+    : 0;
+  const bundleRequiredQuantity = bundleDiscountPercent >= 30 ? 10 : 5;
   const subtotalBeforeBundle = bundleUnlocked
     ? Number(
         session?.subtotal_before_bundle ||
@@ -2036,7 +2056,14 @@ export default function CheckoutTransferPage() {
       )
     : cartTotal;
   const maximumCombinedDiscount = Number(
-    (Math.max(subtotalBeforeBundle, 0) * MAX_COMBINED_DISCOUNT_RATE).toFixed(2),
+    Math.max(
+      Math.max(subtotalBeforeBundle, 0) * MAX_COMBINED_DISCOUNT_RATE,
+      bundleDiscountAmount,
+    ).toFixed(2),
+  );
+  const combinedDiscountLimitPercent = Math.max(
+    Math.round(MAX_COMBINED_DISCOUNT_RATE * 100),
+    bundleDiscountPercent,
   );
   const maximumCouponDiscount = Math.max(
     maximumCombinedDiscount - bundleDiscountAmount,
@@ -2377,7 +2404,7 @@ export default function CheckoutTransferPage() {
 
         if (remainingCouponDiscount <= 0) {
           throw new Error(
-            "The maximum combined discount is 25%. Remove a coupon to use a different one.",
+            `The active discount tier has reached the ${combinedDiscountLimitPercent}% combined discount limit.`,
           );
         }
 
@@ -2481,7 +2508,7 @@ export default function CheckoutTransferPage() {
 
         if (discountAmount > remainingCouponDiscount + 0.01) {
           throw new Error(
-            `${serverCoupon || cleanCoupon} would exceed the 25% maximum combined discount.`,
+            `${serverCoupon || cleanCoupon} would exceed the ${combinedDiscountLimitPercent}% maximum combined discount.`,
           );
         }
 
@@ -2527,7 +2554,7 @@ export default function CheckoutTransferPage() {
       });
       setDiscountToken(discountTokens);
       setCouponMessage(
-        `${savedCoupon} applied: -${formatMoney(totalDiscount)}. Combined discounts are capped at 25%.`,
+        `${savedCoupon} applied: -${formatMoney(totalDiscount)}. Combined discounts are capped at ${combinedDiscountLimitPercent}%.`,
       );
     } catch (err) {
       console.error("PHASE ONE COUPON APPLY ERROR:", err);
@@ -3947,7 +3974,7 @@ export default function CheckoutTransferPage() {
 
                 {bundleUnlocked && bundleDiscountAmount > 0 && (
                   <div className="discount-line">
-                    <span>5-Product Bundle (10% off)</span>
+                    <span>{bundleRequiredQuantity}-Product Bundle ({bundleDiscountPercent}% off)</span>
                     <strong>-{formatMoney(bundleDiscountAmount)}</strong>
                   </div>
                 )}

@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Phase One PRISM Checkout Bridge
  * Description: Creates authoritative WooCommerce orders from the Phase One custom Astro checkout and starts the installed PRISM payment gateway.
- * Version: 1.4.0
+ * Version: 1.5.0
  * Author: Phase One Labz
  * Requires PHP: 8.1
  */
@@ -20,8 +20,10 @@ final class PhaseOne_Prism_Checkout_Bridge {
     private const RECON_WATER_PROMO_THRESHOLD = 100.00;
     private const RECON_WATER_PROMO_PRICE     = 15.00;
     private const RECON_WATER_PURCHASE_LIMIT  = 2;
-    private const BUNDLE_REQUIRED_QUANTITY     = 5;
-    private const BUNDLE_DISCOUNT_RATE         = 0.10;
+    private const BUNDLE_TIER_ONE_QUANTITY     = 5;
+    private const BUNDLE_TIER_ONE_RATE         = 0.10;
+    private const BUNDLE_TIER_TWO_QUANTITY     = 10;
+    private const BUNDLE_TIER_TWO_RATE         = 0.30;
     private const FREE_SHIPPING_MINIMUM        = 150.00;
     private const SHIPPING_COST                 = 13.00;
     private const SHIPPING_PROTECTION_RATE_US   = 1.09;
@@ -362,6 +364,7 @@ final class PhaseOne_Prism_Checkout_Bridge {
             $order->update_meta_data( '_phaseone_recon_water_discount', wc_format_decimal( $pricing['recon_water_discount'], 2 ) );
             $order->update_meta_data( '_phaseone_bundle_promo', $pricing['bundle_active'] ? 'yes' : 'no' );
             $order->update_meta_data( '_phaseone_bundle_discount', wc_format_decimal( $pricing['bundle_discount'], 2 ) );
+            $order->update_meta_data( '_phaseone_bundle_discount_percent', absint( $pricing['bundle_discount_percent'] ) );
 
             $gateways = WC()->payment_gateways()->payment_gateways();
             $gateway  = $gateways[ self::GATEWAY_ID ] ?? null;
@@ -978,7 +981,18 @@ final class PhaseOne_Prism_Checkout_Bridge {
             }
         }
 
-        $bundle_active = $quantity >= self::BUNDLE_REQUIRED_QUANTITY;
+        $bundle_required_quantity = 0;
+        $bundle_discount_rate     = 0.0;
+
+        if ( $quantity >= self::BUNDLE_TIER_TWO_QUANTITY ) {
+            $bundle_required_quantity = self::BUNDLE_TIER_TWO_QUANTITY;
+            $bundle_discount_rate     = self::BUNDLE_TIER_TWO_RATE;
+        } elseif ( $quantity >= self::BUNDLE_TIER_ONE_QUANTITY ) {
+            $bundle_required_quantity = self::BUNDLE_TIER_ONE_QUANTITY;
+            $bundle_discount_rate     = self::BUNDLE_TIER_ONE_RATE;
+        }
+
+        $bundle_active = $bundle_discount_rate > 0;
         $bundle_discount = 0.0;
 
         if ( $bundle_active ) {
@@ -995,7 +1009,7 @@ final class PhaseOne_Prism_Checkout_Bridge {
 
                 $current_total = (float) $item->get_total();
                 $discounted_total = round(
-                    $current_total * ( 1 - self::BUNDLE_DISCOUNT_RATE ),
+                    $current_total * ( 1 - $bundle_discount_rate ),
                     wc_get_price_decimals()
                 );
                 $bundle_discount += max( 0, $current_total - $discounted_total );
@@ -1017,6 +1031,8 @@ final class PhaseOne_Prism_Checkout_Bridge {
             'recon_water_discount'     => round( $recon_water_discount, 2 ),
             'bundle_active'            => $bundle_active,
             'bundle_discount'          => round( $bundle_discount, 2 ),
+            'bundle_discount_percent'  => (int) round( $bundle_discount_rate * 100 ),
+            'bundle_required_quantity' => $bundle_required_quantity,
             'merchandise_total'        => round( $merchandise_total, 2 ),
         );
     }

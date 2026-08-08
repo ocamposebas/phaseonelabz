@@ -1,8 +1,19 @@
 export const prerender = false;
 
 const REQUEST_TIMEOUT_MS = 15000;
-const BUNDLE_REQUIRED_QUANTITY = 5;
-const BUNDLE_DISCOUNT_RATE = 0.1;
+const BUNDLE_DISCOUNT_TIERS = [
+  { requiredQuantity: 10, discountRate: 0.3, discountPercent: 30 },
+  { requiredQuantity: 5, discountRate: 0.1, discountPercent: 10 },
+];
+
+function getBundleDiscountTier(quantity = 0) {
+  const safeQuantity = Math.max(0, Number(quantity) || 0);
+  return (
+    BUNDLE_DISCOUNT_TIERS.find(
+      (tier) => safeQuantity >= tier.requiredQuantity,
+    ) || null
+  );
+}
 
 const SHIPPING_METHODS = {
   standard: {
@@ -602,7 +613,8 @@ async function calculateVerifiedSubtotal(config, items = []) {
     (total, item) => total + Number(item.quantity || 0),
     0
   );
-  const bundleActive = quantity >= BUNDLE_REQUIRED_QUANTITY;
+  const bundleTier = getBundleDiscountTier(quantity);
+  const bundleActive = Boolean(bundleTier);
   const subtotalAfterProductPromotions = normalizePrice(
     regularSubtotal - reconWaterDiscount
   );
@@ -614,7 +626,7 @@ async function calculateVerifiedSubtotal(config, items = []) {
               ? total
               : total + item.lineUnitPrice * item.quantity,
           0
-        ) * BUNDLE_DISCOUNT_RATE
+        ) * bundleTier.discountRate
       )
     : 0;
 
@@ -626,6 +638,8 @@ async function calculateVerifiedSubtotal(config, items = []) {
     reconWaterDiscount,
     bundleActive,
     bundleDiscount,
+    bundleDiscountPercent: bundleTier?.discountPercent || 0,
+    bundleRequiredQuantity: bundleTier?.requiredQuantity || 0,
     items: itemsWithPromotion,
   };
 }
@@ -913,6 +927,10 @@ export async function POST({ request }) {
         value: normalizeMoneyString(verifiedCart.bundleDiscount),
       },
       {
+        key: "_phaseone_bundle_discount_percent",
+        value: String(verifiedCart.bundleDiscountPercent || 0),
+      },
+      {
         key: "_phaseone_shipping_protection_selected",
         value: shippingProtectionAmount > 0 ? "yes" : "no",
       },
@@ -937,7 +955,7 @@ export async function POST({ request }) {
 
     if (verifiedCart.bundleDiscount > 0) {
       feeLines.push({
-        name: "5-Product Bundle (10% Off)",
+        name: `${verifiedCart.bundleRequiredQuantity}-Product Bundle (${verifiedCart.bundleDiscountPercent}% Off)`,
         total: `-${normalizeMoneyString(verifiedCart.bundleDiscount)}`,
         tax_status: "none",
       });

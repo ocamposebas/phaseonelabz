@@ -22,6 +22,11 @@ const RECON_WATER_IDENTIFIERS = new Set([
   "recon-water-30ml",
 ]);
 
+const BUNDLE_TIERS = [
+  { quantity: 5, discountPercent: 10 },
+  { quantity: 10, discountPercent: 30 },
+];
+
 function isReconWaterProduct(product = {}) {
   return [product.slug, product.product_slug, product.sku, product.name, product.title]
     .map((value) =>
@@ -2054,11 +2059,12 @@ const ProductCard = memo(function ProductCard({
         category,
 
         bundleEligible: true,
-        bundleDiscount: 10,
+        bundleDiscount: 30,
+        bundleDiscountTiers: BUNDLE_TIERS,
         bundleSameProductOnly: false,
         bundleRequiredQuantity: 5,
         bundleQuantity: 1,
-        bundleRuleKey: "any-5-products",
+        bundleRuleKey: "quantity-discount-tiers",
       });
     },
     [
@@ -2262,7 +2268,7 @@ const ProductCard = memo(function ProductCard({
               className={`product-bundle-select ${
                 !canSelectBundle ? "product-bundle-select-disabled" : ""
               } ${mgSelectorOpen ? "product-bundle-select-active" : ""}`}
-              aria-label={`Add ${name} to bundle and unlock 10% off after 5 products`}
+              aria-label={`Add ${name} toward the 5-product and 10-product quantity discounts`}
             >
               <span />
               {needsMgSelection ? "Choose MG" : "Add to Bundle"}
@@ -2334,7 +2340,7 @@ const ProductCard = memo(function ProductCard({
             </div>
 
             <p className="product-mg-note">
-              This adds the selected option to your 5-product bundle.
+              This option counts toward both quantity discount tiers.
             </p>
           </div>
         )}
@@ -2482,15 +2488,18 @@ export default function ShopCatalogSection({
     }, 0);
   }, [cartItems]);
 
-  const bundleGoal = 5;
-  const remainingBundleProducts = Math.max(0, bundleGoal - cartProductsCount);
-  const bundleUnlocked = cartProductsCount >= bundleGoal;
+  const activeBundleTier = [...BUNDLE_TIERS]
+    .reverse()
+    .find((tier) => cartProductsCount >= tier.quantity) || null;
+  const nextBundleTier = BUNDLE_TIERS.find(
+    (tier) => cartProductsCount < tier.quantity,
+  ) || null;
   const bundleProgressWidth = Math.min(
-    (cartProductsCount / bundleGoal) * 100,
+    (cartProductsCount / 10) * 100,
     100
   );
 
-  const addAnyFiveBundleItemToCart = useCallback(
+  const addBundleItemToCart = useCallback(
     (product, selectedOption = null) => {
       const availability = getProductAvailability(product);
 
@@ -2551,11 +2560,12 @@ export default function ShopCatalogSection({
         category,
 
         bundleEligible: true,
-        bundleDiscount: 10,
+        bundleDiscount: 30,
+        bundleDiscountTiers: BUNDLE_TIERS,
         bundleSameProductOnly: false,
         bundleRequiredQuantity: 5,
         bundleQuantity: 1,
-        bundleRuleKey: "any-5-products",
+        bundleRuleKey: "quantity-discount-tiers",
       });
     },
     [addToCart]
@@ -2722,47 +2732,86 @@ export default function ShopCatalogSection({
         </div>
 
         <div className="bundle-summary mb-7 overflow-hidden rounded-[1.35rem] border border-cyan-200/12 bg-[#121E2E]/55 p-4 sm:mb-8 sm:p-5">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div>
+          <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(420px,.9fr)] lg:items-center">
+            <div className="max-w-2xl">
               <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-cyan-200/12 bg-cyan-300/[0.055] px-3 py-1.5">
                 <Sparkles size={13} className="text-cyan-200" />
                 <span className="text-[8px] font-black uppercase tracking-[0.18em] text-cyan-100/80">
-                  Bundle Builder
+                  Automatic quantity savings
                 </span>
               </div>
 
               <h3 className="text-xl font-semibold tracking-[-0.045em] text-white sm:text-2xl">
-                Add any 5 products and unlock 10% off.
+                Add 5 for 10% off. Reach 10 and upgrade to 30% off.
               </h3>
 
               <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
-                Every product in the catalog counts toward the bundle. Add any 5
-                products to your cart and unlock 10% off automatically.
+                Every catalog product counts. The discount upgrades automatically
+                at 10 products—the 10% and 30% offers never stack.
               </p>
             </div>
 
-            <div className="rounded-2xl border border-cyan-200/10 bg-white/[0.025] px-4 py-3 text-left lg:min-w-[220px]">
-              <p className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">
-                Bundle Progress
-              </p>
+            <div className="rounded-2xl border border-cyan-200/10 bg-[#020617]/35 p-3.5 sm:p-4">
+              <div className="grid grid-cols-2 gap-2.5">
+                {BUNDLE_TIERS.map((tier) => {
+                  const isActive = activeBundleTier?.quantity === tier.quantity;
+                  const isReplaced = tier.quantity === 5 && cartProductsCount >= 10;
+                  const remaining = Math.max(0, tier.quantity - cartProductsCount);
 
-              <p className="mt-1 text-lg font-semibold text-white">
-                {bundleUnlocked ? "Bundle unlocked" : `${cartProductsCount}/5 products`}
-              </p>
+                  return (
+                    <div
+                      key={tier.quantity}
+                      className={`rounded-xl border px-3 py-3 transition ${
+                        isActive
+                          ? "border-emerald-300/25 bg-emerald-300/[0.08]"
+                          : "border-cyan-200/10 bg-white/[0.025]"
+                      }`}
+                    >
+                      <p className="text-[8px] font-black uppercase tracking-[0.16em] text-slate-500">
+                        Tier {tier.quantity === 5 ? "one" : "two"}
+                      </p>
+                      <p className="mt-1 text-lg font-semibold text-white">
+                        {tier.quantity} products
+                      </p>
+                      <p className={`mt-0.5 text-xs font-bold ${isActive ? "text-emerald-200" : "text-cyan-200/70"}`}>
+                        {tier.discountPercent}% off
+                      </p>
+                      <p className="mt-2 text-[9px] leading-4 text-slate-500">
+                        {isReplaced
+                          ? "Upgraded to the 30% tier."
+                          : isActive
+                            ? "Active in your cart now."
+                            : `${remaining} more product${remaining === 1 ? "" : "s"} needed.`}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
 
-              <p className="mt-1 text-xs text-slate-500">
-                {bundleUnlocked
-                  ? "10% off is active in your cart."
-                  : `You need ${remainingBundleProducts} more product${
-                      remainingBundleProducts === 1 ? "" : "s"
-                    } to complete the 5-product bundle and unlock 10% off.`}
-              </p>
+              <div className="mt-3 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-[8px] font-black uppercase tracking-[0.16em] text-slate-600">
+                    Your progress
+                  </p>
+                  <p className="mt-1 text-[11px] font-semibold text-slate-300">
+                    {activeBundleTier?.discountPercent === 30
+                      ? "30% discount active"
+                      : activeBundleTier?.discountPercent === 10
+                        ? `10% active · ${nextBundleTier.quantity - cartProductsCount} more to upgrade`
+                        : `${nextBundleTier.quantity - cartProductsCount} more to unlock 10%`}
+                  </p>
+                </div>
+                <span className="rounded-full border border-cyan-200/12 bg-white/[0.03] px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.1em] text-cyan-100">
+                  {Math.min(cartProductsCount, 10)}/10
+                </span>
+              </div>
 
-              <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/[0.06]">
+              <div className="relative mt-3 h-2 rounded-full bg-white/[0.06]">
                 <div
-                  className="h-full rounded-full bg-cyan-300 transition-all duration-300"
+                  className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-cyan-400 to-emerald-300 transition-all duration-300"
                   style={{ width: `${bundleProgressWidth}%` }}
                 />
+                <span className="absolute left-1/2 top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border border-cyan-100/70 bg-[#07111f]" />
               </div>
             </div>
           </div>
@@ -2932,7 +2981,7 @@ export default function ShopCatalogSection({
                       key={item.key}
                       item={item}
                       addToCart={addToCart}
-                      onBundleAdd={addAnyFiveBundleItemToCart}
+                      onBundleAdd={addBundleItemToCart}
                       reconWaterPromoActive={reconWaterPromoActive}
                     />
                   ))}

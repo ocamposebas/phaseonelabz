@@ -72,6 +72,8 @@ export default function CartDrawer() {
     cartTotal,
     bundleUnlocked,
     bundleDiscountAmount,
+    bundleDiscountPercent,
+    bundleRequiredQuantity,
     rewardProgress,
     rewardGifts,
     checkout,
@@ -219,6 +221,39 @@ export default function CartDrawer() {
             </div>
           ) : (
             <div className="space-y-3">
+              <div className="rounded-2xl border border-cyan-200/12 bg-cyan-300/[0.045] p-3.5">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[8px] font-black uppercase tracking-[0.18em] text-cyan-200/65">
+                      Quantity savings
+                    </p>
+                    <p className="mt-1 text-[11px] font-semibold text-cyan-50">
+                      {totalUnits >= 10
+                        ? "Best tier active · 30% off"
+                        : totalUnits >= 5
+                          ? `10% active · ${10 - totalUnits} more to unlock 30%`
+                          : `${5 - totalUnits} more to unlock 10% off`}
+                    </p>
+                  </div>
+                  <span className="shrink-0 rounded-full border border-cyan-200/15 bg-[#020617]/55 px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.12em] text-cyan-100">
+                    {Math.min(totalUnits, 10)}/10
+                  </span>
+                </div>
+
+                <div className="relative mt-3 h-1.5 rounded-full bg-white/[0.07]">
+                  <div
+                    className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-cyan-400 to-emerald-300 transition-all duration-300"
+                    style={{ width: `${Math.min((totalUnits / 10) * 100, 100)}%` }}
+                  />
+                  <span className="absolute left-1/2 top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-cyan-100/70 bg-[#07111f]" />
+                </div>
+
+                <div className="mt-1.5 flex justify-between text-[7px] font-black uppercase tracking-[0.1em] text-slate-600">
+                  <span>5 items · 10%</span>
+                  <span>10 items · 30%</span>
+                </div>
+              </div>
+
               {cartItems.map((item) => {
                 const itemKey = item.cartKey;
                 const itemImage = getDisplayImage(item);
@@ -373,7 +408,7 @@ export default function CartDrawer() {
               {bundleUnlocked && bundleDiscountAmount > 0 && (
                 <div className="mb-3 flex items-center justify-between rounded-xl border border-emerald-300/15 bg-emerald-300/[0.06] px-3 py-2.5 text-xs">
                   <span className="font-semibold text-emerald-200">
-                    5-product bundle · 10% off
+                    {bundleRequiredQuantity}-product bundle · {bundleDiscountPercent}% off
                   </span>
                   <span className="font-bold text-emerald-200">
                     -{formatPrice(bundleDiscountAmount)}

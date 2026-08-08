@@ -406,8 +406,9 @@ export const POST = async ({ request }) => {
       roundMoney(body.bundleDiscountAmount ?? body.bundle_discount_amount ?? 0),
       0
     );
-    const maximumCombinedDiscount = roundMoney(
-      subtotal * MAX_COMBINED_DISCOUNT_RATE
+    const maximumCombinedDiscount = Math.max(
+      roundMoney(subtotal * MAX_COMBINED_DISCOUNT_RATE),
+      bundleDiscountAmount,
     );
     const remainingDiscountAllowance = Math.max(
       roundMoney(
@@ -428,7 +429,7 @@ export const POST = async ({ request }) => {
           valid: false,
           error:
             remainingDiscountAllowance <= 0
-              ? "The maximum combined discount is 25%."
+              ? "The active quantity discount has reached the maximum combined discount."
               : "This coupon exists, but it does not apply to the current cart.",
           debug: {
             coupon_type: coupon.discount_type,

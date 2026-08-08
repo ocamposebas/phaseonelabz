@@ -33,8 +33,19 @@ const RECON_WATER_IDENTIFIERS = new Set([
 const RECON_WATER_PROMO_THRESHOLD = 100;
 const RECON_WATER_PROMO_PRICE = 15;
 const RECON_WATER_PURCHASE_LIMIT = 2;
-const BUNDLE_REQUIRED_QUANTITY = 5;
-const BUNDLE_DISCOUNT_RATE = 0.1;
+const BUNDLE_DISCOUNT_TIERS = [
+  { requiredQuantity: 10, discountRate: 0.3, discountPercent: 30 },
+  { requiredQuantity: 5, discountRate: 0.1, discountPercent: 10 },
+];
+
+function getBundleDiscountTier(quantity = 0) {
+  const safeQuantity = Math.max(0, Number(quantity) || 0);
+  return (
+    BUNDLE_DISCOUNT_TIERS.find(
+      (tier) => safeQuantity >= tier.requiredQuantity,
+    ) || null
+  );
+}
 
 function roundMoney(value = 0) {
   return Number((Number(value || 0) + Number.EPSILON).toFixed(2));
@@ -128,6 +139,8 @@ const emptyCartContext = {
   paidSubtotal: 0,
   bundleUnlocked: false,
   bundleDiscountAmount: 0,
+  bundleDiscountPercent: 0,
+  bundleRequiredQuantity: 0,
   rewardProgress: null,
   rewardGifts: [],
   rewardProducts: {},
@@ -906,7 +919,8 @@ function normalizeCartItems(items = []) {
     (total, item) => total + Number(item.quantity || 0),
     0,
   );
-  const bundleUnlocked = bundleQuantity >= BUNDLE_REQUIRED_QUANTITY;
+  const bundleTier = getBundleDiscountTier(bundleQuantity);
+  const bundleUnlocked = Boolean(bundleTier);
 
   return itemsWithProductPromotions.map((item) => {
     const priceAfterProductPromotions = Number(item.price || 0);
@@ -915,13 +929,15 @@ function normalizeCartItems(items = []) {
       ...item,
       // The Recon Water promotion fixes its unit price at $15. The bundle
       // discount may apply to other products, but must not lower it further.
-      price: bundleUnlocked && !isReconWaterProduct(item)
-        ? roundMoney(priceAfterProductPromotions * (1 - BUNDLE_DISCOUNT_RATE))
+      price: bundleTier && !isReconWaterProduct(item)
+        ? roundMoney(
+            priceAfterProductPromotions * (1 - bundleTier.discountRate),
+          )
         : priceAfterProductPromotions,
       phaseone_price_before_bundle: priceAfterProductPromotions,
       phaseone_bundle_active: bundleUnlocked,
-      phaseone_bundle_discount_percent: bundleUnlocked ? 10 : 0,
-      phaseone_bundle_required_quantity: BUNDLE_REQUIRED_QUANTITY,
+      phaseone_bundle_discount_percent: bundleTier?.discountPercent || 0,
+      phaseone_bundle_required_quantity: bundleTier?.requiredQuantity || 0,
     };
   });
 }
@@ -1341,6 +1357,13 @@ function persistCheckoutSession({
   const bundleUnlocked = normalizedItems.some(
     (item) => item.phaseone_bundle_active,
   );
+  const bundleDiscountPercent = Math.max(
+    0,
+    ...normalizedItems.map((item) =>
+      Number(item.phaseone_bundle_discount_percent || 0),
+    ),
+  );
+  const bundleRequiredQuantity = bundleDiscountPercent >= 30 ? 10 : bundleDiscountPercent ? 5 : 0;
   const subtotalBeforeBundle = normalizedItems.reduce(
     (total, item) =>
       total +
@@ -1377,6 +1400,10 @@ function persistCheckoutSession({
     bundleUnlocked,
     bundle_discount_amount: bundleDiscountAmount,
     bundleDiscountAmount,
+    bundle_discount_percent: bundleDiscountPercent,
+    bundleDiscountPercent,
+    bundle_required_quantity: bundleRequiredQuantity,
+    bundleRequiredQuantity,
     subtotal_before_bundle: roundMoney(subtotalBeforeBundle),
     subtotalBeforeBundle: roundMoney(subtotalBeforeBundle),
 
@@ -2044,6 +2071,13 @@ export function CartProvider({ children }) {
   const bundleUnlocked = normalizedCartItems.some(
     (item) => item.phaseone_bundle_active,
   );
+  const bundleDiscountPercent = Math.max(
+    0,
+    ...normalizedCartItems.map((item) =>
+      Number(item.phaseone_bundle_discount_percent || 0),
+    ),
+  );
+  const bundleRequiredQuantity = bundleDiscountPercent >= 30 ? 10 : bundleDiscountPercent ? 5 : 0;
   const subtotalBeforeBundle = normalizedCartItems.reduce(
     (total, item) =>
       total +
@@ -2223,6 +2257,8 @@ export function CartProvider({ children }) {
         paidSubtotal,
         bundleUnlocked,
         bundleDiscountAmount,
+        bundleDiscountPercent,
+        bundleRequiredQuantity,
         rewardProgress: null,
         rewardGifts: [],
         rewardProducts: {},
