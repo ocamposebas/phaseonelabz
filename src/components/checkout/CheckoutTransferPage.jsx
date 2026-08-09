@@ -27,7 +27,7 @@ const VALIDATE_COUPON_ENDPOINT =
 const WOO_URL =
   import.meta.env.PUBLIC_WOOCOMMERCE_URL || "https://staging.phaseonelabz.com";
 const PAYMENT_DISCOUNT_RATE = 0.05;
-const MAX_COMBINED_DISCOUNT_RATE = 0.25;
+const MAX_COMBINED_DISCOUNT_RATE = 0.4;
 const MANUAL_PAYMENT_SHIPPING_COST = 13;
 const PAYMENT_DISCOUNT_METHOD_IDS = ["zelle", "bank"];
 const MANUAL_PAYMENT_METHOD_IDS = ["zelle"];

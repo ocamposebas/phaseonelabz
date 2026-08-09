@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 
 const MAX_TOKEN_AGE_SECONDS = 15 * 60;
-const MAX_COMBINED_DISCOUNT_RATE = 0.25;
+const MAX_COMBINED_DISCOUNT_RATE = 0.4;
 
 function getEnv(key) {
   return (
