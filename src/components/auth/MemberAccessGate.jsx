@@ -31,6 +31,22 @@ export default function MemberAccessGate({ initialHasSession = false }) {
     password: "",
   });
   const gateWasShownRef = useRef(!initialHasSession);
+  const exitTimerRef = useRef(0);
+
+  const finishAuthentication = () => {
+    window.dispatchEvent(new Event("lab-auth-updated"));
+
+    if (!gateWasShownRef.current) {
+      setStatus("authenticated");
+      return;
+    }
+
+    window.clearTimeout(exitTimerRef.current);
+    setStatus("leaving");
+    exitTimerRef.current = window.setTimeout(() => {
+      setStatus("authenticated");
+    }, 280);
+  };
 
   const verifySession = async () => {
     const token = getSavedAuthToken();
@@ -48,8 +64,7 @@ export default function MemberAccessGate({ initialHasSession = false }) {
       const data = await response.json().catch(() => null);
 
       if (response.ok && data?.authenticated && data?.user) {
-        setStatus("authenticated");
-        window.dispatchEvent(new Event("lab-auth-updated"));
+        finishAuthentication();
         return true;
       }
 
@@ -57,12 +72,12 @@ export default function MemberAccessGate({ initialHasSession = false }) {
       // browser still has. Invalid or expired tokens are returned as a normal
       // authenticated:false response and still lead to the sign-in form.
       if (!response.ok && hadSavedSession) {
-        setStatus("authenticated");
+        finishAuthentication();
         return true;
       }
     } catch {
       if (hadSavedSession) {
-        setStatus("authenticated");
+        finishAuthentication();
         return true;
       }
     }
@@ -73,17 +88,27 @@ export default function MemberAccessGate({ initialHasSession = false }) {
 
   useEffect(() => {
     verifySession();
+
+    return () => window.clearTimeout(exitTimerRef.current);
   }, []);
 
+  const gateIsOpen = status !== "authenticated";
+
   useEffect(() => {
-    if (status === "authenticated") return undefined;
+    if (!gateIsOpen) return undefined;
 
     gateWasShownRef.current = true;
 
+    const lockedScrollY = window.scrollY || window.pageYOffset || 0;
     const previousHtmlOverflow = document.documentElement.style.overflow;
     const previousHtmlOverflowX = document.documentElement.style.overflowX;
     const previousBodyOverflow = document.body.style.overflow;
     const previousBodyOverflowX = document.body.style.overflowX;
+    const previousBodyPosition = document.body.style.position;
+    const previousBodyTop = document.body.style.top;
+    const previousBodyLeft = document.body.style.left;
+    const previousBodyRight = document.body.style.right;
+    const previousBodyWidth = document.body.style.width;
 
     document.documentElement.classList.add("phase-member-gate-open");
     document.body.classList.add("phase-member-gate-open");
@@ -91,6 +116,11 @@ export default function MemberAccessGate({ initialHasSession = false }) {
     document.documentElement.style.setProperty("overflow-x", "hidden", "important");
     document.body.style.setProperty("overflow", "hidden", "important");
     document.body.style.setProperty("overflow-x", "hidden", "important");
+    document.body.style.setProperty("position", "fixed", "important");
+    document.body.style.setProperty("top", `-${lockedScrollY}px`, "important");
+    document.body.style.setProperty("left", "0", "important");
+    document.body.style.setProperty("right", "0", "important");
+    document.body.style.setProperty("width", "100%", "important");
 
     return () => {
       document.documentElement.classList.remove("phase-member-gate-open");
@@ -99,8 +129,14 @@ export default function MemberAccessGate({ initialHasSession = false }) {
       document.documentElement.style.overflowX = previousHtmlOverflowX;
       document.body.style.overflow = previousBodyOverflow;
       document.body.style.overflowX = previousBodyOverflowX;
+      document.body.style.position = previousBodyPosition;
+      document.body.style.top = previousBodyTop;
+      document.body.style.left = previousBodyLeft;
+      document.body.style.right = previousBodyRight;
+      document.body.style.width = previousBodyWidth;
+      window.scrollTo(0, 0);
     };
-  }, [status]);
+  }, [gateIsOpen]);
 
   useEffect(() => {
     if (status !== "authenticated" || !gateWasShownRef.current) {
@@ -218,11 +254,12 @@ export default function MemberAccessGate({ initialHasSession = false }) {
 
   if (status === "authenticated") return null;
 
-  const isWorking = status === "checking" || status === "submitting";
+  const isWorking =
+    status === "checking" || status === "submitting" || status === "leaving";
   const isRegistering = mode === "register";
 
   return (
-    <section className="phase-member-gate" role="dialog" aria-modal="true" aria-label="Client account access required">
+    <section className={`phase-member-gate${status === "leaving" ? " is-leaving" : ""}`} role="dialog" aria-modal="true" aria-label="Client account access required">
       <div className="phase-member-gate__aurora phase-member-gate__aurora--left" />
       <div className="phase-member-gate__aurora phase-member-gate__aurora--right" />
 
@@ -330,8 +367,10 @@ export default function MemberAccessGate({ initialHasSession = false }) {
       </div>
 
       <style>{`
-        html.phase-member-gate-open, body.phase-member-gate-open { overflow: hidden !important; overscroll-behavior: none; }
-        .phase-member-gate { position: fixed; inset: 0; z-index: 2147483000; display: grid; box-sizing: border-box; max-width: 100vw; height: 100dvh; place-items: center; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; padding: 28px; background: #030711; color: #f8fafc; isolation: isolate; }
+        html.phase-member-gate-open, body.phase-member-gate-open { width: 100% !important; height: 100% !important; overflow: hidden !important; overscroll-behavior: none; }
+        .phase-member-gate { position: fixed !important; inset: 0 !important; z-index: 2147483646; display: grid; box-sizing: border-box; width: 100vw !important; min-width: 100vw; max-width: none; height: 100vh; min-height: 100vh; place-items: center; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; padding: 28px; background: #030711; color: #f8fafc; isolation: isolate; animation: phase-member-gate-in .32s cubic-bezier(.22, 1, .36, 1) both; }
+        @supports (height: 100dvh) { .phase-member-gate { height: 100dvh; min-height: 100dvh; } }
+        .phase-member-gate.is-leaving { pointer-events: none; animation: phase-member-gate-out .28s ease both; }
         .phase-member-gate::before { content: ""; position: absolute; inset: 0; opacity: .35; background-image: linear-gradient(rgba(125, 211, 252, .045) 1px, transparent 1px), linear-gradient(90deg, rgba(125, 211, 252, .045) 1px, transparent 1px); background-size: 64px 64px; mask-image: radial-gradient(ellipse at center, black, transparent 75%); }
         .phase-member-gate__aurora { position: absolute; width: 68vw; aspect-ratio: 1; border-radius: 50%; filter: blur(38px); pointer-events: none; }
         .phase-member-gate__aurora--left { left: -38vw; top: -35vw; background: radial-gradient(circle, rgba(14, 116, 144, .36), transparent 67%); }
@@ -386,6 +425,9 @@ export default function MemberAccessGate({ initialHasSession = false }) {
         .phase-member-gate__legal { margin: auto 0 0; padding-top: 20px; color: rgba(100, 116, 139, .85); font-size: 10px; line-height: 1.55; text-align: center; }
         .phase-member-gate__spin { animation: phase-member-gate-spin .8s linear infinite; }
         @keyframes phase-member-gate-spin { to { transform: rotate(360deg); } }
+        @keyframes phase-member-gate-in { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes phase-member-gate-out { from { opacity: 1; } to { opacity: 0; } }
+        @media (prefers-reduced-motion: reduce) { .phase-member-gate, .phase-member-gate.is-leaving { animation-duration: .01ms; } }
         @media (max-width: 790px) { .phase-member-gate { display: block; padding: 14px 14px calc(22px + env(safe-area-inset-bottom)); } .phase-member-gate__shell { display: block; min-height: 0; margin: 0 auto; } .phase-member-gate__story { min-height: 0; padding: 17px 22px; } .phase-member-gate__story-copy, .phase-member-gate__proof { display: none; } .phase-member-gate__panel { padding: 23px 22px 22px; } .phase-member-gate__form-copy { margin: 22px 0 18px; } .phase-member-gate__form-copy h2 { font-size: 27px; } .phase-member-gate__form input { font-size: 16px; } .phase-member-gate__legal { margin-top: 18px; padding-top: 0; } }
         @media (max-width: 420px) { .phase-member-gate { padding: 10px 10px calc(18px + env(safe-area-inset-bottom)); } .phase-member-gate__name-grid { grid-template-columns: 1fr; } .phase-member-gate__story { padding: 18px; } .phase-member-gate__panel { padding: 20px 18px; } .phase-member-gate__brand span { font-size: 9px; } }
       `}</style>
