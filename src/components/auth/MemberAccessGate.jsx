@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Check, Eye, EyeOff, Loader2, LockKeyhole, ShieldCheck, Sparkles } from "lucide-react";
 
 function getSavedAuthToken() {
@@ -30,6 +30,7 @@ export default function MemberAccessGate({ initialHasSession = false }) {
     email: "",
     password: "",
   });
+  const gateWasShownRef = useRef(!initialHasSession);
 
   const verifySession = async () => {
     const token = getSavedAuthToken();
@@ -77,6 +78,8 @@ export default function MemberAccessGate({ initialHasSession = false }) {
   useEffect(() => {
     if (status === "authenticated") return undefined;
 
+    gateWasShownRef.current = true;
+
     const previousHtmlOverflow = document.documentElement.style.overflow;
     const previousHtmlOverflowX = document.documentElement.style.overflowX;
     const previousBodyOverflow = document.body.style.overflow;
@@ -96,6 +99,47 @@ export default function MemberAccessGate({ initialHasSession = false }) {
       document.documentElement.style.overflowX = previousHtmlOverflowX;
       document.body.style.overflow = previousBodyOverflow;
       document.body.style.overflowX = previousBodyOverflowX;
+    };
+  }, [status]);
+
+  useEffect(() => {
+    if (status !== "authenticated" || !gateWasShownRef.current) {
+      return undefined;
+    }
+
+    const activeElement = document.activeElement;
+
+    if (
+      activeElement instanceof HTMLElement &&
+      activeElement !== document.body
+    ) {
+      activeElement.blur();
+    }
+
+    const resetToTop = () => {
+      const scrollingElement = document.scrollingElement;
+
+      if (scrollingElement) scrollingElement.scrollTop = 0;
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+      window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+    };
+
+    resetToTop();
+
+    let secondFrame = 0;
+    const firstFrame = window.requestAnimationFrame(() => {
+      resetToTop();
+      secondFrame = window.requestAnimationFrame(resetToTop);
+    });
+    const afterKeyboard = window.setTimeout(resetToTop, 350);
+
+    gateWasShownRef.current = false;
+
+    return () => {
+      window.cancelAnimationFrame(firstFrame);
+      window.cancelAnimationFrame(secondFrame);
+      window.clearTimeout(afterKeyboard);
     };
   }, [status]);
 
@@ -342,7 +386,7 @@ export default function MemberAccessGate({ initialHasSession = false }) {
         .phase-member-gate__legal { margin: auto 0 0; padding-top: 20px; color: rgba(100, 116, 139, .85); font-size: 10px; line-height: 1.55; text-align: center; }
         .phase-member-gate__spin { animation: phase-member-gate-spin .8s linear infinite; }
         @keyframes phase-member-gate-spin { to { transform: rotate(360deg); } }
-        @media (max-width: 790px) { .phase-member-gate { display: block; padding: 14px 14px calc(22px + env(safe-area-inset-bottom)); } .phase-member-gate__shell { display: block; min-height: 0; margin: 0 auto; } .phase-member-gate__story { min-height: 0; padding: 17px 22px; } .phase-member-gate__story-copy, .phase-member-gate__proof { display: none; } .phase-member-gate__panel { padding: 23px 22px 22px; } .phase-member-gate__form-copy { margin: 22px 0 18px; } .phase-member-gate__form-copy h2 { font-size: 27px; } .phase-member-gate__legal { margin-top: 18px; padding-top: 0; } }
+        @media (max-width: 790px) { .phase-member-gate { display: block; padding: 14px 14px calc(22px + env(safe-area-inset-bottom)); } .phase-member-gate__shell { display: block; min-height: 0; margin: 0 auto; } .phase-member-gate__story { min-height: 0; padding: 17px 22px; } .phase-member-gate__story-copy, .phase-member-gate__proof { display: none; } .phase-member-gate__panel { padding: 23px 22px 22px; } .phase-member-gate__form-copy { margin: 22px 0 18px; } .phase-member-gate__form-copy h2 { font-size: 27px; } .phase-member-gate__form input { font-size: 16px; } .phase-member-gate__legal { margin-top: 18px; padding-top: 0; } }
         @media (max-width: 420px) { .phase-member-gate { padding: 10px 10px calc(18px + env(safe-area-inset-bottom)); } .phase-member-gate__name-grid { grid-template-columns: 1fr; } .phase-member-gate__story { padding: 18px; } .phase-member-gate__panel { padding: 20px 18px; } .phase-member-gate__brand span { font-size: 9px; } }
       `}</style>
     </section>
