@@ -7,6 +7,7 @@ import {
   CalendarDays,
   Check,
   CheckCircle2,
+  ChevronDown,
   ClipboardCheck,
   FileCheck2,
   Layers3,
@@ -26,6 +27,7 @@ import {
   X,
 } from "lucide-react";
 import { getProductPurchaseLimit, useCart } from "../cart/CartContext";
+import DispatchCutoff from "../shipping/DispatchCutoff";
 
 const COA_LIBRARY_PATH = "/wp-json/phaseone/v1/coas";
 
@@ -2483,6 +2485,7 @@ function FrequentlyResearchedTogether({
 }) {
   const [selectedMap, setSelectedMap] = useState({});
   const [bundleMessage, setBundleMessage] = useState("");
+  const [isOpen, setIsOpen] = useState(false);
 
   if (!recommendations.length) return null;
 
@@ -2549,74 +2552,99 @@ function FrequentlyResearchedTogether({
   };
 
   return (
-    <div className="pdp-bundle">
-      <div className="pdp-bundle-head">
+    <div className={`pdp-bundle ${isOpen ? "is-open" : ""}`}>
+      <button
+        type="button"
+        className="pdp-bundle-head"
+        aria-expanded={isOpen}
+        aria-controls="pdp-researched-together-panel"
+        onClick={() => setIsOpen((current) => !current)}
+      >
         <div>
           <Layers3 size={18} />
         </div>
 
-        <span>Frequently researched together</span>
-      </div>
+        <span className="pdp-bundle-head-copy">
+          <strong>Frequently researched together</strong>
+          <small>
+            {recommendations.length} recommendation{recommendations.length === 1 ? "" : "s"}
+          </small>
+        </span>
 
-      <div className="pdp-bundle-list">
-        <div className="pdp-bundle-row is-main">
-          <div className="pdp-bundle-dot is-locked">
-            <Check size={12} />
-          </div>
+        <span className="pdp-bundle-toggle" aria-hidden="true">
+          <em>{isOpen ? "Close" : "View"}</em>
+          <ChevronDown size={17} />
+        </span>
+      </button>
 
-          <div className="pdp-bundle-copy">
-            <strong>{product?.name || "Current product"}</strong>
-            <span>Selected item</span>
-          </div>
-
-          <em>{formatMoney(mainPrice)}</em>
-        </div>
-
-        {recommendations.map((item) => {
-          const key = String(item.id);
-          const isSelected = selectedMap[key] ?? true;
-          const itemCategories = getCategories(item);
-          const itemType = itemCategories[0] || "Complement";
-
-          return (
-            <button
-              key={item.id}
-              type="button"
-              className={`pdp-bundle-row ${isSelected ? "is-selected" : ""}`}
-              onClick={() => toggleProduct(item.id)}
-            >
-              <div className="pdp-bundle-dot">
-                {isSelected && <Check size={12} />}
+      <div
+        id="pdp-researched-together-panel"
+        className="pdp-bundle-panel"
+        aria-hidden={!isOpen}
+        inert={!isOpen}
+      >
+        <div className="pdp-bundle-panel-inner">
+          <div className="pdp-bundle-list">
+            <div className="pdp-bundle-row is-main">
+              <div className="pdp-bundle-dot is-locked">
+                <Check size={12} />
               </div>
 
               <div className="pdp-bundle-copy">
-                <strong>{item.name}</strong>
-                <span>{itemType}</span>
+                <strong>{product?.name || "Current product"}</strong>
+                <span>Selected item</span>
               </div>
 
-              <em>{formatMoney(getNumericPrice(item))}</em>
+              <em>{formatMoney(mainPrice)}</em>
+            </div>
+
+            {recommendations.map((item) => {
+              const key = String(item.id);
+              const isSelected = selectedMap[key] ?? true;
+              const itemCategories = getCategories(item);
+              const itemType = itemCategories[0] || "Complement";
+
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={`pdp-bundle-row ${isSelected ? "is-selected" : ""}`}
+                  onClick={() => toggleProduct(item.id)}
+                >
+                  <div className="pdp-bundle-dot">
+                    {isSelected && <Check size={12} />}
+                  </div>
+
+                  <div className="pdp-bundle-copy">
+                    <strong>{item.name}</strong>
+                    <span>{itemType}</span>
+                  </div>
+
+                  <em>{formatMoney(getNumericPrice(item))}</em>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="pdp-bundle-footer">
+            <div>
+              <small>Bundle total</small>
+              <strong>{formatMoney(bundleTotal)}</strong>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleAddBundle}
+              disabled={!canAddMainProduct || !addToCart}
+            >
+              <ShoppingCart size={16} />
+              Add selected
             </button>
-          );
-        })}
-      </div>
+          </div>
 
-      <div className="pdp-bundle-footer">
-        <div>
-          <small>Bundle total</small>
-          <strong>{formatMoney(bundleTotal)}</strong>
+          {bundleMessage && <p className="pdp-bundle-message">{bundleMessage}</p>}
         </div>
-
-        <button
-          type="button"
-          onClick={handleAddBundle}
-          disabled={!canAddMainProduct || !addToCart}
-        >
-          <ShoppingCart size={16} />
-          Add selected
-        </button>
       </div>
-
-      {bundleMessage && <p className="pdp-bundle-message">{bundleMessage}</p>}
     </div>
   );
 }
@@ -3317,6 +3345,8 @@ export default function ProductDetailSection({
               )}
 
               <BundleCoaSection items={bundleCoaItems} />
+
+              <DispatchCutoff variant="product" />
 
               <div className="pdp-order-console">
                 <div className="pdp-console-head">
@@ -5723,11 +5753,26 @@ export default function ProductDetailSection({
         .pdp-bundle-head {
           position: relative;
           z-index: 1;
-          display: flex;
+          display: grid;
+          grid-template-columns: 38px minmax(0, 1fr) auto;
           align-items: center;
           gap: 13px;
-          border-bottom: 1px solid rgba(165, 243, 252, 0.1);
+          width: 100%;
+          border: 0;
+          background: transparent;
           padding: 16px;
+          color: white;
+          cursor: pointer;
+          text-align: left;
+          transition: background 180ms ease;
+        }
+
+        .pdp-bundle.is-open .pdp-bundle-head {
+          border-bottom: 1px solid rgba(165, 243, 252, 0.1);
+        }
+
+        .pdp-bundle-head:hover {
+          background: rgba(103, 232, 249, 0.035);
         }
 
         .pdp-bundle-head div {
@@ -5741,12 +5786,67 @@ export default function ProductDetailSection({
           color: rgb(165, 243, 252);
         }
 
-        .pdp-bundle-head span {
+        .pdp-bundle-head-copy {
+          display: grid;
+          min-width: 0;
+          gap: 4px;
+        }
+
+        .pdp-bundle-head-copy strong {
+          overflow: hidden;
           color: rgba(236, 254, 255, 0.88);
           font-size: 10px;
           font-weight: 950;
           letter-spacing: 0.2em;
+          line-height: 1.35;
+          text-overflow: ellipsis;
           text-transform: uppercase;
+          white-space: nowrap;
+        }
+
+        .pdp-bundle-head-copy small {
+          color: rgba(148, 163, 184, 0.64);
+          font-size: 9px;
+          font-weight: 750;
+          letter-spacing: 0.04em;
+        }
+
+        .pdp-bundle-toggle {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          color: rgb(165, 243, 252);
+        }
+
+        .pdp-bundle-toggle em {
+          font-size: 8px;
+          font-style: normal;
+          font-weight: 950;
+          letter-spacing: 0.14em;
+          text-transform: uppercase;
+        }
+
+        .pdp-bundle-toggle svg {
+          transition: transform 260ms ease;
+        }
+
+        .pdp-bundle.is-open .pdp-bundle-toggle svg {
+          transform: rotate(180deg);
+        }
+
+        .pdp-bundle-panel {
+          display: grid;
+          grid-template-rows: 0fr;
+          transition: grid-template-rows 320ms cubic-bezier(0.22, 1, 0.36, 1);
+        }
+
+        .pdp-bundle.is-open .pdp-bundle-panel {
+          grid-template-rows: 1fr;
+        }
+
+        .pdp-bundle-panel-inner {
+          min-height: 0;
+          overflow: hidden;
         }
 
         .pdp-bundle-list {
@@ -6397,6 +6497,101 @@ export default function ProductDetailSection({
         .pdp-featured-bottom button:disabled {
           cursor: not-allowed;
           opacity: 0.45;
+        }
+
+        /* One continuous product surface: emphasis without card-on-card noise. */
+        .pdp-lab-sheet > .pdp-file-row {
+          margin-top: 20px;
+          border-right: 0;
+          border-left: 0;
+          border-radius: 0;
+          background: transparent;
+          padding: 18px 2px;
+          box-shadow: none;
+        }
+
+        .pdp-lab-sheet > .pdp-bundle-coas {
+          margin-top: 18px;
+          border-right: 0;
+          border-left: 0;
+          border-radius: 0;
+          background: transparent;
+          box-shadow: none;
+        }
+
+        .pdp-lab-sheet > .pdp-order-console {
+          margin-top: 20px;
+          border-right: 0;
+          border-bottom: 0;
+          border-left: 0;
+          border-radius: 0;
+          background: transparent;
+          padding: 20px 0 0;
+        }
+
+        .pdp-lab-sheet > .pdp-bundle {
+          margin-top: 22px;
+          border-right: 0;
+          border-left: 0;
+          border-radius: 0;
+          background: transparent;
+        }
+
+        .pdp-lab-sheet > .pdp-bundle::before {
+          display: none;
+        }
+
+        .pdp-lab-sheet > .pdp-policy-note {
+          grid-template-columns: 26px 1fr;
+          margin-top: 20px;
+          border-right: 0;
+          border-bottom: 0;
+          border-left: 0;
+          border-radius: 0;
+          background: transparent;
+          padding: 18px 0 0;
+        }
+
+        .pdp-usage {
+          border-right: 0;
+          border-left: 0;
+          border-radius: 0;
+          background: transparent;
+          padding: 18px 2px;
+        }
+
+        .pdp-body {
+          gap: 0;
+          overflow: hidden;
+          border: 1px solid rgba(165, 243, 252, 0.1);
+          border-radius: 32px;
+          background: rgba(255, 255, 255, 0.018);
+        }
+
+        .pdp-description,
+        .pdp-details {
+          border: 0;
+          border-radius: 0;
+          background: transparent;
+        }
+
+        .pdp-details {
+          align-self: stretch;
+          border-left: 1px solid rgba(165, 243, 252, 0.1);
+        }
+
+        @media (max-width: 1180px) {
+          .pdp-details {
+            border-top: 1px solid rgba(165, 243, 252, 0.1);
+            border-left: 0;
+          }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .pdp-bundle-panel,
+          .pdp-bundle-toggle svg {
+            transition: none;
+          }
         }
 
         .pdp-error {

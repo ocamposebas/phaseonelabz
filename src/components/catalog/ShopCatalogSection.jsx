@@ -16,6 +16,7 @@ import {
   X,
 } from "lucide-react";
 import { useCart } from "../cart/CartContext";
+import DispatchCutoff from "../shipping/DispatchCutoff";
 
 const RECON_WATER_IDENTIFIERS = new Set([
   "h-recon-water",
@@ -2730,6 +2731,8 @@ export default function ShopCatalogSection({
             research collection.
           </p>
         </div>
+
+        <DispatchCutoff variant="catalog" />
 
         <div className="bundle-summary mb-7 overflow-hidden rounded-[1.35rem] border border-cyan-200/12 bg-[#121E2E]/55 p-4 sm:mb-8 sm:p-5">
           <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(420px,.9fr)] lg:items-center">

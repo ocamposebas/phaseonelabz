@@ -18,6 +18,7 @@ import {
 import { useCart } from "../cart/CartContext";
 import { FREE_SHIPPING_MINIMUM } from "../data/storeConfig";
 import SignatureCapture from "./SignatureCapture";
+import DispatchCutoff from "../shipping/DispatchCutoff";
 
 const ACCOUNT_ENDPOINT = "/api/account/me";
 const PRISM_CHECKOUT_ENDPOINT = "/api/prism/checkout";
@@ -3486,6 +3487,8 @@ export default function CheckoutTransferPage() {
             </button>
           </div>
         )}
+
+        <DispatchCutoff variant="checkout" />
 
         <div className="checkout-layout">
           <form
