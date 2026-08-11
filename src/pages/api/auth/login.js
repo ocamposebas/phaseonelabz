@@ -146,6 +146,7 @@ export async function POST({ request, cookies }) {
       body: JSON.stringify({
         email,
         password,
+        remember: true,
       }),
     });
 

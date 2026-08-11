@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Menu, Search, ShoppingCart, User, X, LogOut } from "lucide-react";
 import { useCart } from "../cart/CartContext";
 import { FREE_SHIPPING_MINIMUM } from "../data/storeConfig";
+import { requestClientLogout } from "../../lib/authClient";
 
 const navItems = [
   { label: "Home", href: "/" },
@@ -540,17 +541,14 @@ export default function SiteHeader({
   };
 
   const handleLogout = async () => {
-    await fetch("/api/auth/logout", {
-      method: "POST",
-    });
-
     setAccount(null);
     setMobileOpen(false);
 
-    window.dispatchEvent(new Event("lab-auth-updated"));
-
-    if (window.location.pathname === "/account") {
-      window.location.reload();
+    try {
+      await requestClientLogout();
+    } finally {
+      window.dispatchEvent(new Event("lab-auth-updated"));
+      window.location.assign("/account");
     }
   };
 

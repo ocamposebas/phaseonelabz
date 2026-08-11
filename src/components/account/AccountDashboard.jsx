@@ -31,6 +31,7 @@ import {
   PackageCheck,
   X,
 } from "lucide-react";
+import { requestClientLogout } from "../../lib/authClient";
 
 const POINTS_PER_REWARD = 500;
 const CREDIT_PER_REWARD = 5;
@@ -249,15 +250,6 @@ function saveAuthToken(token) {
   document.cookie = `lab_auth_token=${encodeURIComponent(
     token
   )}; path=/; max-age=2592000; SameSite=Lax`;
-}
-
-function clearAuthToken() {
-  if (typeof window === "undefined") return;
-
-  localStorage.removeItem("lab_auth_token");
-
-  document.cookie =
-    "lab_auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax";
 }
 
 function getSavedAuthToken() {
@@ -2689,12 +2681,7 @@ export default function AccountDashboard() {
   };
 
   const handleLogout = async () => {
-    await fetch("/api/auth/logout", {
-      method: "POST",
-      credentials: "include",
-    });
-
-    clearAuthToken();
+    const logoutRequest = requestClientLogout();
 
     setAccount(null);
     setStatus("unauthenticated");
@@ -2706,6 +2693,12 @@ export default function AccountDashboard() {
     setTrackingLoadingByOrder({});
     setTrackingErrorByOrder({});
     setOpenTrackingOrderId(null);
+
+    try {
+      await logoutRequest;
+    } finally {
+      window.dispatchEvent(new Event("lab-auth-updated"));
+    }
   };
 
   if (status === "loading") {

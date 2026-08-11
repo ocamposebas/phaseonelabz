@@ -48,6 +48,7 @@ export async function POST({ request, cookies }) {
         last_name,
         email,
         password,
+        remember: true,
       }),
     });
 

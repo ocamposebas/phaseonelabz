@@ -1,7 +1,7 @@
 export const prerender = false;
 
-const COOKIE_NAME = "lab_auth_token";
-const REQUEST_TIMEOUT_MS = 8000;
+const AUTH_COOKIE_NAMES = ["lab_auth_token", "lab_token", "auth_token"];
+const REQUEST_TIMEOUT_MS = 3000;
 
 function jsonResponse(payload, status = 200) {
   return new Response(JSON.stringify(payload), {
@@ -16,7 +16,10 @@ function jsonResponse(payload, status = 200) {
 }
 
 function getCleanWooUrl() {
-  const WOO_URL = import.meta.env.WOOCOMMERCE_URL2;
+  const WOO_URL =
+    import.meta.env.WOOCOMMERCE_URL2 ||
+    import.meta.env.WOOCOMMERCE_URL ||
+    import.meta.env.PUBLIC_WOOCOMMERCE_URL;
 
   if (!WOO_URL) {
     return null;
@@ -40,25 +43,33 @@ async function fetchWithTimeout(url, options = {}) {
 }
 
 function clearAuthCookie(cookies) {
-  cookies.delete(COOKIE_NAME, {
-    path: "/",
-  });
+  for (const cookieName of AUTH_COOKIE_NAMES) {
+    cookies.delete(cookieName, { path: "/" });
 
-  /**
-   * Extra defensive delete:
-   * Some browsers/envs can be picky if cookie attributes changed between versions.
-   */
-  cookies.set(COOKIE_NAME, "", {
-    httpOnly: true,
-    secure: import.meta.env.PROD,
-    sameSite: "strict",
-    path: "/",
-    maxAge: 0,
-  });
+    /**
+     * Extra defensive delete using the same attributes as login/register.
+     */
+    cookies.set(cookieName, "", {
+      httpOnly: true,
+      secure: import.meta.env.PROD,
+      sameSite: "lax",
+      path: "/",
+      maxAge: 0,
+    });
+  }
 }
 
-export async function POST({ cookies }) {
-  const token = cookies.get(COOKIE_NAME)?.value;
+function getBearerToken(request) {
+  const authorization = request.headers.get("authorization") || "";
+  const match = authorization.match(/^Bearer\s+(.+)$/i);
+  return match?.[1]?.trim() || "";
+}
+
+export async function POST({ request, cookies }) {
+  const token =
+    getBearerToken(request) ||
+    AUTH_COOKIE_NAMES.map((name) => cookies.get(name)?.value).find(Boolean) ||
+    "";
   const cleanUrl = getCleanWooUrl();
 
   /**

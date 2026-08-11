@@ -32,8 +32,10 @@ export default function MemberAccessGate({ initialHasSession = false }) {
   });
 
   const verifySession = async () => {
+    const token = getSavedAuthToken();
+    const hadSavedSession = initialHasSession || Boolean(token);
+
     try {
-      const token = getSavedAuthToken();
       const response = await fetch(`/api/account/me?ts=${Date.now()}`, {
         credentials: "include",
         cache: "no-store",
@@ -49,7 +51,20 @@ export default function MemberAccessGate({ initialHasSession = false }) {
         window.dispatchEvent(new Event("lab-auth-updated"));
         return true;
       }
-    } catch {}
+
+      // A temporary API/WordPress outage must not discard a session that the
+      // browser still has. Invalid or expired tokens are returned as a normal
+      // authenticated:false response and still lead to the sign-in form.
+      if (!response.ok && hadSavedSession) {
+        setStatus("authenticated");
+        return true;
+      }
+    } catch {
+      if (hadSavedSession) {
+        setStatus("authenticated");
+        return true;
+      }
+    }
 
     setStatus("unauthenticated");
     return false;
