@@ -292,6 +292,7 @@ export default function CheckoutThankYouPage() {
   const [copied, setCopied] = useState(false);
   const attemptsRef = useRef(0);
   const timerRef = useRef(null);
+  const purchaseTrackedRef = useRef(false);
 
   useEffect(() => {
     const checkoutContext = getCheckoutContext();
@@ -455,6 +456,64 @@ export default function CheckoutThankYouPage() {
     manualOrder?.methodTitle ||
     manualOrder?.payment_method_title ||
     (context?.gateway === "zelle" ? "Zelle" : "Manual payment");
+
+  useEffect(() => {
+    const shouldTrack = statusState === "paid" || statusState === "manual";
+    const pixelConfiguration = window.P1?.configured;
+
+    if (
+      !shouldTrack ||
+      purchaseTrackedRef.current ||
+      !orderNumber ||
+      typeof window.P1?.purchase !== "function" ||
+      (pixelConfiguration &&
+        !pixelConfiguration.meta &&
+        !pixelConfiguration.tiktok)
+    ) {
+      return;
+    }
+
+    const dedupeKey = `phaseone_p1_purchase_${String(orderNumber)}`;
+
+    try {
+      if (window.localStorage.getItem(dedupeKey) === "1") {
+        purchaseTrackedRef.current = true;
+        return;
+      }
+    } catch {
+      // The in-memory ref still prevents duplicates during this page visit.
+    }
+
+    window.P1.purchase({
+      orderId: String(orderNumber),
+      value: toNumber(total, 0),
+      items: items.map((item) => {
+        const quantity = getItemQuantity(item);
+        return {
+          sku: String(
+            item.sku ||
+              item.variation_id ||
+              item.variationId ||
+              item.product_id ||
+              item.productId ||
+              item.id ||
+              getItemName(item),
+          ),
+          name: getItemName(item),
+          price: quantity ? getItemTotal(item) / quantity : getItemTotal(item),
+          quantity,
+        };
+      }),
+    });
+
+    purchaseTrackedRef.current = true;
+
+    try {
+      window.localStorage.setItem(dedupeKey, "1");
+    } catch {
+      // Ignore blocked storage.
+    }
+  }, [items, orderNumber, statusState, total]);
 
   const statusContent = useMemo(() => {
     if (statusState === "paid") {

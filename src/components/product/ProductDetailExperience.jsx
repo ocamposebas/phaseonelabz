@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { CartProvider } from "../cart/CartContext";
 
 import Header from "../nav/Navbar.jsx";
@@ -10,6 +11,27 @@ export default function ProductDetailExperience({
   product,
   recommendedProducts = [],
 }) {
+  const viewTrackedRef = useRef(false);
+
+  useEffect(() => {
+    if (
+      viewTrackedRef.current ||
+      typeof window.P1?.viewContent !== "function" ||
+      !product
+    ) {
+      return;
+    }
+
+    window.P1.viewContent({
+      name: product.name || "Product",
+      price: Number(
+        product.price || product.sale_price || product.regular_price || 0,
+      ),
+      sku: String(product.sku || product.id || product.slug || ""),
+    });
+    viewTrackedRef.current = true;
+  }, [product]);
+
   return (
     <CartProvider>
       <Header logoSrc="/TRANSPARENCIA-03.webp" transparentOnTop={true} />

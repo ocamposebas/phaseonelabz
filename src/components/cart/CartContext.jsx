@@ -1235,70 +1235,23 @@ function getMetaPixelItemName(item = {}) {
   return String(item.name || item.title || "Phase One Labz Product").trim();
 }
 
-function getMetaPixelContents(items = []) {
-  return normalizeCartItems(items)
-    .map((item) => {
-      const id = getMetaPixelContentId(item);
-
-      if (!id) return null;
-
-      return {
-        id,
-        quantity: Number(item.quantity || 1),
-        item_price: Number(getCartItemPrice(item) || 0),
-      };
-    })
-    .filter(Boolean);
-}
-
-function getMetaPixelCartValue(items = []) {
-  return Number(
-    normalizeCartItems(items)
-      .reduce(
-        (total, item) =>
-          total +
-          Number(getCartItemPrice(item) || 0) * Number(item.quantity || 1),
-        0,
-      )
-      .toFixed(2),
-  );
-}
-
-function getMetaPixelCartItemCount(items = []) {
-  return normalizeCartItems(items).reduce(
-    (count, item) => count + Number(item.quantity || 1),
-    0,
-  );
-}
-
-function buildMetaPixelCartPayload(items = [], extra = {}) {
-  const normalizedItems = normalizeCartItems(items);
-
-  const contents = getMetaPixelContents(normalizedItems);
-  const contentIds = contents.map((item) => item.id).filter(Boolean);
-
-  return {
-    content_ids: contentIds,
-    contents,
-    content_type: "product",
-    value: getMetaPixelCartValue(normalizedItems),
-    currency: "USD",
-    num_items: getMetaPixelCartItemCount(normalizedItems),
-    ...extra,
-  };
-}
-
-function trackMetaPixelEvent(eventName, payload = {}) {
+function trackP1Event(eventName, payload = {}) {
   if (typeof window === "undefined") return;
 
-  if (typeof window.fbq !== "function") {
-    console.warn("[Phase One] Meta Pixel is not ready:", eventName, payload);
+  const methodNames = {
+    AddToCart: "addToCart",
+    InitiateCheckout: "initiateCheckout",
+  };
+  const method = methodNames[eventName];
+
+  if (!method || typeof window.P1?.[method] !== "function") {
+    console.warn("[Phase One] P1 pixel API is not ready:", eventName, payload);
     return;
   }
 
-  window.fbq("track", eventName, payload);
+  window.P1[method](payload);
 
-  console.log("[Phase One] Meta Pixel event sent:", eventName, payload);
+  console.log("[Phase One] P1 pixel event sent:", eventName, payload);
 }
 
 function createCheckoutSessionId() {
@@ -1883,19 +1836,16 @@ export function CartProvider({ children }) {
         { checkoutCoupon, account },
       );
 
-      trackMetaPixelEvent("AddToCart", {
-        content_ids: [getMetaPixelContentId(normalizedProduct)].filter(Boolean),
-        contents: getMetaPixelContents([
-          { ...normalizedProduct, quantity: quantityActuallyAdded },
-        ]),
-        content_name: getMetaPixelItemName(normalizedProduct),
-        content_type: "product",
+      trackP1Event("AddToCart", {
+        sku: getMetaPixelContentId(normalizedProduct),
+        name: getMetaPixelItemName(normalizedProduct),
+        price: getCartItemPrice(normalizedProduct),
+        quantity: quantityActuallyAdded,
         value: Number(
           (
             getCartItemPrice(normalizedProduct) * quantityActuallyAdded
           ).toFixed(2),
         ),
-        currency: "USD",
       });
     }
 
@@ -2225,11 +2175,14 @@ export function CartProvider({ children }) {
       { checkoutCoupon, account },
     );
 
-    trackMetaPixelEvent("InitiateCheckout", {
-      ...buildMetaPixelCartPayload(checkoutItemsForTracking),
+    trackP1Event("InitiateCheckout", {
       value: checkoutTotal,
-      shipping_protection: shippingProtectionSelected,
-      shipping_protection_amount: shippingProtectionAmount,
+      items: checkoutItemsForTracking.map((item) => ({
+        sku: getMetaPixelContentId(item),
+        name: getMetaPixelItemName(item),
+        price: getCartItemPrice(item),
+        quantity: Number(item.quantity || 1),
+      })),
     });
 
     console.log("Sending cart to WordPress checkout:", checkoutUrl);
