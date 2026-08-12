@@ -130,6 +130,10 @@ const customProductOrder = [
 
   {
     rank: 5,
+    groups: [["mitoprime"]],
+  },
+  {
+    rank: 5,
     groups: [
       ["recon", "water", "30ml"],
       ["recon", "water"],
@@ -139,7 +143,7 @@ const customProductOrder = [
       ["phase one", "water"],
       ["p1", "bacteriostatic"],
     ],
-    exclude: ["hospira"],
+    exclude: ["hospira", "3ml"],
   },
   {
     rank: 6,
@@ -182,12 +186,7 @@ const customProductOrder = [
   },
   {
     rank: 14,
-    groups: [
-      ["mots c"],
-      ["mots-c"],
-      ["motsc"],
-      ["mots"],
-    ],
+    groups: [["cartalax", "bpc", "tb500"]],
   },
 ];
 function normalizeProductOrderText(value = "") {
