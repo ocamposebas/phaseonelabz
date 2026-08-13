@@ -768,6 +768,22 @@ function getProductPrice(product) {
 
   if (storePrice > 0) return storePrice;
 
+  const variationPrices = getProductVariationObjects(product)
+    .map((variation) => {
+      return getFirstPositivePrice(variation, [
+        "price",
+        "current_price",
+        "currentPrice",
+        "sale_price",
+        "salePrice",
+        "regular_price",
+        "regularPrice",
+      ]);
+    })
+    .filter((price) => price > 0);
+
+  if (variationPrices.length > 0) return Math.min(...variationPrices);
+
   const htmlPrices = extractPriceNumbers(
     product?.price_html || product?.priceHtml || ""
   );
