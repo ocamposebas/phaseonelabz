@@ -1237,7 +1237,7 @@ function FamilyCard({ group, onOpen }) {
           {group.currentLotCount > 0 && (
             <span className="inline-flex min-h-7 items-center gap-1.5 text-[7px] font-black uppercase tracking-[0.13em] text-emerald-200 sm:text-[8px]">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-300 shadow-[0_0_10px_rgba(110,231,183,0.9)]" />
-              Current lot
+              {group.currentLotCount} current
             </span>
           )}
         </div>
@@ -1360,13 +1360,19 @@ function FamilyModal({ group, initialStrengthKey = "", onClose }) {
       ? initialStrengthKey
       : group.strengthGroups[0]?.key || ""
   );
+  const [selectedRecordId, setSelectedRecordId] = useState("");
 
   const selectedStrength =
     group.strengthGroups.find((item) => item.key === selectedStrengthKey) ||
     group.strengthGroups[0];
   const records = selectedStrength?.records || [];
+  const currentRecords = records.filter((record) =>
+    isCurrentShippingLot(record)
+  );
   const primaryRecord =
-    records.find((record) => isCurrentShippingLot(record)) || records[0];
+    currentRecords.find((record) => record.id === selectedRecordId) ||
+    currentRecords[0] ||
+    records[0];
   const currentCoa = primaryRecord ? getCurrentCoa(primaryRecord) : {};
   const currentUrl =
     getCertificateUrl(currentCoa) || getCertificateUrl(primaryRecord);
@@ -1383,7 +1389,7 @@ function FamilyModal({ group, initialStrengthKey = "", onClose }) {
     const documents = [];
 
     selectedStrength.records.forEach((record) => {
-      if (record.id !== primaryRecord?.id) {
+      if (!isCurrentShippingLot(record)) {
         const recordCurrent = getCurrentCoa(record);
         documents.push({
           ...recordCurrent,
@@ -1405,7 +1411,7 @@ function FamilyModal({ group, initialStrengthKey = "", onClose }) {
     });
 
     return documents.sort((a, b) => dateValue(b.date) - dateValue(a.date));
-  }, [selectedStrength, primaryRecord?.id]);
+  }, [selectedStrength]);
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
@@ -1469,6 +1475,14 @@ function FamilyModal({ group, initialStrengthKey = "", onClose }) {
                 <span className="text-[8px] font-bold uppercase tracking-[0.12em] text-slate-600">
                   {group.reportCount} reports
                 </span>
+                {group.currentLotCount > 0 && (
+                  <>
+                    <span className="h-1 w-1 rounded-full bg-emerald-300/50" />
+                    <span className="text-[8px] font-bold uppercase tracking-[0.12em] text-emerald-300/75">
+                      {group.currentLotCount} current
+                    </span>
+                  </>
+                )}
               </div>
               <h2 className="mt-1 truncate text-[21px] font-semibold leading-none tracking-[-0.045em] text-white sm:text-[24px]">
                 {safeGroupName}
@@ -1504,7 +1518,10 @@ function FamilyModal({ group, initialStrengthKey = "", onClose }) {
                   type="button"
                   role="tab"
                   aria-selected={active}
-                  onClick={() => setSelectedStrengthKey(strengthGroup.key)}
+                  onClick={() => {
+                    setSelectedStrengthKey(strengthGroup.key);
+                    setSelectedRecordId("");
+                  }}
                   className={cx(
                     "inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-xl border px-2.5 text-[9px] font-semibold tracking-[-0.01em] transition sm:min-h-9 sm:gap-2 sm:px-3.5 sm:text-[10px]",
                     active
@@ -1515,7 +1532,14 @@ function FamilyModal({ group, initialStrengthKey = "", onClose }) {
                   {active && <Check size={12} />}
                   {strengthGroup.label}
                   {hasCurrentLot && (
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-300 shadow-[0_0_8px_rgba(110,231,183,0.9)]" />
+                    <span className="inline-flex items-center gap-1 text-[7px] font-black text-emerald-300">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-300 shadow-[0_0_8px_rgba(110,231,183,0.9)]" />
+                      {
+                        strengthGroup.records.filter((record) =>
+                          isCurrentShippingLot(record)
+                        ).length
+                      }
+                    </span>
                   )}
                 </button>
               );
@@ -1553,6 +1577,63 @@ function FamilyModal({ group, initialStrengthKey = "", onClose }) {
                   <span className="mx-2 inline-block h-1 w-1 rounded-full bg-slate-700 align-middle" />
                   {documentLabel}
                 </p>
+
+                {currentRecords.length > 1 && (
+                  <section className="mt-4">
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <p className="text-[7px] font-black uppercase tracking-[0.16em] text-emerald-300/65">
+                        Active shipping lots
+                      </p>
+                      <span className="rounded-full border border-emerald-300/10 bg-emerald-400/[0.04] px-2 py-0.5 text-[7px] font-bold text-emerald-200/75">
+                        {currentRecords.length}
+                      </span>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      {currentRecords.map((record) => {
+                        const active = record.id === primaryRecord?.id;
+                        const batch = cleanDisplayText(
+                          record.batch || record.lot || record.coaNumber,
+                          "Batch pending"
+                        );
+
+                        return (
+                          <button
+                            key={record.id}
+                            type="button"
+                            onClick={() => setSelectedRecordId(record.id)}
+                            aria-pressed={active}
+                            className={cx(
+                              "flex w-full items-center gap-2 rounded-lg border px-2.5 py-2 text-left transition",
+                              active
+                                ? "border-emerald-300/25 bg-emerald-400/[0.08]"
+                                : "border-white/[0.06] bg-white/[0.015] hover:border-emerald-300/15 hover:bg-emerald-400/[0.035]"
+                            )}
+                          >
+                            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-300 shadow-[0_0_8px_rgba(110,231,183,0.75)]" />
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-[9px] font-semibold text-slate-300">
+                                {cleanDisplayText(
+                                  getManagerProductName(record),
+                                  group.name
+                                )}
+                              </span>
+                              <span className="mt-0.5 block truncate text-[8px] text-slate-600">
+                                {batch}
+                              </span>
+                            </span>
+                            {active && (
+                              <Check
+                                size={11}
+                                className="shrink-0 text-emerald-200"
+                              />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </section>
+                )}
 
                 <div className="mt-4 lg:overflow-hidden lg:rounded-xl lg:border lg:border-white/[0.07] lg:bg-white/[0.018]">
                   <dl className="grid grid-cols-2 gap-2 lg:block lg:gap-0">

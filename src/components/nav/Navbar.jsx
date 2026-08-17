@@ -549,7 +549,7 @@ export default function SiteHeader({
     } finally {
       window.dispatchEvent(new Event("lab-auth-updated"));
       window.location.assign("/account");
-s    }
+  }
   };
 
   return (
