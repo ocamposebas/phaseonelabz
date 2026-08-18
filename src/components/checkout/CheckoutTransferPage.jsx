@@ -1458,6 +1458,29 @@ function getSessionIdFromUrl() {
   );
 }
 
+function getTikTokAttribution() {
+  if (typeof window === "undefined") return {};
+
+  try {
+    const attribution =
+      typeof window.P1?.getAttribution === "function"
+        ? window.P1.getAttribution()
+        : {
+            ttclid:
+              typeof window.poGetClickId === "function"
+                ? window.poGetClickId("ttclid")
+                : "",
+          };
+
+    return {
+      ...attribution,
+      user_agent: window.navigator?.userAgent || "",
+    };
+  } catch {
+    return {};
+  }
+}
+
 function isExpiredCartCheckoutSession(session) {
   const numericExpiry = Number(session?.cartExpiresAt || 0);
   const isoExpiry = Date.parse(session?.cart_expires_at || "");
@@ -2788,6 +2811,7 @@ export default function CheckoutTransferPage() {
           },
           contract: signedContract,
           signedContract,
+          tracking: getTikTokAttribution(),
           source: "phaseone_custom_checkout_prism",
         }),
       });
@@ -3039,6 +3063,7 @@ export default function CheckoutTransferPage() {
           },
           contract: signedContract,
           signedContract,
+          tracking: getTikTokAttribution(),
         }),
       });
 
@@ -3321,6 +3346,7 @@ export default function CheckoutTransferPage() {
           },
           contract: signedContract,
           signedContract,
+          tracking: getTikTokAttribution(),
         }),
       });
 

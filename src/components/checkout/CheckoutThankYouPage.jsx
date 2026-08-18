@@ -419,6 +419,8 @@ export default function CheckoutThankYouPage() {
     visibleOrder?.order_id ||
     context?.orderId ||
     "";
+  const trackingOrderId =
+    visibleOrder?.id || visibleOrder?.order_id || context?.orderId || "";
   const currency =
     visibleOrder?.currency || manualOrder?.currency || context?.pending?.currency || "USD";
   const total =
@@ -458,22 +460,20 @@ export default function CheckoutThankYouPage() {
     (context?.gateway === "zelle" ? "Zelle" : "Manual payment");
 
   useEffect(() => {
-    const shouldTrack = statusState === "paid" || statusState === "manual";
+    const shouldTrack = statusState === "paid";
     const pixelConfiguration = window.P1?.configured;
 
     if (
       !shouldTrack ||
       purchaseTrackedRef.current ||
-      !orderNumber ||
+      !trackingOrderId ||
       typeof window.P1?.purchase !== "function" ||
-      (pixelConfiguration &&
-        !pixelConfiguration.meta &&
-        !pixelConfiguration.tiktok)
+      (pixelConfiguration && !pixelConfiguration.tiktok)
     ) {
       return;
     }
 
-    const dedupeKey = `phaseone_p1_purchase_${String(orderNumber)}`;
+    const dedupeKey = `phaseone_p1_purchase_${String(trackingOrderId)}`;
 
     try {
       if (window.localStorage.getItem(dedupeKey) === "1") {
@@ -485,8 +485,9 @@ export default function CheckoutThankYouPage() {
     }
 
     window.P1.purchase({
-      orderId: String(orderNumber),
+      orderId: String(trackingOrderId),
       value: toNumber(total, 0),
+      currency,
       items: items.map((item) => {
         const quantity = getItemQuantity(item);
         return {
@@ -513,7 +514,7 @@ export default function CheckoutThankYouPage() {
     } catch {
       // Ignore blocked storage.
     }
-  }, [items, orderNumber, statusState, total]);
+  }, [currency, items, statusState, total, trackingOrderId]);
 
   const statusContent = useMemo(() => {
     if (statusState === "paid") {

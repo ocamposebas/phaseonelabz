@@ -1,52 +1,93 @@
-// Phase One Labz browser pixels.
-// Meta queda conservado para activarlo más adelante, pero está pausado.
-var META_PIXEL_ENABLED = false;
-var META_PIXEL_ID = "YOUR_META_PIXEL_ID";
+// Phase One Labz TikTok browser tracking.
 var TIKTOK_PIXEL_ID = "D9UBLSRC77UDKVSV1D90";
 
 (function (window, document) {
   "use strict";
 
+  var ATTRIBUTION_DAYS = 30;
+  var ATTRIBUTION_KEYS = [
+    "ttclid",
+    "utm_source",
+    "utm_medium",
+    "utm_campaign",
+    "utm_content",
+    "utm_term",
+  ];
   var sequence = 0;
 
   function hasPixelId(value) {
     return Boolean(value && !/^YOUR_[A-Z_]+$/.test(String(value)));
   }
 
-  var metaConfigured = META_PIXEL_ENABLED && hasPixelId(META_PIXEL_ID);
-  var tiktokConfigured = hasPixelId(TIKTOK_PIXEL_ID);
-
-  // META PIXEL (comentado funcionalmente mediante META_PIXEL_ENABLED = false)
-  if (metaConfigured) {
-    !(function (f, b, e, v, n, t, s) {
-      if (f.fbq) return;
-      n = f.fbq = function () {
-        n.callMethod
-          ? n.callMethod.apply(n, arguments)
-          : n.queue.push(arguments);
-      };
-      if (!f._fbq) f._fbq = n;
-      n.push = n;
-      n.loaded = true;
-      n.version = "2.0";
-      n.queue = [];
-      t = b.createElement(e);
-      t.async = true;
-      t.src = v;
-      s = b.getElementsByTagName(e)[0];
-      s.parentNode.insertBefore(t, s);
-    })(
-      window,
-      document,
-      "script",
-      "https://connect.facebook.net/en_US/fbevents.js",
-    );
-
-    window.fbq("init", META_PIXEL_ID);
-    window.fbq("track", "PageView");
+  function readCookie(key) {
+    try {
+      var match = document.cookie.match(
+        new RegExp("(?:^|; )" + key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "=([^;]*)"),
+      );
+      return match ? decodeURIComponent(match[1]) : "";
+    } catch (_error) {
+      return "";
+    }
   }
 
-  // TIKTOK PIXEL
+  function readStoredValue(key) {
+    var cookieValue = readCookie(key);
+    if (cookieValue) return cookieValue;
+
+    try {
+      return window.localStorage.getItem("po_" + key) || "";
+    } catch (_error) {
+      return "";
+    }
+  }
+
+  function storeValue(key, value) {
+    if (!value) return;
+
+    try {
+      document.cookie =
+        key +
+        "=" +
+        encodeURIComponent(value) +
+        ";path=/;max-age=" +
+        60 * 60 * 24 * ATTRIBUTION_DAYS +
+        ";SameSite=Lax;Secure";
+    } catch (_error) {}
+
+    try {
+      window.localStorage.setItem("po_" + key, value);
+    } catch (_error) {}
+  }
+
+  function captureAttribution() {
+    try {
+      var params = new URLSearchParams(window.location.search);
+      var capturedClick = false;
+
+      ATTRIBUTION_KEYS.forEach(function (key) {
+        var value = params.get(key);
+        if (!value) return;
+        storeValue(key, value.slice(0, 500));
+        if (key === "ttclid") capturedClick = true;
+      });
+
+      if (capturedClick) {
+        var now = String(Date.now());
+        storeValue("click_ts", now);
+        storeValue("landing_url", window.location.href.slice(0, 1000));
+      }
+    } catch (_error) {
+      // Attribution must never interfere with storefront access.
+    }
+  }
+
+  captureAttribution();
+
+  // Kept globally available so checkout can forward first-touch attribution.
+  window.poGetClickId = readStoredValue;
+
+  var tiktokConfigured = hasPixelId(TIKTOK_PIXEL_ID);
+
   if (tiktokConfigured) {
     !(function (w, d, t) {
       w.TiktokAnalyticsObject = t;
@@ -76,13 +117,13 @@ var TIKTOK_PIXEL_ID = "D9UBLSRC77UDKVSV1D90";
           );
         };
       };
-      for (var i = 0; i < ttq.methods.length; i += 1) {
-        ttq.setAndDefer(ttq, ttq.methods[i]);
+      for (var index = 0; index < ttq.methods.length; index += 1) {
+        ttq.setAndDefer(ttq, ttq.methods[index]);
       }
       ttq.instance = function (pixelId) {
         var instance = ttq._i[pixelId] || [];
-        for (var j = 0; j < ttq.methods.length; j += 1) {
-          ttq.setAndDefer(instance, ttq.methods[j]);
+        for (var methodIndex = 0; methodIndex < ttq.methods.length; methodIndex += 1) {
+          ttq.setAndDefer(instance, ttq.methods[methodIndex]);
         }
         return instance;
       };
@@ -144,14 +185,7 @@ var TIKTOK_PIXEL_ID = "D9UBLSRC77UDKVSV1D90";
     return [prefix, key || "", Date.now(), sequence].join("_");
   }
 
-  function metaTrack(eventName, payload, id) {
-    if (!metaConfigured || typeof window.fbq !== "function") return;
-    try {
-      window.fbq("track", eventName, payload, { eventID: id });
-    } catch (_error) {}
-  }
-
-  function tiktokTrack(eventName, payload) {
+  function tiktokTrack(eventName, payload, id) {
     if (
       !tiktokConfigured ||
       !window.ttq ||
@@ -159,8 +193,9 @@ var TIKTOK_PIXEL_ID = "D9UBLSRC77UDKVSV1D90";
     ) {
       return;
     }
+
     try {
-      window.ttq.track(eventName, payload);
+      window.ttq.track(eventName, payload, { event_id: id });
     } catch (_error) {}
   }
 
@@ -179,41 +214,41 @@ var TIKTOK_PIXEL_ID = "D9UBLSRC77UDKVSV1D90";
       .filter(Boolean);
   }
 
-  function totalQuantity(items) {
-    return items.reduce(function (total, item) {
-      return total + item.quantity;
-    }, 0);
-  }
-
-  // One P1 call fires both pixels. The shared event ID can be reused by a
-  // future server-side event to deduplicate browser and server conversions.
   window.P1 = {
     configured: {
-      meta: metaConfigured,
       tiktok: tiktokConfigured,
+    },
+
+    getAttribution: function () {
+      var attribution = {};
+      ATTRIBUTION_KEYS.concat(["click_ts", "landing_url"]).forEach(
+        function (key) {
+          var value = readStoredValue(key);
+          if (value) attribution[key] = value;
+        },
+      );
+
+      var ttp = readCookie("_ttp");
+      if (ttp) attribution.ttp = ttp;
+      return attribution;
     },
 
     viewContent: function (options) {
       var o = options || {};
       var id = eventId("vc", itemId(o));
       var value = Math.max(0, number(o.price, 0));
-      var payload = {
-        content_name: itemName(o),
-        content_ids: [itemId(o)].filter(Boolean),
-        content_type: "product",
-        value: value,
-        currency: "USD",
-      };
 
-      metaTrack("ViewContent", payload, id);
-      tiktokTrack("ViewContent", {
-        content_id: itemId(o),
-        content_name: itemName(o),
-        content_type: "product",
-        value: value,
-        currency: "USD",
-        event_id: id,
-      });
+      tiktokTrack(
+        "ViewContent",
+        {
+          content_id: itemId(o),
+          content_name: itemName(o),
+          content_type: "product",
+          value: value,
+          currency: "USD",
+        },
+        id,
+      );
       return id;
     },
 
@@ -221,32 +256,19 @@ var TIKTOK_PIXEL_ID = "D9UBLSRC77UDKVSV1D90";
       var o = options || {};
       var id = eventId("atc", itemId(o));
       var value = Math.max(0, number(o.value, number(o.price, 0)));
-      var quantity = itemQuantity(o);
-      var payload = {
-        content_name: itemName(o),
-        content_ids: [itemId(o)].filter(Boolean),
-        contents: [
-          {
-            id: itemId(o),
-            quantity: quantity,
-            item_price: quantity ? value / quantity : value,
-          },
-        ],
-        content_type: "product",
-        value: value,
-        currency: "USD",
-      };
 
-      metaTrack("AddToCart", payload, id);
-      tiktokTrack("AddToCart", {
-        content_id: itemId(o),
-        content_name: itemName(o),
-        content_type: "product",
-        quantity: quantity,
-        value: value,
-        currency: "USD",
-        event_id: id,
-      });
+      tiktokTrack(
+        "AddToCart",
+        {
+          content_id: itemId(o),
+          content_name: itemName(o),
+          content_type: "product",
+          quantity: itemQuantity(o),
+          value: value,
+          currency: "USD",
+        },
+        id,
+      );
       return id;
     },
 
@@ -254,82 +276,42 @@ var TIKTOK_PIXEL_ID = "D9UBLSRC77UDKVSV1D90";
       var o = options || {};
       var items = normalizeItems(o.items);
       var id = eventId("ic", "");
-      var value = Math.max(0, number(o.value, 0));
-      var contentIds = items.map(function (item) {
-        return item.content_id;
-      });
 
-      metaTrack(
+      tiktokTrack(
         "InitiateCheckout",
         {
-          value: value,
-          currency: "USD",
-          content_ids: contentIds.slice(0, 10),
-          contents: items.slice(0, 10).map(function (item) {
-            return {
-              id: item.content_id,
-              quantity: item.quantity,
-              item_price: item.price,
-            };
-          }),
+          contents: items.slice(0, 10),
           content_type: "product",
-          num_items: totalQuantity(items),
+          value: Math.max(0, number(o.value, 0)),
+          currency: "USD",
         },
         id,
       );
-      tiktokTrack("InitiateCheckout", {
-        contents: items.slice(0, 10),
-        content_type: "product",
-        value: value,
-        currency: "USD",
-        event_id: id,
-      });
       return id;
     },
 
     purchase: function (options) {
       var o = options || {};
-      var items = normalizeItems(o.items);
-      var id = String(o.orderId || eventId("pur", ""));
-      var value = Math.max(0, number(o.value, 0));
-      var contentIds = items.map(function (item) {
-        return item.content_id;
-      });
+      var orderId = String(o.orderId || "").trim();
+      if (!orderId) return "";
 
-      metaTrack(
-        "Purchase",
+      var id = "po_" + orderId;
+      tiktokTrack(
+        "CompletePayment",
         {
-          value: value,
-          currency: "USD",
-          content_ids: contentIds,
-          contents: items.map(function (item) {
-            return {
-              id: item.content_id,
-              quantity: item.quantity,
-              item_price: item.price,
-            };
-          }),
+          contents: normalizeItems(o.items),
           content_type: "product",
-          order_id: o.orderId,
-          num_items: totalQuantity(items),
+          value: Math.max(0, number(o.value, 0)),
+          currency: String(o.currency || "USD").toUpperCase(),
+          order_id: orderId,
         },
         id,
       );
-      tiktokTrack("CompletePayment", {
-        contents: items,
-        content_type: "product",
-        value: value,
-        currency: "USD",
-        order_id: String(o.orderId || ""),
-        event_id: id,
-      });
       return id;
     },
   };
 
-  if ((META_PIXEL_ENABLED && !metaConfigured) || !tiktokConfigured) {
-    window.console.warn(
-      "[Phase One] An enabled pixel is missing its ID in /pixel.js.",
-    );
+  if (!tiktokConfigured) {
+    window.console.warn("[Phase One] TikTok Pixel is missing its ID in /pixel.js.");
   }
 })(window, document);

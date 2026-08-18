@@ -78,6 +78,51 @@ function getAccountToken(request: Request): string {
   );
 }
 
+function cleanTrackingValue(value: unknown, maxLength = 500): string {
+  return String(value || "").trim().slice(0, maxLength);
+}
+
+function getTikTokTracking(
+  request: Request,
+  supplied: unknown,
+): Record<string, string> {
+  const source = supplied && typeof supplied === "object"
+    ? supplied as Record<string, unknown>
+    : {};
+  const cookieHeader = request.headers.get("cookie") || "";
+  const tracking: Record<string, string> = {};
+
+  for (const key of [
+    "ttclid",
+    "ttp",
+    "click_ts",
+    "landing_url",
+    "utm_source",
+    "utm_medium",
+    "utm_campaign",
+    "utm_content",
+    "utm_term",
+  ]) {
+    const maxLength = key === "landing_url" ? 1000 : 500;
+    const value = cleanTrackingValue(source[key], maxLength);
+    if (value) tracking[key] = value;
+  }
+
+  tracking.ttclid = tracking.ttclid || cleanTrackingValue(
+    getCookieValue(cookieHeader, "ttclid"),
+  );
+  tracking.ttp = tracking.ttp || cleanTrackingValue(
+    getCookieValue(cookieHeader, "_ttp"),
+  );
+  tracking.ip = cleanTrackingValue(getClientIp(request), 100);
+  tracking.user_agent = cleanTrackingValue(
+    source.user_agent || request.headers.get("user-agent"),
+    1000,
+  );
+
+  return tracking;
+}
+
 async function getAuthenticatedAccount(
   request: Request,
   wordpressUrl: string,
@@ -182,6 +227,8 @@ export const POST: APIRoute = async ({ request }) => {
         email: accountEmail,
       };
     }
+
+    parsed.tracking = getTikTokTracking(request, parsed.tracking);
 
     const response = await fetch(
       `${wordpressUrl}/wp-json/phaseone/v1/prism-checkout`,

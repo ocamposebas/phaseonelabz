@@ -70,6 +70,31 @@ after three matching reports within 15 minutes. These aggregates are held in
 memory and reset on restart; configure `STATUS_RELEASE_SHA` (or Coolify's
 `SOURCE_COMMIT`) to identify the deployed revision in the private snapshot.
 
+## TikTok purchase attribution
+
+The storefront captures `ttclid` and TikTok campaign UTM fields on first load,
+keeps them for 30 days, and forwards them through every custom checkout flow.
+The browser pixel uses `D9UBLSRC77UDKVSV1D90` and fires `CompletePayment` only
+after a card order is verified as paid.
+
+Upload `wordpress/dist/phaseone-tiktok-attribution.zip` in WordPress under
+Plugins > Add New Plugin > Upload Plugin, then activate it. Configure the Events
+API token only on the WordPress server:
+
+```dotenv
+TIKTOK_CAPI_TOKEN=your-private-events-api-token
+```
+
+The plugin stores the click ID with the WooCommerce order and sends the same paid
+event from the server. Both channels use `po_<ORDER_ID>` as `event_id`, so
+TikTok can deduplicate them. Zelle and ACH orders are never reported merely for
+being created; the server event waits for WooCommerce to confirm payment.
+
+After deployment, verify that
+`/wp-json/phaseone/v1/tiktok-attribution/status` reports the expected pixel and
+`capi_configured: true`, then use TikTok Events Manager > Test Events for an
+end-to-end paid test order.
+
 ## Signed checkout agreements
 
 The custom checkout requires an electronic signature for every payment method.
