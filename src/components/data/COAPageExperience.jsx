@@ -20,7 +20,7 @@ import {
 
 const GROUPS_PER_PAGE = 12;
 const COA_REQUEST_TIMEOUT_MS = 10000;
-const COA_CACHE_KEY = "phaseone-coa-manager-report-signals-v8";
+const COA_CACHE_KEY = "phaseone-coa-manager-report-signals-v9";
 
 const DEFAULT_COA_API_URL =
   import.meta.env.PUBLIC_WP_COA_API_URL ||
@@ -625,6 +625,39 @@ function strengthSortValue(value) {
   return numeric * multiplier;
 }
 
+function getRecordProductIdentity(record) {
+  const variationId =
+    toIdArray(record.variationIds || record.variation_ids)[0] ||
+    record.matchedVariationId ||
+    record.matched_variation_id;
+  if (variationId) return `variation-${variationId}`;
+
+  const productId =
+    toIdArray(record.productIds || record.product_ids)[0] ||
+    record.matchedProductId ||
+    record.matched_product_id ||
+    toIdArray(record.wooIds || record.woo_ids)[0];
+  if (productId) return `product-${productId}`;
+
+  return "";
+}
+
+function getPresentationKey(record, strength) {
+  return (
+    getRecordProductIdentity(record) ||
+    normalizeText(strength).replace(/\s+/g, "-") ||
+    `record-${record.id}`
+  );
+}
+
+function getPresentationLabel(records, strength) {
+  const names = Array.from(
+    new Set(records.map((record) => getManagerProductName(record)).filter(Boolean))
+  );
+
+  return names.length === 1 ? names[0] : displayStrength(strength);
+}
+
 function deriveFamilyName(record) {
   return (
     getCustomFamilyName(record) ||
@@ -736,7 +769,7 @@ function groupCoaRecords(records) {
     const familyName = deriveFamilyName(record);
     const familyKey = deriveFamilyKey(record, familyName);
     const strength = extractStrength(record);
-    const strengthKey = normalizeText(strength).replace(/\s+/g, "-") || "standard";
+    const strengthKey = getPresentationKey(record, strength);
 
     if (!map.has(familyKey)) {
       map.set(familyKey, {
@@ -754,7 +787,7 @@ function groupCoaRecords(records) {
       group.strengthMap.set(strengthKey, {
         key: strengthKey,
         rawStrength: strength,
-        label: displayStrength(strength),
+        label: "",
         records: [],
       });
     }
@@ -766,6 +799,10 @@ function groupCoaRecords(records) {
     const strengthGroups = Array.from(group.strengthMap.values())
       .map((strengthGroup) => ({
         ...strengthGroup,
+        label: getPresentationLabel(
+          strengthGroup.records,
+          strengthGroup.rawStrength
+        ),
         records: [...strengthGroup.records].sort((a, b) => {
           const currentDifference =
             Number(isCurrentShippingLot(b)) - Number(isCurrentShippingLot(a));
@@ -1072,15 +1109,18 @@ function CardTestingMatrix({ panelTypes }) {
 
 function getMobileProductTitle(group, strengthGroup) {
   const groupName = cleanDisplayText(group?.name, "COA product");
-  const strength = cleanDisplayText(strengthGroup?.label, "");
+  const productName = cleanDisplayText(strengthGroup?.label, "");
+  const strength = cleanDisplayText(strengthGroup?.rawStrength, "");
 
-  if (!strength || /^(default|general|all|not reported)$/i.test(strength)) {
-    return groupName;
+  if (productName && normalizeText(productName) !== normalizeText(groupName)) {
+    return productName;
   }
 
-  return normalizeText(groupName).includes(normalizeText(strength))
+  return !strength || /^(default|general|all|not reported)$/i.test(strength)
     ? groupName
-    : `${groupName} ${strength}`;
+    : normalizeText(groupName).includes(normalizeText(strength))
+      ? groupName
+      : `${groupName} ${displayStrength(strength)}`;
 }
 
 function MobileCoaFamilyCard({ group, strengthGroup, onOpen }) {
@@ -1103,7 +1143,8 @@ function MobileCoaFamilyCard({ group, strengthGroup, onOpen }) {
             {title}
           </h3>
           <p className="mt-1.5 text-[11px] text-slate-600">
-            {records.length} active {records.length === 1 ? "batch" : "batches"}
+            {displayStrength(strengthGroup.rawStrength)} · {records.length} active{" "}
+            {records.length === 1 ? "batch" : "batches"}
           </p>
         </div>
         <span className="mt-0.5 inline-flex shrink-0 items-center gap-1.5 rounded-full border border-emerald-300/15 bg-emerald-300/[0.055] px-2.5 py-1 text-[7px] font-black uppercase tracking-[0.12em] text-emerald-200/85">
@@ -1211,9 +1252,9 @@ function MobileCoaCatalog({ groups, onOpen }) {
 }
 
 function FamilyCard({ group, onOpen }) {
-  const strengths = group.strengthGroups.map((item) => item.label);
-  const preview = strengths.slice(0, 3);
-  const remaining = strengths.length - preview.length;
+  const presentations = group.strengthGroups.map((item) => item.label);
+  const preview = presentations.slice(0, 3);
+  const remaining = presentations.length - preview.length;
 
   return (
     <button
@@ -1249,7 +1290,7 @@ function FamilyCard({ group, onOpen }) {
           <div className="mt-2 flex items-center gap-2 text-[11px] font-medium text-slate-500">
             <span>
               {group.strengthGroups.length}{" "}
-              {group.strengthGroups.length === 1 ? "strength" : "strengths"}
+              {group.strengthGroups.length === 1 ? "product" : "products"}
             </span>
             <span className="h-1 w-1 rounded-full bg-slate-700" />
             <span>
@@ -1429,12 +1470,6 @@ function FamilyModal({ group, initialStrengthKey = "", onClose }) {
     };
   }, [onClose]);
 
-  const productLabel = primaryRecord
-    ? cleanDisplayText(
-        getCustomFamilyName(primaryRecord) || group.name,
-        getManagerProductName(primaryRecord) || "Product name pending"
-      )
-    : cleanDisplayText(group.name, "COA Family");
   const documentLabel = cleanDisplayText(currentCoa.label, "Current COA");
   const safeGroupName = cleanDisplayText(group.name, "COA Family");
 
@@ -1504,7 +1539,7 @@ function FamilyModal({ group, initialStrengthKey = "", onClose }) {
           <div
             className="coa-scroll-row flex min-w-0 flex-1 gap-1.5 overflow-x-auto pb-0.5 sm:gap-2"
             role="tablist"
-            aria-label="Product strengths"
+            aria-label="Product presentations"
           >
             {group.strengthGroups.map((strengthGroup) => {
               const active = strengthGroup.key === selectedStrength?.key;
@@ -1573,7 +1608,7 @@ function FamilyModal({ group, initialStrengthKey = "", onClose }) {
                   {selectedStrength.label}
                 </h3>
                 <p className="mt-2 text-[11px] leading-5 text-slate-500">
-                  {productLabel}
+                  {displayStrength(selectedStrength.rawStrength)}
                   <span className="mx-2 inline-block h-1 w-1 rounded-full bg-slate-700 align-middle" />
                   {documentLabel}
                 </p>
@@ -2149,8 +2184,8 @@ export default function COALookupSection({
               ...storedCoa,
               key: `${group.key}-${strengthGroup.key}-${record.id}-stored-lot`,
               familyKey: group.key,
-              productName: group.name,
-              strength: strengthGroup.label,
+              productName: getManagerProductName(record) || group.name,
+              strength: displayStrength(strengthGroup.rawStrength),
               batch: record.batch || record.lot || "",
               coaNumber: record.coaNumber || "",
               label: "Stored lot",
@@ -2165,8 +2200,8 @@ export default function COALookupSection({
               ...historyItem,
               key: `${group.key}-${strengthGroup.key}-${record.id}-history-${index}`,
               familyKey: group.key,
-              productName: group.name,
-              strength: strengthGroup.label,
+              productName: getManagerProductName(record) || group.name,
+              strength: displayStrength(strengthGroup.rawStrength),
               batch: historyItem.batch || record.batch || record.lot || "",
               url: getCertificateUrl(historyItem),
             });
