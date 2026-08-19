@@ -1123,130 +1123,89 @@ function getMobileProductTitle(group, strengthGroup) {
       : `${groupName} ${displayStrength(strength)}`;
 }
 
-function MobileCoaFamilyCard({ group, strengthGroup, onOpen }) {
-  const records = [...(strengthGroup?.records || [])]
-    .filter((record) => isCurrentShippingLot(record))
-    .sort((a, b) => {
-      const aCoa = getCurrentCoa(a);
-      const bCoa = getCurrentCoa(b);
-      return dateValue(bCoa.date || b.date) - dateValue(aCoa.date || a.date);
-    });
-  const title = getMobileProductTitle(group, strengthGroup);
+function MobileCoaFamilyCard({ group, onOpen }) {
+  const presentations = group.strengthGroups.filter((presentation) =>
+    presentation.records.some((record) => isCurrentShippingLot(record))
+  );
+  const visiblePresentations = presentations.slice(0, 3);
+  const remainingPresentations = presentations.length - visiblePresentations.length;
 
-  if (records.length === 0) return null;
+  if (presentations.length === 0) return null;
 
   return (
-    <article className="overflow-hidden rounded-[1.35rem] border border-blue-100/10 bg-[#09131f]/92 p-4 shadow-[0_18px_55px_rgba(0,0,0,0.22)]">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h3 className="text-[16px] font-semibold leading-6 tracking-[-0.025em] text-slate-100">
-            {title}
-          </h3>
-          <p className="mt-1.5 text-[11px] text-slate-600">
-            {displayStrength(strengthGroup.rawStrength)} · {records.length} active{" "}
-            {records.length === 1 ? "batch" : "batches"}
-          </p>
+    <button
+      type="button"
+      onClick={() => onOpen(group.key)}
+      className="group relative w-full overflow-hidden rounded-[1.35rem] border border-blue-100/10 bg-[#09131f]/92 p-4 text-left shadow-[0_18px_55px_rgba(0,0,0,0.22)] transition active:scale-[0.99] active:border-blue-300/25 active:bg-[#0b1929]"
+      aria-label={`Open ${group.name} COA variants`}
+    >
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_90%_0%,rgba(59,130,246,0.14),transparent_42%)]" />
+
+      <div className="relative">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[7px] font-black uppercase tracking-[0.18em] text-blue-300/55">
+              COA family
+            </p>
+            <h3 className="mt-1.5 text-[18px] font-semibold leading-6 tracking-[-0.035em] text-white">
+              {cleanDisplayText(group.name, "COA product")}
+            </h3>
+            <p className="mt-1.5 text-[10px] text-slate-600">
+              {presentations.length}{" "}
+              {presentations.length === 1 ? "variant" : "variants"} ·{" "}
+              {group.currentLotCount} active
+            </p>
+          </div>
+
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-blue-300/15 bg-blue-400/[0.08] text-blue-100">
+            <ChevronRight size={17} />
+          </span>
         </div>
-        <span className="mt-0.5 inline-flex shrink-0 items-center gap-1.5 rounded-full border border-emerald-300/15 bg-emerald-300/[0.055] px-2.5 py-1 text-[7px] font-black uppercase tracking-[0.12em] text-emerald-200/85">
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-300 shadow-[0_0_8px_rgba(110,231,183,0.8)]" />
-          Shipping lot
-        </span>
-      </div>
 
-      <div className="mt-4 space-y-2">
-        {records.map((record, index) => {
-          const currentCoa = getCurrentCoa(record);
-          const url =
-            getCertificateUrl(currentCoa) || getCertificateUrl(record);
-          const rawBatch = cleanDisplayText(
-            record.batch || record.lot || record.coaNumber,
-            "Batch pending"
-          );
-          const batch =
-            rawBatch === "Batch pending" || rawBatch.startsWith("#")
-              ? rawBatch
-              : `#${rawBatch}`;
-          const purity = cleanDisplayText(
-            currentCoa.purity || record.purity,
-            "Verified"
-          );
-          const reportDate = formatDate(
-            currentCoa.date || record.date || ""
-          );
-
-          return (
+        <div className="mt-4 space-y-1.5">
+          {visiblePresentations.map((presentation) => (
             <div
-              key={record.id || `${strengthGroup.key}-${index}`}
-              className="grid min-h-[72px] grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-xl border border-white/[0.065] bg-[#050d17]/78 px-3 py-2.5"
+              key={presentation.key}
+              className="flex min-h-11 items-center gap-2.5 rounded-xl border border-white/[0.06] bg-[#050d17]/72 px-3 py-2"
             >
-              <div className="min-w-0">
-                <div className="flex min-w-0 items-center gap-2">
-                  <p className="truncate text-[12px] font-semibold tracking-[0.01em] text-slate-300">
-                    {batch}
-                  </p>
-                  {index === 0 && (
-                    <span className="shrink-0 rounded-md border border-emerald-300/15 bg-emerald-300/[0.07] px-1.5 py-0.5 text-[7px] font-black uppercase tracking-[0.08em] text-emerald-300">
-                      Latest
-                    </span>
-                  )}
-                </div>
-                <div className="mt-1.5 flex min-w-0 items-center gap-2 text-[9px]">
-                  <span className="shrink-0 font-bold text-emerald-300/90">
-                    {purity}
-                  </span>
-                  <span className="h-1 w-1 shrink-0 rounded-full bg-slate-700" />
-                  <span className="truncate text-slate-600">
-                    {reportDate || "Date pending"}
-                  </span>
-                </div>
-              </div>
-
-              {url ? (
-                <a
-                  href={url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex min-h-10 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-blue-200/12 bg-blue-300/[0.055] px-3 text-[8px] font-black uppercase tracking-[0.1em] text-blue-100 transition active:scale-[0.98]"
-                  aria-label={`View COA for batch ${rawBatch}`}
-                >
-                  View COA
-                  <ArrowUpRight size={11} />
-                </a>
-              ) : (
-                <span className="inline-flex min-h-10 shrink-0 items-center rounded-xl border border-white/[0.055] px-3 text-[8px] font-black uppercase tracking-[0.09em] text-slate-700">
-                  Pending
-                </span>
-              )}
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-300 shadow-[0_0_8px_rgba(110,231,183,0.75)]" />
+              <span className="min-w-0 flex-1 truncate text-[11px] font-semibold text-slate-300">
+                {getMobileProductTitle(group, presentation)}
+              </span>
+              <span className="shrink-0 text-[8px] font-bold text-slate-600">
+                {displayStrength(presentation.rawStrength)}
+              </span>
             </div>
-          );
-        })}
-      </div>
+          ))}
+        </div>
 
-      <button
-        type="button"
-        onClick={() => onOpen(group.key, strengthGroup.key)}
-        className="mt-3 flex min-h-10 w-full items-center justify-center gap-1.5 rounded-xl text-[8px] font-black uppercase tracking-[0.13em] text-blue-200/55 transition active:bg-blue-300/[0.05] active:text-blue-100"
-      >
-        View full test details
-        <ChevronRight size={12} />
-      </button>
-    </article>
+        {remainingPresentations > 0 && (
+          <p className="mt-2 text-center text-[8px] font-black uppercase tracking-[0.13em] text-blue-200/50">
+            +{remainingPresentations} more{" "}
+            {remainingPresentations === 1 ? "variant" : "variants"}
+          </p>
+        )}
+
+        <div className="mt-4 flex min-h-10 items-center justify-between border-t border-white/[0.06] pt-3">
+          <span className="text-[8px] font-black uppercase tracking-[0.14em] text-blue-200/70">
+            View variants and reports
+          </span>
+          <span className="inline-flex items-center gap-1.5 text-[8px] font-black uppercase tracking-[0.1em] text-emerald-200/75">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-300" />
+            Current
+          </span>
+        </div>
+      </div>
+    </button>
   );
 }
 
 function MobileCoaCatalog({ groups, onOpen }) {
   return (
     <div className="space-y-3">
-      {groups.flatMap((group) =>
-        group.strengthGroups.map((strengthGroup) => (
-          <MobileCoaFamilyCard
-            key={`${group.key}-${strengthGroup.key}`}
-            group={group}
-            strengthGroup={strengthGroup}
-            onOpen={onOpen}
-          />
-        ))
-      )}
+      {groups.map((group) => (
+        <MobileCoaFamilyCard key={group.key} group={group} onOpen={onOpen} />
+      ))}
     </div>
   );
 }
