@@ -87,6 +87,7 @@ const PAYMENT_METHODS = [
     label: "Bank transfer",
     title: "Bank Transfer / ACH",
     description: "Continue to the secure ACH bank transfer portal.",
+    badge: "Secure",
     flow: "bank_transfer_yodlee",
     gatewayId: "edd_draft_yodlee_gateway",
     icon: Landmark,
