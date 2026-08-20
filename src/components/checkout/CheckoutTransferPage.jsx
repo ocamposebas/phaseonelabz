@@ -30,7 +30,7 @@ const WOO_URL =
 const PAYMENT_DISCOUNT_RATE = 0.05;
 const MAX_COMBINED_DISCOUNT_RATE = 0.4;
 const MANUAL_PAYMENT_SHIPPING_COST = 13;
-const PAYMENT_DISCOUNT_METHOD_IDS = ["zelle", "bank"];
+const PAYMENT_DISCOUNT_METHOD_IDS = ["zelle"];
 const MANUAL_PAYMENT_METHOD_IDS = ["zelle"];
 
 // One customer-facing protection option. ParcelGuard through ShipStation is
@@ -87,7 +87,6 @@ const PAYMENT_METHODS = [
     label: "Bank transfer",
     title: "Bank Transfer / ACH",
     description: "Continue to the secure ACH bank transfer portal.",
-    badge: "5% OFF",
     flow: "bank_transfer_yodlee",
     gatewayId: "edd_draft_yodlee_gateway",
     icon: Landmark,
@@ -558,8 +557,6 @@ function getPaymentDiscountAmount(methodId = "", amount = 0) {
 
 function getPaymentDiscountLabel(method = {}) {
   if (!isPaymentDiscountEligible(method?.id)) return "";
-
-  if (method?.id === "bank") return "ACH 5% discount";
 
   return `${method?.label || method?.title || "Payment"} 5% discount`;
 }
