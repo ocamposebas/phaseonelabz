@@ -71,13 +71,16 @@ export function emptySiteControlConfig() {
     configured: false,
     promo: {
       enabled: false,
+      type: "general",
       eyebrow: "Limited time special",
       title: "20% off sitewide",
       info: "Research essentials, available for a limited time.",
       endsAt: null,
       hours: 24,
+      durationMinutes: 1440,
       ctaLabel: "Shop promotion",
       ctaUrl: "/shop",
+      product: null,
     },
     maintenance: {
       enabled: false,
@@ -102,18 +105,56 @@ function normalizeConfig(payload) {
     payload?.maintenance && typeof payload.maintenance === "object"
       ? payload.maintenance
       : {};
+  const product =
+    promo.product && typeof promo.product === "object" ? promo.product : null;
+  const saleScope = ["product", "all", "single"].includes(product?.sale_scope)
+    ? product.sale_scope
+    : null;
 
   return {
     configured: true,
     promo: {
       enabled: promo.enabled === true,
+      type: promo.type === "product" && product ? "product" : "general",
       eyebrow: cleanText(promo.eyebrow, fallback.promo.eyebrow, 80),
       title: cleanText(promo.title, fallback.promo.title, 120),
       info: cleanText(promo.info, fallback.promo.info, 220),
       endsAt: promo.ends_at || promo.endsAt || null,
       hours: Math.max(1, Math.min(720, Number(promo.hours) || 24)),
+      durationMinutes: Math.max(
+        1,
+        Math.min(
+          43_200,
+          Number(promo.duration_minutes || promo.durationMinutes) ||
+            fallback.promo.durationMinutes,
+        ),
+      ),
       ctaLabel: cleanText(promo.cta_label || promo.ctaLabel, fallback.promo.ctaLabel, 60),
       ctaUrl: cleanText(promo.cta_url || promo.ctaUrl, fallback.promo.ctaUrl, 500),
+      product: product
+        ? {
+            id: Number(product.id) || null,
+            name: cleanText(product.name, "Featured product", 140),
+            slug: cleanText(product.slug, "", 180),
+            url: cleanText(product.url, "", 500),
+            originalPrice: cleanText(
+              product.original_price || product.originalPrice,
+              "",
+              60,
+            ),
+            promoPrice: cleanText(product.promo_price || product.promoPrice, "", 60),
+            currency: cleanText(product.currency, "USD", 12).toUpperCase(),
+            saleScope,
+            variationId: Number(product.variation_id || product.variationId) || null,
+            variationLabel: cleanText(
+              product.variation_label || product.variationLabel,
+              "",
+              160,
+            ),
+            salePriceActive:
+              product.sale_price_active === true || product.salePriceActive === true,
+          }
+        : null,
     },
     maintenance: {
       enabled: maintenance.enabled === true,

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowRight, FlaskConical, Timer } from "lucide-react";
+import { ArrowRight, BadgePercent, FlaskConical, Timer } from "lucide-react";
 
 function remainingUntil(endsAt) {
   const end = new Date(endsAt || 0).getTime();
@@ -20,6 +20,26 @@ function TimeUnit({ value, label }) {
       <span>{label}</span>
     </div>
   );
+}
+
+function formatPrice(value, currency) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+
+  const amount = Number(raw);
+  const currencyCode = String(currency || "").trim().toUpperCase();
+  if (!Number.isFinite(amount) || !/^[A-Z]{3}$/.test(currencyCode)) return raw;
+
+  try {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: currencyCode,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  } catch {
+    return `${currencyCode} ${raw}`;
+  }
 }
 
 export default function PromoCountdownBar({ promo }) {
@@ -71,19 +91,63 @@ export default function PromoCountdownBar({ promo }) {
     return null;
   }
 
+  const isProductPromo = currentPromo.type === "product" && currentPromo.product;
+  const product = isProductPromo ? currentPromo.product : null;
+  const productHref = product?.url || currentPromo.ctaUrl || "";
+  const hasPrices = Boolean(product?.originalPrice && product?.promoPrice);
+  const originalPrice = hasPrices
+    ? formatPrice(product.originalPrice, product.currency)
+    : "";
+  const promoPrice = hasPrices ? formatPrice(product.promoPrice, product.currency) : "";
+  const Wrapper = isProductPromo && productHref ? "a" : "aside";
+  const wrapperProps =
+    Wrapper === "a"
+      ? {
+          href: productHref,
+          "aria-label": `${currentPromo.ctaLabel || "Shop promotion"}: ${product.name}`,
+        }
+      : { "aria-label": "Limited-time promotion" };
+
   return (
-    <aside className="promo-countdown-shell" aria-label="Limited-time promotion">
+    <Wrapper
+      className={`promo-countdown-shell${isProductPromo ? " promo-countdown-product" : ""}`}
+      {...wrapperProps}
+    >
       <div className="promo-countdown-glow" aria-hidden="true" />
 
       <div className="promo-countdown-content">
         <div className="promo-countdown-icon" aria-hidden="true">
-          <FlaskConical size={24} strokeWidth={1.7} />
+          {isProductPromo ? (
+            <BadgePercent size={26} strokeWidth={1.7} />
+          ) : (
+            <FlaskConical size={24} strokeWidth={1.7} />
+          )}
         </div>
 
         <div className="promo-countdown-copy">
           <p>{currentPromo.eyebrow}</p>
-          <h2>{currentPromo.title}</h2>
-          {currentPromo.info && <span>{currentPromo.info}</span>}
+          <h2>{isProductPromo ? product.name : currentPromo.title}</h2>
+          {isProductPromo ? (
+            <div className="promo-product-details">
+              {hasPrices && (
+                <div className="promo-product-prices" aria-label={`Now ${promoPrice}, previously ${originalPrice}`}>
+                  <del>{originalPrice}</del>
+                  <strong>{promoPrice}</strong>
+                </div>
+              )}
+              {product.saleScope === "single" && product.variationLabel && (
+                <span className="promo-product-variation">{product.variationLabel}</span>
+              )}
+              {product.saleScope === "all" && (
+                <span className="promo-product-variation">All variants</span>
+              )}
+              {product.salePriceActive && (
+                <span className="promo-product-live">Sale active</span>
+              )}
+            </div>
+          ) : (
+            currentPromo.info && <span>{currentPromo.info}</span>
+          )}
         </div>
 
         <div className="promo-countdown-timer-wrap">
@@ -101,12 +165,17 @@ export default function PromoCountdownBar({ promo }) {
           </div>
         </div>
 
-        {currentPromo.ctaLabel && currentPromo.ctaUrl && (
+        {isProductPromo && productHref ? (
+          <span className="promo-countdown-cta promo-product-cta" aria-hidden="true">
+            <span>{currentPromo.ctaLabel || "Shop now"}</span>
+            <ArrowRight size={14} aria-hidden="true" />
+          </span>
+        ) : currentPromo.ctaLabel && currentPromo.ctaUrl ? (
           <a className="promo-countdown-cta" href={currentPromo.ctaUrl}>
             <span>{currentPromo.ctaLabel}</span>
             <ArrowRight size={14} aria-hidden="true" />
           </a>
-        )}
+        ) : null}
       </div>
 
       <style>{`
@@ -125,6 +194,28 @@ export default function PromoCountdownBar({ promo }) {
           color: white;
           backdrop-filter: blur(18px) saturate(130%);
           -webkit-backdrop-filter: blur(18px) saturate(130%);
+        }
+
+        a.promo-countdown-shell {
+          text-decoration: none;
+          cursor: pointer;
+          transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+        }
+
+        a.promo-countdown-shell:hover {
+          border-color: rgba(165, 243, 252, 0.62);
+          box-shadow: inset 0 1px 0 rgba(255,255,255,0.09), 0 22px 68px rgba(0,0,0,0.42), 0 0 48px rgba(14,165,233,0.16);
+          transform: translateX(-50%) translateY(-2px);
+        }
+
+        a.promo-countdown-shell:focus-visible {
+          outline: 2px solid #67e8f9;
+          outline-offset: 3px;
+        }
+
+        .promo-countdown-product {
+          border-color: rgba(103, 232, 249, 0.48);
+          background: linear-gradient(108deg, rgba(2, 6, 23, 0.96), rgba(4, 24, 48, 0.94) 52%, rgba(8, 35, 57, 0.93));
         }
 
         .promo-countdown-shell::before,
@@ -205,6 +296,60 @@ export default function PromoCountdownBar({ promo }) {
           line-height: 1.3;
           text-overflow: ellipsis;
           white-space: nowrap;
+        }
+
+        .promo-product-details,
+        .promo-product-prices {
+          display: flex;
+          align-items: center;
+        }
+
+        .promo-product-details {
+          min-height: 25px;
+          flex-wrap: wrap;
+          gap: 7px 10px;
+          margin-top: 7px;
+        }
+
+        .promo-product-prices { gap: 9px; }
+
+        .promo-product-prices del {
+          color: rgba(226, 232, 240, 0.52);
+          font-size: 13px;
+          font-weight: 750;
+          text-decoration-color: rgba(248, 113, 113, 0.88);
+          text-decoration-thickness: 1.5px;
+        }
+
+        .promo-product-prices strong {
+          color: #a5f3fc;
+          font-size: 22px;
+          font-weight: 900;
+          line-height: 1;
+          letter-spacing: -0.035em;
+          text-shadow: 0 0 18px rgba(34, 211, 238, 0.28);
+        }
+
+        .promo-product-variation,
+        .promo-product-live {
+          border-radius: 999px;
+          padding: 4px 8px;
+          font-size: 7px;
+          font-weight: 900;
+          letter-spacing: 0.12em;
+          line-height: 1;
+          text-transform: uppercase;
+        }
+
+        .promo-product-variation {
+          border: 1px solid rgba(125, 211, 252, 0.22);
+          color: rgba(224, 242, 254, 0.76);
+        }
+
+        .promo-product-live {
+          border: 1px solid rgba(74, 222, 128, 0.26);
+          background: rgba(34, 197, 94, 0.09);
+          color: #86efac;
         }
 
         .promo-countdown-timer-wrap { min-width: 270px; }
@@ -289,6 +434,13 @@ export default function PromoCountdownBar({ promo }) {
           background: rgba(34,211,238,0.16);
         }
 
+        .promo-product-cta { pointer-events: none; }
+
+        a.promo-countdown-shell:hover .promo-product-cta {
+          border-color: rgba(165,243,252,0.58);
+          background: rgba(34,211,238,0.16);
+        }
+
         @media (max-width: 900px) {
           .promo-countdown-content { grid-template-columns: minmax(0, 1fr) auto; gap: 14px; }
           .promo-countdown-icon, .promo-countdown-cta { display: none; }
@@ -313,6 +465,10 @@ export default function PromoCountdownBar({ promo }) {
           .promo-countdown-copy p { font-size: 7px; letter-spacing: 0.2em; }
           .promo-countdown-copy h2 { margin-top: 3px; font-size: clamp(20px, 6.8vw, 27px); }
           .promo-countdown-copy > span { display: none; }
+          .promo-product-details { justify-content: center; margin-top: 6px; }
+          .promo-product-prices del { font-size: 11px; }
+          .promo-product-prices strong { font-size: 19px; }
+          .promo-product-variation, .promo-product-live { font-size: 6px; }
           .promo-countdown-timer-wrap { min-width: 0; }
           .promo-countdown-label { margin-bottom: 5px; font-size: 7px; }
           .promo-countdown-timer { gap: 6px; }
@@ -327,9 +483,9 @@ export default function PromoCountdownBar({ promo }) {
         }
 
         @media (prefers-reduced-motion: reduce) {
-          .promo-countdown-cta { transition: none; }
+          .promo-countdown-cta, a.promo-countdown-shell { transition: none; }
         }
       `}</style>
-    </aside>
+    </Wrapper>
   );
 }
