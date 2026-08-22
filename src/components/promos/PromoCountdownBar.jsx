@@ -1,5 +1,17 @@
+import { useEffect, useState } from "react";
 import { ArrowRight, BadgePercent, FlaskConical, Timer } from "lucide-react";
-import { usePromoRemaining, useSiteControlPromo } from "./useSiteControlPromo.js";
+
+function remainingUntil(endsAt) {
+  const end = new Date(endsAt || 0).getTime();
+  const totalSeconds = Math.max(0, Math.floor((end - Date.now()) / 1000));
+
+  return {
+    totalSeconds,
+    hours: Math.floor(totalSeconds / 3600),
+    minutes: Math.floor((totalSeconds % 3600) / 60),
+    seconds: totalSeconds % 60,
+  };
+}
 
 function TimeUnit({ value, label }) {
   return (
@@ -31,18 +43,51 @@ function formatPrice(value, currency) {
 }
 
 export default function PromoCountdownBar({ promo }) {
-  const currentPromo = useSiteControlPromo(promo);
-  const remaining = usePromoRemaining(
-    currentPromo?.enabled,
-    currentPromo?.endsAt,
-  );
+  const [currentPromo, setCurrentPromo] = useState(promo || {});
+  const [remaining, setRemaining] = useState(() => remainingUntil(promo?.endsAt));
 
-  if (
-    !currentPromo?.enabled ||
-    currentPromo.type === "simple_gifts" ||
-    !currentPromo?.endsAt ||
-    remaining.totalSeconds <= 0
-  ) {
+  useEffect(() => {
+    let active = true;
+
+    const refresh = async () => {
+      try {
+        const response = await fetch(`/api/site-control?ts=${Date.now()}`, {
+          headers: { Accept: "application/json" },
+          cache: "no-store",
+        });
+        const data = await response.json();
+        if (active && response.ok && data?.promo) setCurrentPromo(data.promo);
+      } catch {
+        // Keep the latest valid promotion state when the control API is unavailable.
+      }
+    };
+
+    const interval = window.setInterval(refresh, 15_000);
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!currentPromo?.enabled || !currentPromo?.endsAt) {
+      setRemaining(remainingUntil(0));
+      return undefined;
+    }
+
+    const update = () => setRemaining(remainingUntil(currentPromo.endsAt));
+    update();
+    const interval = window.setInterval(update, 1000);
+    return () => window.clearInterval(interval);
+  }, [currentPromo?.enabled, currentPromo?.endsAt]);
+
+  if (!currentPromo?.enabled || !currentPromo?.endsAt || remaining.totalSeconds <= 0) {
     return null;
   }
 

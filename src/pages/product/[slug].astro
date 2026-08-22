@@ -3,7 +3,6 @@ export const prerender = false;
 
 import BaseLayout from "../../layouts/MainLayout.astro";
 import ProductDetailExperience from "../../components/product/ProductDetailExperience.jsx";
-import { getSiteControlConfig } from "../../lib/siteControl.js";
 import "../../styles/global.css";
 
 const { slug } = Astro.params;
@@ -15,7 +14,6 @@ const SECRET = import.meta.env.WOOCOMMERCE_CONSUMER_SECRET;
 let product = null;
 let recommendedProducts = [];
 let error = "";
-const siteControl = await getSiteControlConfig();
 
 function cleanWooUrl(value = "") {
   return String(value || "").replace(/\/$/, "");
@@ -207,7 +205,6 @@ const pageDescription =
       <ProductDetailExperience
         product={product}
         recommendedProducts={recommendedProducts}
-        promo={siteControl.promo}
         client:load
       />
     ) : (
