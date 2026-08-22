@@ -75,6 +75,7 @@ export default function ProductDetailExperience({
           top: 106px;
           left: 50%;
           width: min(100%, 1240px);
+          padding-top: 12px;
           transform: translateX(-50%);
         }
 
@@ -90,7 +91,7 @@ export default function ProductDetailExperience({
 
         @media (max-width: 768px) {
           .product-detail-page > .product-simple-gifts-strip {
-            top: 88px;
+            top: 102px;
           }
 
           .product-detail-page .pdp {

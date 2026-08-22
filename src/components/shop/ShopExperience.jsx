@@ -23,10 +23,10 @@ export default function ShopExperience({ products = [], promo = null }) {
       />
 
       <main className="pt-0">
-        <Hero videoSrc="/prueba.mp4" promo={promo} />
-
-        {promo?.type === "simple_gifts" && (
+        {promo?.type === "simple_gifts" ? (
           <SimpleGiftsPromotion promo={promo} />
+        ) : (
+          <Hero videoSrc="/prueba.mp4" promo={promo} />
         )}
 
         <Trust />

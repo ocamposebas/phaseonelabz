@@ -86,6 +86,7 @@ function GiftTier({ tier, currency, position }) {
 function GiftPromotionDetails({ promotion, remaining, headingId, context }) {
   const hasCountdown = Boolean(promotion.endsAt && remaining.totalSeconds > 0);
   const columnCount = Math.min(promotion.tiers.length, 4);
+  const hasManyTiers = promotion.tiers.length > 4;
 
   return (
     <div className={`simple-gifts-details simple-gifts-details--${context}`}>
@@ -101,7 +102,7 @@ function GiftPromotionDetails({ promotion, remaining, headingId, context }) {
       </header>
 
       <div
-        className={`simple-gifts-tier-grid simple-gifts-tier-grid--${columnCount}`}
+        className={`simple-gifts-tier-grid simple-gifts-tier-grid--${columnCount}${hasManyTiers ? " simple-gifts-tier-grid--many" : ""}`}
         style={{ "--simple-gifts-columns": columnCount }}
       >
         {promotion.tiers.map((tier, index) => (
@@ -151,8 +152,12 @@ function SimpleGiftsStyles() {
         position: relative;
         z-index: 6;
         overflow: hidden;
-        padding: clamp(70px, 8vw, 118px) 20px;
+        padding: clamp(148px, 12vw, 190px) 20px clamp(70px, 8vw, 118px);
         background: rgba(2, 6, 23, 0.58);
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
+        box-sizing: border-box;
       }
 
       .simple-gifts-large::before {
@@ -180,6 +185,9 @@ function SimpleGiftsStyles() {
         box-shadow:
           inset 0 1px 0 rgba(255, 255, 255, 0.055),
           0 38px 100px rgba(0, 0, 0, 0.34);
+        min-width: 0;
+        max-width: 100%;
+        box-sizing: border-box;
       }
 
       .simple-gifts-large-shell::after {
@@ -200,6 +208,9 @@ function SimpleGiftsStyles() {
         position: relative;
         z-index: 1;
         color: var(--text, #f3f8ff);
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
       }
 
       .simple-gifts-heading {
@@ -254,6 +265,9 @@ function SimpleGiftsStyles() {
         border: 1px solid rgba(148, 211, 255, 0.13);
         border-radius: 26px;
         background: rgba(148, 211, 255, 0.12);
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
       }
 
       .simple-gifts-tier-grid--1 {
@@ -265,8 +279,13 @@ function SimpleGiftsStyles() {
         padding-inline: clamp(18px, 2.5vw, 34px);
       }
 
-      .simple-gifts-tier-grid:has(.simple-gifts-tier:nth-child(5)) {
-        grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+      .simple-gifts-tier-grid--many {
+        display: flex;
+        flex-wrap: wrap;
+      }
+
+      .simple-gifts-tier-grid--many .simple-gifts-tier {
+        flex: 1 1 280px;
       }
 
       .simple-gifts-tier {
@@ -592,24 +611,25 @@ function SimpleGiftsStyles() {
       .simple-gifts-details--modal .simple-gifts-tier { min-height: 285px; }
 
       @media (max-width: 1024px) {
-        .simple-gifts-tier-grid,
-        .simple-gifts-tier-grid:has(.simple-gifts-tier:nth-child(5)) {
+        .simple-gifts-tier-grid:not(.simple-gifts-tier-grid--many) {
           grid-template-columns: repeat(2, minmax(0, 1fr));
         }
       }
 
       @media (max-width: 640px) {
-        .simple-gifts-large { padding: 54px 12px; }
+        .simple-gifts-large { padding: 132px 12px 54px; }
         .simple-gifts-large-shell { border-radius: 25px; padding: 34px 13px 20px; }
         .simple-gifts-heading { margin-bottom: 28px; padding-inline: 8px; }
         .simple-gifts-sitewide { min-height: 28px; margin-bottom: 15px; font-size: 8px; }
         .simple-gifts-heading h2 { font-size: clamp(31px, 10.5vw, 44px); line-height: 0.96; }
         .simple-gifts-heading > span { margin-top: 14px; font-size: 12px; line-height: 1.6; }
-        .simple-gifts-tier-grid,
-        .simple-gifts-tier-grid:has(.simple-gifts-tier:nth-child(5)) {
+        .simple-gifts-tier-grid {
+          display: grid;
           grid-template-columns: 1fr;
           border-radius: 20px;
         }
+        .simple-gifts-heading h2,
+        .simple-gifts-heading > span { overflow-wrap: anywhere; }
         .simple-gifts-tier { min-height: 0; padding: 34px 20px 36px; }
         .simple-gifts-tier h3 { font-size: clamp(42px, 14vw, 58px); }
         .simple-gifts-tier h3::after { margin-block: 20px 19px; }

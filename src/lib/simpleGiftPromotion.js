@@ -80,17 +80,21 @@ export function normalizeSimpleGiftPromotion(promo) {
   if (tiers.length === 0) return null;
 
   const currency = cleanText(rule.currency || promo.currency, 3).toUpperCase();
+  const sitewideLabel = cleanText(
+    rule.sitewideLabel || rule.sitewide_label,
+    80,
+  );
+  const apiTitle = cleanText(normalizedSource?.title || promo.title, 120);
+  const title =
+    apiTitle && apiTitle.toLocaleLowerCase() !== sitewideLabel.toLocaleLowerCase()
+      ? apiTitle
+      : "Spend more. Unlock more.";
 
   return {
     type: SIMPLE_GIFTS_TYPE,
-    sitewideLabel: cleanText(
-      rule.sitewideLabel || rule.sitewide_label,
-      80,
-    ),
+    sitewideLabel,
     eyebrow: cleanText(normalizedSource?.eyebrow || promo.eyebrow, 80),
-    title:
-      cleanText(normalizedSource?.title || promo.title, 120) ||
-      "Spend more. Unlock more.",
+    title,
     info: cleanText(normalizedSource?.info || promo.info, 240),
     endsAt:
       normalizedSource?.endsAt || promo.endsAt || promo.ends_at || null,
