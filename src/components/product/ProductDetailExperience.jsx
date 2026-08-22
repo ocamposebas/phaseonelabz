@@ -7,9 +7,11 @@ import ProductDetailSection from "./ProductDetailSection.jsx";
 import NewsletterSection from "../footer/NewsletterSection.jsx";
 import SiteFooter from "../footer/SiteFooter.jsx";
 import SuggestedProductsSection from "./SuggestedProductsSection";
+import { SimpleGiftsPromoStrip } from "../promos/SimpleGiftsPromotion.jsx";
 export default function ProductDetailExperience({
   product,
   recommendedProducts = [],
+  promo = null,
 }) {
   const viewTrackedRef = useRef(false);
 
@@ -37,6 +39,10 @@ export default function ProductDetailExperience({
       <Header logoSrc="/TRANSPARENCIA-03.webp" transparentOnTop={true} />
 
       <main className="product-detail-page">
+        <SimpleGiftsPromoStrip
+          promo={promo}
+          className="product-simple-gifts-strip"
+        />
         <ProductDetailSection
           product={product}
           recommendedProducts={recommendedProducts}
@@ -60,6 +66,18 @@ export default function ProductDetailExperience({
           z-index: 5;
         }
 
+        .product-detail-page {
+          position: relative;
+        }
+
+        .product-detail-page > .product-simple-gifts-strip {
+          position: absolute;
+          top: 106px;
+          left: 50%;
+          width: min(100%, 1240px);
+          transform: translateX(-50%);
+        }
+
         .product-detail-page .pdp {
           padding-top: 188px !important;
         }
@@ -71,6 +89,10 @@ export default function ProductDetailExperience({
         }
 
         @media (max-width: 768px) {
+          .product-detail-page > .product-simple-gifts-strip {
+            top: 88px;
+          }
+
           .product-detail-page .pdp {
             padding-top: 220px !important;
           }

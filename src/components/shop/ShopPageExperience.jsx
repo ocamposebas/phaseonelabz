@@ -5,14 +5,16 @@ import ProductCatalog from "../catalog/ShopCatalogSection.jsx"
 import CartDrawer from "../cart/CartDrawer.jsx";
 import SiteFooter from "../footer/SiteFooter.jsx";
 import New from "../footer/NewsletterSection.jsx"
+import { SimpleGiftsPromoStrip } from "../promos/SimpleGiftsPromotion.jsx";
 
-export default function ShopExperience({ products = [] }) {
+export default function ShopExperience({ products = [], promo = null }) {
   return (
     <CartProvider>
 
       <Header logoSrc="/TRANSPARENCIA-03.webp" transparentOnTop={true} />
 
       <main className="pt-[108px]">
+        <SimpleGiftsPromoStrip promo={promo} />
         <ProductCatalog products={products} />
         <New/>
         <SiteFooter />

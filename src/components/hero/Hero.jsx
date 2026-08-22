@@ -98,7 +98,7 @@ export default function Hero({
 
       <div className="hero-overlay absolute inset-0 z-10" aria-hidden="true" />
 
-      <PromoCountdownBar promo={promo} />
+      {promo?.type !== "simple_gifts" && <PromoCountdownBar promo={promo} />}
 
       <div className="hero-inner relative z-20 mx-auto flex min-h-screen w-full max-w-7xl flex-col items-center justify-center px-5 pb-14 pt-[136px] text-center sm:px-6 lg:px-8 lg:pb-16 lg:pt-[144px]">
         <div className="hero-content w-full">

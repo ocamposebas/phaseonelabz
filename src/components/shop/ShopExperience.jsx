@@ -11,6 +11,7 @@ import ShopByCategorySection from "../catalog/ShopByCategorySection.jsx";
 import SiteFooter from "../footer/SiteFooter.jsx";
 import New from "../footer/NewsletterSection.jsx";
 import MilitaryDiscountBanner from "../promos/MilitaryDiscountBanner.jsx";
+import { SimpleGiftsPromotion } from "../promos/SimpleGiftsPromotion.jsx";
 
 export default function ShopExperience({ products = [], promo = null }) {
   return (
@@ -23,6 +24,10 @@ export default function ShopExperience({ products = [], promo = null }) {
 
       <main className="pt-0">
         <Hero videoSrc="/prueba.mp4" promo={promo} />
+
+        {promo?.type === "simple_gifts" && (
+          <SimpleGiftsPromotion promo={promo} />
+        )}
 
         <Trust />
 

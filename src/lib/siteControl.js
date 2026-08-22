@@ -1,3 +1,5 @@
+import { normalizeSimpleGiftPromotion } from "./simpleGiftPromotion.js";
+
 const CACHE_TTL_MS = 10_000;
 
 const state = globalThis.__phaseoneSiteControlState || {
@@ -81,6 +83,7 @@ export function emptySiteControlConfig() {
       ctaLabel: "Shop promotion",
       ctaUrl: "/shop",
       product: null,
+      simpleGifts: null,
     },
     maintenance: {
       enabled: false,
@@ -110,12 +113,18 @@ function normalizeConfig(payload) {
   const saleScope = ["product", "all", "single"].includes(product?.sale_scope)
     ? product.sale_scope
     : null;
+  const simpleGifts = normalizeSimpleGiftPromotion(promo);
 
   return {
     configured: true,
     promo: {
       enabled: promo.enabled === true,
-      type: promo.type === "product" && product ? "product" : "general",
+      type:
+        promo.type === "simple_gifts"
+          ? "simple_gifts"
+          : promo.type === "product" && product
+            ? "product"
+            : "general",
       eyebrow: cleanText(promo.eyebrow, fallback.promo.eyebrow, 80),
       title: cleanText(promo.title, fallback.promo.title, 120),
       info: cleanText(promo.info, fallback.promo.info, 220),
@@ -155,6 +164,7 @@ function normalizeConfig(payload) {
               product.sale_price_active === true || product.salePriceActive === true,
           }
         : null,
+      simpleGifts,
     },
     maintenance: {
       enabled: maintenance.enabled === true,

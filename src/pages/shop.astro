@@ -4,6 +4,7 @@ export const prerender = false;
 import BaseLayout from "../layouts/MainLayout.astro";
 import ShopExperience from "../components/shop/ShopPageExperience";
 import { fetchWooCatalog } from "../lib/wooCatalog.js";
+import { getSiteControlConfig } from "../lib/siteControl.js";
 import "../styles/global.css";
 
 const WOO_URL = import.meta.env.WOOCOMMERCE_URL;
@@ -11,6 +12,7 @@ const KEY = import.meta.env.WOOCOMMERCE_CONSUMER_KEY;
 const SECRET = import.meta.env.WOOCOMMERCE_CONSUMER_SECRET;
 
 let products = [];
+const siteControl = await getSiteControlConfig();
 
 try {
   if (!WOO_URL || !KEY || !SECRET) {
@@ -32,5 +34,5 @@ try {
   title="Research Compounds // Scientific Catalog"
   description="Research-focused catalog experience for laboratory-use compounds with documentation, COA access, and responsible scientific presentation."
 >
-  <ShopExperience products={products} client:load />
+  <ShopExperience products={products} promo={siteControl.promo} client:load />
 </BaseLayout>
