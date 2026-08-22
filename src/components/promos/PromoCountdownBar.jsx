@@ -42,6 +42,12 @@ function formatPrice(value, currency) {
   }
 }
 
+function formatGiftThreshold(value) {
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return "";
+  return `$${amount.toLocaleString("en-US", { maximumFractionDigits: 2 })}+`;
+}
+
 export default function PromoCountdownBar({ promo }) {
   const [currentPromo, setCurrentPromo] = useState(promo || {});
   const [remaining, setRemaining] = useState(() => remainingUntil(promo?.endsAt));
@@ -92,6 +98,8 @@ export default function PromoCountdownBar({ promo }) {
   }
 
   const isProductPromo = currentPromo.type === "product" && currentPromo.product;
+  const isSimpleGifts =
+    currentPromo.type === "simple_gifts" && currentPromo.simpleGifts;
   const product = isProductPromo ? currentPromo.product : null;
   const productHref = product?.url || currentPromo.ctaUrl || "";
   const hasPrices = Boolean(product?.originalPrice && product?.promoPrice);
@@ -110,7 +118,7 @@ export default function PromoCountdownBar({ promo }) {
 
   return (
     <Wrapper
-      className={`promo-countdown-shell${isProductPromo ? " promo-countdown-product" : ""}`}
+      className={`promo-countdown-shell${isProductPromo ? " promo-countdown-product" : ""}${isSimpleGifts ? " promo-countdown-simple-gifts" : ""}`}
       {...wrapperProps}
     >
       <div className="promo-countdown-glow" aria-hidden="true" />
@@ -125,9 +133,43 @@ export default function PromoCountdownBar({ promo }) {
         </div>
 
         <div className="promo-countdown-copy">
-          <p>{currentPromo.eyebrow}</p>
-          <h2>{isProductPromo ? product.name : currentPromo.title}</h2>
-          {isProductPromo ? (
+          <p>{isSimpleGifts ? "Sitewide + gifts" : currentPromo.eyebrow}</p>
+          <h2>
+            {isSimpleGifts
+              ? currentPromo.simpleGifts.sitewideLabel
+              : isProductPromo
+                ? product.name
+                : currentPromo.title}
+          </h2>
+          {isSimpleGifts ? (
+            <div className="promo-simple-gifts-tiers">
+              {currentPromo.simpleGifts.tiers.map((tier) => (
+                <div className="promo-simple-gifts-tier" key={tier.key}>
+                  <span>{formatGiftThreshold(tier.threshold)}</span>
+                  <div className="promo-simple-gifts-rewards">
+                    {tier.rewards.map((reward, rewardIndex) => (
+                      <div className="promo-simple-gifts-reward" key={`${tier.key}-${rewardIndex}`}>
+                        {rewardIndex > 0 && <i>Plus</i>}
+                        <div>
+                          {reward.options.map((name, optionIndex) => (
+                            <span key={`${name}-${optionIndex}`}>
+                              {optionIndex > 0 && (
+                                <em>{reward.mode === "choose_one" ? "OR" : "+"}</em>
+                              )}
+                              <strong>{name}</strong>
+                            </span>
+                          ))}
+                        </div>
+                        <small>
+                          {reward.mode === "choose_one" ? "Choose one" : "Free gift"}
+                        </small>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : isProductPromo ? (
             <div className="promo-product-details">
               {hasPrices && (
                 <div className="promo-product-prices" aria-label={`Now ${promoPrice}, previously ${originalPrice}`}>
@@ -216,6 +258,110 @@ export default function PromoCountdownBar({ promo }) {
         .promo-countdown-product {
           border-color: rgba(103, 232, 249, 0.48);
           background: linear-gradient(108deg, rgba(2, 6, 23, 0.96), rgba(4, 24, 48, 0.94) 52%, rgba(8, 35, 57, 0.93));
+        }
+
+        .promo-countdown-simple-gifts .promo-countdown-content {
+          grid-template-columns: auto minmax(0, 1fr) auto auto;
+          min-height: 112px;
+          gap: 18px;
+        }
+
+        .promo-countdown-simple-gifts .promo-countdown-copy h2 {
+          margin-top: 3px;
+          font-size: clamp(23px, 1.8vw, 30px);
+          line-height: 1;
+        }
+
+        .promo-simple-gifts-tiers {
+          display: flex;
+          min-width: 0;
+          align-items: center;
+          gap: 0;
+          margin-top: 8px;
+        }
+
+        .promo-simple-gifts-tier {
+          display: flex;
+          min-width: 0;
+          align-items: center;
+          gap: 9px;
+          padding: 0 16px;
+        }
+
+        .promo-simple-gifts-tier:first-child {
+          padding-left: 0;
+        }
+
+        .promo-simple-gifts-tier:not(:last-child) {
+          border-right: 1px solid rgba(103, 232, 249, 0.18);
+        }
+
+        .promo-simple-gifts-tier > span {
+          flex: 0 0 auto;
+          color: #67e8f9;
+          font-size: 13px;
+          font-weight: 900;
+          letter-spacing: -0.03em;
+        }
+
+        .promo-simple-gifts-rewards {
+          display: flex;
+          min-width: 0;
+          align-items: center;
+          flex-wrap: wrap;
+          gap: 7px;
+        }
+
+        .promo-simple-gifts-reward {
+          display: grid;
+          min-width: 0;
+          gap: 3px;
+        }
+
+        .promo-simple-gifts-reward > i {
+          color: rgba(186, 230, 253, 0.55);
+          font-size: 5.5px;
+          font-style: normal;
+          font-weight: 900;
+          letter-spacing: 0.15em;
+          text-transform: uppercase;
+        }
+
+        .promo-simple-gifts-reward > div {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 4px;
+        }
+
+        .promo-simple-gifts-reward > div > span {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+        }
+
+        .promo-simple-gifts-reward strong {
+          color: #f8fafc;
+          font-size: clamp(15px, 1.2vw, 18px);
+          font-weight: 900;
+          line-height: 1.05;
+          letter-spacing: -0.035em;
+        }
+
+        .promo-simple-gifts-reward em {
+          color: #67e8f9;
+          font-size: 6px;
+          font-style: normal;
+          font-weight: 900;
+          letter-spacing: 0.08em;
+        }
+
+        .promo-simple-gifts-reward small {
+          color: rgba(186, 230, 253, 0.62);
+          font-size: 5.5px;
+          font-weight: 900;
+          letter-spacing: 0.16em;
+          text-transform: uppercase;
         }
 
         .promo-countdown-shell::before,
@@ -443,6 +589,7 @@ export default function PromoCountdownBar({ promo }) {
 
         @media (max-width: 900px) {
           .promo-countdown-content { grid-template-columns: minmax(0, 1fr) auto; gap: 14px; }
+          .promo-countdown-simple-gifts .promo-countdown-content { grid-template-columns: minmax(0, 1fr) auto; }
           .promo-countdown-icon, .promo-countdown-cta { display: none; }
           .promo-countdown-copy > span { max-width: 330px; }
         }
@@ -465,6 +612,11 @@ export default function PromoCountdownBar({ promo }) {
           .promo-countdown-copy p { font-size: 7px; letter-spacing: 0.2em; }
           .promo-countdown-copy h2 { margin-top: 3px; font-size: clamp(20px, 6.8vw, 27px); }
           .promo-countdown-copy > span { display: none; }
+          .promo-simple-gifts-tiers { display: grid; grid-template-columns: 1fr; gap: 7px; }
+          .promo-simple-gifts-tier,
+          .promo-simple-gifts-tier:first-child { padding: 0; text-align: left; }
+          .promo-simple-gifts-tier:not(:last-child) { border-right: 0; }
+          .promo-simple-gifts-reward strong { font-size: 15px; }
           .promo-product-details { justify-content: center; margin-top: 6px; }
           .promo-product-prices del { font-size: 11px; }
           .promo-product-prices strong { font-size: 19px; }

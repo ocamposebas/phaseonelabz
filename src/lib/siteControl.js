@@ -81,6 +81,7 @@ export function emptySiteControlConfig() {
       ctaLabel: "Shop promotion",
       ctaUrl: "/shop",
       product: null,
+      simpleGifts: null,
     },
     maintenance: {
       enabled: false,
@@ -98,6 +99,50 @@ function cleanText(value, fallback, maximum = 240) {
   return (text || fallback).slice(0, maximum);
 }
 
+function normalizeSimpleGifts(promo) {
+  if (promo?.type !== "simple_gifts" || !promo.rule || !Array.isArray(promo.rule.tiers)) {
+    return null;
+  }
+
+  const tiers = promo.rule.tiers
+    .map((tier, tierIndex) => {
+      const threshold = Number(tier?.threshold);
+      if (!Number.isFinite(threshold) || threshold <= 0 || !Array.isArray(tier?.rewards)) {
+        return null;
+      }
+
+      const rewards = tier.rewards
+        .map((reward) => {
+          const mode = reward?.mode === "choose_one" ? "choose_one" : "fixed";
+          const options = Array.isArray(reward?.options)
+            ? reward.options
+                .map((option) => cleanText(option?.name, "", 120))
+                .filter(Boolean)
+            : [];
+
+          return options.length > 0 ? { mode, options } : null;
+        })
+        .filter(Boolean);
+
+      return rewards.length > 0
+        ? { key: `${threshold}-${tierIndex}`, threshold, rewards }
+        : null;
+    })
+    .filter(Boolean)
+    .sort((left, right) => left.threshold - right.threshold);
+
+  if (tiers.length === 0) return null;
+
+  return {
+    sitewideLabel: cleanText(
+      promo.rule.sitewide_label || promo.rule.sitewideLabel || promo.title,
+      "Sitewide promotion",
+      100,
+    ),
+    tiers,
+  };
+}
+
 function normalizeConfig(payload) {
   const fallback = emptySiteControlConfig();
   const promo = payload?.promo && typeof payload.promo === "object" ? payload.promo : {};
@@ -110,12 +155,18 @@ function normalizeConfig(payload) {
   const saleScope = ["product", "all", "single"].includes(product?.sale_scope)
     ? product.sale_scope
     : null;
+  const simpleGifts = normalizeSimpleGifts(promo);
 
   return {
     configured: true,
     promo: {
       enabled: promo.enabled === true,
-      type: promo.type === "product" && product ? "product" : "general",
+      type:
+        simpleGifts
+          ? "simple_gifts"
+          : promo.type === "product" && product
+            ? "product"
+            : "general",
       eyebrow: cleanText(promo.eyebrow, fallback.promo.eyebrow, 80),
       title: cleanText(promo.title, fallback.promo.title, 120),
       info: cleanText(promo.info, fallback.promo.info, 220),
@@ -155,6 +206,7 @@ function normalizeConfig(payload) {
               product.sale_price_active === true || product.salePriceActive === true,
           }
         : null,
+      simpleGifts,
     },
     maintenance: {
       enabled: maintenance.enabled === true,
