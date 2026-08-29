@@ -203,6 +203,7 @@ function shippingProtectionRequested(body = {}) {
 
 const RECON_WATER_IDENTIFIERS = new Set([
   "h-recon-water",
+  "recon-water",
   "recon-water-30ml",
 ]);
 const RECON_WATER_PROMO_THRESHOLD = 100;
@@ -293,7 +294,12 @@ function normalizeProductIdentifier(value = "") {
 function isReconWaterProduct(product = {}) {
   return [product.slug, product.sku, product.name]
     .map(normalizeProductIdentifier)
-    .some((identifier) => RECON_WATER_IDENTIFIERS.has(identifier));
+    .some(
+      (identifier) =>
+        RECON_WATER_IDENTIFIERS.has(identifier) ||
+        identifier.startsWith("recon-water-") ||
+        identifier.startsWith("h-recon-water-")
+    );
 }
 
 function getPurchaseLimit(product = {}, variation = {}, isReconWater = false) {
@@ -609,8 +615,11 @@ async function calculateVerifiedSubtotal(config, items = []) {
         ? Math.min(item.unitPrice, RECON_WATER_PROMO_PRICE)
         : item.unitPrice,
   }));
-  const quantity = items.reduce(
-    (total, item) => total + Number(item.quantity || 0),
+  const quantity = pricedItems.reduce(
+    (total, item) =>
+      item.isReconWater
+        ? total
+        : total + Number(item.quantity || 0),
     0
   );
   const bundleTier = getBundleDiscountTier(quantity);

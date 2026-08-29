@@ -20,6 +20,7 @@ import DispatchCutoff from "../shipping/DispatchCutoff";
 
 const RECON_WATER_IDENTIFIERS = new Set([
   "h-recon-water",
+  "recon-water",
   "recon-water-30ml",
 ]);
 
@@ -37,7 +38,12 @@ function isReconWaterProduct(product = {}) {
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/^-+|-+$/g, ""),
     )
-    .some((identifier) => RECON_WATER_IDENTIFIERS.has(identifier));
+    .some(
+      (identifier) =>
+        RECON_WATER_IDENTIFIERS.has(identifier) ||
+        identifier.startsWith("recon-water-") ||
+        identifier.startsWith("h-recon-water-"),
+    );
 }
 
 const categoryFilters = [

@@ -28,6 +28,7 @@ const SHIPPING_PROTECTION_COOKIE_MAX_AGE = 60 * 60 * 24;
 // by a numeric ID. Numeric IDs can differ between environments.
 const RECON_WATER_IDENTIFIERS = new Set([
   "h-recon-water",
+  "recon-water",
   "recon-water-30ml",
 ]);
 const RECON_WATER_PROMO_THRESHOLD = 100;
@@ -705,8 +706,11 @@ function isReconWaterProduct(item = {}) {
     item.title,
   ].map(normalizeProductIdentifier);
 
-  return identifiers.some((identifier) =>
-    RECON_WATER_IDENTIFIERS.has(identifier),
+  return identifiers.some(
+    (identifier) =>
+      RECON_WATER_IDENTIFIERS.has(identifier) ||
+      identifier.startsWith("recon-water-") ||
+      identifier.startsWith("h-recon-water-"),
   );
 }
 
@@ -916,7 +920,10 @@ function normalizeCartItems(items = []) {
   });
 
   const bundleQuantity = itemsWithProductPromotions.reduce(
-    (total, item) => total + Number(item.quantity || 0),
+    (total, item) =>
+      isReconWaterProduct(item)
+        ? total
+        : total + Number(item.quantity || 0),
     0,
   );
   const bundleTier = getBundleDiscountTier(bundleQuantity);

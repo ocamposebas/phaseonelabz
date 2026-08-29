@@ -924,11 +924,12 @@ final class PhaseOne_Prism_Checkout_Bridge {
             );
 
             foreach ( $identifiers as $identifier ) {
-                if ( in_array(
-                    self::normalize_product_identifier( $identifier ),
-                    array( 'h-recon-water', 'recon-water-30ml' ),
-                    true
-                ) ) {
+                $normalized_identifier = self::normalize_product_identifier( $identifier );
+                if (
+                    in_array( $normalized_identifier, array( 'h-recon-water', 'recon-water', 'recon-water-30ml' ), true ) ||
+                    0 === strpos( $normalized_identifier, 'recon-water-' ) ||
+                    0 === strpos( $normalized_identifier, 'h-recon-water-' )
+                ) {
                     return true;
                 }
             }
@@ -954,11 +955,11 @@ final class PhaseOne_Prism_Checkout_Bridge {
 
             $product = $item->get_product();
             $item_qty = max( 1, (int) $item->get_quantity() );
-            $quantity += $item_qty;
 
             if ( self::is_recon_water_product( $product ) ) {
                 $recon_items[] = $item;
             } else {
+                $quantity += $item_qty;
                 $qualifying_subtotal += (float) $item->get_subtotal();
             }
         }
