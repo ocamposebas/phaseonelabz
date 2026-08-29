@@ -696,7 +696,7 @@ function normalizeProductIdentifier(value = "") {
     .replace(/^-+|-+$/g, "");
 }
 
-function isReconWaterProduct(item = {}) {
+export function isReconWaterProduct(item = {}) {
   const identifiers = [
     item.slug,
     item.product_slug,

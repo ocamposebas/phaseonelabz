@@ -2080,7 +2080,7 @@ const ProductCard = memo(function ProductCard({
         image,
         category,
 
-        bundleEligible: true,
+        bundleEligible: !isReconWaterProduct(product),
         bundleDiscount: 30,
         bundleDiscountTiers: BUNDLE_TIERS,
         bundleSameProductOnly: false,
@@ -2361,8 +2361,14 @@ const ProductCard = memo(function ProductCard({
               )}
             </div>
 
-            <p className="product-mg-note">
-              This option counts toward both quantity discount tiers.
+            <p
+              className={`product-mg-note ${
+                isReconWaterProduct(product) ? "!text-red-400" : ""
+              }`}
+            >
+              {isReconWaterProduct(product)
+                ? "Recon Water does not count toward quantity discount tiers."
+                : "This option counts toward both quantity discount tiers."}
             </p>
           </div>
         )}
@@ -2504,20 +2510,22 @@ export default function ShopCatalogSection({
     );
   }, [products, activeCatalogDiscountPercent]);
 
-  const cartProductsCount = useMemo(() => {
+  const bundleEligibleProductsCount = useMemo(() => {
     return cartItems.reduce((total, item) => {
+      if (isReconWaterProduct(item)) return total;
+
       return total + getCartItemQuantity(item);
     }, 0);
   }, [cartItems]);
 
   const activeBundleTier = [...BUNDLE_TIERS]
     .reverse()
-    .find((tier) => cartProductsCount >= tier.quantity) || null;
+    .find((tier) => bundleEligibleProductsCount >= tier.quantity) || null;
   const nextBundleTier = BUNDLE_TIERS.find(
-    (tier) => cartProductsCount < tier.quantity,
+    (tier) => bundleEligibleProductsCount < tier.quantity,
   ) || null;
   const bundleProgressWidth = Math.min(
-    (cartProductsCount / 10) * 100,
+    (bundleEligibleProductsCount / 10) * 100,
     100
   );
 
@@ -2581,7 +2589,7 @@ export default function ShopCatalogSection({
         image,
         category,
 
-        bundleEligible: true,
+        bundleEligible: !isReconWaterProduct(product),
         bundleDiscount: 30,
         bundleDiscountTiers: BUNDLE_TIERS,
         bundleSameProductOnly: false,
@@ -2770,8 +2778,13 @@ export default function ShopCatalogSection({
               </h3>
 
               <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
-                Every catalog product counts. The discount upgrades automatically
-                at 10 products—the 10% and 30% offers never stack.
+                Every eligible catalog product counts. The discount upgrades
+                automatically at 10 products—the 10% and 30% offers never stack.
+              </p>
+
+              <p className="mt-2 text-sm font-bold leading-6 text-red-400">
+                Recon Water is excluded: it does not count as a bundle product
+                and does not receive the bundle discount.
               </p>
             </div>
 
@@ -2779,8 +2792,8 @@ export default function ShopCatalogSection({
               <div className="grid grid-cols-2 gap-2.5">
                 {BUNDLE_TIERS.map((tier) => {
                   const isActive = activeBundleTier?.quantity === tier.quantity;
-                  const isReplaced = tier.quantity === 5 && cartProductsCount >= 10;
-                  const remaining = Math.max(0, tier.quantity - cartProductsCount);
+                  const isReplaced = tier.quantity === 5 && bundleEligibleProductsCount >= 10;
+                  const remaining = Math.max(0, tier.quantity - bundleEligibleProductsCount);
 
                   return (
                     <div
@@ -2821,12 +2834,12 @@ export default function ShopCatalogSection({
                     {activeBundleTier?.discountPercent === 30
                       ? "30% discount active"
                       : activeBundleTier?.discountPercent === 10
-                        ? `10% active · ${nextBundleTier.quantity - cartProductsCount} more to upgrade`
-                        : `${nextBundleTier.quantity - cartProductsCount} more to unlock 10%`}
+                        ? `10% active · ${nextBundleTier.quantity - bundleEligibleProductsCount} more to upgrade`
+                        : `${nextBundleTier.quantity - bundleEligibleProductsCount} more to unlock 10%`}
                   </p>
                 </div>
                 <span className="rounded-full border border-cyan-200/12 bg-white/[0.03] px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.1em] text-cyan-100">
-                  {Math.min(cartProductsCount, 10)}/10
+                  {Math.min(bundleEligibleProductsCount, 10)}/10
                 </span>
               </div>
 
