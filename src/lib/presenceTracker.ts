@@ -65,6 +65,7 @@ export function startPresenceTracker(options: StartOptions): TrackerHandle | nul
   let connectionId = "";
   let cartOpen = document.documentElement.classList.contains("phase-cart-open");
   let currentSection = classifyPresenceSection(location.pathname, cartOpen);
+  let currentPath = location.pathname;
   let active = document.visibilityState === "visible";
   let stopped = false;
   let reconnectAttempt = 0;
@@ -83,9 +84,11 @@ export function startPresenceTracker(options: StartOptions): TrackerHandle | nul
 
   const sendSection = (): void => {
     const nextSection = classifyPresenceSection(location.pathname, cartOpen);
-    if (nextSection === currentSection) return;
+    const nextPath = location.pathname;
+    if (nextSection === currentSection && nextPath === currentPath) return;
     currentSection = nextSection;
-    send({ type: "presence:section", section: currentSection });
+    currentPath = nextPath;
+    send({ type: "presence:section", section: currentSection, path: currentPath });
   };
 
   const clearReconnect = (): void => {
@@ -126,11 +129,13 @@ export function startPresenceTracker(options: StartOptions): TrackerHandle | nul
     socket.addEventListener("open", () => {
       reconnectAttempt = 0;
       currentSection = classifyPresenceSection(location.pathname, cartOpen);
+      currentPath = location.pathname;
       send({
         type: "presence:hello",
         visitorId,
         connectionId,
         section: currentSection,
+        path: currentPath,
       });
     });
 
@@ -204,7 +209,7 @@ export function startPresenceTracker(options: StartOptions): TrackerHandle | nul
       connect();
       return;
     }
-    send({ type: "presence:heartbeat", section: currentSection });
+    send({ type: "presence:heartbeat", section: currentSection, path: currentPath });
   }, HEARTBEAT_MS);
 
   const handle: TrackerHandle = {
