@@ -1,5 +1,6 @@
 ---
 import "../styles/global.css";
+import LivePresenceTracker from "../components/monitoring/LivePresenceTracker.astro";
 
 interface Props {
   title?: string;
@@ -40,6 +41,7 @@ const canonicalUrl = new URL("/status", "https://phaseonelabz.com").toString();
   </head>
 
   <body class="status-document">
+    <LivePresenceTracker />
     <a class="status-skip-link" href="#status-content">Skip to system status</a>
 
     <header class="status-site-header">

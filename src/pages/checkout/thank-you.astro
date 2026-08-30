@@ -1,6 +1,7 @@
 ---
 import CheckoutThankYouPage from "../../components/checkout/CheckoutThankYouPage.jsx";
 import ClientDiagnostics from "../../components/monitoring/ClientDiagnostics.astro";
+import LivePresenceTracker from "../../components/monitoring/LivePresenceTracker.astro";
 
 export const prerender = false;
 ---
@@ -36,6 +37,7 @@ export const prerender = false;
   </head>
 
   <body>
+    <LivePresenceTracker />
     <CheckoutThankYouPage client:load />
   </body>
 </html>

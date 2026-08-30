@@ -5,6 +5,7 @@ import GlobalPreloader from "../components/loading/GlobalPreloader.jsx";
 import AffiliateCouponTracker from "../components/tracking/AffiliateCouponTracker.jsx";
 import MemberAccessGate from "../components/auth/MemberAccessGate.jsx";
 import ClientDiagnostics from "../components/monitoring/ClientDiagnostics.astro";
+import LivePresenceTracker from "../components/monitoring/LivePresenceTracker.astro";
 import MaintenanceMode from "../components/maintenance/MaintenanceMode.astro";
 import { getSiteControlConfig } from "../lib/siteControl.js";
 
@@ -171,6 +172,7 @@ const websiteSchema = {
   </head>
 
   <body class={isHome ? "is-home-page" : ""}>
+    <LivePresenceTracker />
     {maintenance.enabled ? (
       <MaintenanceMode
         title={maintenance.title}

@@ -1,0 +1,13 @@
+<script>
+  import { startPresenceTracker } from "../../lib/presenceTracker";
+
+  const endpoint = import.meta.env.PUBLIC_PRESENCE_WS_URL;
+
+  if (endpoint) {
+    try {
+      startPresenceTracker({ endpoint });
+    } catch {
+      // Monitoring is optional and must never affect the storefront.
+    }
+  }
+</script>

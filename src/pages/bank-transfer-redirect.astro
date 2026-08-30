@@ -1,5 +1,6 @@
 ---
 import ClientDiagnostics from "../components/monitoring/ClientDiagnostics.astro";
+import LivePresenceTracker from "../components/monitoring/LivePresenceTracker.astro";
 
 const pageTitle = "Opening Bank Transfer";
 ---
@@ -14,6 +15,7 @@ const pageTitle = "Opening Bank Transfer";
   </head>
 
   <body>
+    <LivePresenceTracker />
     <main class="bt-redirect">
       <section class="bt-card">
         <div class="bt-orb"></div>
