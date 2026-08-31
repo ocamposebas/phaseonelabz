@@ -1960,12 +1960,9 @@ const ProductCard = memo(function ProductCard({
   item,
   addToCart,
   onBundleAdd,
-  reconWaterPromoActive,
 }) {
   const { product, name, category, price, pricing, image, url, availability } = item;
   const { isUnavailable, unavailableLabel } = availability;
-  const showReconWaterPromo =
-    isReconWaterProduct(product) && reconWaterPromoActive;
   const isVariableProduct = isVariableCatalogProduct(product);
   const canSelectBundle = !isUnavailable;
   const showBundleButton = true;
@@ -2213,24 +2210,7 @@ const ProductCard = memo(function ProductCard({
           Research use only · Batch documentation available
         </p>
 
-        {showReconWaterPromo ? (
-          <>
-            <p className="product-float-price product-float-price-discounted">
-              <span className="product-float-price-regular">
-                {formatPrice(price)}
-              </span>
-
-              <span className="product-float-price-current">
-                {formatPrice(15)}
-              </span>
-
-              <span className="product-float-discount-badge">$15</span>
-            </p>
-            <p className="mt-1 text-[9px] font-bold uppercase tracking-[0.12em] text-amber-200/75">
-              Other products over $100
-            </p>
-          </>
-        ) : pricing?.hasDiscount ? (
+        {pricing?.hasDiscount ? (
           <p className="product-float-price product-float-price-discounted">
             <span className="product-float-price-regular">
               {formatPrice(pricing.regularPrice)}
@@ -2467,19 +2447,6 @@ export default function ShopCatalogSection({
   const addToCart = cartApi?.addToCart;
   const cartItems =
     cartApi?.cartItems || cartApi?.items || cartApi?.cart || [];
-  const reconWaterPromoActive = useMemo(
-    () =>
-      cartItems.reduce((total, item) => {
-        if (isReconWaterProduct(item)) return total;
-
-        const unitPrice = Number(
-          item.phaseone_base_price ?? item.price ?? item.sale_price ?? 0
-        );
-
-        return total + unitPrice * Number(item.quantity || 1);
-      }, 0) >= 100,
-    [cartItems]
-  );
 
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
@@ -3017,7 +2984,6 @@ export default function ShopCatalogSection({
                       item={item}
                       addToCart={addToCart}
                       onBundleAdd={addBundleItemToCart}
-                      reconWaterPromoActive={reconWaterPromoActive}
                     />
                   ))}
                 </div>

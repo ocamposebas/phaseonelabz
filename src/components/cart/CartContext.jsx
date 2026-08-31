@@ -31,8 +31,6 @@ const RECON_WATER_IDENTIFIERS = new Set([
   "recon-water-30ml",
 ]);
 const H_RECON_IDENTIFIERS = new Set(["h-recon", "h-recon-water"]);
-const RECON_WATER_PROMO_THRESHOLD = 100;
-const RECON_WATER_PROMO_PRICE = 15;
 const H_RECON_PURCHASE_LIMIT = 2;
 const INVENTORY_REQUEST_TIMEOUT_MS = 8000;
 const BUNDLE_DISCOUNT_TIERS = [
@@ -120,6 +118,9 @@ function persistShippingProtectionSelection({
   }
 }
 
+// Product reward tiers remain available independently of Recon Water pricing.
+export const REWARD_TIERS = [];
+
 const emptyCartContext = {
   cartItems: [],
   cartNotice: "",
@@ -140,6 +141,9 @@ const emptyCartContext = {
   bundleDiscountAmount: 0,
   bundleDiscountPercent: 0,
   bundleRequiredQuantity: 0,
+  rewardProgress: null,
+  rewardGifts: [],
+  rewardProducts: {},
   getCartItemKey: () => "",
   buildCheckoutUrl: () => null,
   checkoutCoupon: "",
@@ -911,31 +915,17 @@ function normalizeCartItems(items = []) {
     .map(normalizeCartItem)
     .filter((item) => !isLegacyPromotionalItem(item));
 
-  const qualifyingSubtotal = normalizedItems.reduce((total, item) => {
-    if (isReconWaterProduct(item)) return total;
-
-    return (
-      total +
-      Number(item.phaseone_base_price || 0) * Number(item.quantity || 1)
-    );
-  }, 0);
-
-  const promoActive = qualifyingSubtotal >= RECON_WATER_PROMO_THRESHOLD;
-
   const itemsWithProductPromotions = normalizedItems.map((item) => {
     if (!isReconWaterProduct(item)) return item;
 
     const basePrice = Number(item.phaseone_base_price || 0);
-    const discountedPrice = Math.min(basePrice, RECON_WATER_PROMO_PRICE);
 
     return {
       ...item,
-      price: promoActive ? discountedPrice : basePrice,
-      phaseone_recon_water_promo_active: promoActive,
-      phaseone_recon_water_promo_price: promoActive
-        ? discountedPrice
-        : basePrice,
-      phaseone_recon_water_qualifying_subtotal: roundMoney(qualifyingSubtotal),
+      price: basePrice,
+      phaseone_recon_water_promo_active: false,
+      phaseone_recon_water_promo_price: basePrice,
+      phaseone_recon_water_qualifying_subtotal: 0,
     };
   });
 
@@ -954,8 +944,7 @@ function normalizeCartItems(items = []) {
 
     return {
       ...item,
-      // The Recon Water promotion fixes its unit price at $15. The bundle
-      // discount may apply to other products, but must not lower it further.
+      // Recon Water is excluded from quantity bundle discounts.
       price: bundleTier && !isReconWaterProduct(item)
         ? roundMoney(
             priceAfterProductPromotions * (1 - bundleTier.discountRate),
@@ -2256,6 +2245,9 @@ export function CartProvider({ children }) {
         bundleDiscountAmount,
         bundleDiscountPercent,
         bundleRequiredQuantity,
+        rewardProgress: null,
+        rewardGifts: [],
+        rewardProducts: {},
         checkoutCoupon,
         setCheckoutCoupon,
         shippingProtectionSelected,

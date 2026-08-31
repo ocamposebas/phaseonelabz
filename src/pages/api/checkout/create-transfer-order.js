@@ -206,8 +206,6 @@ const RECON_WATER_IDENTIFIERS = new Set([
   "recon-water-30ml",
 ]);
 const H_RECON_IDENTIFIERS = new Set(["h-recon", "h-recon-water"]);
-const RECON_WATER_PROMO_THRESHOLD = 100;
-const RECON_WATER_PROMO_PRICE = 15;
 const H_RECON_PURCHASE_LIMIT = 2;
 
 function getShippingFromRequest(shipping = {}) {
@@ -588,17 +586,6 @@ async function calculateVerifiedSubtotal(config, items = []) {
 
   validateAggregatePurchaseLimits(pricedItems);
 
-  const qualifyingSubtotal = normalizePrice(
-    pricedItems.reduce(
-      (total, item) =>
-        item.isReconWater
-          ? total
-          : total + item.unitPrice * item.quantity,
-      0
-    )
-  );
-  const reconWaterPromoActive = qualifyingSubtotal >= RECON_WATER_PROMO_THRESHOLD;
-
   const regularSubtotal = normalizePrice(
     pricedItems.reduce(
       (total, item) => total + item.unitPrice * item.quantity,
@@ -606,24 +593,9 @@ async function calculateVerifiedSubtotal(config, items = []) {
     )
   );
 
-  const reconWaterDiscount = reconWaterPromoActive
-    ? normalizePrice(
-        pricedItems.reduce((total, item) => {
-          if (!item.isReconWater) return total;
-
-          return (
-            total +
-            Math.max(0, item.unitPrice - RECON_WATER_PROMO_PRICE) * item.quantity
-          );
-        }, 0)
-      )
-    : 0;
   const itemsWithPromotion = pricedItems.map((item) => ({
     ...item,
-    lineUnitPrice:
-      reconWaterPromoActive && item.isReconWater
-        ? Math.min(item.unitPrice, RECON_WATER_PROMO_PRICE)
-        : item.unitPrice,
+    lineUnitPrice: item.unitPrice,
   }));
   const quantity = pricedItems.reduce(
     (total, item) =>
@@ -634,9 +606,6 @@ async function calculateVerifiedSubtotal(config, items = []) {
   );
   const bundleTier = getBundleDiscountTier(quantity);
   const bundleActive = Boolean(bundleTier);
-  const subtotalAfterProductPromotions = normalizePrice(
-    regularSubtotal - reconWaterDiscount
-  );
   const bundleDiscount = bundleActive
     ? normalizePrice(
         itemsWithPromotion.reduce(
@@ -650,11 +619,10 @@ async function calculateVerifiedSubtotal(config, items = []) {
     : 0;
 
   return {
-    subtotal: normalizePrice(subtotalAfterProductPromotions - bundleDiscount),
+    subtotal: normalizePrice(regularSubtotal - bundleDiscount),
     regularSubtotal,
-    qualifyingSubtotal,
-    reconWaterPromoActive,
-    reconWaterDiscount,
+    reconWaterPromoActive: false,
+    reconWaterDiscount: 0,
     bundleActive,
     bundleDiscount,
     bundleDiscountPercent: bundleTier?.discountPercent || 0,
@@ -932,10 +900,6 @@ export async function POST({ request }) {
       {
         key: "_phaseone_recon_water_discount",
         value: normalizeMoneyString(verifiedCart.reconWaterDiscount),
-      },
-      {
-        key: "_phaseone_recon_water_promo_price",
-        value: normalizeMoneyString(RECON_WATER_PROMO_PRICE),
       },
       {
         key: "_phaseone_bundle_promo",

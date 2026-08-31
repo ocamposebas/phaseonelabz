@@ -17,8 +17,6 @@ final class PhaseOne_Prism_Checkout_Bridge {
     private const MAX_ITEMS      = 50;
     private const MAX_COUPONS    = 3;
     private const SECRET_HASH_OPTION = 'phaseone_prism_bridge_secret_hash';
-    private const RECON_WATER_PROMO_THRESHOLD = 100.00;
-    private const RECON_WATER_PROMO_PRICE     = 15.00;
     private const H_RECON_PURCHASE_LIMIT      = 2;
     private const BUNDLE_TIER_ONE_QUANTITY     = 5;
     private const BUNDLE_TIER_ONE_RATE         = 0.10;
@@ -977,9 +975,7 @@ final class PhaseOne_Prism_Checkout_Bridge {
      * derived again from WooCommerce data before the PRISM request is signed.
      */
     private static function apply_phaseone_pricing_rules( WC_Order $order ): array {
-        $qualifying_subtotal = 0.0;
-        $recon_items         = array();
-        $quantity             = 0;
+        $quantity = 0;
 
         foreach ( $order->get_items( 'line_item' ) as $item ) {
             if ( ! $item instanceof WC_Order_Item_Product ) {
@@ -989,29 +985,8 @@ final class PhaseOne_Prism_Checkout_Bridge {
             $product = $item->get_product();
             $item_qty = max( 1, (int) $item->get_quantity() );
 
-            if ( self::is_recon_water_product( $product ) ) {
-                $recon_items[] = $item;
-            } else {
+            if ( ! self::is_recon_water_product( $product ) ) {
                 $quantity += $item_qty;
-                $qualifying_subtotal += (float) $item->get_subtotal();
-            }
-        }
-
-        $recon_promo_active = $qualifying_subtotal >= self::RECON_WATER_PROMO_THRESHOLD;
-        $recon_water_discount = 0.0;
-
-        if ( $recon_promo_active ) {
-            foreach ( $recon_items as $item ) {
-                $item_qty = max( 1, (int) $item->get_quantity() );
-                $current_total = (float) $item->get_total();
-                $current_unit = $current_total / $item_qty;
-                $discounted_unit = min( $current_unit, self::RECON_WATER_PROMO_PRICE );
-                $discounted_total = round( $discounted_unit * $item_qty, wc_get_price_decimals() );
-
-                $recon_water_discount += max( 0, $current_total - $discounted_total );
-                $item->set_subtotal( $discounted_total );
-                $item->set_total( $discounted_total );
-                $item->save();
             }
         }
 
@@ -1035,8 +1010,7 @@ final class PhaseOne_Prism_Checkout_Bridge {
                     continue;
                 }
 
-                // Recon Water remains exactly $15; the bundle applies to the
-                // other products only, matching CartContext.jsx.
+                // Recon Water is excluded from quantity bundle discounts.
                 if ( self::is_recon_water_product( $item->get_product() ) ) {
                     continue;
                 }
@@ -1061,8 +1035,8 @@ final class PhaseOne_Prism_Checkout_Bridge {
         }
 
         return array(
-            'recon_water_promo_active' => $recon_promo_active,
-            'recon_water_discount'     => round( $recon_water_discount, 2 ),
+            'recon_water_promo_active' => false,
+            'recon_water_discount'     => 0.0,
             'bundle_active'            => $bundle_active,
             'bundle_discount'          => round( $bundle_discount, 2 ),
             'bundle_discount_percent'  => (int) round( $bundle_discount_rate * 100 ),

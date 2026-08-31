@@ -5,6 +5,8 @@ import {
   Minus,
   Trash2,
   ShoppingBag,
+  Gift,
+  Truck,
   ShieldCheck,
   Check,
   AlertTriangle,
@@ -76,6 +78,8 @@ export default function CartDrawer() {
     bundleDiscountAmount,
     bundleDiscountPercent,
     bundleRequiredQuantity,
+    rewardProgress,
+    rewardGifts,
     checkout,
     checkoutLoading,
     shippingProtectionSelected,
@@ -275,6 +279,7 @@ export default function CartDrawer() {
                 const itemKey = item.cartKey;
                 const itemImage = getDisplayImage(item);
                 const itemOptions = getDisplayOptions(item);
+                const isRewardGift = Boolean(item.isRewardGift);
                 const purchaseLimit = getProductPurchaseLimit(item);
                 const lineTotal =
                   Number(item.price || 0) * Number(item.quantity || 1);
@@ -282,7 +287,11 @@ export default function CartDrawer() {
                 return (
                   <article
                     key={itemKey}
-                    className="rounded-2xl border border-white/10 bg-transparent p-3"
+                    className={`rounded-2xl border p-3 ${
+                      isRewardGift
+                        ? "border-cyan-200/18 bg-transparent"
+                        : "border-white/10 bg-transparent"
+                    }`}
                   >
                     <div className="flex gap-3">
                       <div className="flex h-[84px] w-[70px] shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[#07111f]">
@@ -294,6 +303,8 @@ export default function CartDrawer() {
                             decoding="async"
                             className="max-h-[70px] w-auto object-contain"
                           />
+                        ) : isRewardGift ? (
+                          <Gift size={22} className="text-cyan-200/75" />
                         ) : (
                           <ShoppingBag size={22} className="text-cyan-200/60" />
                         )}
@@ -302,21 +313,30 @@ export default function CartDrawer() {
                       <div className="min-w-0 flex-1">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
+                            {isRewardGift && (
+                              <div className="mb-1.5 inline-flex items-center gap-1.5 rounded-full border border-cyan-200/12 bg-cyan-300/[0.07] px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.15em] text-cyan-100">
+                                <Gift size={10} />
+                                Free Reward
+                              </div>
+                            )}
+
                             <h3 className="line-clamp-2 text-[15px] font-semibold leading-snug tracking-[-0.02em] text-white">
                               {item.name}
                             </h3>
 
-                            {itemOptions && (
+                            {itemOptions && !isRewardGift && (
                               <p className="mt-1 line-clamp-2 text-[11px] font-bold uppercase tracking-[0.12em] text-cyan-200/70">
                                 {itemOptions}
                               </p>
                             )}
 
                             <p className="mt-1 text-sm text-slate-400">
-                              {formatPrice(item.price)} each
+                              {isRewardGift
+                                ? "Automatically added"
+                                : `${formatPrice(item.price)} each`}
                             </p>
 
-                            {purchaseLimit && (
+                            {purchaseLimit && !isRewardGift && (
                               <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.12em] text-amber-200/80">
                                 Maximum {purchaseLimit} available
                               </p>
@@ -325,12 +345,24 @@ export default function CartDrawer() {
 
                           <button
                             type="button"
-                            onClick={() => removeFromCart(itemKey)}
-                            disabled={checkoutLoading}
-                            aria-label="Remove product"
-                            className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-slate-500 transition hover:bg-red-400/10 hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-45"
+                            onClick={() => {
+                              if (!isRewardGift) {
+                                removeFromCart(itemKey);
+                              }
+                            }}
+                            disabled={checkoutLoading || isRewardGift}
+                            aria-label={
+                              isRewardGift
+                                ? "Reward products cannot be removed manually"
+                                : "Remove product"
+                            }
+                            className={`grid h-8 w-8 shrink-0 place-items-center rounded-full transition disabled:cursor-not-allowed disabled:opacity-45 ${
+                              isRewardGift
+                                ? "text-cyan-200/35"
+                                : "text-slate-500 hover:bg-red-400/10 hover:text-red-300"
+                            }`}
                           >
-                            <Trash2 size={14} />
+                            {isRewardGift ? <Gift size={14} /> : <Trash2 size={14} />}
                           </button>
                         </div>
 
@@ -338,8 +370,12 @@ export default function CartDrawer() {
                           <div className="inline-flex items-center rounded-full border border-cyan-200/10 bg-[#020617]/70 p-1">
                             <button
                               type="button"
-                              onClick={() => updateQuantity(itemKey, -1)}
-                              disabled={checkoutLoading}
+                              onClick={() => {
+                                if (!isRewardGift) {
+                                  updateQuantity(itemKey, -1);
+                                }
+                              }}
+                              disabled={checkoutLoading || isRewardGift}
                               aria-label="Decrease quantity"
                               className="grid h-7 w-7 place-items-center rounded-full text-slate-400 transition hover:bg-white/[0.05] hover:text-white disabled:cursor-not-allowed disabled:opacity-45"
                             >
@@ -352,9 +388,14 @@ export default function CartDrawer() {
 
                             <button
                               type="button"
-                              onClick={() => updateQuantity(itemKey, 1)}
+                              onClick={() => {
+                                if (!isRewardGift) {
+                                  updateQuantity(itemKey, 1);
+                                }
+                              }}
                               disabled={
                                 checkoutLoading ||
+                                isRewardGift ||
                                 (purchaseLimit &&
                                   Number(item.quantity || 0) >= purchaseLimit)
                               }
@@ -365,8 +406,12 @@ export default function CartDrawer() {
                             </button>
                           </div>
 
-                          <p className="text-sm font-semibold text-white">
-                            {formatPrice(lineTotal)}
+                          <p
+                            className={`text-sm font-semibold ${
+                              isRewardGift ? "text-cyan-100" : "text-white"
+                            }`}
+                          >
+                            {isRewardGift ? "FREE" : formatPrice(lineTotal)}
                           </p>
                         </div>
                       </div>
@@ -463,6 +508,71 @@ export default function CartDrawer() {
                 </span>
               </div>
             </button>
+
+            {rewardProgress && (
+              <div className="mb-3">
+                <div className="mb-1.5 flex items-center justify-between gap-3">
+                  <p className="truncate text-[10px] font-semibold text-slate-400">
+                    {rewardProgress.isMaxed
+                      ? "All rewards unlocked"
+                      : `${formatPrice(rewardProgress.remaining)} away from ${
+                          rewardProgress.nextTier?.shortTitle || "next"
+                        } reward`}
+                  </p>
+
+                  {rewardProgress.freeShippingUnlocked && (
+                    <span className="inline-flex shrink-0 items-center gap-1 text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100">
+                      <Truck size={10} />
+                      Free ship
+                    </span>
+                  )}
+                </div>
+
+                <div className="relative h-1.5 rounded-full bg-white/[0.07]">
+                  <div
+                    className="absolute inset-y-0 left-0 rounded-full bg-cyan-300"
+                    style={{
+                      width: `${rewardProgress.progressPercent}%`,
+                    }}
+                  />
+
+                  {rewardProgress.markers?.map((marker) => (
+                    <span
+                      key={marker.label}
+                      className={`absolute top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border ${
+                        marker.unlocked
+                          ? "border-cyan-100 bg-cyan-200"
+                          : "border-cyan-200/25 bg-[#040814]"
+                      }`}
+                      style={{
+                        left: `${marker.percent}%`,
+                      }}
+                    />
+                  ))}
+                </div>
+
+                <div className="relative mt-1 h-3 text-[7px] font-black uppercase tracking-[0.08em] text-slate-600">
+                  {rewardProgress.markers?.map((marker) => (
+                    <span
+                      key={marker.label}
+                      className="absolute -translate-x-1/2"
+                      style={{
+                        left: `${marker.percent}%`,
+                      }}
+                    >
+                      {marker.label}
+                    </span>
+                  ))}
+                </div>
+
+                {rewardGifts?.length > 0 && (
+                  <p className="mt-1.5 truncate text-[9px] font-medium text-cyan-100/70">
+                    {rewardGifts.length} free reward
+                    {rewardGifts.length > 1 ? "s" : ""} added.
+                  </p>
+                )}
+              </div>
+            )}
 
             <button
               type="button"
