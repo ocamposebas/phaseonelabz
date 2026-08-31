@@ -4,6 +4,7 @@ import {
 } from "./presenceSections";
 
 const STORAGE_KEY = "phaseone_presence_session";
+const SOURCE_STORAGE_KEY = "phaseone_presence_source";
 const GLOBAL_KEY = "__phaseOnePresenceTracker";
 const HEARTBEAT_MS = 15_000;
 const INACTIVITY_MS = 120_000;
@@ -51,6 +52,44 @@ function normalizeEndpoint(value: string): string | null {
   }
 }
 
+function trafficSource(): string {
+  try {
+    const existing = sessionStorage.getItem(SOURCE_STORAGE_KEY);
+    if (existing) return existing;
+  } catch {
+    // Storage is optional.
+  }
+  const campaign = new URLSearchParams(location.search).get("utm_source")?.trim();
+  let source = campaign?.slice(0, 80) || "Direct";
+  try {
+    if (!campaign && document.referrer) {
+      const referrerHost = new URL(document.referrer).hostname.replace(/^www\./, "");
+      const currentHost = location.hostname.replace(/^www\./, "");
+      if (referrerHost !== currentHost) source = referrerHost;
+    }
+  } catch {
+    source = "Direct";
+  }
+  try { sessionStorage.setItem(SOURCE_STORAGE_KEY, source); } catch { /* Optional. */ }
+  return source;
+}
+
+function deviceType(): "Mobile" | "Tablet" | "Desktop" {
+  const agent = navigator.userAgent;
+  if (/iPad|Tablet|PlayBook|Silk/i.test(agent)) return "Tablet";
+  if (/Mobi|Android|iPhone|iPod/i.test(agent)) return "Mobile";
+  return "Desktop";
+}
+
+function clickLabel(element: Element): string {
+  const raw =
+    element.getAttribute("aria-label") ||
+    element.getAttribute("title") ||
+    element.textContent ||
+    (element instanceof HTMLAnchorElement ? element.pathname : "Interaction");
+  return raw.replace(/\s+/g, " ").trim().slice(0, 80) || "Interaction";
+}
+
 export function startPresenceTracker(options: StartOptions): TrackerHandle | null {
   const globalState = window as typeof window & {
     [GLOBAL_KEY]?: TrackerHandle;
@@ -61,6 +100,8 @@ export function startPresenceTracker(options: StartOptions): TrackerHandle | nul
   if (!endpoint) return null;
 
   const visitorId = getVisitorId();
+  const source = trafficSource();
+  const device = deviceType();
   let socket: WebSocket | undefined;
   let connectionId = "";
   let cartOpen = document.documentElement.classList.contains("phase-cart-open");
@@ -136,6 +177,8 @@ export function startPresenceTracker(options: StartOptions): TrackerHandle | nul
         connectionId,
         section: currentSection,
         path: currentPath,
+        source,
+        device,
       });
     });
 
@@ -185,6 +228,13 @@ export function startPresenceTracker(options: StartOptions): TrackerHandle | nul
   };
 
   const onRouteChange = (): void => sendSection();
+  const onClick = (event: MouseEvent): void => {
+    const target = event.target instanceof Element
+      ? event.target.closest("button, a, [role='button']")
+      : null;
+    if (!target) return;
+    send({ type: "analytics:click", path: location.pathname, label: clickLabel(target) });
+  };
   const activityEvents: Array<keyof WindowEventMap> = [
     "pointerdown",
     "keydown",
@@ -198,6 +248,7 @@ export function startPresenceTracker(options: StartOptions): TrackerHandle | nul
   window.addEventListener("phase-cart-state", onCartState);
   window.addEventListener("popstate", onRouteChange);
   document.addEventListener("astro:page-load", onRouteChange);
+  document.addEventListener("click", onClick, { capture: true, passive: true });
 
   const heartbeatTimer = window.setInterval(() => {
     if (Date.now() - lastActivity >= INACTIVITY_MS) {
@@ -225,6 +276,7 @@ export function startPresenceTracker(options: StartOptions): TrackerHandle | nul
       window.removeEventListener("phase-cart-state", onCartState);
       window.removeEventListener("popstate", onRouteChange);
       document.removeEventListener("astro:page-load", onRouteChange);
+      document.removeEventListener("click", onClick, { capture: true });
       socket?.close(1000, "Stopped");
       delete globalState[GLOBAL_KEY];
     },
