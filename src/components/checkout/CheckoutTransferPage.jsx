@@ -3,7 +3,6 @@ import {
   ArrowLeft,
   AlertTriangle,
   BadgeCheck,
-  Gift,
   Lock,
   CreditCard,
   Building2,
@@ -2007,11 +2006,12 @@ export default function CheckoutTransferPage() {
   const sessionCartItems =
     session?.cart_items || session?.cartItems || session?.items || [];
 
-  const cartItems = hasProviderCartItems
+  const rawCartItems = hasProviderCartItems
     ? cart.cartItems
     : Array.isArray(sessionCartItems) && sessionCartItems.length > 0
       ? sessionCartItems
       : localCartItems;
+  const cartItems = rawCartItems.filter((item) => !isRewardGiftItem(item));
 
   const cartTotal = hasProviderCartItems
     ? Number(cart.cartTotal || 0)
@@ -2091,18 +2091,6 @@ export default function CheckoutTransferPage() {
     maximumCombinedDiscount - bundleDiscountAmount,
     0,
   );
-
-  const rewardGifts =
-    cart?.rewardGifts ||
-    session?.reward_gifts ||
-    session?.rewardGifts ||
-    cartItems.filter((item) => isRewardGiftItem(item));
-
-  const rewardProgress =
-    cart?.rewardProgress ||
-    session?.reward_progress ||
-    session?.rewardProgress ||
-    null;
 
   const estimatedPoints = Math.max(
     0,
@@ -3917,7 +3905,6 @@ export default function CheckoutTransferPage() {
                 {cartItems.map((item, index) => {
                   const image = getItemImage(item);
                   const options = getItemOptions(item);
-                  const isRewardGift = isRewardGiftItem(item);
                   const lineTotal =
                     getCartItemPrice(item) * getCartItemQuantity(item);
 
@@ -3941,10 +3928,9 @@ export default function CheckoutTransferPage() {
                       <div className="summary-item-copy">
                         <strong>{getItemName(item)}</strong>
                         {options && <small>{options}</small>}
-                        {isRewardGift && <small className="gift-label">Free reward</small>}
                       </div>
 
-                      <em>{isRewardGift ? "FREE" : formatMoney(lineTotal)}</em>
+                      <em>{formatMoney(lineTotal)}</em>
                     </div>
                   );
                 })}

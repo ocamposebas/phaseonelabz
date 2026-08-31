@@ -120,9 +120,6 @@ function persistShippingProtectionSelection({
   }
 }
 
-// Kept empty temporarily so older UI imports do not break during deployment.
-export const REWARD_TIERS = [];
-
 const emptyCartContext = {
   cartItems: [],
   cartNotice: "",
@@ -143,9 +140,6 @@ const emptyCartContext = {
   bundleDiscountAmount: 0,
   bundleDiscountPercent: 0,
   bundleRequiredQuantity: 0,
-  rewardProgress: null,
-  rewardGifts: [],
-  rewardProducts: {},
   getCartItemKey: () => "",
   buildCheckoutUrl: () => null,
   checkoutCoupon: "",
@@ -2262,9 +2256,6 @@ export function CartProvider({ children }) {
         bundleDiscountAmount,
         bundleDiscountPercent,
         bundleRequiredQuantity,
-        rewardProgress: null,
-        rewardGifts: [],
-        rewardProducts: {},
         checkoutCoupon,
         setCheckoutCoupon,
         shippingProtectionSelected,

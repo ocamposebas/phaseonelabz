@@ -93,7 +93,12 @@ export default function PromoCountdownBar({ promo }) {
     return () => window.clearInterval(interval);
   }, [currentPromo?.enabled, currentPromo?.endsAt]);
 
-  if (!currentPromo?.enabled || !currentPromo?.endsAt || remaining.totalSeconds <= 0) {
+  if (
+    !currentPromo?.enabled ||
+    currentPromo?.type === "simple_gifts" ||
+    !currentPromo?.endsAt ||
+    remaining.totalSeconds <= 0
+  ) {
     return null;
   }
 
