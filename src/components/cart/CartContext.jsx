@@ -24,16 +24,17 @@ const CHECKOUT_SESSION_STORAGE_PREFIX = "phaseone_checkout_session_";
 const SHIPPING_PROTECTION_RATE_PER_100 = 1.09;
 const SHIPPING_PROTECTION_COOKIE_MAX_AGE = 60 * 60 * 24;
 
-// Recon Water is intentionally identified by its stable WooCommerce slug, not
-// by a numeric ID. Numeric IDs can differ between environments.
+// These products are identified by stable WooCommerce slugs/names rather than
+// numeric IDs because IDs can differ between environments.
 const RECON_WATER_IDENTIFIERS = new Set([
-  "h-recon-water",
   "recon-water",
   "recon-water-30ml",
 ]);
+const H_RECON_IDENTIFIERS = new Set(["h-recon", "h-recon-water"]);
 const RECON_WATER_PROMO_THRESHOLD = 100;
 const RECON_WATER_PROMO_PRICE = 15;
-const RECON_WATER_PURCHASE_LIMIT = 2;
+const H_RECON_PURCHASE_LIMIT = 2;
+const INVENTORY_REQUEST_TIMEOUT_MS = 8000;
 const BUNDLE_DISCOUNT_TIERS = [
   { requiredQuantity: 10, discountRate: 0.3, discountPercent: 30 },
   { requiredQuantity: 5, discountRate: 0.1, discountPercent: 10 },
@@ -681,8 +682,8 @@ export function getProductPurchaseLimit(item = {}) {
     limits.push(Math.floor(stockQuantity));
   }
 
-  if (isReconWaterProduct(item)) {
-    limits.push(RECON_WATER_PURCHASE_LIMIT);
+  if (isHReconProduct(item)) {
+    limits.push(H_RECON_PURCHASE_LIMIT);
   }
 
   return limits.length ? Math.max(1, Math.min(...limits)) : null;
@@ -709,8 +710,24 @@ export function isReconWaterProduct(item = {}) {
   return identifiers.some(
     (identifier) =>
       RECON_WATER_IDENTIFIERS.has(identifier) ||
-      identifier.startsWith("recon-water-") ||
-      identifier.startsWith("h-recon-water-"),
+      identifier.startsWith("recon-water-"),
+  );
+}
+
+export function isHReconProduct(item = {}) {
+  const identifiers = [
+    item.slug,
+    item.product_slug,
+    item.productSlug,
+    item.sku,
+    item.name,
+    item.title,
+  ].map(normalizeProductIdentifier);
+
+  return identifiers.some(
+    (identifier) =>
+      H_RECON_IDENTIFIERS.has(identifier) ||
+      identifier.startsWith("h-recon-"),
   );
 }
 
@@ -824,11 +841,18 @@ async function getLiveInventorySnapshot(item = {}) {
     };
   }
 
+  const controller =
+    typeof AbortController !== "undefined" ? new AbortController() : null;
+  const timeoutId = window.setTimeout(() => {
+    controller?.abort();
+  }, INVENTORY_REQUEST_TIMEOUT_MS);
+
   try {
     const response = await fetch(`${endpoint}?phaseone_stock=${Date.now()}`, {
       method: "GET",
       cache: "no-store",
       credentials: "omit",
+      signal: controller?.signal,
       headers: {
         Accept: "application/json",
         "Cache-Control": "no-cache",
@@ -875,6 +899,8 @@ async function getLiveInventorySnapshot(item = {}) {
       item,
       purchaseLimit: getProductPurchaseLimit(item),
     };
+  } finally {
+    window.clearTimeout(timeoutId);
   }
 }
 
@@ -2122,79 +2148,96 @@ export function CartProvider({ children }) {
 
     setCheckoutLoading(true);
 
-    const itemsBeforeCheckout = normalizeCartItems(cartItems);
-    const inventoryResults = await Promise.all(
-      itemsBeforeCheckout.map((item) => getLiveInventorySnapshot(item)),
-    );
-    const reconciledItems = [];
-    let inventoryChanged = false;
+    try {
+      const itemsBeforeCheckout = normalizeCartItems(cartItems);
+      const inventoryResults = await Promise.all(
+        itemsBeforeCheckout.map((item) => getLiveInventorySnapshot(item)),
+      );
+      const reconciledItems = [];
+      let inventoryChanged = false;
 
-    inventoryResults.forEach((result, index) => {
-      const currentItem = itemsBeforeCheckout[index];
+      inventoryResults.forEach((result, index) => {
+        const currentItem = itemsBeforeCheckout[index];
 
-      if (!result.available || result.purchaseLimit === 0) {
-        inventoryChanged = true;
+        if (!result.available || result.purchaseLimit === 0) {
+          inventoryChanged = true;
+          return;
+        }
+
+        const inventoryItem = {
+          ...currentItem,
+          ...result.item,
+          cartKey: currentItem.cartKey,
+        };
+        const quantity = clampCartItemQuantity(
+          inventoryItem,
+          currentItem.quantity,
+        );
+
+        if (quantity !== Number(currentItem.quantity || 0)) {
+          inventoryChanged = true;
+        }
+
+        reconciledItems.push({ ...inventoryItem, quantity });
+      });
+
+      if (inventoryChanged) {
+        setCartItems(normalizeCartItems(reconciledItems));
+        setCartNotice(
+          "Stock changed while you were shopping. We updated your cart; please review it before checkout.",
+        );
+        setIsCartOpen(true);
+        setCheckoutLoading(false);
         return;
       }
 
-      const inventoryItem = {
-        ...currentItem,
-        ...result.item,
-        cartKey: currentItem.cartKey,
-      };
-      const quantity = clampCartItemQuantity(
-        inventoryItem,
-        currentItem.quantity,
-      );
+      const checkoutUrl = buildCheckoutUrl();
 
-      if (quantity !== Number(currentItem.quantity || 0)) {
-        inventoryChanged = true;
+      if (!checkoutUrl) {
+        console.error("Could not build checkout URL.");
+        setCheckoutLoading(false);
+        return;
       }
 
-      reconciledItems.push({ ...inventoryItem, quantity });
-    });
+      const checkoutItemsForTracking = normalizeCartItems(cartItems);
 
-    if (inventoryChanged) {
-      setCartItems(normalizeCartItems(reconciledItems));
+      try {
+        pushOmnisendEvent(
+          "started checkout",
+          checkoutItemsForTracking,
+          null,
+          checkoutUrl,
+          { checkoutCoupon, account },
+        );
+
+        trackP1Event("InitiateCheckout", {
+          value: checkoutTotal,
+          items: checkoutItemsForTracking.map((item) => ({
+            sku: getMetaPixelContentId(item),
+            name: getMetaPixelItemName(item),
+            price: getCartItemPrice(item),
+            quantity: Number(item.quantity || 1),
+          })),
+        });
+      } catch (trackingError) {
+        // Analytics must never prevent a customer from reaching checkout.
+        console.warn("[Phase One] Checkout tracking failed:", trackingError);
+      }
+
+      console.log("Sending cart to WordPress checkout:", checkoutUrl);
+
+      window.location.assign(checkoutUrl);
+
+      // If the browser blocks or cancels navigation, return control to the user.
+      window.setTimeout(() => setCheckoutLoading(false), 10000);
+    } catch (error) {
+      console.error("[Phase One] Could not prepare checkout:", error);
       setCartNotice(
-        "Stock changed while you were shopping. We updated your cart; please review it before checkout.",
+        "We could not prepare checkout. Please try again; your cart is still saved.",
       );
       setIsCartOpen(true);
       setCheckoutLoading(false);
-      return;
     }
-
-    const checkoutUrl = buildCheckoutUrl();
-
-    if (!checkoutUrl) {
-      console.error("Could not build checkout URL.");
-      setCheckoutLoading(false);
-      return;
-    }
-
-    const checkoutItemsForTracking = normalizeCartItems(cartItems);
-
-    pushOmnisendEvent(
-      "started checkout",
-      checkoutItemsForTracking,
-      null,
-      checkoutUrl,
-      { checkoutCoupon, account },
-    );
-
-    trackP1Event("InitiateCheckout", {
-      value: checkoutTotal,
-      items: checkoutItemsForTracking.map((item) => ({
-        sku: getMetaPixelContentId(item),
-        name: getMetaPixelItemName(item),
-        price: getCartItemPrice(item),
-        quantity: Number(item.quantity || 1),
-      })),
-    });
-
-    console.log("Sending cart to WordPress checkout:", checkoutUrl);
-
-    window.location.href = checkoutUrl;
   };
 
   return (

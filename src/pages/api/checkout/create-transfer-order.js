@@ -202,13 +202,13 @@ function shippingProtectionRequested(body = {}) {
 }
 
 const RECON_WATER_IDENTIFIERS = new Set([
-  "h-recon-water",
   "recon-water",
   "recon-water-30ml",
 ]);
+const H_RECON_IDENTIFIERS = new Set(["h-recon", "h-recon-water"]);
 const RECON_WATER_PROMO_THRESHOLD = 100;
 const RECON_WATER_PROMO_PRICE = 15;
-const RECON_WATER_PURCHASE_LIMIT = 2;
+const H_RECON_PURCHASE_LIMIT = 2;
 
 function getShippingFromRequest(shipping = {}) {
   const method = sanitizeString(shipping.method || "standard").toLowerCase();
@@ -297,12 +297,21 @@ function isReconWaterProduct(product = {}) {
     .some(
       (identifier) =>
         RECON_WATER_IDENTIFIERS.has(identifier) ||
-        identifier.startsWith("recon-water-") ||
-        identifier.startsWith("h-recon-water-")
+        identifier.startsWith("recon-water-")
     );
 }
 
-function getPurchaseLimit(product = {}, variation = {}, isReconWater = false) {
+function isHReconProduct(product = {}) {
+  return [product.slug, product.sku, product.name]
+    .map(normalizeProductIdentifier)
+    .some(
+      (identifier) =>
+        H_RECON_IDENTIFIERS.has(identifier) ||
+        identifier.startsWith("h-recon-")
+    );
+}
+
+function getPurchaseLimit(product = {}, variation = {}, isHRecon = false) {
   const limits = [];
 
   if (product.sold_individually || variation.sold_individually) {
@@ -321,8 +330,8 @@ function getPurchaseLimit(product = {}, variation = {}, isReconWater = false) {
     limits.push(Math.floor(explicitLimit));
   }
 
-  if (isReconWater) {
-    limits.push(RECON_WATER_PURCHASE_LIMIT);
+  if (isHRecon) {
+    limits.push(H_RECON_PURCHASE_LIMIT);
   }
 
   if (!limits.length) return null;
@@ -334,7 +343,7 @@ function getAvailabilitySource(product = {}, variation = {}, hasVariation = fals
   return hasVariation ? variation || {} : product || {};
 }
 
-function assertPurchasableStock({ product = {}, variation = {}, item, isReconWater }) {
+function assertPurchasableStock({ product = {}, variation = {}, item, isHRecon }) {
   const hasVariation = Number(item.variation_id || 0) > 0;
   const source = getAvailabilitySource(product, variation, hasVariation);
   const productName =
@@ -352,7 +361,7 @@ function assertPurchasableStock({ product = {}, variation = {}, item, isReconWat
     throw new Error(`${productName} is sold out. Please remove it from your cart.`);
   }
 
-  const purchaseLimit = getPurchaseLimit(product, variation, isReconWater);
+  const purchaseLimit = getPurchaseLimit(product, variation, isHRecon);
   if (purchaseLimit && Number(item.quantity || 0) > purchaseLimit) {
     throw new Error(
       `${productName} is limited to ${purchaseLimit} per order. Please update your cart.`
@@ -507,6 +516,7 @@ async function getProductPricingFromWoo(config, item) {
   });
 
   const isReconWater = isReconWaterProduct(product);
+  const isHRecon = isHReconProduct(product);
 
   if (item.variation_id > 0) {
     const variation = await wooFetch({
@@ -514,27 +524,27 @@ async function getProductPricingFromWoo(config, item) {
       path: `/products/${item.product_id}/variations/${item.variation_id}`,
     });
 
-    assertPurchasableStock({ product, variation, item, isReconWater });
+    assertPurchasableStock({ product, variation, item, isHRecon });
 
     return {
       unitPrice: normalizePrice(
         variation.price || variation.sale_price || variation.regular_price || 0
       ),
       isReconWater,
-      purchaseLimit: getPurchaseLimit(product, variation, isReconWater),
+      purchaseLimit: getPurchaseLimit(product, variation, isHRecon),
       purchaseLimitKey: String(product.id || item.product_id),
       productName: variation.name || product.name || "A product in your cart",
     };
   }
 
-  assertPurchasableStock({ product, variation: {}, item, isReconWater });
+  assertPurchasableStock({ product, variation: {}, item, isHRecon });
 
   return {
     unitPrice: normalizePrice(
       product.price || product.sale_price || product.regular_price || 0
     ),
     isReconWater,
-    purchaseLimit: getPurchaseLimit(product, {}, isReconWater),
+    purchaseLimit: getPurchaseLimit(product, {}, isHRecon),
     purchaseLimitKey: String(product.id || item.product_id),
     productName: product.name || "A product in your cart",
   };

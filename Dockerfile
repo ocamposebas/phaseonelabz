@@ -6,6 +6,10 @@ COPY package*.json ./
 RUN npm install
 
 COPY . .
+
+ARG PUBLIC_PRESENCE_WS_URL
+ENV PUBLIC_PRESENCE_WS_URL=$PUBLIC_PRESENCE_WS_URL
+
 RUN npm run build
 
 ENV HOST=0.0.0.0

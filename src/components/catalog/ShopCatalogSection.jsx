@@ -19,7 +19,6 @@ import { useCart } from "../cart/CartContext";
 import DispatchCutoff from "../shipping/DispatchCutoff";
 
 const RECON_WATER_IDENTIFIERS = new Set([
-  "h-recon-water",
   "recon-water",
   "recon-water-30ml",
 ]);
@@ -41,8 +40,7 @@ function isReconWaterProduct(product = {}) {
     .some(
       (identifier) =>
         RECON_WATER_IDENTIFIERS.has(identifier) ||
-        identifier.startsWith("recon-water-") ||
-        identifier.startsWith("h-recon-water-"),
+        identifier.startsWith("recon-water-"),
     );
 }
 

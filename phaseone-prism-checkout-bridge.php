@@ -19,7 +19,7 @@ final class PhaseOne_Prism_Checkout_Bridge {
     private const SECRET_HASH_OPTION = 'phaseone_prism_bridge_secret_hash';
     private const RECON_WATER_PROMO_THRESHOLD = 100.00;
     private const RECON_WATER_PROMO_PRICE     = 15.00;
-    private const RECON_WATER_PURCHASE_LIMIT  = 2;
+    private const H_RECON_PURCHASE_LIMIT      = 2;
     private const BUNDLE_TIER_ONE_QUANTITY     = 5;
     private const BUNDLE_TIER_ONE_RATE         = 0.10;
     private const BUNDLE_TIER_TWO_QUANTITY     = 10;
@@ -719,8 +719,8 @@ final class PhaseOne_Prism_Checkout_Bridge {
             }
         }
 
-        if ( self::is_recon_water_product( $product ) ) {
-            $limits[] = self::RECON_WATER_PURCHASE_LIMIT;
+        if ( self::is_h_recon_product( $product ) ) {
+            $limits[] = self::H_RECON_PURCHASE_LIMIT;
         }
 
         if ( empty( $limits ) ) {
@@ -926,9 +926,42 @@ final class PhaseOne_Prism_Checkout_Bridge {
             foreach ( $identifiers as $identifier ) {
                 $normalized_identifier = self::normalize_product_identifier( $identifier );
                 if (
-                    in_array( $normalized_identifier, array( 'h-recon-water', 'recon-water', 'recon-water-30ml' ), true ) ||
-                    0 === strpos( $normalized_identifier, 'recon-water-' ) ||
-                    0 === strpos( $normalized_identifier, 'h-recon-water-' )
+                    in_array( $normalized_identifier, array( 'recon-water', 'recon-water-30ml' ), true ) ||
+                    0 === strpos( $normalized_identifier, 'recon-water-' )
+                ) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static function is_h_recon_product( $product ): bool {
+        if ( ! $product instanceof WC_Product ) {
+            return false;
+        }
+
+        $products = array( $product );
+        if ( $product instanceof WC_Product_Variation && $product->get_parent_id() ) {
+            $parent = wc_get_product( $product->get_parent_id() );
+            if ( $parent instanceof WC_Product ) {
+                $products[] = $parent;
+            }
+        }
+
+        foreach ( $products as $candidate ) {
+            $identifiers = array(
+                $candidate->get_slug(),
+                $candidate->get_sku(),
+                $candidate->get_name(),
+            );
+
+            foreach ( $identifiers as $identifier ) {
+                $normalized_identifier = self::normalize_product_identifier( $identifier );
+                if (
+                    in_array( $normalized_identifier, array( 'h-recon', 'h-recon-water' ), true ) ||
+                    0 === strpos( $normalized_identifier, 'h-recon-' )
                 ) {
                     return true;
                 }
