@@ -53,16 +53,37 @@ function normalizeEndpoint(value: string): string | null {
 }
 
 function trafficSource(): string {
+  const parameters = new URLSearchParams(location.search);
+  const coupon = (
+    parameters.get("coupon") ||
+    parameters.get("coupon_code") ||
+    parameters.get("affiliate_coupon") ||
+    parameters.get("phaseone_coupon") ||
+    ""
+  ).replace(/[^a-z0-9_-]/gi, "").trim().slice(0, 60);
+  const campaign = parameters.get("utm_source")?.trim().slice(0, 60) || "";
+
+  // Explicit attribution in the current URL must replace a previously stored
+  // direct/referrer source. This makes affiliate links work in an existing tab.
+  const attributedSource = coupon
+    ? `Coupon: ${coupon.toUpperCase()}`
+    : campaign
+      ? `Campaign: ${campaign}`
+      : "";
+  if (attributedSource) {
+    try { sessionStorage.setItem(SOURCE_STORAGE_KEY, attributedSource); } catch { /* Optional. */ }
+    return attributedSource;
+  }
+
   try {
     const existing = sessionStorage.getItem(SOURCE_STORAGE_KEY);
     if (existing) return existing;
   } catch {
     // Storage is optional.
   }
-  const campaign = new URLSearchParams(location.search).get("utm_source")?.trim();
-  let source = campaign?.slice(0, 80) || "Direct";
+  let source = "Direct";
   try {
-    if (!campaign && document.referrer) {
+    if (document.referrer) {
       const referrerHost = new URL(document.referrer).hostname.replace(/^www\./, "");
       const currentHost = location.hostname.replace(/^www\./, "");
       if (referrerHost !== currentHost) source = referrerHost;
