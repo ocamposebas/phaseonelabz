@@ -10,6 +10,7 @@ import {
   Loader2,
   LogOut,
   Minus,
+  MoreHorizontal,
   Plus,
   ReceiptText,
   ShieldCheck,
@@ -53,6 +54,19 @@ const dashboardTabs = [
   { id: "orders", label: "Orders", shortLabel: "Orders", icon: ReceiptText },
   { id: "affiliate", label: "Affiliate", shortLabel: "Partner", icon: Handshake },
 ];
+
+const mobilePrimaryTabIds = ["overview", "orders", "rewards"];
+const mobilePrimaryTabs = mobilePrimaryTabIds.map((tabId) =>
+  dashboardTabs.find((tab) => tab.id === tabId)
+);
+const mobileSecondaryTabs = dashboardTabs.filter(
+  (tab) => !mobilePrimaryTabIds.includes(tab.id)
+);
+const mobileTabDescriptions = {
+  personal: "Personal details",
+  coas: "Lab certificates",
+  affiliate: "Partner program",
+};
 
 const moneyFormatters = new Map();
 const dateFormatter = new Intl.DateTimeFormat("en-US", {
@@ -295,7 +309,24 @@ function getRewardCreditStats(points) {
 
 
 function DashboardMenu({ activeTab, setActiveTab }) {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const isSecondaryTabActive = mobileSecondaryTabs.some(
+    (tab) => tab.id === activeTab
+  );
+
+  useEffect(() => {
+    if (!mobileMenuOpen) return undefined;
+
+    const closeOnEscape = (event) => {
+      if (event.key === "Escape") setMobileMenuOpen(false);
+    };
+
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [mobileMenuOpen]);
+
   const handleTabSelect = (tabId) => {
+    setMobileMenuOpen(false);
     setActiveTab(tabId);
 
     if (
@@ -316,9 +347,126 @@ function DashboardMenu({ activeTab, setActiveTab }) {
   return (
     <nav
       aria-label="Account sections"
-      className="account-dashboard-menu fixed inset-x-3 bottom-3 z-[80] mb-0 rounded-[18px] border border-white/[0.09] bg-[#040d18]/95 p-1 shadow-[0_14px_45px_rgba(0,0,0,0.5)] sm:static sm:mb-6 sm:rounded-[16px] sm:bg-[#040d18] sm:shadow-none lg:mb-4"
+      className="account-dashboard-menu fixed inset-x-3 bottom-3 z-[80] mx-auto mb-0 max-w-[520px] rounded-[22px] border border-white/[0.1] bg-[#040d18]/95 p-1.5 shadow-[0_18px_55px_rgba(0,0,0,0.58)] sm:static sm:mb-6 sm:max-w-none sm:rounded-[16px] sm:bg-[#040d18] sm:p-1 sm:shadow-none lg:mb-4"
     >
-      <div className="account-tabs-scroll grid grid-cols-6 gap-0.5 sm:gap-1">
+      <div className="sm:hidden">
+        {mobileMenuOpen && (
+          <div
+            id="account-mobile-more-menu"
+            className="absolute inset-x-0 bottom-[calc(100%+0.65rem)] overflow-hidden rounded-[22px] border border-white/[0.1] bg-[#06111f] p-2 shadow-[0_20px_60px_rgba(0,0,0,0.65)]"
+          >
+            <div className="flex items-center justify-between px-3 pb-2 pt-1.5">
+              <div>
+                <p className="text-[9px] font-black uppercase tracking-[0.2em] text-cyan-200/55">
+                  More sections
+                </p>
+                <p className="mt-0.5 text-xs text-slate-400">
+                  Account tools and documents
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMobileMenuOpen(false)}
+                aria-label="Close more account sections"
+                className="grid h-10 w-10 place-items-center rounded-xl border border-white/[0.08] bg-white/[0.035] text-slate-400 transition-colors hover:text-white"
+              >
+                <X size={17} />
+              </button>
+            </div>
+
+            <div className="grid gap-1">
+              {mobileSecondaryTabs.map((tab) => {
+                const Icon = tab.icon;
+                const isActive = activeTab === tab.id;
+
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => handleTabSelect(tab.id)}
+                    aria-current={isActive ? "page" : undefined}
+                    className={`flex min-h-[58px] w-full items-center gap-3 rounded-[15px] border px-3.5 text-left transition-colors ${
+                      isActive
+                        ? "border-cyan-200/20 bg-[#0b2532] text-cyan-50"
+                        : "border-transparent text-slate-300 hover:bg-white/[0.04] hover:text-white"
+                    }`}
+                  >
+                    <span
+                      className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${
+                        isActive
+                          ? "bg-cyan-200/10 text-cyan-100"
+                          : "bg-white/[0.035] text-slate-500"
+                      }`}
+                    >
+                      <Icon size={17} />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[12px] font-bold tracking-[-0.01em]">
+                        {tab.label}
+                      </span>
+                      <span className="mt-0.5 block text-[10px] text-slate-500">
+                        {mobileTabDescriptions[tab.id]}
+                      </span>
+                    </span>
+                    <ArrowRight size={15} className="shrink-0 text-slate-600" />
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-4 gap-1">
+          {mobilePrimaryTabs.map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => handleTabSelect(tab.id)}
+                aria-current={isActive ? "page" : undefined}
+                className={`group relative inline-flex min-h-[62px] min-w-0 flex-col items-center justify-center gap-1.5 rounded-[16px] border px-1 text-[10px] font-bold transition-colors ${
+                  isActive
+                    ? "border-cyan-200/20 bg-[#0b2532] text-cyan-50"
+                    : "border-transparent text-slate-500 hover:bg-white/[0.035] hover:text-slate-200"
+                }`}
+              >
+                <Icon
+                  size={18}
+                  className={isActive ? "text-cyan-100" : "text-slate-500"}
+                />
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
+
+          <button
+            type="button"
+            onClick={() => setMobileMenuOpen((isOpen) => !isOpen)}
+            aria-expanded={mobileMenuOpen}
+            aria-controls="account-mobile-more-menu"
+            className={`group relative inline-flex min-h-[62px] min-w-0 flex-col items-center justify-center gap-1.5 rounded-[16px] border px-1 text-[10px] font-bold transition-colors ${
+              mobileMenuOpen || isSecondaryTabActive
+                ? "border-cyan-200/20 bg-[#0b2532] text-cyan-50"
+                : "border-transparent text-slate-500 hover:bg-white/[0.035] hover:text-slate-200"
+            }`}
+          >
+            <MoreHorizontal
+              size={19}
+              className={
+                mobileMenuOpen || isSecondaryTabActive
+                  ? "text-cyan-100"
+                  : "text-slate-500"
+              }
+            />
+            <span>More</span>
+          </button>
+        </div>
+      </div>
+
+      <div className="account-tabs-scroll hidden grid-cols-6 gap-1 sm:grid">
         {dashboardTabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -329,7 +477,7 @@ function DashboardMenu({ activeTab, setActiveTab }) {
               type="button"
               onClick={() => handleTabSelect(tab.id)}
               aria-current={isActive ? "page" : undefined}
-              className={`group relative inline-flex min-h-[55px] min-w-0 flex-col items-center justify-center gap-1 overflow-hidden whitespace-nowrap rounded-[13px] border px-1 text-[8px] font-bold tracking-[0.01em] transition-colors duration-150 sm:min-h-[46px] sm:w-full sm:flex-row sm:gap-2 sm:rounded-[11px] sm:px-2 sm:text-[11px] ${
+              className={`group relative inline-flex min-h-[46px] min-w-0 w-full items-center justify-center gap-2 overflow-hidden whitespace-nowrap rounded-[11px] border px-2 text-[11px] font-bold tracking-[0.01em] transition-colors duration-150 ${
                 isActive
                   ? "border-cyan-200/20 bg-[#0b2532] text-cyan-50"
                   : "border-transparent bg-transparent text-slate-500 hover:bg-white/[0.035] hover:text-slate-200"
@@ -343,8 +491,7 @@ function DashboardMenu({ activeTab, setActiveTab }) {
                     : "text-slate-500 group-hover:text-cyan-100"
                 }`}
               />
-              <span className="max-w-full truncate sm:hidden">{tab.shortLabel}</span>
-              <span className="hidden min-w-0 truncate sm:inline">{tab.label}</span>
+              <span className="min-w-0 truncate">{tab.label}</span>
             </button>
           );
         })}
