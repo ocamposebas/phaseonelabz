@@ -1021,6 +1021,33 @@ function buildCheckoutItems(cartItems = []) {
   return officialItems;
 }
 
+function buildBulkCheckoutItems(intent = {}) {
+  const lines = Array.isArray(intent?.quote?.lines) ? intent.quote.lines : [];
+  return lines.map((line) => {
+    const attributes = Array.isArray(line.attributes) ? line.attributes : [];
+    const selectedOption = attributes
+      .map((attribute) => attribute?.value)
+      .filter(Boolean)
+      .join(" · ");
+    return {
+      id: Number(line.purchasable_id || line.variation_id || line.product_id || 0),
+      product_id: Number(line.product_id || 0),
+      variation_id: Number(line.variation_id || 0),
+      quantity: Number(line.quantity || 0),
+      price: Number(line.unit_price || 0),
+      unit_price: Number(line.unit_price || 0),
+      line_total: Number(line.line_total || 0),
+      name: line.parent_name || line.name || "Bulk product",
+      title: line.parent_name || line.name || "Bulk product",
+      selectedOption,
+      image: line.image || "/tarro.png",
+      sku: line.sku || "",
+      cartKey: `bulk-${Number(line.purchasable_id || 0)}`,
+      phaseone_bulk_item: true,
+    };
+  }).filter((line) => line.product_id > 0 && line.quantity > 0);
+}
+
 function encodeCheckoutPayload(payload) {
   try {
     return btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
@@ -1320,12 +1347,20 @@ function getSessionCustomerData(session = {}, accountUser = {}) {
     phone: customerPhone,
   };
 
+  const accountBilling = normalizeCheckoutAddress(
+    accountUser?.billing || accountUser?.billing_address || {},
+    baseCustomer,
+  );
   const billing = normalizeCheckoutAddress(
     session?.billing ||
       session?.billingAddress ||
       session?.billing_address ||
       {},
-    baseCustomer,
+    accountBilling,
+  );
+  const accountShipping = normalizeCheckoutAddress(
+    accountUser?.shipping || accountUser?.shipping_address || {},
+    billing,
   );
 
   const shipping = normalizeCheckoutAddress(
@@ -1333,7 +1368,7 @@ function getSessionCustomerData(session = {}, accountUser = {}) {
       session?.shippingAddress ||
       session?.shipping_address ||
       {},
-    billing,
+    accountShipping,
   );
 
   return {
@@ -1779,6 +1814,9 @@ export default function CheckoutTransferPage() {
   }, []);
 
   const [session, setSession] = useState(null);
+  const [bulkMode, setBulkMode] = useState(false);
+  const [bulkIntent, setBulkIntent] = useState(null);
+  const [bulkLoadError, setBulkLoadError] = useState("");
   const [localCartItems, setLocalCartItems] = useState([]);
   const [checkoutStorageReady, setCheckoutStorageReady] = useState(false);
   const [accountLoading, setAccountLoading] = useState(true);
@@ -1820,13 +1858,15 @@ export default function CheckoutTransferPage() {
     setSignatureConsent(nextSignature);
   }, []);
 
-  const hasProviderCartItems =
+  const hasProviderCartItems = !bulkMode &&
     Array.isArray(cart?.cartItems) && cart.cartItems.length > 0;
 
   useEffect(() => {
     if (typeof window === "undefined") return;
 
     const returnParams = new URLSearchParams(window.location.search);
+    const isBulkCheckout = returnParams.get("mode") === "bulk";
+    setBulkMode(isBulkCheckout);
     if (
       returnParams.get("payment") === "cancelled" &&
       returnParams.get("gateway") === "prism"
@@ -1852,7 +1892,7 @@ export default function CheckoutTransferPage() {
       );
     }
 
-    const pendingSession = readPendingCheckoutSession();
+    const pendingSession = isBulkCheckout ? null : readPendingCheckoutSession();
     setSession(pendingSession);
 
     const protectionSelected = Boolean(
@@ -1864,9 +1904,41 @@ export default function CheckoutTransferPage() {
 
     setShippingProtectionSelected(protectionSelected);
 
+    if (isBulkCheckout) {
+      setCouponLocked(false);
+      setCoupon("");
+      setCouponInput("");
+      setCouponStatus("idle");
+      setCouponMessage("");
+      setCouponDiscount(0);
+      setCouponData(null);
+      setDiscountToken("");
+      setApplyCashback(false);
+
+      fetch("/api/bulk/checkout-intent", {
+        method: "GET",
+        credentials: "same-origin",
+        cache: "no-store",
+        headers: { Accept: "application/json" },
+      })
+        .then(async (response) => {
+          const data = await response.json().catch(() => null);
+          if (!response.ok || !data?.success || !data?.quote) {
+            throw new Error(data?.message || data?.error || "Your Bulk checkout session is unavailable.");
+          }
+          setBulkIntent(data);
+          setLocalCartItems(buildBulkCheckoutItems(data));
+        })
+        .catch((requestError) => {
+          setBulkLoadError(requestError?.message || "Your Bulk checkout session is unavailable.");
+          setLocalCartItems([]);
+        })
+        .finally(() => setCheckoutStorageReady(true));
+      return;
+    }
+
     const savedCart = localStorage.getItem("lab_cart");
     const parsedCart = safeJsonParse(savedCart, []);
-
     setLocalCartItems(Array.isArray(parsedCart) ? parsedCart : []);
 
     const pendingCustomerData = getSessionCustomerData(
@@ -1900,6 +1972,7 @@ export default function CheckoutTransferPage() {
     setCouponLocked(shouldLockCoupon);
     setCoupon(cleanCoupon);
     setCouponInput(cleanCoupon);
+    cart?.setGiftCouponCodes?.(normalizeCouponList(cleanCoupon));
 
     if (cleanCoupon) {
       setCouponStatus("idle");
@@ -1988,8 +2061,11 @@ export default function CheckoutTransferPage() {
   }, [session, accountUser, bankTransferEmail]);
 
   const manualOrderStorageKey = useMemo(() => {
+    if (bulkMode) {
+      return `phaseone_bulk_manual_order_${Number(bulkIntent?.intent_id || 0)}`;
+    }
     return `phaseone_manual_payment_order_${getManualOrderStorageSuffix(session || {})}`;
-  }, [session]);
+  }, [bulkMode, bulkIntent?.intent_id, session]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -2013,7 +2089,9 @@ export default function CheckoutTransferPage() {
       ? sessionCartItems
       : localCartItems;
 
-  const cartTotal = hasProviderCartItems
+  const cartTotal = bulkMode
+    ? Number(bulkIntent?.quote?.subtotal || 0)
+    : hasProviderCartItems
     ? Number(cart.cartTotal || 0)
     : Number(
         session?.cart_total ||
@@ -2021,7 +2099,9 @@ export default function CheckoutTransferPage() {
           calculateCartTotal(cartItems),
       );
 
-  const paidSubtotal = hasProviderCartItems
+  const paidSubtotal = bulkMode
+    ? cartTotal
+    : hasProviderCartItems
     ? Number(cart.paidSubtotal || cartTotal)
     : Number(session?.paid_subtotal || session?.paidSubtotal || cartTotal);
   const calculatedSubtotalBeforeBundle = cartItems.reduce((total, item) => {
@@ -2031,7 +2111,9 @@ export default function CheckoutTransferPage() {
         Number(item.quantity || 1)
     );
   }, 0);
-  const bundleUnlocked = hasProviderCartItems
+  const bundleUnlocked = bulkMode
+    ? false
+    : hasProviderCartItems
     ? Boolean(cart.bundleUnlocked)
     : Boolean(
         session?.bundle_unlocked ||
@@ -2092,17 +2174,28 @@ export default function CheckoutTransferPage() {
     0,
   );
 
-  const rewardGifts =
-    cart?.rewardGifts ||
-    session?.reward_gifts ||
-    session?.rewardGifts ||
-    cartItems.filter((item) => isRewardGiftItem(item));
+  const rewardGiftSource = bulkMode
+    ? []
+    : cart?.rewardGifts ||
+      session?.reward_gifts ||
+      session?.rewardGifts ||
+      cartItems.filter((item) => isRewardGiftItem(item));
+  const rewardGifts = Array.isArray(rewardGiftSource) ? rewardGiftSource : [];
 
   const rewardProgress =
     cart?.rewardProgress ||
     session?.reward_progress ||
     session?.rewardProgress ||
     null;
+  const orderSummaryItems = [
+    ...cartItems,
+    ...rewardGifts.filter((gift) => {
+      const giftKey = String(gift?.cartKey || gift?.ruleId || gift?.id || "");
+      return !cartItems.some((item) =>
+        giftKey && String(item?.cartKey || item?.ruleId || item?.id || "") === giftKey
+      );
+    }),
+  ];
 
   const estimatedPoints = Math.max(
     0,
@@ -2120,12 +2213,14 @@ export default function CheckoutTransferPage() {
       0,
   );
 
-  const storeCredit = Number(
-    accountUser?.storeCredit ||
-      accountUser?.store_credit ||
-      accountUser?.credit ||
-      0,
-  );
+  const storeCredit = bulkMode
+    ? 0
+    : Number(
+        accountUser?.storeCredit ||
+          accountUser?.store_credit ||
+          accountUser?.credit ||
+          0,
+      );
 
   const cashbackAvailable = Math.max(0, storeCredit);
   const validatedCouponDiscount =
@@ -2147,8 +2242,8 @@ export default function CheckoutTransferPage() {
       return;
     }
 
-    window.location.replace("/shop");
-  }, [checkoutStorageReady, hasItems]);
+    window.location.replace(bulkMode ? "/bulk-orders" : "/shop");
+  }, [checkoutStorageReady, hasItems, bulkMode]);
 
   const selectedPaymentMethod =
     PAYMENT_METHODS.find((method) => method.id === selectedPaymentMethodId) ||
@@ -2318,7 +2413,7 @@ export default function CheckoutTransferPage() {
     const cleanSelected = Boolean(selected);
 
     setShippingProtectionSelected(cleanSelected);
-    cart?.setShippingProtectionSelected?.(cleanSelected);
+    if (!bulkMode) cart?.setShippingProtectionSelected?.(cleanSelected);
     setError("");
     setPaymentNotice("");
   };
@@ -2349,6 +2444,7 @@ export default function CheckoutTransferPage() {
   }, [canApplyCashback, applyCashback]);
 
   const handleCouponInput = (event) => {
+    if (bulkMode) return;
     if (couponLocked) {
       setCouponMessage("This referral code is locked from your link.");
       return;
@@ -2379,6 +2475,7 @@ export default function CheckoutTransferPage() {
   };
 
   const applyCoupon = async () => {
+    if (bulkMode) return;
     const couponCodes = normalizeCouponList(couponInput);
 
     if (!couponCodes.length) {
@@ -2568,6 +2665,9 @@ export default function CheckoutTransferPage() {
 
       setCoupon(savedCoupon);
       setCouponInput(savedCoupon);
+      cart?.setGiftCouponCodes?.(
+        validatedCoupons.map((item) => item.code),
+      );
       setCouponStatus("valid");
       setCouponDiscount(totalDiscount);
       setCouponData({
@@ -2582,6 +2682,7 @@ export default function CheckoutTransferPage() {
       console.error("PHASE ONE COUPON APPLY ERROR:", err);
 
       saveCoupon("");
+      cart?.setGiftCouponCodes?.([]);
       setCoupon("");
       setCouponStatus("error");
       setCouponDiscount(0);
@@ -2594,7 +2695,7 @@ export default function CheckoutTransferPage() {
   };
 
   useEffect(() => {
-    if (!couponLocked || !hasItems || !couponInput || couponStatus !== "idle") {
+    if (bulkMode || !couponLocked || !hasItems || !couponInput || couponStatus !== "idle") {
       return;
     }
 
@@ -2603,7 +2704,7 @@ export default function CheckoutTransferPage() {
     }, 350);
 
     return () => window.clearTimeout(timer);
-  }, [couponLocked, hasItems, couponInput, couponStatus]);
+  }, [bulkMode, couponLocked, hasItems, couponInput, couponStatus]);
 
   const removeCoupon = () => {
     if (couponLocked) {
@@ -2612,6 +2713,7 @@ export default function CheckoutTransferPage() {
     }
 
     saveCoupon("");
+    cart?.setGiftCouponCodes?.([]);
     setCoupon("");
     setCouponInput("");
     setCouponStatus("idle");
@@ -2631,12 +2733,12 @@ export default function CheckoutTransferPage() {
 
     const typedCoupons = normalizeCouponList(couponInput);
 
-    if (typedCoupons.length && couponStatus !== "valid" && !couponLocked) {
+    if (!bulkMode && typedCoupons.length && couponStatus !== "valid" && !couponLocked) {
       setError("Please apply and validate the coupon codes before continuing.");
       return false;
     }
 
-    if (couponStatus === "valid" && !discountToken && !couponLocked) {
+    if (!bulkMode && couponStatus === "valid" && !discountToken && !couponLocked) {
       setError(
         "The coupon was validated, but the secure discount token is missing. Apply it again.",
       );
@@ -2771,6 +2873,7 @@ export default function CheckoutTransferPage() {
           Accept: "application/json",
         },
         body: JSON.stringify({
+          checkout_mode: bulkMode ? "bulk" : "retail",
           customer: {
             firstName: finalBilling.first_name,
             lastName: finalBilling.last_name,
@@ -2810,7 +2913,9 @@ export default function CheckoutTransferPage() {
           contract: signedContract,
           signedContract,
           tracking: getTikTokAttribution(),
-          source: "phaseone_custom_checkout_prism",
+          source: bulkMode
+            ? "phaseone_bulk_checkout_prism"
+            : "phaseone_custom_checkout_prism",
         }),
       });
 
@@ -2849,6 +2954,7 @@ export default function CheckoutTransferPage() {
         localStorage.setItem(
           "phaseone_prism_pending_order",
           JSON.stringify({
+            checkoutMode: bulkMode ? "bulk" : "retail",
             orderId: data.orderId || null,
             orderNumber: data.orderNumber || null,
             orderKey: data.orderKey || null,
@@ -2949,7 +3055,9 @@ export default function CheckoutTransferPage() {
       setError("");
       setPaymentNotice("Opening secure bank transfer...");
 
-      const endpoint = getBankTransferEndpoint();
+      const endpoint = bulkMode
+        ? "/api/bulk/pay-ach"
+        : getBankTransferEndpoint();
 
       if (!endpoint) {
         throw new Error(
@@ -2968,6 +3076,7 @@ export default function CheckoutTransferPage() {
             : {}),
         },
         body: JSON.stringify({
+          checkout_mode: bulkMode ? "bulk" : "retail",
           paymentMethod: "edd_draft_yodlee_gateway",
           gatewayId: "edd_draft_yodlee_gateway",
           payment_method: "edd_draft_yodlee_gateway",
@@ -3042,7 +3151,9 @@ export default function CheckoutTransferPage() {
           cashbackAmount: cashbackToApply,
           previewTotal: paymentPreviewTotal,
           cartTotal,
-          source: "phaseone_custom_checkout_bank_transfer",
+          source: bulkMode
+            ? "phaseone_bulk_checkout_bank_transfer"
+            : "phaseone_custom_checkout_bank_transfer",
           ageConfirmed: true,
           researchUseAcknowledged: true,
           termsAccepted: true,
@@ -3203,9 +3314,9 @@ export default function CheckoutTransferPage() {
           )
         : null;
 
-    const existingOrderId = Number(
-      manualPaymentOrder?.order_id || savedOrder?.order_id || 0,
-    );
+    const existingOrderId = bulkMode
+      ? 0
+      : Number(manualPaymentOrder?.order_id || savedOrder?.order_id || 0);
 
     try {
       setError("");
@@ -3213,7 +3324,9 @@ export default function CheckoutTransferPage() {
       setLoading(true);
       setManualPaymentStatus("loading");
 
-      const endpoint = getManualPaymentOrderEndpoint();
+      const endpoint = bulkMode
+        ? "/api/bulk/pay-manual"
+        : getManualPaymentOrderEndpoint();
 
       if (!endpoint) {
         throw new Error(
@@ -3232,6 +3345,7 @@ export default function CheckoutTransferPage() {
             : {}),
         },
         body: JSON.stringify({
+          checkout_mode: bulkMode ? "bulk" : "retail",
           existingOrderId,
           existing_order_id: existingOrderId,
           paymentMethod: manualMethod.id,
@@ -3323,7 +3437,9 @@ export default function CheckoutTransferPage() {
           preview_total: paymentPreviewTotal,
           cartTotal,
           cart_total: cartTotal,
-          source: "phaseone_custom_checkout_manual_payment",
+          source: bulkMode
+            ? "phaseone_bulk_checkout_manual_payment"
+            : "phaseone_custom_checkout_manual_payment",
           expiresInHours: 24,
           expires_in_hours: 24,
           ageConfirmed: true,
@@ -3396,6 +3512,7 @@ export default function CheckoutTransferPage() {
       if (typeof window !== "undefined") {
         const thankYouOrder = {
           ...orderData,
+          checkoutMode: bulkMode ? "bulk" : "retail",
           checkoutType: "manual",
           method: manualMethod.id,
           methodTitle: manualMethod.title,
@@ -3469,8 +3586,11 @@ export default function CheckoutTransferPage() {
       <main className="checkout-page checkout-empty-page">
         <section className="checkout-empty" role="status">
           <Sparkles size={24} aria-hidden="true" />
-          <p>Returning to catalog</p>
-          <h1>Preparing the shop for you...</h1>
+          <p>{bulkMode ? "Bulk checkout" : "Returning to catalog"}</p>
+          <h1>{bulkLoadError || (bulkMode ? "Loading your secure order…" : "Preparing the shop for you...")}</h1>
+          {bulkMode && checkoutStorageReady && (
+            <a href="/bulk-orders" className="checkout-back">Return to Bulk Orders</a>
+          )}
         </section>
 
         <style>{styles}</style>
@@ -3482,15 +3602,15 @@ export default function CheckoutTransferPage() {
     <main className="checkout-page">
       <section className="checkout-shell">
         <header className="checkout-header">
-          <a href="/shop" className="checkout-back">
+          <a href={bulkMode ? "/bulk-orders" : "/shop"} className="checkout-back">
             <ArrowLeft size={15} />
-            Back to shop
+            {bulkMode ? "Back to Bulk Orders" : "Back to shop"}
           </a>
 
           <div className="checkout-brand">
             <span>PHASE ONE LABZ</span>
             <small>
-              <Lock size={13} /> Secure checkout
+              <Lock size={13} /> {bulkMode ? "Secure Bulk checkout" : "Secure checkout"}
             </small>
           </div>
         </header>
@@ -3914,7 +4034,7 @@ export default function CheckoutTransferPage() {
               </div>
 
               <div className="summary-items">
-                {cartItems.map((item, index) => {
+                {orderSummaryItems.map((item, index) => {
                   const image = getItemImage(item);
                   const options = getItemOptions(item);
                   const isRewardGift = isRewardGiftItem(item);
@@ -3950,7 +4070,7 @@ export default function CheckoutTransferPage() {
                 })}
               </div>
 
-              <div className="summary-coupon">
+              {!bulkMode && <div className="summary-coupon">
                 {couponStatus === "valid" ? (
                   <div className="applied-coupon">
                     <div>
@@ -3991,7 +4111,7 @@ export default function CheckoutTransferPage() {
                     {couponMessage}
                   </small>
                 )}
-              </div>
+              </div>}
 
               <div className="summary-lines">
                 <div>

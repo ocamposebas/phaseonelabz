@@ -1,3 +1,4 @@
+import "./COALookupSection.styles.css";
 import { useEffect, useMemo, useState } from "react";
 import {
   ArrowRight,
@@ -1116,34 +1117,6 @@ export default function COALookupSection({
           </div>
         </div>
       </div>
-
-      <style>{`
-        .mini-coa-results {
-          scrollbar-width: thin;
-          scrollbar-color: rgba(103, 232, 249, 0.22) transparent;
-        }
-
-        .mini-coa-results::-webkit-scrollbar {
-          width: 6px;
-        }
-
-        .mini-coa-results::-webkit-scrollbar-track {
-          background: transparent;
-        }
-
-        .mini-coa-results::-webkit-scrollbar-thumb {
-          border-radius: 999px;
-          background: rgba(103, 232, 249, 0.22);
-        }
-
-        @media (prefers-reduced-motion: reduce) {
-          .mini-coa-results *,
-          .mini-coa-results *::before,
-          .mini-coa-results *::after {
-            transition: none !important;
-          }
-        }
-      `}</style>
     </section>
   );
 }

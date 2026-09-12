@@ -1,3 +1,4 @@
+import "./ProductDetailExperience.styles.css";
 import { useEffect, useRef } from "react";
 import { CartProvider } from "../cart/CartContext";
 
@@ -53,29 +54,6 @@ export default function ProductDetailExperience({
       </main>
 
       <CartDrawer />
-
-      <style>{`
-        .product-detail-after {
-          position: relative;
-          z-index: 5;
-        }
-
-        .product-detail-page .pdp {
-          padding-top: 188px !important;
-        }
-
-        @media (max-width: 1180px) {
-          .product-detail-page .pdp {
-            padding-top: 250px !important;
-          }
-        }
-
-        @media (max-width: 768px) {
-          .product-detail-page .pdp {
-            padding-top: 220px !important;
-          }
-        }
-      `}</style>
     </CartProvider>
   );
 }

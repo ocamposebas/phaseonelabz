@@ -1,3 +1,4 @@
+import "./SuggestedProductsSection.styles.css";
 import { useMemo } from "react";
 import { ArrowRight, ShoppingBag } from "lucide-react";
 import { useCart } from "../cart/CartContext";
@@ -374,39 +375,6 @@ export default function SuggestedProductsSection({
           Laboratory research catalog only.
         </p>
       </div>
-
-      <style>{`
-        .suggested-product-image {
-          animation: floatSuggestedProduct 5.8s ease-in-out infinite;
-          will-change: transform;
-        }
-
-        @keyframes floatSuggestedProduct {
-          0%, 100% {
-            transform: translateY(0);
-          }
-
-          50% {
-            transform: translateY(-12px);
-          }
-        }
-
-        @media (max-width: 640px) {
-          .suggested-product-image {
-            animation-duration: 6.3s;
-          }
-
-          @keyframes floatSuggestedProduct {
-            0%, 100% {
-              transform: translateY(0);
-            }
-
-            50% {
-              transform: translateY(-7px);
-            }
-          }
-        }
-      `}</style>
     </section>
   );
 }

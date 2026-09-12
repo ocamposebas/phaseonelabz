@@ -1,0 +1,21 @@
+
+        .product-detail-after {
+          position: relative;
+          z-index: 5;
+        }
+
+        .product-detail-page .pdp {
+          padding-top: 188px !important;
+        }
+
+        @media (max-width: 1180px) {
+          .product-detail-page .pdp {
+            padding-top: 250px !important;
+          }
+        }
+
+        @media (max-width: 768px) {
+          .product-detail-page .pdp {
+            padding-top: 220px !important;
+          }
+        }

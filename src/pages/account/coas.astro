@@ -1,0 +1,14 @@
+---
+export const prerender = false;
+
+import MainLayout from "../../layouts/MainLayout.astro";
+import AccountExperience from "../../components/account/AccountExperience.jsx";
+import "../../styles/global.css";
+---
+
+<MainLayout
+  title="My COAs // Phase One Labz"
+  description="Certificates of Analysis associated with your eligible WooCommerce orders."
+>
+  <AccountExperience client:load initialTab="coas" />
+</MainLayout>

@@ -1,3 +1,4 @@
+import "./SiteFooter.styles.css";
 const footerColumns = [
   {
     title: "Shop",
@@ -241,71 +242,6 @@ export default function SiteFooter({
           </div>
         </div>
       </div>
-
-      <style>{`
-        .payment-logo-badge {
-          display: inline-flex;
-          height: 34px;
-          min-width: 62px;
-          align-items: center;
-          justify-content: center;
-          overflow: hidden;
-          border-radius: 10px;
-          border: 1px solid rgba(103, 232, 249, 0.14);
-          background: rgba(2, 6, 23, 0.55);
-          padding: 4px 8px;
-          box-shadow: none;
-        }
-
-        .payment-logo-badge img {
-          display: block;
-          width: auto;
-          max-width: 58px;
-          max-height: 24px;
-          object-fit: contain;
-        }
-
-        .payment-logo-badge[aria-label="Visa"] img {
-          max-width: 54px;
-          max-height: 23px;
-        }
-
-        .payment-logo-badge[aria-label="Mastercard"] img {
-          max-width: 52px;
-          max-height: 25px;
-        }
-
-        .payment-logo-badge[aria-label="American Express"] img {
-          max-width: 52px;
-          max-height: 25px;
-        }
-
-        .payment-logo-badge[aria-label="Zelle"] {
-          min-width: 68px;
-        }
-
-        .payment-logo-badge[aria-label="Zelle"] img {
-          max-width: 60px;
-          max-height: 24px;
-        }
-
-        @media (max-width: 640px) {
-          .payment-logo-badge {
-            height: 32px;
-            min-width: 58px;
-            padding: 4px 7px;
-          }
-
-          .payment-logo-badge img {
-            max-width: 54px;
-            max-height: 22px;
-          }
-
-          .payment-logo-badge[aria-label="Zelle"] {
-            min-width: 64px;
-          }
-        }
-      `}</style>
     </footer>
   );
 }

@@ -17,7 +17,10 @@ export default defineConfig({
       changefreq: "weekly",
       priority: 0.7,
       lastmod: new Date(),
-      filter: (page) => !page.replace(/\/$/, "").endsWith("/status"),
+      filter: (page) => {
+        const path = page.replace(/\/$/, "");
+        return !path.endsWith("/status") && !path.endsWith("/bulk-orders");
+      },
     }),
   ],
 

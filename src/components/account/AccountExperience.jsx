@@ -1,10 +1,25 @@
-import { CartProvider } from "../cart/CartContext";
+import "./AccountExperience.styles.css";
+import { lazy, Suspense } from "react";
+import { CartProvider, useCart } from "../cart/CartContext";
 
 import SiteHeader from "../nav/Navbar.jsx";
-import CartDrawer from "../cart/CartDrawer.jsx";
 import AccountDashboard from "./AccountDashboard.jsx";
 
-export default function AccountExperience() {
+const CartDrawer = lazy(() => import("../cart/CartDrawer.jsx"));
+
+function DeferredCartDrawer() {
+  const { isCartOpen } = useCart();
+
+  if (!isCartOpen) return null;
+
+  return (
+    <Suspense fallback={null}>
+      <CartDrawer />
+    </Suspense>
+  );
+}
+
+export default function AccountExperience({ initialTab = "overview" }) {
   return (
     <CartProvider>
       <div className="account-page-shell min-h-screen overflow-x-hidden bg-[#020617] text-white">
@@ -15,67 +30,10 @@ export default function AccountExperience() {
         />
 
         <main className="min-h-screen bg-[#020617] pt-[118px]">
-          <AccountDashboard />
+          <AccountDashboard initialTab={initialTab} />
         </main>
 
-        <CartDrawer />
-
-        <style>{`
-          .account-page-shell {
-            background: #020617 !important;
-          }
-
-          .account-page-shell .sh-header,
-          .account-page-shell .sh-shell {
-            background: #020617 !important;
-          }
-
-          .account-page-shell .sh-announcement {
-            display: block !important;
-            background: #020617 !important;
-            border-bottom-color: rgba(165, 243, 252, 0.08) !important;
-          }
-
-          .account-page-shell .sh-header-inner .sh-announcement,
-          .account-page-shell .sh-header-home .sh-announcement {
-            background: #020617 !important;
-          }
-
-          .account-page-shell .sh-announcement-fade-left {
-            background: linear-gradient(
-              90deg,
-              #020617,
-              rgba(2, 6, 23, 0)
-            ) !important;
-          }
-
-          .account-page-shell .sh-announcement-fade-right {
-            background: linear-gradient(
-              270deg,
-              #020617,
-              rgba(2, 6, 23, 0)
-            ) !important;
-          }
-
-          .account-page-shell .sh-nav-clear,
-          .account-page-shell .sh-header-inner .sh-nav-clear {
-            background: #020617 !important;
-          }
-
-          .account-page-shell .sh-nav-card {
-            background: #020617 !important;
-            box-shadow: none !important;
-          }
-
-          .account-page-shell .sh-nav-glass {
-            background: #020617 !important;
-            box-shadow: none !important;
-          }
-
-          .account-page-shell main {
-            background: #020617 !important;
-          }
-        `}</style>
+        <DeferredCartDrawer />
       </div>
     </CartProvider>
   );

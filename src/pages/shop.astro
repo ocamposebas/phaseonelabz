@@ -4,6 +4,7 @@ export const prerender = false;
 import BaseLayout from "../layouts/MainLayout.astro";
 import ShopExperience from "../components/shop/ShopPageExperience";
 import { fetchWooCatalog } from "../lib/wooCatalog.js";
+import { getSiteControlConfig } from "../lib/siteControl.js";
 import "../styles/global.css";
 
 const WOO_URL = import.meta.env.WOOCOMMERCE_URL;
@@ -11,6 +12,9 @@ const KEY = import.meta.env.WOOCOMMERCE_CONSUMER_KEY;
 const SECRET = import.meta.env.WOOCOMMERCE_CONSUMER_SECRET;
 
 let products = [];
+const siteControlPromise = getSiteControlConfig({
+  background: import.meta.env.DEV,
+});
 
 try {
   if (!WOO_URL || !KEY || !SECRET) {
@@ -26,6 +30,8 @@ try {
 } catch (error) {
   console.error("=== CATCH ERROR ===:", error);
 }
+
+await siteControlPromise;
 ---
 
 <BaseLayout

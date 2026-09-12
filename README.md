@@ -1,5 +1,29 @@
 # Astro Starter Kit: Basics
 
+## Phase One Reputation
+
+The first-party WordPress module is in
+`wordpress/plugins/phaseone-reputation`. It exposes provider-specific aggregate
+reputation data at `/wp-json/phaseone/v1/reputation`; it never stores review
+bodies or calculates a combined score. The Astro BFF at `/api/reputation`
+normalizes that response and the homepage loads the Reputation Ledger only as it
+approaches the viewport.
+
+In WordPress, open **WooCommerce > Reputation** to configure the Trustpilot
+public links and choose either the official API or official TrustBox mode. API
+summaries refresh every six hours and storefront figures are removed after 24
+hours without a successful refresh. If an endpoint override is required, keep it
+server-side:
+
+```dotenv
+PHASEONE_REPUTATION_URL=https://wordpress.example/wp-json/phaseone/v1/reputation
+```
+
+The official Trustpilot plugin remains the only owner of review invitations. Set
+its order trigger to **Completed** only and do not start the past-order sync. The
+separate newsletter discount is not read by or connected to the reputation
+module. PepReview remains intentionally disabled pending policy review.
+
 ## WordPress promotion and maintenance controls
 
 The `Phase One Site Controls` plugin lives at

@@ -15,7 +15,11 @@ const SHIPPING_PROTECTION_AMOUNT_COOKIE_KEY =
 const SHIPPING_PROTECTION_VALUE_COOKIE_KEY =
   "phaseone_shipping_protection_value";
 const CART_STORAGE_KEY = "lab_cart";
-const CART_STORAGE_TTL_MS = 30 * 60 * 1000;
+// This is the single retention window used by both the visible cart and the
+// checkout snapshots placed in Omnisend abandoned-cart recovery links.
+const CART_STORAGE_RETENTION_HOURS = 48;
+const CART_STORAGE_TTL_MS =
+  CART_STORAGE_RETENTION_HOURS * 60 * 60 * 1000;
 const PENDING_CHECKOUT_STORAGE_KEY = "phaseone_pending_checkout";
 const CHECKOUT_SESSION_STORAGE_PREFIX = "phaseone_checkout_session_";
 
@@ -118,9 +122,6 @@ function persistShippingProtectionSelection({
   }
 }
 
-// Product reward tiers remain available independently of Recon Water pricing.
-export const REWARD_TIERS = [];
-
 const emptyCartContext = {
   cartItems: [],
   cartNotice: "",
@@ -143,7 +144,7 @@ const emptyCartContext = {
   bundleRequiredQuantity: 0,
   rewardProgress: null,
   rewardGifts: [],
-  rewardProducts: {},
+  setGiftCouponCodes: () => {},
   getCartItemKey: () => "",
   buildCheckoutUrl: () => null,
   checkoutCoupon: "",
@@ -177,6 +178,17 @@ function normalizeCheckoutCoupon(value = "") {
     .toUpperCase()
     .replace(/[^A-Z0-9-_]/g, "")
     .slice(0, 32);
+}
+
+function normalizeGiftCouponCodes(value = []) {
+  const values = Array.isArray(value)
+    ? value
+    : String(value || "").split(/[\s,;]+/g);
+
+  return [...new Set(values.map(normalizeCheckoutCoupon).filter(Boolean))].slice(
+    0,
+    3,
+  );
 }
 
 /*
@@ -1005,7 +1017,7 @@ function readStoredCart() {
       return { items: [], expiresAt: 0 };
     }
 
-    const expiresAt = Number(parsed?.expiresAt || 0);
+    let expiresAt = Number(parsed?.expiresAt || 0);
 
     if (!Array.isArray(parsed?.items) || expiresAt <= Date.now()) {
       if (parsed) {
@@ -1015,8 +1027,23 @@ function readStoredCart() {
       return { items: [], expiresAt: 0 };
     }
 
+    const items = normalizeCartItems(parsed.items);
+    const storedRetentionHours = Number(parsed?.retentionHours || 0);
+
+    // Preserve carts that were still active when the retention policy changed
+    // from 30 minutes to 48 hours. Already-expired carts stay expired.
+    if (storedRetentionHours < CART_STORAGE_RETENTION_HOURS) {
+      const previousThirtyMinuteStart = expiresAt - 30 * 60 * 1000;
+      expiresAt = Math.max(
+        expiresAt,
+        previousThirtyMinuteStart + CART_STORAGE_TTL_MS,
+      );
+      persistCart(items, expiresAt);
+      syncStoredCheckoutSessions(items, expiresAt);
+    }
+
     return {
-      items: normalizeCartItems(parsed.items),
+      items,
       expiresAt,
     };
   } catch {
@@ -1034,6 +1061,7 @@ function persistCart(items = [], expiresAt = 0) {
       JSON.stringify({
         items: normalizeCartItems(items),
         expiresAt,
+        retentionHours: CART_STORAGE_RETENTION_HOURS,
       }),
     );
   } catch {}
@@ -1611,6 +1639,93 @@ function encodeCheckoutPayload(payload) {
   }
 }
 
+function syncStoredCheckoutSessions(items = [], expiresAt = 0) {
+  if (typeof window === "undefined") return;
+
+  const normalizedItems = normalizeCartItems(items);
+
+  if (!normalizedItems.length || Number(expiresAt) <= Date.now()) return;
+
+  const payload = buildCheckoutPayload(normalizedItems);
+  const encodedPayload = encodeCheckoutPayload(payload);
+  const legacyItems = buildLegacyCheckoutItems(payload);
+  const paidSubtotal = getPaidSubtotal(normalizedItems);
+  const cartTotal = normalizedItems.reduce(
+    (total, item) =>
+      total + getCartItemPrice(item) * Number(item.quantity || 1),
+    0,
+  );
+  const bundleUnlocked = normalizedItems.some(
+    (item) => item.phaseone_bundle_active,
+  );
+  const bundleDiscountPercent = Math.max(
+    0,
+    ...normalizedItems.map((item) =>
+      Number(item.phaseone_bundle_discount_percent || 0),
+    ),
+  );
+  const bundleRequiredQuantity =
+    bundleDiscountPercent >= 30 ? 10 : bundleDiscountPercent ? 5 : 0;
+  const subtotalBeforeBundle = normalizedItems.reduce(
+    (total, item) =>
+      total +
+      Number(item.phaseone_price_before_bundle ?? item.price ?? 0) *
+        Number(item.quantity || 1),
+    0,
+  );
+  const bundleDiscountAmount = bundleUnlocked
+    ? roundMoney(subtotalBeforeBundle - Number(cartTotal || 0))
+    : 0;
+
+  try {
+    const storageKeys = Object.keys(localStorage).filter(
+      (key) =>
+        key === PENDING_CHECKOUT_STORAGE_KEY ||
+        key.startsWith(CHECKOUT_SESSION_STORAGE_PREFIX),
+    );
+
+    storageKeys.forEach((key) => {
+      const session = safeJsonParse(localStorage.getItem(key), null);
+
+      if (!session || typeof session !== "object") return;
+
+      localStorage.setItem(
+        key,
+        JSON.stringify({
+          ...session,
+          updated_at: new Date().toISOString(),
+          cart_expires_at: new Date(expiresAt).toISOString(),
+          cartExpiresAt: expiresAt,
+          cart_items: normalizedItems,
+          cartItems: normalizedItems,
+          items: normalizedItems,
+          checkout_items: payload,
+          checkoutItems: payload,
+          lab_checkout_payload: encodedPayload,
+          encoded_payload: encodedPayload,
+          lab_checkout: legacyItems,
+          cart_total: cartTotal,
+          cartTotal,
+          paid_subtotal: paidSubtotal,
+          paidSubtotal,
+          bundle_unlocked: bundleUnlocked,
+          bundleUnlocked,
+          bundle_discount_amount: bundleDiscountAmount,
+          bundleDiscountAmount,
+          bundle_discount_percent: bundleDiscountPercent,
+          bundleDiscountPercent,
+          bundle_required_quantity: bundleRequiredQuantity,
+          bundleRequiredQuantity,
+          subtotal_before_bundle: roundMoney(subtotalBeforeBundle),
+          subtotalBeforeBundle: roundMoney(subtotalBeforeBundle),
+        }),
+      );
+    });
+  } catch {
+    // The visible cart remains usable when browser storage is unavailable.
+  }
+}
+
 export function CartProvider({ children }) {
   const cartExpiryRef = useRef(0);
   const isInitialCartPersistenceRef = useRef(true);
@@ -1627,6 +1742,10 @@ export function CartProvider({ children }) {
   const [checkoutCoupon, setCheckoutCouponState] = useState(() =>
     getSavedCheckoutCoupon(),
   );
+  const [giftCouponCodes, setGiftCouponCodesState] = useState(() =>
+    normalizeGiftCouponCodes(getSavedCheckoutCoupon()),
+  );
+  const [giftQuote, setGiftQuote] = useState(null);
   const [account, setAccount] = useState(null);
   const [shippingProtectionSelected, setShippingProtectionSelectedState] =
     useState(() => getSavedShippingProtectionSelection());
@@ -1636,7 +1755,7 @@ export function CartProvider({ children }) {
 
     if (!cartItems.length) {
       cartExpiryRef.current = 0;
-      removeStoredCart();
+      removeStoredCart({ clearCheckoutSessions: true });
       return;
     }
 
@@ -1650,6 +1769,7 @@ export function CartProvider({ children }) {
     const expiresAt = Date.now() + CART_STORAGE_TTL_MS;
     cartExpiryRef.current = expiresAt;
     persistCart(cartItems, expiresAt);
+    syncStoredCheckoutSessions(cartItems, expiresAt);
   }, [cartItems]);
 
   useEffect(() => {
@@ -1766,18 +1886,27 @@ export function CartProvider({ children }) {
   const setCheckoutCoupon = (value = "") => {
     const cleanCoupon = normalizeCheckoutCoupon(value);
     setCheckoutCouponState(cleanCoupon);
+    setGiftCouponCodesState(normalizeGiftCouponCodes(cleanCoupon));
     return cleanCoupon;
+  };
+
+  const setGiftCouponCodes = (value = []) => {
+    const codes = normalizeGiftCouponCodes(value);
+    setGiftCouponCodesState(codes);
+    return codes;
   };
 
   const applyCheckoutCoupon = (value = checkoutCoupon) => {
     const cleanCoupon = saveCheckoutCoupon(value);
     setCheckoutCouponState(cleanCoupon);
+    setGiftCouponCodesState(normalizeGiftCouponCodes(cleanCoupon));
     return cleanCoupon;
   };
 
   const removeCheckoutCoupon = () => {
     saveCheckoutCoupon("");
     setCheckoutCouponState("");
+    setGiftCouponCodesState([]);
   };
 
   const clearCartNotice = () => setCartNotice("");
@@ -2070,6 +2199,66 @@ export function CartProvider({ children }) {
     (count, item) => count + Number(item.quantity || 1),
     0,
   );
+  const giftQuoteFingerprint = JSON.stringify({
+    items: normalizedCartItems.map((item) => ({
+      product_id: getProductId(item),
+      variation_id: getVariationId(item),
+      quantity: Math.max(1, Number(item.quantity || 1)),
+    })),
+    coupon_codes: giftCouponCodes,
+  });
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+
+    const requestPayload = JSON.parse(giftQuoteFingerprint);
+    if (!requestPayload.items.length) {
+      setGiftQuote(null);
+      return undefined;
+    }
+
+    const controller = new AbortController();
+    // Cart quantity controls can fire quickly; one short debounce prevents
+    // duplicate WooCommerce calculations without making the UI feel delayed.
+    const timer = window.setTimeout(async () => {
+      try {
+        const response = await fetch("/api/site-gifts/quote", {
+          method: "POST",
+          cache: "no-store",
+          credentials: "same-origin",
+          signal: controller.signal,
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: giftQuoteFingerprint,
+        });
+        const data = await response.json().catch(() => null);
+
+        if (!response.ok || !data?.success) {
+          setGiftQuote(null);
+          return;
+        }
+
+        setGiftQuote(data);
+      } catch (error) {
+        if (error?.name !== "AbortError") setGiftQuote(null);
+      }
+    }, 250);
+
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [giftQuoteFingerprint]);
+
+  const rewardGifts = Array.isArray(giftQuote?.gifts)
+    ? giftQuote.gifts
+    : [];
+  const rewardProgress = Array.isArray(giftQuote?.availableTiers) &&
+    giftQuote.availableTiers.length > 0
+    ? giftQuote
+    : null;
 
   useEffect(() => {
     persistShippingProtectionSelection({
@@ -2245,9 +2434,9 @@ export function CartProvider({ children }) {
         bundleDiscountAmount,
         bundleDiscountPercent,
         bundleRequiredQuantity,
-        rewardProgress: null,
-        rewardGifts: [],
-        rewardProducts: {},
+        rewardProgress,
+        rewardGifts,
+        setGiftCouponCodes,
         checkoutCoupon,
         setCheckoutCoupon,
         shippingProtectionSelected,

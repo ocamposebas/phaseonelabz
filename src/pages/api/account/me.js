@@ -1,5 +1,7 @@
 export const prerender = false;
 
+const REQUEST_TIMEOUT_MS = 10000;
+
 function cleanUrl(value = "") {
   return String(value || "").replace(/\/$/, "");
 }
@@ -26,8 +28,94 @@ function getBearerToken(request) {
   return authHeader.replace(/^Bearer\s+/i, "").trim();
 }
 
-function normalizeAccountResponse(data = {}) {
+async function fetchWithTimeout(url, options = {}) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function loadWooCustomer(baseUrl, customerId) {
+  const consumerKey = import.meta.env.WOOCOMMERCE_CONSUMER_KEY || "";
+  const consumerSecret = import.meta.env.WOOCOMMERCE_CONSUMER_SECRET || "";
+
+  if (!customerId || !consumerKey || !consumerSecret) return null;
+
+  const url = new URL(`${baseUrl}/wp-json/wc/v3/customers/${customerId}`);
+  url.searchParams.set("consumer_key", consumerKey);
+  url.searchParams.set("consumer_secret", consumerSecret);
+
+  try {
+    const response = await fetchWithTimeout(url, {
+      headers: {
+        Accept: "application/json",
+        "User-Agent": "Phase One Checkout Account",
+      },
+    });
+
+    if (!response.ok) return null;
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
+
+function normalizeAddress(address = {}, fallback = {}) {
+  return {
+    first_name:
+      address.first_name || address.firstName || fallback.first_name || "",
+    last_name:
+      address.last_name || address.lastName || fallback.last_name || "",
+    company: address.company || fallback.company || "",
+    address_1:
+      address.address_1 || address.address1 || fallback.address_1 || "",
+    address_2:
+      address.address_2 || address.address2 || fallback.address_2 || "",
+    city: address.city || fallback.city || "",
+    state: address.state || fallback.state || "",
+    postcode:
+      address.postcode || address.zip || fallback.postcode || "",
+    country: address.country || fallback.country || "",
+    phone: address.phone || fallback.phone || "",
+    email: address.email || fallback.email || "",
+  };
+}
+
+function normalizeAccountResponse(data = {}, wooCustomer = null) {
   const user = data.user || data.customer || data;
+  const billing = normalizeAddress(wooCustomer?.billing || user.billing || data.billing, {
+    first_name:
+      user.billing_first_name || user.first_name || user.firstName || "",
+    last_name:
+      user.billing_last_name || user.last_name || user.lastName || "",
+    company: user.billing_company || data.billing_company || "",
+    address_1:
+      user.billing_address_1 || user.address_1 || user.address1 || "",
+    address_2:
+      user.billing_address_2 || user.address_2 || user.address2 || "",
+    city: user.billing_city || user.city || "",
+    state: user.billing_state || user.state || "",
+    postcode: user.billing_postcode || user.postcode || user.zip || "",
+    country: user.billing_country || user.country || "US",
+    phone: user.billing_phone || user.phone || "",
+    email: user.billing_email || user.email || data.email || "",
+  });
+  const shipping = normalizeAddress(wooCustomer?.shipping || user.shipping || data.shipping, {
+    first_name: user.shipping_first_name || "",
+    last_name: user.shipping_last_name || "",
+    company: user.shipping_company || "",
+    address_1: user.shipping_address_1 || "",
+    address_2: user.shipping_address_2 || "",
+    city: user.shipping_city || "",
+    state: user.shipping_state || "",
+    postcode: user.shipping_postcode || "",
+    country: user.shipping_country || "",
+    phone: user.shipping_phone || "",
+  });
 
   return {
     authenticated: true,
@@ -39,6 +127,8 @@ function normalizeAccountResponse(data = {}) {
       displayName: user.displayName || user.name || data.name || "",
 
       email: user.email || data.email || "",
+      billing,
+      shipping,
 
       firstName:
         user.firstName ||
@@ -244,7 +334,7 @@ export async function GET({ request }) {
       Your rewards plugin already uses this endpoint for token auth.
       Do not call /account-me here.
     */
-    const response = await fetch(`${cleanWooUrl}/wp-json/lab/v1/account-token`, {
+    const response = await fetchWithTimeout(`${cleanWooUrl}/wp-json/lab/v1/account-token`, {
       method: "GET",
       headers: {
         Accept: "application/json",
@@ -282,7 +372,13 @@ export async function GET({ request }) {
       );
     }
 
-    return new Response(JSON.stringify(normalizeAccountResponse(data)), {
+    const baseAccount = normalizeAccountResponse(data);
+    const wooCustomer = await loadWooCustomer(
+      cleanWooUrl,
+      baseAccount.user.customer_id
+    );
+
+    return new Response(JSON.stringify(normalizeAccountResponse(data, wooCustomer)), {
       status: 200,
       headers: {
         "Content-Type": "application/json",

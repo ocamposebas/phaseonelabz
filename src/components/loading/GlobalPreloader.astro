@@ -1,0 +1,124 @@
+---
+import "./global-preloader.css";
+
+interface Props {
+  logoSrc?: string;
+  minDuration?: number;
+}
+
+const {
+  logoSrc = "/TRANSPARENCIA-03.webp",
+  minDuration = 1150,
+} = Astro.props;
+---
+
+<div
+  class="phase-preloader"
+  data-phase-preloader
+  data-min-duration={minDuration}
+  aria-hidden="true"
+>
+  <div class="phase-preloader__background"></div>
+  <div class="phase-preloader__line phase-preloader__line--top"></div>
+  <div class="phase-preloader__line phase-preloader__line--bottom"></div>
+
+  <div class="phase-preloader__content">
+    <div class="phase-preloader__logoBlock">
+      <img
+        src={logoSrc}
+        alt=""
+        width="104"
+        height="104"
+        decoding="async"
+        class="phase-preloader__logo"
+      />
+    </div>
+
+    <div class="phase-preloader__brand">
+      <p>Phase One Labz</p>
+      <span>Research Catalog</span>
+    </div>
+
+    <div class="phase-preloader__progress">
+      <div class="phase-preloader__bar">
+        <div class="phase-preloader__barFill"></div>
+      </div>
+
+      <div class="phase-preloader__meta">
+        <span>Syncing availability</span>
+        <span data-phase-preloader-progress>0%</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<noscript><style>.phase-preloader{display:none!important}</style></noscript>
+
+<script is:inline>
+  (() => {
+    const element = document.querySelector("[data-phase-preloader]");
+    if (!element) return;
+
+    const storageKey = "phaseone_preloader_seen_v1";
+    let hasBeenSeen = false;
+
+    try {
+      hasBeenSeen = sessionStorage.getItem(storageKey) === "1";
+      sessionStorage.setItem(storageKey, "1");
+    } catch {}
+
+    if (hasBeenSeen) {
+      element.remove();
+      return;
+    }
+
+    const root = document.documentElement;
+    const body = document.body;
+    const progress = element.querySelector("[data-phase-preloader-progress]");
+    const minimum = Math.max(0, Number(element.dataset.minDuration) || 1150);
+    const startedAt = performance.now();
+    let finished = false;
+    let progressTimer = 0;
+
+    root.classList.add("phase-preloader-lock");
+    body.classList.add("phase-preloader-lock");
+
+    const updateProgress = () => {
+      if (finished) return;
+      const elapsed = Math.max(0, performance.now() - startedAt);
+      const value = Math.min(96, Math.round((elapsed / minimum) * 96));
+      if (progress) progress.textContent = `${value}%`;
+    };
+
+    const remove = () => {
+      element.remove();
+      root.classList.remove("phase-preloader-lock");
+      body.classList.remove("phase-preloader-lock");
+    };
+
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      window.clearInterval(progressTimer);
+      if (progress) progress.textContent = "100%";
+      element.classList.add("phase-preloader--complete");
+      window.setTimeout(() => {
+        element.classList.add("phase-preloader--leaving");
+        window.setTimeout(remove, 650);
+      }, 180);
+    };
+
+    updateProgress();
+    progressTimer = window.setInterval(updateProgress, 100);
+    const waitForMinimum = () => {
+      const remaining = Math.max(0, minimum - (performance.now() - startedAt));
+      window.setTimeout(finish, remaining);
+    };
+
+    if (document.readyState === "complete") {
+      waitForMinimum();
+    } else {
+      window.addEventListener("load", waitForMinimum, { once: true });
+    }
+  })();
+</script>

@@ -1,3 +1,4 @@
+import "./CartDrawer.styles.css";
 import { useEffect, useMemo } from "react";
 import {
   X,
@@ -6,7 +7,6 @@ import {
   Trash2,
   ShoppingBag,
   Gift,
-  Truck,
   ShieldCheck,
   Check,
   AlertTriangle,
@@ -64,6 +64,123 @@ function formatPrice(price) {
   return usdFormatter.format(Number(price || 0));
 }
 
+function ShippingProtectionToggle({
+  selected,
+  amount,
+  insuredValue,
+  disabled,
+  onChange,
+}) {
+  return (
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={selected}
+      aria-label="Add shipping protection"
+      onClick={() => onChange(!selected)}
+      disabled={disabled}
+      className={`w-full rounded-xl border px-3 py-2.5 text-left transition disabled:cursor-wait disabled:opacity-60 ${
+        selected
+          ? "border-cyan-200/30 bg-cyan-300/[0.07]"
+          : "border-white/10 bg-white/[0.02] hover:border-cyan-200/20"
+      }`}
+    >
+      <span className="flex items-center gap-2.5">
+        <span
+          className={`grid h-5 w-5 shrink-0 place-items-center rounded border ${
+            selected
+              ? "border-cyan-200 bg-cyan-300 text-slate-950"
+              : "border-white/20 bg-[#020617] text-transparent"
+          }`}
+        >
+          <Check size={12} strokeWidth={3} />
+        </span>
+
+        <ShieldCheck size={15} className="shrink-0 text-cyan-200" />
+
+        <span className="min-w-0 flex-1">
+          <strong className="block text-[11px] text-white">
+            Shipping Protection
+          </strong>
+          <small className="block truncate text-[9px] text-slate-500">
+            Covers up to {formatPrice(insuredValue)} against loss or damage
+          </small>
+        </span>
+
+        <strong className="shrink-0 text-[11px] text-cyan-100">
+          +{formatPrice(amount)}
+        </strong>
+      </span>
+    </button>
+  );
+}
+
+function RewardSummary({ progress, gifts }) {
+  if (!progress) return null;
+
+  return (
+    <section className="rounded-xl border border-cyan-200/12 bg-cyan-200/[0.035] px-3 py-2.5">
+      <div className="flex items-center justify-between gap-3">
+        <span className="inline-flex min-w-0 items-center gap-2">
+          <Gift size={14} className="shrink-0 text-cyan-200" />
+          <span className="truncate text-[10px] font-semibold text-slate-300">
+            {progress.isMaxed
+              ? "Free gift unlocked"
+              : `${formatPrice(progress.remaining)} away from ${
+                  progress.nextTier?.shortTitle || "your next gift"
+                }`}
+          </span>
+        </span>
+
+        {!progress.isMaxed && progress.nextTier ? (
+          <span className="shrink-0 text-[9px] font-semibold text-slate-500">
+            {formatPrice(progress.eligibleTotal)} /{" "}
+            {formatPrice(progress.nextTier.threshold)}
+          </span>
+        ) : null}
+      </div>
+
+      {!progress.isMaxed ? (
+        <div className="mt-2 h-1 overflow-hidden rounded-full bg-white/[0.07]">
+          <div
+            className="h-full rounded-full bg-cyan-300 transition-[width] duration-300"
+            style={{ width: `${progress.progressPercent}%` }}
+          />
+        </div>
+      ) : null}
+
+      {gifts?.length > 0 ? (
+        <div className="mt-2 space-y-1.5" aria-label="Unlocked gifts">
+          {gifts.map((gift) => (
+            <div
+              key={gift.ruleId || gift.id}
+              className="flex min-w-0 items-center gap-2 border-t border-white/[0.06] pt-2"
+            >
+              {gift.image ? (
+                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-[#07111f]">
+                  <img
+                    src={gift.image}
+                    alt=""
+                    loading="lazy"
+                    className="max-h-7 max-w-7 object-contain"
+                  />
+                </span>
+              ) : null}
+              <span className="min-w-0 flex-1 truncate text-[10px] font-semibold text-white">
+                {gift.name || gift.productName}
+                {Number(gift.quantity || 1) > 1 ? ` × ${gift.quantity}` : ""}
+              </span>
+              <span className="shrink-0 text-[9px] font-black uppercase tracking-[0.12em] text-cyan-200">
+                Free
+              </span>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 export default function CartDrawer() {
   const {
     isCartOpen,
@@ -73,7 +190,6 @@ export default function CartDrawer() {
     clearCartNotice,
     updateQuantity,
     removeFromCart,
-    cartTotal,
     bundleUnlocked,
     bundleDiscountAmount,
     bundleDiscountPercent,
@@ -163,18 +279,18 @@ export default function CartDrawer() {
       />
 
       <aside className="phase-cart-drawer fixed bottom-0 right-0 top-0 z-[9999] flex w-full max-w-[430px] flex-col overflow-hidden border-l border-white/10 bg-[#050914] text-white shadow-[-10px_0_34px_rgba(0,0,0,0.35)]">
-        <div className="shrink-0 border-b border-cyan-200/10 px-5 py-5">
+        <div className="shrink-0 border-b border-cyan-200/10 px-4 py-3.5 sm:px-5 sm:py-4">
           <div className="flex items-center justify-between gap-4">
             <div>
               <p className="text-[10px] font-black uppercase tracking-[0.24em] text-cyan-200/60">
                 Cart
               </p>
 
-              <h2 className="mt-1 text-2xl font-semibold tracking-[-0.04em] text-white">
+              <h2 className="mt-0.5 text-xl font-semibold tracking-[-0.04em] text-white sm:text-2xl">
                 Your order
               </h2>
 
-              <p className="mt-1 text-sm text-slate-400">
+              <p className="mt-0.5 text-xs text-slate-400 sm:text-sm">
                 {hasItems
                   ? `${totalUnits} item${totalUnits > 1 ? "s" : ""} selected`
                   : "Your cart is empty"}
@@ -190,14 +306,14 @@ export default function CartDrawer() {
               }}
               disabled={checkoutLoading}
               aria-label="Close cart"
-              className="grid h-10 w-10 place-items-center rounded-full border border-white/10 bg-white/[0.04] text-slate-400 transition hover:border-cyan-200/25 hover:text-white disabled:cursor-wait disabled:opacity-50"
+              className="grid h-9 w-9 place-items-center rounded-full border border-white/10 bg-white/[0.04] text-slate-400 transition hover:border-cyan-200/25 hover:text-white disabled:cursor-wait disabled:opacity-50 sm:h-10 sm:w-10"
             >
               <X size={17} />
             </button>
           </div>
         </div>
 
-        <div className="cart-scroll flex-1 overflow-y-auto px-5 py-5">
+        <div className="cart-scroll min-h-0 flex-1 overflow-y-auto px-4 py-3 sm:px-5 sm:py-4">
           {cartNotice && (
             <div className="mb-4 flex items-start gap-3 rounded-2xl border border-amber-300/20 bg-amber-300/[0.08] px-4 py-3 text-amber-100">
               <AlertTriangle size={17} className="mt-0.5 shrink-0" />
@@ -236,18 +352,18 @@ export default function CartDrawer() {
               </button>
             </div>
           ) : (
-            <div className="space-y-3">
-              <div className="rounded-2xl border border-cyan-200/12 bg-cyan-300/[0.045] p-3.5">
+            <div className="flex min-h-full flex-col gap-2.5">
+              <div className="rounded-xl border border-cyan-200/12 bg-cyan-300/[0.04] px-3 py-2.5">
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="text-[8px] font-black uppercase tracking-[0.18em] text-cyan-200/65">
                       Quantity savings
                     </p>
-                    <p className="mt-1 text-[11px] font-semibold text-cyan-50">
+                    <p className="mt-0.5 text-[10px] font-semibold text-cyan-50 sm:text-[11px]">
                       {bundleEligibleUnits >= 10
                         ? "Best tier active · 30% off"
                         : bundleEligibleUnits >= 5
-                          ? `10% active · ${10 - bundleEligibleUnits} more to unlock 30%`
+                          ? `10% active · ${10 - bundleEligibleUnits} more for 30%`
                           : `${5 - bundleEligibleUnits} more to unlock 10% off`}
                     </p>
                   </div>
@@ -256,9 +372,9 @@ export default function CartDrawer() {
                   </span>
                 </div>
 
-                <div className="relative mt-3 h-1.5 rounded-full bg-white/[0.07]">
+                <div className="relative mt-2 h-1 rounded-full bg-white/[0.07]">
                   <div
-                    className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-cyan-400 to-emerald-300 transition-all duration-300"
+                    className="absolute inset-y-0 left-0 rounded-full bg-cyan-300 transition-[width] duration-300"
                     style={{ width: `${Math.min((bundleEligibleUnits / 10) * 100, 100)}%` }}
                   />
                   <span className="absolute left-1/2 top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-cyan-100/70 bg-[#07111f]" />
@@ -266,12 +382,8 @@ export default function CartDrawer() {
 
                 <div className="mt-1.5 flex justify-between text-[7px] font-black uppercase tracking-[0.1em] text-slate-600">
                   <span>5 items · 10%</span>
+                  <span>Recon excluded</span>
                   <span>10 items · 30%</span>
-                </div>
-
-                <div className="mt-2 flex items-center gap-1.5 text-[9px] font-bold leading-4 text-red-400">
-                  <AlertTriangle size={11} className="shrink-0" />
-                  <span>Recon Water does not count toward bundle totals.</span>
                 </div>
               </div>
 
@@ -287,21 +399,21 @@ export default function CartDrawer() {
                 return (
                   <article
                     key={itemKey}
-                    className={`rounded-2xl border p-3 ${
+                    className={`rounded-xl border p-2.5 ${
                       isRewardGift
                         ? "border-cyan-200/18 bg-transparent"
                         : "border-white/10 bg-transparent"
                     }`}
                   >
-                    <div className="flex gap-3">
-                      <div className="flex h-[84px] w-[70px] shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[#07111f]">
+                    <div className="flex gap-2.5">
+                      <div className="flex h-[72px] w-[62px] shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[#07111f]">
                         {itemImage ? (
                           <img
                             src={itemImage}
                             alt={item.name}
                             loading="lazy"
                             decoding="async"
-                            className="max-h-[70px] w-auto object-contain"
+                            className="max-h-[60px] w-auto object-contain"
                           />
                         ) : isRewardGift ? (
                           <Gift size={22} className="text-cyan-200/75" />
@@ -311,7 +423,7 @@ export default function CartDrawer() {
                       </div>
 
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
                             {isRewardGift && (
                               <div className="mb-1.5 inline-flex items-center gap-1.5 rounded-full border border-cyan-200/12 bg-cyan-300/[0.07] px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.15em] text-cyan-100">
@@ -320,25 +432,25 @@ export default function CartDrawer() {
                               </div>
                             )}
 
-                            <h3 className="line-clamp-2 text-[15px] font-semibold leading-snug tracking-[-0.02em] text-white">
+                            <h3 className="line-clamp-1 text-[14px] font-semibold leading-snug tracking-[-0.02em] text-white">
                               {item.name}
                             </h3>
 
                             {itemOptions && !isRewardGift && (
-                              <p className="mt-1 line-clamp-2 text-[11px] font-bold uppercase tracking-[0.12em] text-cyan-200/70">
+                              <p className="mt-0.5 line-clamp-1 text-[10px] font-bold uppercase tracking-[0.1em] text-cyan-200/70">
                                 {itemOptions}
                               </p>
                             )}
 
-                            <p className="mt-1 text-sm text-slate-400">
+                            <p className="mt-0.5 text-xs text-slate-400">
                               {isRewardGift
                                 ? "Automatically added"
                                 : `${formatPrice(item.price)} each`}
                             </p>
 
                             {purchaseLimit && !isRewardGift && (
-                              <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.12em] text-amber-200/80">
-                                Maximum {purchaseLimit} available
+                              <p className="mt-0.5 text-[8px] font-bold uppercase tracking-[0.1em] text-amber-200/75">
+                                Max {purchaseLimit} available
                               </p>
                             )}
                           </div>
@@ -356,7 +468,7 @@ export default function CartDrawer() {
                                 ? "Reward products cannot be removed manually"
                                 : "Remove product"
                             }
-                            className={`grid h-8 w-8 shrink-0 place-items-center rounded-full transition disabled:cursor-not-allowed disabled:opacity-45 ${
+                            className={`grid h-7 w-7 shrink-0 place-items-center rounded-full transition disabled:cursor-not-allowed disabled:opacity-45 ${
                               isRewardGift
                                 ? "text-cyan-200/35"
                                 : "text-slate-500 hover:bg-red-400/10 hover:text-red-300"
@@ -366,8 +478,8 @@ export default function CartDrawer() {
                           </button>
                         </div>
 
-                        <div className="mt-4 flex items-center justify-between gap-3">
-                          <div className="inline-flex items-center rounded-full border border-cyan-200/10 bg-[#020617]/70 p-1">
+                        <div className="mt-2.5 flex items-center justify-between gap-3">
+                          <div className="inline-flex items-center rounded-lg border border-cyan-200/10 bg-[#020617]/70 p-0.5">
                             <button
                               type="button"
                               onClick={() => {
@@ -377,7 +489,7 @@ export default function CartDrawer() {
                               }}
                               disabled={checkoutLoading || isRewardGift}
                               aria-label="Decrease quantity"
-                              className="grid h-7 w-7 place-items-center rounded-full text-slate-400 transition hover:bg-white/[0.05] hover:text-white disabled:cursor-not-allowed disabled:opacity-45"
+                              className="grid h-7 w-7 place-items-center rounded-md text-slate-400 transition hover:bg-white/[0.05] hover:text-white disabled:cursor-not-allowed disabled:opacity-45"
                             >
                               <Minus size={12} />
                             </button>
@@ -400,7 +512,7 @@ export default function CartDrawer() {
                                   Number(item.quantity || 0) >= purchaseLimit)
                               }
                               aria-label="Increase quantity"
-                              className="grid h-7 w-7 place-items-center rounded-full text-slate-400 transition hover:bg-white/[0.05] hover:text-white disabled:cursor-not-allowed disabled:opacity-45"
+                              className="grid h-7 w-7 place-items-center rounded-md text-slate-400 transition hover:bg-white/[0.05] hover:text-white disabled:cursor-not-allowed disabled:opacity-45"
                             >
                               <Plus size={12} />
                             </button>
@@ -419,216 +531,62 @@ export default function CartDrawer() {
                   </article>
                 );
               })}
+
+              <div className="mt-auto space-y-2.5 pt-2">
+                {bundleUnlocked && bundleDiscountAmount > 0 ? (
+                  <div className="flex items-center justify-between rounded-xl border border-emerald-300/15 bg-emerald-300/[0.05] px-3 py-2 text-[10px]">
+                    <span className="font-semibold text-emerald-200">
+                      {bundleRequiredQuantity}-product bundle ·{" "}
+                      {bundleDiscountPercent}% off
+                    </span>
+                    <strong className="text-emerald-200">
+                      -{formatPrice(bundleDiscountAmount)}
+                    </strong>
+                  </div>
+                ) : null}
+
+                <ShippingProtectionToggle
+                  selected={shippingProtectionSelected}
+                  amount={shippingProtectionAmount}
+                  insuredValue={shippingProtectionInsuredValue}
+                  disabled={checkoutLoading}
+                  onChange={setShippingProtectionSelected}
+                />
+
+                <RewardSummary
+                  progress={rewardProgress}
+                  gifts={rewardGifts}
+                />
+              </div>
             </div>
           )}
         </div>
 
         {hasItems && (
-          <div className="shrink-0 border-t border-white/10 bg-[#050914] px-5 py-5">
-            <div className="mb-4">
-              {bundleUnlocked && bundleDiscountAmount > 0 && (
-                <div className="mb-3 flex items-center justify-between rounded-xl border border-emerald-300/15 bg-emerald-300/[0.06] px-3 py-2.5 text-xs">
-                  <span className="font-semibold text-emerald-200">
-                    {bundleRequiredQuantity}-product bundle · {bundleDiscountPercent}% off
-                  </span>
-                  <span className="font-bold text-emerald-200">
-                    -{formatPrice(bundleDiscountAmount)}
-                  </span>
-                </div>
-              )}
-              <div className="flex items-end justify-between gap-4">
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
-                    Estimated total
-                  </p>
-
-                  <p className="mt-1 text-3xl font-semibold tracking-[-0.05em] text-white">
-                    {formatPrice(checkoutTotal)}
-                  </p>
-                </div>
-
-                <p className="pb-1 text-right text-xs leading-5 text-slate-500">
-                  Taxes and shipping at checkout.
+          <div className="phase-cart-checkout shrink-0 border-t border-white/10 bg-[#050914] px-4 py-3 sm:px-5">
+            <div className="flex items-center gap-3">
+              <div className="min-w-[104px] shrink-0">
+                <p className="text-[8px] font-black uppercase tracking-[0.18em] text-slate-500">
+                  Estimated total
                 </p>
+                <p className="text-2xl font-semibold tracking-[-0.05em] text-white">
+                  {formatPrice(checkoutTotal)}
+                </p>
+                <p className="text-[8px] text-slate-600">Plus tax &amp; shipping</p>
               </div>
 
-              {shippingProtectionSelected && (
-                <div className="mt-3 flex items-center justify-between border-t border-white/[0.06] pt-3 text-xs">
-                  <span className="text-slate-500">Products subtotal</span>
-                  <span className="font-semibold text-slate-300">
-                    {formatPrice(cartTotal)}
-                  </span>
-                </div>
-              )}
+              <button
+                type="button"
+                onClick={checkout}
+                disabled={checkoutLoading}
+                className="min-h-12 min-w-0 flex-1 rounded-xl bg-cyan-300 px-4 text-[10px] font-black uppercase tracking-[0.18em] text-slate-950 transition hover:bg-white disabled:cursor-wait disabled:opacity-80"
+              >
+                {checkoutLoading ? "Preparing..." : "Checkout"}
+              </button>
             </div>
-
-            <button
-              type="button"
-              role="checkbox"
-              aria-checked={shippingProtectionSelected}
-              aria-label="Add shipping protection"
-              onClick={() =>
-                setShippingProtectionSelected(!shippingProtectionSelected)
-              }
-              disabled={checkoutLoading}
-              className={`mb-4 w-full rounded-2xl border p-3.5 text-left transition disabled:cursor-wait disabled:opacity-60 ${
-                shippingProtectionSelected
-                  ? "border-cyan-200/30 bg-cyan-300/[0.08]"
-                  : "border-cyan-200/10 bg-white/[0.025] hover:border-cyan-200/20 hover:bg-cyan-300/[0.04]"
-              }`}
-            >
-              <div className="flex items-start gap-3">
-                <span
-                  className={`mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-md border transition ${
-                    shippingProtectionSelected
-                      ? "border-cyan-200 bg-cyan-300 text-slate-950"
-                      : "border-white/20 bg-[#020617] text-transparent"
-                  }`}
-                >
-                  <Check size={13} strokeWidth={3} />
-                </span>
-
-                <span className="min-w-0 flex-1">
-                  <span className="flex items-center justify-between gap-3">
-                    <span className="inline-flex items-center gap-2 text-[12px] font-bold text-white">
-                      <ShieldCheck size={15} className="text-cyan-200" />
-                      Shipping Protection
-                    </span>
-
-                    <span className="shrink-0 text-[12px] font-black text-cyan-100">
-                      Est. +{formatPrice(shippingProtectionAmount)}
-                    </span>
-                  </span>
-
-                  <span className="mt-1.5 block text-[10px] leading-4 text-slate-400">
-                    Protects up to {formatPrice(shippingProtectionInsuredValue)}
-                    against loss or damage. The final protection charge updates
-                    at checkout and ParcelGuard is applied through ShipStation.
-                  </span>
-                </span>
-              </div>
-            </button>
-
-            {rewardProgress && (
-              <div className="mb-3">
-                <div className="mb-1.5 flex items-center justify-between gap-3">
-                  <p className="truncate text-[10px] font-semibold text-slate-400">
-                    {rewardProgress.isMaxed
-                      ? "All rewards unlocked"
-                      : `${formatPrice(rewardProgress.remaining)} away from ${
-                          rewardProgress.nextTier?.shortTitle || "next"
-                        } reward`}
-                  </p>
-
-                  {rewardProgress.freeShippingUnlocked && (
-                    <span className="inline-flex shrink-0 items-center gap-1 text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100">
-                      <Truck size={10} />
-                      Free ship
-                    </span>
-                  )}
-                </div>
-
-                <div className="relative h-1.5 rounded-full bg-white/[0.07]">
-                  <div
-                    className="absolute inset-y-0 left-0 rounded-full bg-cyan-300"
-                    style={{
-                      width: `${rewardProgress.progressPercent}%`,
-                    }}
-                  />
-
-                  {rewardProgress.markers?.map((marker) => (
-                    <span
-                      key={marker.label}
-                      className={`absolute top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border ${
-                        marker.unlocked
-                          ? "border-cyan-100 bg-cyan-200"
-                          : "border-cyan-200/25 bg-[#040814]"
-                      }`}
-                      style={{
-                        left: `${marker.percent}%`,
-                      }}
-                    />
-                  ))}
-                </div>
-
-                <div className="relative mt-1 h-3 text-[7px] font-black uppercase tracking-[0.08em] text-slate-600">
-                  {rewardProgress.markers?.map((marker) => (
-                    <span
-                      key={marker.label}
-                      className="absolute -translate-x-1/2"
-                      style={{
-                        left: `${marker.percent}%`,
-                      }}
-                    >
-                      {marker.label}
-                    </span>
-                  ))}
-                </div>
-
-                {rewardGifts?.length > 0 && (
-                  <p className="mt-1.5 truncate text-[9px] font-medium text-cyan-100/70">
-                    {rewardGifts.length} free reward
-                    {rewardGifts.length > 1 ? "s" : ""} added.
-                  </p>
-                )}
-              </div>
-            )}
-
-            <button
-              type="button"
-              onClick={checkout}
-              disabled={checkoutLoading}
-              className="relative w-full overflow-hidden rounded-2xl bg-cyan-300 px-6 py-4 text-[11px] font-black uppercase tracking-[0.2em] text-slate-950 transition hover:bg-white disabled:cursor-wait disabled:opacity-80"
-            >
-              <span className="relative z-10">
-                {checkoutLoading ? "Preparing checkout..." : "Checkout"}
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setIsCartOpen(false)}
-              disabled={checkoutLoading}
-              className="mt-3 w-full py-2.5 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500 transition hover:text-cyan-200 disabled:cursor-wait disabled:opacity-50"
-            >
-              Continue Shopping
-            </button>
           </div>
         )}
       </aside>
-
-      <style>{`
-        .phase-cart-drawer {
-          contain: layout paint style;
-          overscroll-behavior: contain;
-          transform: translateZ(0);
-        }
-
-        .cart-scroll {
-          -webkit-overflow-scrolling: touch;
-          overscroll-behavior: contain;
-          scrollbar-width: thin;
-        }
-
-        body.phase-cart-open .phase-saved-tab,
-        html.phase-cart-open .phase-saved-tab,
-        body.phase-cart-open .phase-modal-overlay,
-        html.phase-cart-open .phase-modal-overlay {
-          opacity: 0 !important;
-          pointer-events: none !important;
-          visibility: hidden !important;
-        }
-
-        @media (max-width: 520px) {
-          .phase-cart-drawer {
-            left: 0;
-            width: 100%;
-            max-width: none;
-            border-left: 0;
-            box-shadow: none;
-          }
-        }
-      `}</style>
     </>
   );
 }

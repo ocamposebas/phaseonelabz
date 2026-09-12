@@ -1,0 +1,51 @@
+
+        .phase-cart-drawer {
+          contain: layout paint style;
+          height: 100dvh;
+          max-height: 100dvh;
+          overscroll-behavior: contain;
+          transform: translateZ(0);
+        }
+
+        .cart-scroll {
+          -webkit-overflow-scrolling: touch;
+          overscroll-behavior: contain;
+          scrollbar-width: thin;
+          scrollbar-color: rgba(103, 232, 249, 0.28) transparent;
+        }
+
+        .cart-scroll::-webkit-scrollbar {
+          width: 5px;
+        }
+
+        .cart-scroll::-webkit-scrollbar-thumb {
+          border-radius: 999px;
+          background: rgba(103, 232, 249, 0.25);
+        }
+
+        .phase-cart-checkout {
+          padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+        }
+
+        body.phase-cart-open .phase-saved-tab,
+        html.phase-cart-open .phase-saved-tab,
+        body.phase-cart-open .phase-modal-overlay,
+        html.phase-cart-open .phase-modal-overlay {
+          opacity: 0 !important;
+          pointer-events: none !important;
+          visibility: hidden !important;
+        }
+
+        @media (max-width: 520px) {
+          .phase-cart-drawer {
+            left: 0;
+            width: 100%;
+            max-width: none;
+            border-left: 0;
+            box-shadow: none;
+          }
+
+          .cart-scroll {
+            scroll-padding-bottom: 5rem;
+          }
+        }

@@ -1,0 +1,155 @@
+
+        html,
+        body,
+        #root {
+          width: 100%;
+          max-width: 100%;
+          min-height: 100%;
+          margin: 0;
+          background: #020617;
+          overflow-x: hidden;
+        }
+
+        #root {
+          overflow-x: clip;
+        }
+
+        .account-page-shell {
+          width: 100%;
+          max-width: 100vw;
+          overflow-x: clip;
+          background:
+            linear-gradient(rgba(103, 232, 249, 0.018) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(103, 232, 249, 0.018) 1px, transparent 1px),
+            radial-gradient(circle at 50% -12%, rgba(103, 232, 249, 0.09), transparent 34%),
+            linear-gradient(180deg, #020617 0%, #03101f 42%, #020617 100%);
+          background-size: 64px 64px, 64px 64px, auto, auto;
+          background-position: center top;
+        }
+
+        .account-member-hero::after {
+          position: absolute;
+          inset: 0;
+          border-radius: inherit;
+          background: linear-gradient(
+            115deg,
+            transparent 0%,
+            rgba(255, 255, 255, 0.025) 35%,
+            transparent 57%
+          );
+          content: "";
+          pointer-events: none;
+        }
+
+
+
+        .account-page-shell * {
+          box-sizing: border-box;
+        }
+
+        .account-page-shell > .pointer-events-none.absolute.inset-0,
+        .account-page-shell .rounded-full {
+        }
+
+
+        @media (min-width: 768px) {
+          .account-page-shell [class*="blur-[120px]"],
+          .account-page-shell [class*="blur-[130px]"] {
+            filter: blur(105px);
+          }
+        }
+
+        /* Performance pass:
+           Heavy backdrop filters, huge blur filters and large paint areas were
+           causing noticeable lag on page entry and tab switches. These overrides
+           keep the same dark Phase One look while reducing GPU/paint work. */
+        .account-page-shell {
+          contain: paint;
+        }
+
+        .account-page-shell [class*="backdrop-blur"] {
+          -webkit-backdrop-filter: none !important;
+          backdrop-filter: none !important;
+        }
+
+        .account-page-shell [class*="blur-[80px]"],
+        .account-page-shell [class*="blur-[90px]"],
+        .account-page-shell [class*="blur-[100px]"],
+        .account-page-shell [class*="blur-[110px]"],
+        .account-page-shell [class*="blur-[120px]"],
+        .account-page-shell [class*="blur-[130px]"] {
+          filter: blur(34px) !important;
+          opacity: 0.42;
+          transform: translateZ(0);
+        }
+
+        .account-page-shell [class*="shadow-[0_24px_90px"],
+        .account-page-shell [class*="shadow-[0_28px_90px"],
+        .account-page-shell [class*="shadow-[0_0_28px"] {
+          box-shadow: none !important;
+        }
+
+        .account-page-shell article,
+        .account-page-shell form,
+        .account-page-shell [class*="rounded-[1.7rem]"],
+        .account-page-shell [class*="rounded-[2rem]"] {
+          content-visibility: auto;
+          contain-intrinsic-size: 1px 420px;
+        }
+
+        .account-page-shell button,
+        .account-page-shell a {
+          will-change: auto;
+        }
+
+        .account-tabs-scroll {
+          scrollbar-width: none;
+        }
+
+        .account-tabs-scroll::-webkit-scrollbar {
+          display: none;
+        }
+
+        .account-evidence-scroll {
+          scrollbar-width: none;
+          overscroll-behavior-x: contain;
+        }
+
+        .account-evidence-scroll::-webkit-scrollbar {
+          display: none;
+        }
+
+        @media (max-width: 767px) {
+          html,
+          body,
+          #root {
+            background: #020617 !important;
+          }
+
+          .account-page-shell {
+            min-height: 100svh;
+            overflow-x: clip;
+            background: linear-gradient(180deg, #020617 0%, #03101f 48%, #020617 100%);
+            -webkit-overflow-scrolling: touch;
+            contain: none;
+          }
+
+          .account-page-shell > .pointer-events-none.absolute.inset-0 {
+            display: none;
+          }
+
+          .account-dashboard-menu {
+            bottom: calc(0.75rem + env(safe-area-inset-bottom));
+          }
+
+          .account-page-shell button,
+          .account-page-shell a {
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+          }
+
+          .account-page-shell [class*="blur-[120px]"],
+          .account-page-shell [class*="blur-[130px]"] {
+            filter: blur(28px);
+          }
+        }

@@ -1,0 +1,42 @@
+.phaseone-bulk-access-mode {
+	display: grid;
+	grid-template-columns: minmax(220px, .6fr) minmax(360px, 1.4fr);
+	gap: 24px;
+	align-items: center;
+}
+
+.phaseone-bulk-access-mode form {
+	display: flex;
+	align-items: center;
+	gap: 16px;
+	flex-wrap: wrap;
+}
+
+.phaseone-bulk-access-mode label {
+	display: flex;
+	align-items: flex-start;
+	gap: 8px;
+	min-width: 180px;
+}
+
+.phaseone-bulk-access-mode label span {
+	display: grid;
+	gap: 2px;
+}
+
+.phaseone-bulk-access-mode small {
+	display: block;
+	color: #646970;
+	font-weight: 400;
+}
+
+@media (max-width: 782px) {
+	.phaseone-bulk-access-mode {
+		grid-template-columns: 1fr;
+	}
+
+	.phaseone-bulk-access-mode form {
+		align-items: stretch;
+		flex-direction: column;
+	}
+}

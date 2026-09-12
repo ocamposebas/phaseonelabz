@@ -1,4 +1,4 @@
-const CACHE_TTL_MS = 10_000;
+const CACHE_TTL_MS = 60_000;
 
 const state = globalThis.__phaseoneSiteControlState || {
   value: null,
@@ -222,13 +222,16 @@ function normalizeConfig(payload) {
   };
 }
 
-export async function getSiteControlConfig({ force = false } = {}) {
+export async function getSiteControlConfig({ force = false, background = false } = {}) {
   const endpoint = getSiteControlEndpoint();
   if (!endpoint) return emptySiteControlConfig();
 
   const now = Date.now();
   if (!force && state.value && now < state.expiresAt) return state.value;
-  if (state.inFlight) return state.inFlight;
+  if (state.inFlight) {
+    if (background) return state.value || emptySiteControlConfig();
+    return !force && state.value ? state.value : state.inFlight;
+  }
 
   state.inFlight = (async () => {
     const controller = new AbortController();
@@ -254,7 +257,11 @@ export async function getSiteControlConfig({ force = false } = {}) {
     }
   })();
 
-  return state.inFlight;
+  // Once a valid value exists, serve it immediately while the expired value
+  // refreshes in the background. A slow control API must not delay storefront
+  // rendering for every visitor.
+  if (background) return state.value || emptySiteControlConfig();
+  return !force && state.value ? state.value : state.inFlight;
 }
 
 export async function setMaintenanceMode(enabled) {

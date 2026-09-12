@@ -1,3 +1,4 @@
+import "./PromoCountdownBar.styles.css";
 import { useEffect, useState } from "react";
 import { ArrowRight, BadgePercent, FlaskConical, Timer } from "lucide-react";
 
@@ -48,12 +49,24 @@ function formatGiftThreshold(value) {
   return `$${amount.toLocaleString("en-US", { maximumFractionDigits: 2 })}+`;
 }
 
+function resolvePromoCtaUrl(promo = {}, product = null) {
+  const label = String(promo?.ctaLabel || "").trim();
+  const configuredUrl = String(product?.url || promo?.ctaUrl || "").trim();
+  const isShopCta = /^shop(?:\s+(?:now|catalog|promotion))?$/i.test(label);
+
+  if (isShopCta) return "/shop";
+  if (/^\/catalog\/?(?:[?#].*)?$/i.test(configuredUrl)) return "/shop";
+
+  return configuredUrl;
+}
+
 export default function PromoCountdownBar({ promo }) {
   const [currentPromo, setCurrentPromo] = useState(promo || {});
   const [remaining, setRemaining] = useState(() => remainingUntil(promo?.endsAt));
 
   useEffect(() => {
     let active = true;
+    let refreshTimer = 0;
 
     const refresh = async () => {
       try {
@@ -68,15 +81,31 @@ export default function PromoCountdownBar({ promo }) {
       }
     };
 
-    const interval = window.setInterval(refresh, 15_000);
-    const onVisibility = () => {
-      if (document.visibilityState === "visible") refresh();
+    const scheduleRefresh = (delay = 15_000) => {
+      window.clearTimeout(refreshTimer);
+      if (document.hidden) return;
+
+      refreshTimer = window.setTimeout(async () => {
+        await refresh();
+        if (active) scheduleRefresh();
+      }, delay);
     };
+
+    const onVisibility = () => {
+      if (document.hidden) {
+        window.clearTimeout(refreshTimer);
+        return;
+      }
+
+      scheduleRefresh(0);
+    };
+
+    scheduleRefresh();
     document.addEventListener("visibilitychange", onVisibility);
 
     return () => {
       active = false;
-      window.clearInterval(interval);
+      window.clearTimeout(refreshTimer);
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, []);
@@ -88,9 +117,31 @@ export default function PromoCountdownBar({ promo }) {
     }
 
     const update = () => setRemaining(remainingUntil(currentPromo.endsAt));
-    update();
-    const interval = window.setInterval(update, 1000);
-    return () => window.clearInterval(interval);
+    let timer = 0;
+
+    const stop = () => {
+      window.clearInterval(timer);
+      timer = 0;
+    };
+
+    const start = () => {
+      stop();
+      update();
+      if (!document.hidden) timer = window.setInterval(update, 1000);
+    };
+
+    const onVisibility = () => {
+      if (document.hidden) stop();
+      else start();
+    };
+
+    start();
+    document.addEventListener("visibilitychange", onVisibility);
+
+    return () => {
+      stop();
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, [currentPromo?.enabled, currentPromo?.endsAt]);
 
   if (!currentPromo?.enabled || !currentPromo?.endsAt || remaining.totalSeconds <= 0) {
@@ -101,17 +152,17 @@ export default function PromoCountdownBar({ promo }) {
   const isSimpleGifts =
     currentPromo.type === "simple_gifts" && currentPromo.simpleGifts;
   const product = isProductPromo ? currentPromo.product : null;
-  const productHref = product?.url || currentPromo.ctaUrl || "";
+  const ctaHref = resolvePromoCtaUrl(currentPromo, product);
   const hasPrices = Boolean(product?.originalPrice && product?.promoPrice);
   const originalPrice = hasPrices
     ? formatPrice(product.originalPrice, product.currency)
     : "";
   const promoPrice = hasPrices ? formatPrice(product.promoPrice, product.currency) : "";
-  const Wrapper = isProductPromo && productHref ? "a" : "aside";
+  const Wrapper = isProductPromo && ctaHref ? "a" : "aside";
   const wrapperProps =
     Wrapper === "a"
       ? {
-          href: productHref,
+          href: ctaHref,
           "aria-label": `${currentPromo.ctaLabel || "Shop promotion"}: ${product.name}`,
         }
       : { "aria-label": "Limited-time promotion" };
@@ -207,437 +258,18 @@ export default function PromoCountdownBar({ promo }) {
           </div>
         </div>
 
-        {isProductPromo && productHref ? (
+        {isProductPromo && ctaHref ? (
           <span className="promo-countdown-cta promo-product-cta" aria-hidden="true">
             <span>{currentPromo.ctaLabel || "Shop now"}</span>
             <ArrowRight size={14} aria-hidden="true" />
           </span>
-        ) : currentPromo.ctaLabel && currentPromo.ctaUrl ? (
-          <a className="promo-countdown-cta" href={currentPromo.ctaUrl}>
+        ) : currentPromo.ctaLabel && ctaHref ? (
+          <a className="promo-countdown-cta" href={ctaHref}>
             <span>{currentPromo.ctaLabel}</span>
             <ArrowRight size={14} aria-hidden="true" />
           </a>
         ) : null}
       </div>
-
-      <style>{`
-        .promo-countdown-shell {
-          position: absolute;
-          z-index: 30;
-          top: 106px;
-          left: 50%;
-          width: min(calc(100% - 32px), 1180px);
-          transform: translateX(-50%);
-          overflow: hidden;
-          border: 1px solid rgba(103, 232, 249, 0.35);
-          border-radius: 20px;
-          background: linear-gradient(105deg, rgba(2, 6, 23, 0.93), rgba(4, 20, 42, 0.88) 55%, rgba(2, 6, 23, 0.94));
-          box-shadow: inset 0 1px 0 rgba(255,255,255,0.07), 0 18px 60px rgba(0,0,0,0.38), 0 0 42px rgba(14,165,233,0.09);
-          color: white;
-          backdrop-filter: blur(18px) saturate(130%);
-          -webkit-backdrop-filter: blur(18px) saturate(130%);
-        }
-
-        a.promo-countdown-shell {
-          text-decoration: none;
-          cursor: pointer;
-          transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
-        }
-
-        a.promo-countdown-shell:hover {
-          border-color: rgba(165, 243, 252, 0.62);
-          box-shadow: inset 0 1px 0 rgba(255,255,255,0.09), 0 22px 68px rgba(0,0,0,0.42), 0 0 48px rgba(14,165,233,0.16);
-          transform: translateX(-50%) translateY(-2px);
-        }
-
-        a.promo-countdown-shell:focus-visible {
-          outline: 2px solid #67e8f9;
-          outline-offset: 3px;
-        }
-
-        .promo-countdown-product {
-          border-color: rgba(103, 232, 249, 0.48);
-          background: linear-gradient(108deg, rgba(2, 6, 23, 0.96), rgba(4, 24, 48, 0.94) 52%, rgba(8, 35, 57, 0.93));
-        }
-
-        .promo-countdown-simple-gifts .promo-countdown-content {
-          grid-template-columns: auto minmax(0, 1fr) auto auto;
-          min-height: 112px;
-          gap: 18px;
-        }
-
-        .promo-countdown-simple-gifts .promo-countdown-copy h2 {
-          margin-top: 3px;
-          font-size: clamp(23px, 1.8vw, 30px);
-          line-height: 1;
-        }
-
-        .promo-simple-gifts-tiers {
-          display: flex;
-          min-width: 0;
-          align-items: center;
-          gap: 0;
-          margin-top: 8px;
-        }
-
-        .promo-simple-gifts-tier {
-          display: flex;
-          min-width: 0;
-          align-items: center;
-          gap: 9px;
-          padding: 0 16px;
-        }
-
-        .promo-simple-gifts-tier:first-child {
-          padding-left: 0;
-        }
-
-        .promo-simple-gifts-tier:not(:last-child) {
-          border-right: 1px solid rgba(103, 232, 249, 0.18);
-        }
-
-        .promo-simple-gifts-tier > span {
-          flex: 0 0 auto;
-          color: #67e8f9;
-          font-size: 13px;
-          font-weight: 900;
-          letter-spacing: -0.03em;
-        }
-
-        .promo-simple-gifts-rewards {
-          display: flex;
-          min-width: 0;
-          align-items: center;
-          flex-wrap: wrap;
-          gap: 7px;
-        }
-
-        .promo-simple-gifts-reward {
-          display: grid;
-          min-width: 0;
-          gap: 3px;
-        }
-
-        .promo-simple-gifts-reward > i {
-          color: rgba(186, 230, 253, 0.55);
-          font-size: 5.5px;
-          font-style: normal;
-          font-weight: 900;
-          letter-spacing: 0.15em;
-          text-transform: uppercase;
-        }
-
-        .promo-simple-gifts-reward > div {
-          display: flex;
-          flex-wrap: wrap;
-          align-items: center;
-          gap: 4px;
-        }
-
-        .promo-simple-gifts-reward > div > span {
-          display: inline-flex;
-          align-items: center;
-          gap: 4px;
-        }
-
-        .promo-simple-gifts-reward strong {
-          color: #f8fafc;
-          font-size: clamp(15px, 1.2vw, 18px);
-          font-weight: 900;
-          line-height: 1.05;
-          letter-spacing: -0.035em;
-        }
-
-        .promo-simple-gifts-reward em {
-          color: #67e8f9;
-          font-size: 6px;
-          font-style: normal;
-          font-weight: 900;
-          letter-spacing: 0.08em;
-        }
-
-        .promo-simple-gifts-reward small {
-          color: rgba(186, 230, 253, 0.62);
-          font-size: 5.5px;
-          font-weight: 900;
-          letter-spacing: 0.16em;
-          text-transform: uppercase;
-        }
-
-        .promo-countdown-shell::before,
-        .promo-countdown-shell::after {
-          content: "";
-          position: absolute;
-          width: 9px;
-          height: 9px;
-          border-radius: 999px;
-          background: #67e8f9;
-          box-shadow: 0 0 18px rgba(103,232,249,0.9);
-          opacity: 0.8;
-        }
-
-        .promo-countdown-shell::before { left: 14px; top: 14px; }
-        .promo-countdown-shell::after { right: 14px; bottom: 14px; }
-
-        .promo-countdown-glow {
-          position: absolute;
-          inset: 0;
-          pointer-events: none;
-          background: radial-gradient(circle at 24% 0%, rgba(34,211,238,0.14), transparent 34%), radial-gradient(circle at 78% 100%, rgba(59,130,246,0.12), transparent 38%);
-        }
-
-        .promo-countdown-content {
-          position: relative;
-          display: grid;
-          grid-template-columns: auto minmax(250px, 1fr) auto auto;
-          min-height: 112px;
-          align-items: center;
-          gap: 22px;
-          padding: 16px 20px;
-        }
-
-        .promo-countdown-icon {
-          display: grid;
-          width: 56px;
-          height: 72px;
-          place-items: center;
-          border-right: 1px solid rgba(103,232,249,0.2);
-          color: #67e8f9;
-          filter: drop-shadow(0 0 12px rgba(34,211,238,0.35));
-        }
-
-        .promo-countdown-copy p,
-        .promo-countdown-copy h2,
-        .promo-countdown-copy span,
-        .promo-countdown-label { margin: 0; }
-
-        .promo-countdown-copy p {
-          font-size: 9px;
-          font-weight: 900;
-          letter-spacing: 0.28em;
-          text-transform: uppercase;
-          color: rgba(207,250,254,0.72);
-        }
-
-        .promo-countdown-copy h2 {
-          margin-top: 5px;
-          font-size: clamp(22px, 2.35vw, 34px);
-          font-weight: 850;
-          line-height: 0.95;
-          letter-spacing: -0.045em;
-          text-transform: uppercase;
-          background: linear-gradient(90deg, #67e8f9, #bae6fd 58%, #fff);
-          -webkit-background-clip: text;
-          background-clip: text;
-          color: transparent;
-        }
-
-        .promo-countdown-copy > span {
-          display: block;
-          max-width: 470px;
-          margin-top: 6px;
-          overflow: hidden;
-          color: rgba(226,232,240,0.62);
-          font-size: 10px;
-          line-height: 1.3;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-        }
-
-        .promo-product-details,
-        .promo-product-prices {
-          display: flex;
-          align-items: center;
-        }
-
-        .promo-product-details {
-          min-height: 25px;
-          flex-wrap: wrap;
-          gap: 7px 10px;
-          margin-top: 7px;
-        }
-
-        .promo-product-prices { gap: 9px; }
-
-        .promo-product-prices del {
-          color: rgba(226, 232, 240, 0.52);
-          font-size: 13px;
-          font-weight: 750;
-          text-decoration-color: rgba(248, 113, 113, 0.88);
-          text-decoration-thickness: 1.5px;
-        }
-
-        .promo-product-prices strong {
-          color: #a5f3fc;
-          font-size: 22px;
-          font-weight: 900;
-          line-height: 1;
-          letter-spacing: -0.035em;
-          text-shadow: 0 0 18px rgba(34, 211, 238, 0.28);
-        }
-
-        .promo-product-variation,
-        .promo-product-live {
-          border-radius: 999px;
-          padding: 4px 8px;
-          font-size: 7px;
-          font-weight: 900;
-          letter-spacing: 0.12em;
-          line-height: 1;
-          text-transform: uppercase;
-        }
-
-        .promo-product-variation {
-          border: 1px solid rgba(125, 211, 252, 0.22);
-          color: rgba(224, 242, 254, 0.76);
-        }
-
-        .promo-product-live {
-          border: 1px solid rgba(74, 222, 128, 0.26);
-          background: rgba(34, 197, 94, 0.09);
-          color: #86efac;
-        }
-
-        .promo-countdown-timer-wrap { min-width: 270px; }
-
-        .promo-countdown-label {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 7px;
-          margin-bottom: 7px;
-          color: rgba(240,249,255,0.82);
-          font-size: 9px;
-          font-weight: 900;
-          letter-spacing: 0.18em;
-          text-transform: uppercase;
-        }
-
-        .promo-countdown-timer {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 8px;
-        }
-
-        .promo-countdown-timer > b {
-          color: #38bdf8;
-          font-size: 20px;
-          font-weight: 900;
-        }
-
-        .promo-countdown-unit {
-          display: grid;
-          min-width: 66px;
-          place-items: center;
-          border: 1px solid rgba(34,211,238,0.28);
-          border-radius: 12px;
-          background: rgba(2,6,23,0.48);
-          padding: 7px 7px 6px;
-          box-shadow: inset 0 1px 0 rgba(255,255,255,0.045);
-        }
-
-        .promo-countdown-unit strong {
-          font-variant-numeric: tabular-nums;
-          color: #7dd3fc;
-          font-size: 24px;
-          font-weight: 900;
-          line-height: 1;
-          letter-spacing: -0.04em;
-          text-shadow: 0 0 18px rgba(56,189,248,0.25);
-        }
-
-        .promo-countdown-unit span {
-          margin-top: 3px;
-          color: rgba(226,232,240,0.7);
-          font-size: 7px;
-          font-weight: 900;
-          letter-spacing: 0.12em;
-          text-transform: uppercase;
-        }
-
-        .promo-countdown-cta {
-          display: inline-flex;
-          min-height: 42px;
-          align-items: center;
-          justify-content: center;
-          gap: 7px;
-          border: 1px solid rgba(165,243,252,0.32);
-          border-radius: 999px;
-          background: rgba(34,211,238,0.1);
-          padding: 0 16px;
-          color: #cffafe;
-          font-size: 8px;
-          font-weight: 900;
-          letter-spacing: 0.13em;
-          text-transform: uppercase;
-          transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
-        }
-
-        .promo-countdown-cta:hover {
-          transform: translateY(-1px);
-          border-color: rgba(165,243,252,0.58);
-          background: rgba(34,211,238,0.16);
-        }
-
-        .promo-product-cta { pointer-events: none; }
-
-        a.promo-countdown-shell:hover .promo-product-cta {
-          border-color: rgba(165,243,252,0.58);
-          background: rgba(34,211,238,0.16);
-        }
-
-        @media (max-width: 900px) {
-          .promo-countdown-content { grid-template-columns: minmax(0, 1fr) auto; gap: 14px; }
-          .promo-countdown-simple-gifts .promo-countdown-content { grid-template-columns: minmax(0, 1fr) auto; }
-          .promo-countdown-icon, .promo-countdown-cta { display: none; }
-          .promo-countdown-copy > span { max-width: 330px; }
-        }
-
-        @media (max-width: 640px) {
-          .promo-countdown-shell {
-            top: 88px;
-            width: calc(100% - 20px);
-            border-radius: 17px;
-          }
-
-          .promo-countdown-content {
-            grid-template-columns: 1fr;
-            min-height: 0;
-            gap: 10px;
-            padding: 13px 14px 14px;
-            text-align: center;
-          }
-
-          .promo-countdown-copy p { font-size: 7px; letter-spacing: 0.2em; }
-          .promo-countdown-copy h2 { margin-top: 3px; font-size: clamp(20px, 6.8vw, 27px); }
-          .promo-countdown-copy > span { display: none; }
-          .promo-simple-gifts-tiers { display: grid; grid-template-columns: 1fr; gap: 7px; }
-          .promo-simple-gifts-tier,
-          .promo-simple-gifts-tier:first-child { padding: 0; text-align: left; }
-          .promo-simple-gifts-tier:not(:last-child) { border-right: 0; }
-          .promo-simple-gifts-reward strong { font-size: 15px; }
-          .promo-product-details { justify-content: center; margin-top: 6px; }
-          .promo-product-prices del { font-size: 11px; }
-          .promo-product-prices strong { font-size: 19px; }
-          .promo-product-variation, .promo-product-live { font-size: 6px; }
-          .promo-countdown-timer-wrap { min-width: 0; }
-          .promo-countdown-label { margin-bottom: 5px; font-size: 7px; }
-          .promo-countdown-timer { gap: 6px; }
-          .promo-countdown-timer > b { font-size: 16px; }
-          .promo-countdown-unit { min-width: 61px; border-radius: 10px; padding: 6px 5px 5px; }
-          .promo-countdown-unit strong { font-size: 21px; }
-          .promo-countdown-unit span { font-size: 6.5px; }
-
-          .promo-countdown-shell ~ .hero-inner {
-            padding-top: calc(238px + env(safe-area-inset-top)) !important;
-          }
-        }
-
-        @media (prefers-reduced-motion: reduce) {
-          .promo-countdown-cta, a.promo-countdown-shell { transition: none; }
-        }
-      `}</style>
     </Wrapper>
   );
 }

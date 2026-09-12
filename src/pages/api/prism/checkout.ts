@@ -1,4 +1,8 @@
 import type { APIRoute } from "astro";
+import {
+  BULK_INTENT_COOKIE,
+  BULK_SESSION_COOKIE,
+} from "../../../lib/bulkServer";
 
 export const prerender = false;
 
@@ -230,6 +234,22 @@ export const POST: APIRoute = async ({ request }) => {
 
     parsed.tracking = getTikTokTracking(request, parsed.tracking);
 
+    const cookieHeader = request.headers.get("cookie") || "";
+    const bulkSessionToken = getCookieValue(cookieHeader, BULK_SESSION_COOKIE);
+    const bulkIntentToken = getCookieValue(cookieHeader, BULK_INTENT_COOKIE);
+    const bulkRequested = parsed.checkout_mode === "bulk" ||
+      Boolean(bulkSessionToken || bulkIntentToken);
+    if (bulkRequested) {
+      if (!/^[a-f0-9]{64}$/i.test(bulkSessionToken) || !/^[a-f0-9]{64}$/i.test(bulkIntentToken)) {
+        return json({ success: false, error: "Your Bulk checkout session has expired." }, 401);
+      }
+      parsed.checkout_mode = "bulk";
+      parsed.bulk_session_token = bulkSessionToken;
+      parsed.bulk_intent_token = bulkIntentToken;
+    }
+
+    const accountToken = getAccountToken(request);
+
     const response = await fetch(
       `${wordpressUrl}/wp-json/phaseone/v1/prism-checkout`,
       {
@@ -240,6 +260,7 @@ export const POST: APIRoute = async ({ request }) => {
           Accept: "application/json",
           "X-PhaseOne-Checkout-Secret": sharedSecret,
           "X-PhaseOne-Client-IP": ip,
+          ...(accountToken ? { Authorization: `Bearer ${accountToken}` } : {}),
         },
         body: JSON.stringify(parsed),
       },

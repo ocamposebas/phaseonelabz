@@ -3,6 +3,7 @@ export const prerender = false;
 
 import BaseLayout from "../../layouts/MainLayout.astro";
 import ProductDetailExperience from "../../components/product/ProductDetailExperience.jsx";
+import { fetchWooCatalog } from "../../lib/wooCatalog.js";
 import "../../styles/global.css";
 
 const { slug } = Astro.params;
@@ -10,6 +11,14 @@ const { slug } = Astro.params;
 const WOO_URL = import.meta.env.WOOCOMMERCE_URL;
 const KEY = import.meta.env.WOOCOMMERCE_CONSUMER_KEY;
 const SECRET = import.meta.env.WOOCOMMERCE_CONSUMER_SECRET;
+const PRODUCT_PAGE_CACHE_TTL_MS = 30_000;
+
+const productPageState = globalThis.__phaseoneProductPageState || {
+  entries: new Map(),
+  inFlight: new Map(),
+};
+
+globalThis.__phaseoneProductPageState = productPageState;
 
 let product = null;
 let recommendedProducts = [];
@@ -153,32 +162,72 @@ async function hydrateProductWithVariations(currentProduct) {
   }
 }
 
+async function loadProductPageData(productSlug) {
+  const cacheKey = String(productSlug || "").toLowerCase();
+  const cached = productPageState.entries.get(cacheKey);
+
+  if (cached && Date.now() < cached.expiresAt) return cached.value;
+  if (productPageState.inFlight.has(cacheKey)) {
+    return productPageState.inFlight.get(cacheKey);
+  }
+
+  const request = (async () => {
+    const catalogPromise = fetchWooCatalog({
+      baseUrl: WOO_URL,
+      consumerKey: KEY,
+      consumerSecret: SECRET,
+    }).catch((catalogError) => {
+      console.error("Could not load recommended products:", catalogError);
+      return [];
+    });
+    const foundProducts = await fetchWooProducts({
+      slug: productSlug,
+      status: "publish",
+      per_page: 1,
+    });
+    const currentProduct = foundProducts[0] || null;
+
+    if (!currentProduct) {
+      return { product: null, recommendedProducts: [] };
+    }
+
+    const [hydratedProduct, catalogProducts] = await Promise.all([
+      hydrateProductWithVariations(currentProduct),
+      catalogPromise,
+    ]);
+    const value = {
+      product: hydratedProduct,
+      recommendedProducts: catalogProducts.filter(
+        (item) => String(item?.id || "") !== String(hydratedProduct?.id || "")
+      ),
+    };
+
+    productPageState.entries.set(cacheKey, {
+      value,
+      expiresAt: Date.now() + PRODUCT_PAGE_CACHE_TTL_MS,
+    });
+
+    return value;
+  })()
+    .catch((requestError) => {
+      if (cached?.value?.product) return cached.value;
+      throw requestError;
+    })
+    .finally(() => {
+      productPageState.inFlight.delete(cacheKey);
+    });
+
+  productPageState.inFlight.set(cacheKey, request);
+  return request;
+}
+
 try {
   if (!hasWooConfig()) {
     error = "Missing WooCommerce environment variables.";
   } else {
-    const foundProducts = await fetchWooProducts({
-      slug,
-      status: "publish",
-      per_page: 1,
-    });
-
-    product = foundProducts[0] || null;
-
-    if (product) {
-      product = await hydrateProductWithVariations(product);
-
-      const allProducts = await fetchWooProducts({
-        status: "publish",
-        per_page: 100,
-        orderby: "date",
-        order: "desc",
-      });
-
-      recommendedProducts = allProducts.filter((item) => {
-        return String(item?.id || "") !== String(product?.id || "");
-      });
-    }
+    const pageData = await loadProductPageData(slug);
+    product = pageData.product;
+    recommendedProducts = pageData.recommendedProducts;
   }
 } catch (err) {
   error = err.message || "Failed to load product.";

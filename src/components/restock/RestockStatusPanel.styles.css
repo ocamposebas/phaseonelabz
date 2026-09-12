@@ -1,0 +1,8 @@
+
+        .restock-status-scroll {
+          scrollbar-width: none;
+        }
+
+        .restock-status-scroll::-webkit-scrollbar {
+          display: none;
+        }

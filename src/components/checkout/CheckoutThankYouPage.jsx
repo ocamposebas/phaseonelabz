@@ -123,15 +123,18 @@ function getItemTotal(item = {}) {
   return unit * getItemQuantity(item);
 }
 
-function clearPurchasedCart() {
+function clearPurchasedCart(isBulk = false) {
   if (typeof window === "undefined") return;
 
-  [
-    "lab_cart",
-    "phaseone_pending_checkout",
-    "phaseone_checkout_session",
-    "phaseone_checkout_coupon",
-  ].forEach((key) => {
+  const directKeys = isBulk
+    ? ["phaseone_bulk_cart_v1"]
+    : [
+        "lab_cart",
+        "phaseone_pending_checkout",
+        "phaseone_checkout_session",
+        "phaseone_checkout_coupon",
+      ];
+  directKeys.forEach((key) => {
     try {
       window.localStorage.removeItem(key);
     } catch {
@@ -144,7 +147,11 @@ function clearPurchasedCart() {
 
     for (let index = 0; index < window.localStorage.length; index += 1) {
       const key = window.localStorage.key(index);
-      if (key?.startsWith("phaseone_manual_payment_order_")) {
+      if (
+        (isBulk && key?.startsWith("phaseone_bulk_manual_order_")) ||
+        (!isBulk && key?.startsWith("phaseone_manual_payment_order_")) ||
+        (!isBulk && key?.startsWith("phaseone_checkout_session_"))
+      ) {
         keysToRemove.push(key);
       }
     }
@@ -154,11 +161,21 @@ function clearPurchasedCart() {
     // Ignore blocked storage.
   }
 
-  window.dispatchEvent(
-    new CustomEvent("phaseone-cart-cleared", {
-      detail: { source: "checkout_thank_you" },
-    }),
-  );
+  if (isBulk) {
+    fetch("/api/bulk/checkout-intent", {
+      method: "DELETE",
+      credentials: "same-origin",
+      cache: "no-store",
+      keepalive: true,
+      headers: { Accept: "application/json" },
+    }).catch(() => null);
+  } else {
+    window.dispatchEvent(
+      new CustomEvent("phaseone-cart-cleared", {
+        detail: { source: "checkout_thank_you" },
+      }),
+    );
+  }
 }
 
 function cleanSensitiveUrl() {
@@ -233,6 +250,7 @@ function getCheckoutContext() {
     prismSession: String(params.get("prism_session") || ""),
     pending,
     manual,
+    isBulk: pending?.checkoutMode === "bulk" || manual?.checkoutMode === "bulk",
   };
 }
 
@@ -301,7 +319,7 @@ export default function CheckoutThankYouPage() {
 
     if (checkoutContext.payment === "manual") {
       setStatusState("manual");
-      clearPurchasedCart();
+      clearPurchasedCart(checkoutContext.isBulk);
       return undefined;
     }
 
@@ -314,7 +332,7 @@ export default function CheckoutThankYouPage() {
       return undefined;
     }
 
-    clearPurchasedCart();
+    clearPurchasedCart(checkoutContext.isBulk);
 
     let active = true;
 

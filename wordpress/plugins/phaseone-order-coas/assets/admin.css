@@ -1,0 +1,171 @@
+.poco-shell {
+  --poco-bg: #07111f;
+  --poco-panel: #0b1727;
+  --poco-line: #263548;
+  --poco-text: #f4f7fb;
+  --poco-muted: #9aa8b9;
+  --poco-accent: #76d7e7;
+  max-width: 1180px;
+  color: var(--poco-text);
+}
+
+.poco-shell * { box-sizing: border-box; }
+
+.poco-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  margin: 24px 0 18px;
+  padding: 26px;
+  border: 1px solid var(--poco-line);
+  border-radius: 16px;
+  background: var(--poco-bg);
+}
+
+.poco-header h1,
+.poco-order-header h2 {
+  margin: 5px 0 7px;
+  color: var(--poco-text);
+  font-size: 28px;
+  line-height: 1.15;
+}
+
+.poco-header p,
+.poco-order-header p,
+.poco-item-title p {
+  margin: 0;
+  color: var(--poco-muted);
+}
+
+.poco-kicker,
+.poco-label {
+  color: var(--poco-accent);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+}
+
+.poco-source,
+.poco-pill,
+.poco-count {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 4px 10px;
+  border: 1px solid #31445a;
+  border-radius: 999px;
+  color: #bdd0e3;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.poco-layout { display: grid; gap: 16px; }
+
+.poco-panel {
+  padding: 22px;
+  border: 1px solid var(--poco-line);
+  border-radius: 16px;
+  background: var(--poco-panel);
+}
+
+.poco-search {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.poco-shell input,
+.poco-shell select {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid #35465b;
+  border-radius: 9px;
+  background: #07111f;
+  color: var(--poco-text);
+}
+
+.poco-shell input,
+.poco-shell select,
+.poco-shell button { padding: 9px 12px; }
+
+.poco-shell button {
+  border: 1px solid #4d667d;
+  border-radius: 9px;
+  background: #10283a;
+  color: #eafaff;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.poco-shell button:hover:not(:disabled) { border-color: var(--poco-accent); }
+.poco-shell button:disabled { cursor: not-allowed; opacity: .45; }
+
+.poco-status { min-height: 22px; margin-top: 10px; color: var(--poco-muted); }
+.poco-status[data-tone="success"] { color: #8be2bc; }
+.poco-status[data-tone="error"] { color: #ff9d9d; }
+.poco-status[data-tone="working"] { color: var(--poco-accent); }
+
+.poco-results { display: grid; gap: 8px; margin-top: 10px; }
+.poco-result { display: grid; gap: 5px; width: 100%; text-align: left; }
+.poco-result-top,
+.poco-order-header,
+.poco-item-title,
+.poco-assignment {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.poco-result-name { color: var(--poco-text); }
+.poco-result small { color: var(--poco-muted); }
+.poco-pill { text-transform: capitalize; }
+.poco-pill-large { min-height: 32px; }
+
+.poco-items { display: grid; gap: 12px; margin-top: 20px; }
+.poco-item {
+  padding: 18px;
+  border: 1px solid #26384c;
+  border-radius: 12px;
+  background: #07111f;
+}
+.poco-item h3 { margin: 0 0 5px; color: var(--poco-text); font-size: 17px; }
+.poco-assignments { display: grid; gap: 7px; margin-top: 14px; }
+.poco-assignment { padding: 10px 12px; border: 1px solid #294358; border-radius: 9px; }
+.poco-assignment strong,
+.poco-assignment small { display: block; }
+.poco-assignment small { margin-top: 3px; color: var(--poco-muted); }
+.poco-remove { background: transparent !important; color: #ffb2b2 !important; }
+
+.poco-assignment-form {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) 160px;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #26384c;
+}
+.poco-field { display: grid; gap: 6px; color: #bbc9d7; font-size: 12px; font-weight: 600; }
+.poco-confirm { grid-column: 1 / -1; color: #c9d4df; line-height: 1.5; }
+.poco-confirm input { width: 18px; min-height: 18px; margin: 0 7px 0 0; vertical-align: middle; }
+.poco-assign { grid-column: 1 / -1; min-height: 44px; background: #14364a !important; }
+.poco-warning,
+.poco-empty { margin: 14px 0 0; color: #e9bd79; }
+
+@media (max-width: 782px) {
+  .poco-shell { margin-right: 10px; }
+  .poco-header,
+  .poco-order-header,
+  .poco-item-title { align-items: flex-start; flex-direction: column; }
+  .poco-header { padding: 20px; }
+  .poco-source { align-self: flex-start; }
+  .poco-panel { padding: 16px; }
+  .poco-search,
+  .poco-assignment-form { grid-template-columns: 1fr; }
+  .poco-search button { min-height: 44px; }
+  .poco-confirm,
+  .poco-assign { grid-column: auto; }
+  .poco-assignment { align-items: flex-start; }
+}

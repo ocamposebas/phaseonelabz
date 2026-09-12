@@ -1,3 +1,4 @@
+import "./RestockStatusPanel.styles.css";
 import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
@@ -851,16 +852,6 @@ export default function RestockStatusPanel() {
         item={selectedNotifyItem}
         onClose={() => setSelectedNotifyItem(null)}
       />
-
-      <style>{`
-        .restock-status-scroll {
-          scrollbar-width: none;
-        }
-
-        .restock-status-scroll::-webkit-scrollbar {
-          display: none;
-        }
-      `}</style>
     </>
   );
 }

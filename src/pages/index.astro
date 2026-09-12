@@ -11,23 +11,31 @@ const WOO_URL = import.meta.env.WOOCOMMERCE_URL;
 const KEY = import.meta.env.WOOCOMMERCE_CONSUMER_KEY;
 const SECRET = import.meta.env.WOOCOMMERCE_CONSUMER_SECRET;
 
-let products = [];
-const siteControl = await getSiteControlConfig();
-
-try {
+const siteControlPromise = getSiteControlConfig({ background: import.meta.env.DEV });
+const productsPromise = (async () => {
   if (!WOO_URL || !KEY || !SECRET) {
     console.error("=== WOOCOMMERCE ENV ERROR === Missing variables");
-  } else {
-    products = await fetchWooCatalog({
+    return [];
+  }
+
+  try {
+    const catalog = await fetchWooCatalog({
       baseUrl: WOO_URL,
       consumerKey: KEY,
       consumerSecret: SECRET,
     });
-    console.log("=== API SUCCESS === Productos encontrados:", products.length);
+    console.log("=== API SUCCESS === Productos encontrados:", catalog.length);
+    return catalog;
+  } catch (error) {
+    console.error("=== CATCH ERROR ===:", error);
+    return [];
   }
-} catch (error) {
-  console.error("=== CATCH ERROR ===:", error);
-}
+})();
+
+const [siteControl, products] = await Promise.all([
+  siteControlPromise,
+  productsPromise,
+]);
 ---
 
 <BaseLayout

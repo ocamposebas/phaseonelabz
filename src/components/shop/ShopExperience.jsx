@@ -11,6 +11,7 @@ import ShopByCategorySection from "../catalog/ShopByCategorySection.jsx";
 import SiteFooter from "../footer/SiteFooter.jsx";
 import New from "../footer/NewsletterSection.jsx";
 import MilitaryDiscountBanner from "../promos/MilitaryDiscountBanner.jsx";
+import ReputationSection from "../reputation/ReputationSection.jsx";
 
 export default function ShopExperience({ products = [], promo = null }) {
   return (
@@ -37,6 +38,7 @@ export default function ShopExperience({ products = [], promo = null }) {
         <SiteFooter />
       </main>
 
+      <ReputationSection />
       <CartDrawer />
     </CartProvider>
   );

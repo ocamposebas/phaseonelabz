@@ -1,0 +1,15 @@
+---
+export const prerender = false;
+
+import MainLayout from "../layouts/MainLayout.astro";
+import BulkOrdersApp from "../components/bulk/BulkOrdersApp";
+import "../styles/global.css";
+---
+
+<MainLayout
+  title="Bulk Orders // Phase One Labs"
+  description="Private Phase One Labs bulk purchasing portal."
+  noindex={true}
+>
+  <BulkOrdersApp client:load />
+</MainLayout>

@@ -143,7 +143,23 @@ var TIKTOK_PIXEL_ID = "D9UBLSRC77UDKVSV1D90";
         var firstScript = d.getElementsByTagName("script")[0];
         firstScript.parentNode.insertBefore(script, firstScript);
       };
-      ttq.load(TIKTOK_PIXEL_ID);
+      var loadTikTok = function () {
+        if (w.__phaseTikTokLoaded) return;
+        w.__phaseTikTokLoaded = true;
+        ttq.load(TIKTOK_PIXEL_ID);
+      };
+
+      if ("requestIdleCallback" in w) {
+        w.requestIdleCallback(loadTikTok, { timeout: 3500 });
+      } else {
+        w.addEventListener(
+          "load",
+          function () {
+            w.setTimeout(loadTikTok, 1500);
+          },
+          { once: true },
+        );
+      }
       ttq.page();
     })(window, document, "ttq");
   }

@@ -1,7 +1,7 @@
 ---
 import "../styles/global.css";
 
-import GlobalPreloader from "../components/loading/GlobalPreloader.jsx";
+import GlobalPreloader from "../components/loading/GlobalPreloader.astro";
 import AffiliateCouponTracker from "../components/tracking/AffiliateCouponTracker.jsx";
 import MemberAccessGate from "../components/auth/MemberAccessGate.jsx";
 import ClientDiagnostics from "../components/monitoring/ClientDiagnostics.astro";
@@ -33,6 +33,7 @@ const publicAccessPaths = new Set([
   "/register",
   "/forgot-password",
   "/set-password",
+  "/bulk-orders",
 ]);
 const requiresMemberAccess = !publicAccessPaths.has(pathname);
 const returnTo = `${Astro.url.pathname}${Astro.url.search}`;
@@ -42,7 +43,7 @@ const hasMemberSession = Boolean(
     Astro.cookies.get("auth_token")?.value
 );
 
-const siteControl = await getSiteControlConfig();
+const siteControl = await getSiteControlConfig({ background: import.meta.env.DEV });
 const maintenance = siteControl.maintenance;
 
 if (maintenance.enabled) {
@@ -84,7 +85,7 @@ const websiteSchema = {
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <script is:inline src="/pixel.js"></script>
+    <script is:inline src="/pixel.js" defer></script>
 
     <title>{fullTitle}</title>
 
@@ -132,12 +133,6 @@ const websiteSchema = {
 
     <ClientDiagnostics />
 
-    <script
-      async
-      src="https://www.googletagmanager.com/gtag/js?id=AW-18266891349"
-    ></script>
-    
-
     <script is:inline>
       window.dataLayer = window.dataLayer || [];
 
@@ -147,6 +142,24 @@ const websiteSchema = {
 
       gtag("js", new Date());
       gtag("config", "AW-18266891349");
+
+      function loadGoogleAds() {
+        if (window.__phaseGoogleAdsLoaded) return;
+        window.__phaseGoogleAdsLoaded = true;
+
+        var script = document.createElement("script");
+        script.async = true;
+        script.src = "https://www.googletagmanager.com/gtag/js?id=AW-18266891349";
+        document.head.appendChild(script);
+      }
+
+      if ("requestIdleCallback" in window) {
+        requestIdleCallback(loadGoogleAds, { timeout: 3000 });
+      } else {
+        window.addEventListener("load", function () {
+          setTimeout(loadGoogleAds, 1200);
+        }, { once: true });
+      }
     </script>
 
     <script
@@ -181,13 +194,13 @@ const websiteSchema = {
       />
     ) : (
       <>
-        <AffiliateCouponTracker client:load />
+        <AffiliateCouponTracker client:idle />
 
         {requiresMemberAccess && (
           <MemberAccessGate client:load returnTo={returnTo} initialHasSession={hasMemberSession} />
         )}
 
-        <GlobalPreloader client:load logoSrc="/TRANSPARENCIA-03.webp" />
+        <GlobalPreloader logoSrc="/TRANSPARENCIA-03.webp" />
 
         <script is:inline type="text/javascript">
       window.omnisend = window.omnisend || [];
@@ -224,7 +237,16 @@ const websiteSchema = {
         <script is:inline>
           (function () {
             var wasInMaintenance = false;
-            window.setInterval(function () {
+            var maintenanceTimer = 0;
+
+            function scheduleMaintenanceCheck(delay) {
+              window.clearTimeout(maintenanceTimer);
+              if (document.hidden) return;
+
+              maintenanceTimer = window.setTimeout(checkMaintenance, delay);
+            }
+
+            function checkMaintenance() {
               fetch("/api/site-control?ts=" + Date.now(), { cache: "no-store" })
                 .then(function (response) { return response.ok ? response.json() : null; })
                 .then(function (data) {
@@ -233,8 +255,17 @@ const websiteSchema = {
                     window.location.reload();
                   }
                 })
-                .catch(function () {});
-            }, 15000);
+                .catch(function () {})
+                .finally(function () {
+                  if (!wasInMaintenance) scheduleMaintenanceCheck(60000);
+                });
+            }
+
+            document.addEventListener("visibilitychange", function () {
+              scheduleMaintenanceCheck(document.hidden ? 0 : 1000);
+            });
+
+            scheduleMaintenanceCheck(60000);
           })();
         </script>
       </>
