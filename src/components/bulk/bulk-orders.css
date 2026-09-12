@@ -58,6 +58,11 @@
   line-height: 1;
 }
 
+.bulk-hero h1 em {
+  color: var(--bulk-accent);
+  font-style: normal;
+}
+
 .bulk-hero p,
 .bulk-access-panel > p {
   margin: 0;
@@ -82,12 +87,61 @@
   cursor: pointer;
 }
 
+.bulk-commercial-points {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.bulk-commercial-points article {
+  display: grid;
+  min-height: 82px;
+  grid-template-columns: 36px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 13px 14px;
+  border: 1px solid #21405a;
+  border-radius: 12px;
+  background: #0a1d30;
+}
+
+.bulk-commercial-points article:nth-child(2),
+.bulk-commercial-points article:nth-child(4) { background: #0b2137; }
+
+.bulk-commercial-points article > svg {
+  width: 36px;
+  height: 36px;
+  padding: 8px;
+  border-radius: 9px;
+  background: #d9f8fb;
+  color: #075066;
+}
+
+.bulk-commercial-points article > div {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.bulk-commercial-points strong {
+  color: var(--bulk-text);
+  font-size: .79rem;
+  line-height: 1.2;
+}
+
+.bulk-commercial-points span {
+  color: var(--bulk-muted);
+  font-size: .68rem;
+  line-height: 1.3;
+}
+
 .bulk-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 18px;
-  margin-top: 22px;
+  margin-top: 18px;
 }
 
 .bulk-toolbar > label {
@@ -442,6 +496,7 @@
   .bulk-hero { align-items: flex-start; }
   .bulk-hero h1 { font-size: 2.35rem; }
   .bulk-end-session { padding: 0 9px; font-size: 0; }
+  .bulk-commercial-points { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .bulk-toolbar { display: grid; }
   .bulk-toolbar > label { width: 100%; }
   .bulk-layout { display: block; }
@@ -479,6 +534,11 @@
   .bulk-hero { padding-bottom: 18px; }
   .bulk-hero h1 { max-width: 320px; font-size: 2rem; }
   .bulk-hero p { max-width: 330px; font-size: .88rem; }
+  .bulk-commercial-points { gap: 7px; margin-top: 13px; }
+  .bulk-commercial-points article { min-height: 72px; grid-template-columns: 30px minmax(0, 1fr); padding: 10px; }
+  .bulk-commercial-points article > svg { width: 30px; height: 30px; padding: 6px; }
+  .bulk-commercial-points strong { font-size: .72rem; }
+  .bulk-commercial-points span { font-size: .63rem; }
   .bulk-catalog { grid-template-columns: 1fr; }
   .bulk-product-card { display: block; min-height: 0; }
   .bulk-product-card:last-child:nth-child(odd) { width: 100%; }

@@ -3,6 +3,7 @@ import {
   ArrowLeft,
   AlertTriangle,
   BadgeCheck,
+  Check,
   Gift,
   Lock,
   CreditCard,
@@ -1882,7 +1883,7 @@ export default function CheckoutTransferPage() {
   const [checkoutForm, setCheckoutForm] = useState(() =>
     getBlankCheckoutForm(),
   );
-  const [addressConfirmation, setAddressConfirmation] = useState(null);
+  const [confirmedAddress, setConfirmedAddress] = useState(null);
   const [shippingProtectionSelected, setShippingProtectionSelected] =
     useState(false);
   const [selectedShippingMethodId] = useState("fedex");
@@ -1900,23 +1901,6 @@ export default function CheckoutTransferPage() {
   const handleSignatureChange = useCallback((nextSignature) => {
     setSignatureConsent(nextSignature);
   }, []);
-
-  useEffect(() => {
-    if (!addressConfirmation || typeof document === "undefined") return undefined;
-
-    const previousOverflow = document.body.style.overflow;
-    const closeOnEscape = (event) => {
-      if (event.key === "Escape") setAddressConfirmation(null);
-    };
-
-    document.body.style.overflow = "hidden";
-    window.addEventListener("keydown", closeOnEscape);
-
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [addressConfirmation]);
 
   const hasProviderCartItems = !bulkMode &&
     Array.isArray(cart?.cartItems) && cart.cartItems.length > 0;
@@ -2467,7 +2451,7 @@ export default function CheckoutTransferPage() {
 
     setError("");
     setPaymentNotice("");
-    setAddressConfirmation(null);
+    setConfirmedAddress(null);
   };
 
   const updateShippingProtectionSelection = (selected) => {
@@ -2803,6 +2787,25 @@ export default function CheckoutTransferPage() {
       setError(
         "The coupon was validated, but the secure discount token is missing. Apply it again.",
       );
+      return false;
+    }
+
+    const addressValidation = validateCheckoutAddressForm(
+      checkoutForm,
+      effectiveBankTransferEmail,
+    );
+
+    if (addressValidation.error) {
+      setError(addressValidation.error);
+      return false;
+    }
+
+    if (
+      !confirmedAddress ||
+      checkoutAddressFingerprint(addressValidation.address) !==
+        checkoutAddressFingerprint(confirmedAddress)
+    ) {
+      setError("Review and confirm your delivery details before continuing.");
       return false;
     }
 
@@ -3589,8 +3592,11 @@ export default function CheckoutTransferPage() {
     createPrismCardCheckout();
   };
 
-  const requestAddressConfirmation = () => {
-    if (!validateBeforePayment()) return;
+  const confirmCheckoutDetails = (checked) => {
+    if (!checked) {
+      setConfirmedAddress(null);
+      return;
+    }
 
     const addressValidation = validateCheckoutAddressForm(
       checkoutForm,
@@ -3604,41 +3610,21 @@ export default function CheckoutTransferPage() {
 
     setError("");
     setPaymentNotice("");
-    setAddressConfirmation(addressValidation.address);
+    setConfirmedAddress(addressValidation.address);
   };
 
-  const confirmAddressAndContinue = () => {
-    if (!addressConfirmation || loading || manualPaymentStatus === "loading") {
-      return;
-    }
-
-    const currentValidation = validateCheckoutAddressForm(
-      checkoutForm,
-      effectiveBankTransferEmail,
-    );
-
-    if (currentValidation.error) {
-      setAddressConfirmation(null);
-      setError(currentValidation.error);
-      return;
-    }
-
-    if (
-      checkoutAddressFingerprint(currentValidation.address) !==
-      checkoutAddressFingerprint(addressConfirmation)
-    ) {
-      setAddressConfirmation(currentValidation.address);
-      setError("Your address changed. Review the updated address before continuing.");
-      return;
-    }
-
-    setAddressConfirmation(null);
-    handleContinuePayment();
-  };
-
-  const formattedConfirmationAddress = addressConfirmation
-    ? formatAddressBlock(addressConfirmation)
-    : null;
+  const checkoutAddressReview = validateCheckoutAddressForm(
+    checkoutForm,
+    effectiveBankTransferEmail,
+  );
+  const formattedCheckoutAddress = checkoutAddressReview.error
+    ? null
+    : formatAddressBlock(checkoutAddressReview.address);
+  const detailsConfirmed = Boolean(
+    confirmedAddress &&
+      checkoutAddressFingerprint(checkoutAddressReview.address) ===
+        checkoutAddressFingerprint(confirmedAddress),
+  );
 
   if (!hasItems) {
     return (
@@ -3698,7 +3684,7 @@ export default function CheckoutTransferPage() {
             className="traditional-checkout-form"
             onSubmit={(event) => {
               event.preventDefault();
-              requestAddressConfirmation();
+              handleContinuePayment();
             }}
           >
             <section className="checkout-section">
@@ -3716,6 +3702,7 @@ export default function CheckoutTransferPage() {
                   <input
                     type="email"
                     value={checkoutForm.email}
+                    disabled={detailsConfirmed}
                     onChange={(event) =>
                       updateCheckoutField("email", event.target.value)
                     }
@@ -3729,6 +3716,7 @@ export default function CheckoutTransferPage() {
                   <input
                     type="tel"
                     value={checkoutForm.phone}
+                    disabled={detailsConfirmed}
                     onChange={(event) =>
                       updateCheckoutField("phone", event.target.value)
                     }
@@ -3753,6 +3741,7 @@ export default function CheckoutTransferPage() {
                   <span>Country / Region</span>
                   <select
                     value={checkoutForm.country}
+                    disabled={detailsConfirmed}
                     onChange={(event) =>
                       updateCheckoutField("country", event.target.value)
                     }
@@ -3768,6 +3757,7 @@ export default function CheckoutTransferPage() {
                     <input
                       type="text"
                       value={checkoutForm.firstName}
+                      disabled={detailsConfirmed}
                       onChange={(event) =>
                         updateCheckoutField("firstName", event.target.value)
                       }
@@ -3781,6 +3771,7 @@ export default function CheckoutTransferPage() {
                     <input
                       type="text"
                       value={checkoutForm.lastName}
+                      disabled={detailsConfirmed}
                       onChange={(event) =>
                         updateCheckoutField("lastName", event.target.value)
                       }
@@ -3795,6 +3786,7 @@ export default function CheckoutTransferPage() {
                   <input
                     type="text"
                     value={checkoutForm.address1}
+                    disabled={detailsConfirmed}
                     onChange={(event) =>
                       updateCheckoutField("address1", event.target.value)
                     }
@@ -3808,6 +3800,7 @@ export default function CheckoutTransferPage() {
                   <input
                     type="text"
                     value={checkoutForm.address2}
+                    disabled={detailsConfirmed}
                     onChange={(event) =>
                       updateCheckoutField("address2", event.target.value)
                     }
@@ -3822,6 +3815,7 @@ export default function CheckoutTransferPage() {
                     <input
                       type="text"
                       value={checkoutForm.city}
+                      disabled={detailsConfirmed}
                       onChange={(event) =>
                         updateCheckoutField("city", event.target.value)
                       }
@@ -3834,6 +3828,7 @@ export default function CheckoutTransferPage() {
                     <span>State</span>
                     <select
                       value={checkoutForm.state}
+                      disabled={detailsConfirmed}
                       onChange={(event) =>
                         updateCheckoutField("state", event.target.value)
                       }
@@ -3852,6 +3847,7 @@ export default function CheckoutTransferPage() {
                     <input
                       type="text"
                       value={checkoutForm.postcode}
+                      disabled={detailsConfirmed}
                       onChange={(event) =>
                         updateCheckoutField("postcode", event.target.value)
                       }
@@ -3861,6 +3857,78 @@ export default function CheckoutTransferPage() {
                   </label>
                 </div>
               </div>
+
+              {formattedCheckoutAddress && (
+                <div
+                  className={`checkout-address-review${
+                    detailsConfirmed ? " is-confirmed" : ""
+                  }`}
+                >
+                  <div className="checkout-address-review-head">
+                    <span className="checkout-address-review-icon" aria-hidden="true">
+                      {detailsConfirmed ? (
+                        <BadgeCheck size={19} />
+                      ) : (
+                        <MapPin size={19} />
+                      )}
+                    </span>
+                    <div>
+                      <strong>
+                        {detailsConfirmed
+                          ? "Delivery details confirmed"
+                          : "Review your delivery details"}
+                      </strong>
+                      <small>
+                        {detailsConfirmed
+                          ? "These details are locked for this checkout."
+                          : "Your order will be shipped exactly as shown."}
+                      </small>
+                    </div>
+                    {detailsConfirmed && (
+                      <button
+                        type="button"
+                        className="checkout-address-edit"
+                        onClick={() => setConfirmedAddress(null)}
+                      >
+                        <PencilLine size={15} />
+                        Edit details
+                      </button>
+                    )}
+                  </div>
+
+                  <address className="checkout-address-summary">
+                    <strong>{formattedCheckoutAddress.fullName}</strong>
+                    {formattedCheckoutAddress.lines.map((line, index) => (
+                      <span key={`${line}-${index}`}>
+                        {line === "US" ? "United States" : line}
+                      </span>
+                    ))}
+                    <span>{formattedCheckoutAddress.email}</span>
+                    <span>{formattedCheckoutAddress.phone}</span>
+                  </address>
+
+                  {!detailsConfirmed && (
+                    <label className="checkout-address-confirm">
+                      <input
+                        type="checkbox"
+                        checked={false}
+                        onChange={(event) =>
+                          confirmCheckoutDetails(event.target.checked)
+                        }
+                      />
+                      <span className="checkout-address-confirm-box" aria-hidden="true">
+                        <Check size={15} />
+                      </span>
+                      <span>
+                        <strong>I confirm these delivery details are correct.</strong>
+                        <small>
+                          Once confirmed, use Edit details if you need to make a change.
+                        </small>
+                      </span>
+                    </label>
+                  )}
+                </div>
+              )}
 
               <div className="shipping-choice">
                 <span className="shipping-choice-icon">
@@ -4240,72 +4308,6 @@ export default function CheckoutTransferPage() {
         </div>
       </section>
 
-      {addressConfirmation && formattedConfirmationAddress && (
-        <div className="address-confirmation-layer">
-          <section
-            className="address-confirmation-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="address-confirmation-title"
-            aria-describedby="address-confirmation-description"
-          >
-            <header className="address-confirmation-head">
-              <span className="address-confirmation-icon" aria-hidden="true">
-                <MapPin size={21} />
-              </span>
-              <div>
-                <span>Final delivery check</span>
-                <h2 id="address-confirmation-title">Confirm your address</h2>
-                <p id="address-confirmation-description">
-                  Your order will be shipped exactly as shown below.
-                </p>
-              </div>
-            </header>
-
-            <address className="address-confirmation-card">
-              <strong>{formattedConfirmationAddress.fullName}</strong>
-              {formattedConfirmationAddress.lines.map((line, index) => (
-                <span key={`${line}-${index}`}>
-                  {line === addressConfirmation.country && line === "US"
-                    ? "United States"
-                    : line}
-                </span>
-              ))}
-              <div>
-                <span>{formattedConfirmationAddress.email}</span>
-                <span>{formattedConfirmationAddress.phone}</span>
-              </div>
-            </address>
-
-            <div className="address-confirmation-note">
-              <AlertTriangle size={16} aria-hidden="true" />
-              <span>Check the street number, apartment, state, and ZIP code carefully.</span>
-            </div>
-
-            <div className="address-confirmation-actions">
-              <button
-                type="button"
-                className="address-confirmation-edit"
-                onClick={() => setAddressConfirmation(null)}
-              >
-                <PencilLine size={16} />
-                Edit address
-              </button>
-              <button
-                type="button"
-                className="address-confirmation-continue"
-                onClick={confirmAddressAndContinue}
-                disabled={loading || manualPaymentStatus === "loading"}
-                autoFocus
-              >
-                <BadgeCheck size={17} />
-                Confirm and continue
-              </button>
-            </div>
-          </section>
-        </div>
-      )}
-
       <style>{styles}</style>
     </main>
   );
@@ -4552,6 +4554,166 @@ const styles = `
     border-color: rgba(96, 165, 250, 0.78);
     background: rgba(4, 10, 22, 0.98);
     box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+  }
+
+  .checkout-field input:disabled,
+  .checkout-field select:disabled {
+    cursor: not-allowed;
+    border-color: rgba(148, 163, 184, 0.1);
+    background: rgba(2, 6, 15, 0.46);
+    color: #7f91a8;
+    opacity: 0.82;
+  }
+
+  .checkout-address-review {
+    margin-top: 20px;
+    border: 1px solid rgba(103, 232, 249, 0.22);
+    border-radius: 15px;
+    background: rgba(4, 15, 28, 0.8);
+    padding: 16px;
+  }
+
+  .checkout-address-review.is-confirmed {
+    border-color: rgba(52, 211, 153, 0.28);
+    background: rgba(6, 24, 26, 0.68);
+  }
+
+  .checkout-address-review-head {
+    display: grid;
+    grid-template-columns: 38px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 11px;
+  }
+
+  .checkout-address-review-icon {
+    display: grid;
+    width: 38px;
+    height: 38px;
+    place-items: center;
+    border: 1px solid rgba(103, 232, 249, 0.2);
+    border-radius: 10px;
+    background: rgba(103, 232, 249, 0.07);
+    color: #67e8f9;
+  }
+
+  .checkout-address-review.is-confirmed .checkout-address-review-icon {
+    border-color: rgba(52, 211, 153, 0.24);
+    background: rgba(52, 211, 153, 0.08);
+    color: #6ee7b7;
+  }
+
+  .checkout-address-review-head > div {
+    display: grid;
+    gap: 3px;
+  }
+
+  .checkout-address-review-head strong {
+    color: #f8fafc;
+    font-size: 13px;
+  }
+
+  .checkout-address-review-head small {
+    color: #8294aa;
+    font-size: 11px;
+    line-height: 1.4;
+  }
+
+  .checkout-address-edit {
+    display: inline-flex;
+    min-height: 34px;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    border-radius: 9px;
+    background: transparent;
+    padding: 0 11px;
+    color: #cbd5e1;
+    font: inherit;
+    font-size: 11px;
+    font-weight: 800;
+    cursor: pointer;
+  }
+
+  .checkout-address-edit:hover {
+    border-color: rgba(103, 232, 249, 0.32);
+    color: #ffffff;
+  }
+
+  .checkout-address-summary {
+    display: grid;
+    gap: 4px;
+    margin: 14px 0 0 49px;
+    border-left: 2px solid rgba(103, 232, 249, 0.35);
+    padding-left: 13px;
+    color: #a9b8ca;
+    font-size: 12px;
+    font-style: normal;
+    line-height: 1.35;
+  }
+
+  .checkout-address-review.is-confirmed .checkout-address-summary {
+    border-left-color: rgba(52, 211, 153, 0.45);
+  }
+
+  .checkout-address-summary strong {
+    margin-bottom: 1px;
+    color: #e8eef7;
+    font-size: 13px;
+  }
+
+  .checkout-address-confirm {
+    position: relative;
+    display: grid;
+    grid-template-columns: 20px minmax(0, 1fr);
+    align-items: flex-start;
+    gap: 10px;
+    margin-top: 15px;
+    border-top: 1px solid rgba(148, 163, 184, 0.11);
+    padding-top: 14px;
+    cursor: pointer;
+  }
+
+  .checkout-address-confirm input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .checkout-address-confirm-box {
+    display: grid;
+    width: 20px;
+    height: 20px;
+    place-items: center;
+    border: 1px solid rgba(148, 163, 184, 0.42);
+    border-radius: 5px;
+    background: rgba(2, 6, 15, 0.75);
+    color: transparent;
+    transition: border-color 150ms ease, background 150ms ease, color 150ms ease;
+  }
+
+  .checkout-address-confirm:hover .checkout-address-confirm-box,
+  .checkout-address-confirm input:focus-visible + .checkout-address-confirm-box {
+    border-color: #67e8f9;
+  }
+
+  .checkout-address-confirm > span:last-child {
+    display: grid;
+    gap: 3px;
+  }
+
+  .checkout-address-confirm strong {
+    color: #f8fafc;
+    font-size: 12px;
+    line-height: 1.4;
+  }
+
+  .checkout-address-confirm small {
+    color: #73869e;
+    font-size: 11px;
+    line-height: 1.4;
   }
 
   .shipping-choice {
@@ -5750,160 +5912,6 @@ const styles = `
     margin-top: 16px;
   }
 
-  .address-confirmation-layer {
-    position: fixed;
-    z-index: 300;
-    inset: 0;
-    display: grid;
-    place-items: center;
-    padding: 24px;
-    background: rgba(0, 4, 12, 0.82);
-  }
-
-  .address-confirmation-dialog {
-    width: min(520px, 100%);
-    max-height: calc(100dvh - 48px);
-    overflow-y: auto;
-    border: 1px solid rgba(148, 211, 255, 0.2);
-    border-radius: 20px;
-    background: #07111f;
-    box-shadow: 0 28px 80px rgba(0, 0, 0, 0.42);
-    padding: 24px;
-  }
-
-  .address-confirmation-head {
-    display: flex;
-    align-items: flex-start;
-    gap: 13px;
-  }
-
-  .address-confirmation-icon {
-    display: grid;
-    width: 42px;
-    height: 42px;
-    flex: 0 0 42px;
-    place-items: center;
-    border: 1px solid rgba(103, 232, 249, 0.22);
-    border-radius: 12px;
-    background: rgba(103, 232, 249, 0.08);
-    color: #67e8f9;
-  }
-
-  .address-confirmation-head > div > span {
-    color: #67e8f9;
-    font-size: 11px;
-    font-weight: 900;
-    letter-spacing: 0.11em;
-    text-transform: uppercase;
-  }
-
-  .address-confirmation-head h2 {
-    margin: 5px 0 5px;
-    color: #f8fafc;
-    font-size: 22px;
-    letter-spacing: -0.03em;
-  }
-
-  .address-confirmation-head p {
-    margin: 0;
-    color: #94a3b8;
-    font-size: 13px;
-    line-height: 1.45;
-  }
-
-  .address-confirmation-card {
-    display: grid;
-    gap: 5px;
-    margin: 20px 0 0;
-    border: 1px solid rgba(148, 163, 184, 0.14);
-    border-left: 3px solid #67e8f9;
-    border-radius: 13px;
-    background: #020914;
-    padding: 17px 18px;
-    font-style: normal;
-  }
-
-  .address-confirmation-card > strong {
-    margin-bottom: 2px;
-    color: #ffffff;
-    font-size: 15px;
-  }
-
-  .address-confirmation-card > span {
-    color: #cbd5e1;
-    font-size: 14px;
-    line-height: 1.35;
-  }
-
-  .address-confirmation-card > div {
-    display: grid;
-    gap: 4px;
-    margin-top: 10px;
-    border-top: 1px solid rgba(148, 163, 184, 0.12);
-    padding-top: 10px;
-  }
-
-  .address-confirmation-card > div span {
-    color: #8297b3;
-    font-size: 12px;
-  }
-
-  .address-confirmation-note {
-    display: flex;
-    align-items: flex-start;
-    gap: 8px;
-    margin-top: 13px;
-    color: #a7b6c8;
-    font-size: 12px;
-    line-height: 1.45;
-  }
-
-  .address-confirmation-note svg {
-    flex: 0 0 auto;
-    margin-top: 1px;
-    color: #fbbf24;
-  }
-
-  .address-confirmation-actions {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    gap: 10px;
-    margin-top: 22px;
-  }
-
-  .address-confirmation-actions button {
-    display: inline-flex;
-    min-height: 46px;
-    align-items: center;
-    justify-content: center;
-    gap: 7px;
-    border-radius: 11px;
-    padding: 0 16px;
-    font: inherit;
-    font-size: 13px;
-    font-weight: 850;
-    cursor: pointer;
-  }
-
-  .address-confirmation-edit {
-    border: 1px solid rgba(148, 163, 184, 0.2);
-    background: transparent;
-    color: #cbd5e1;
-  }
-
-  .address-confirmation-continue {
-    border: 1px solid #67e8f9;
-    background: #67e8f9;
-    color: #021018;
-  }
-
-  .address-confirmation-continue:disabled {
-    border-color: #243448;
-    background: #243448;
-    color: #7f8da0;
-    cursor: not-allowed;
-  }
-
   @media (max-width: 960px) {
     .checkout-layout {
       grid-template-columns: 1fr;
@@ -5940,27 +5948,23 @@ const styles = `
       padding-top: 28px;
     }
 
-    .address-confirmation-layer {
-      place-items: end center;
-      padding: 0;
+    .checkout-address-review-head {
+      grid-template-columns: 36px minmax(0, 1fr);
     }
 
-    .address-confirmation-dialog {
+    .checkout-address-review-icon {
+      width: 36px;
+      height: 36px;
+    }
+
+    .checkout-address-edit {
+      grid-column: 1 / -1;
       width: 100%;
-      max-height: 88dvh;
-      border-right: 0;
-      border-bottom: 0;
-      border-left: 0;
-      border-radius: 20px 20px 0 0;
-      padding: 22px 18px calc(20px + env(safe-area-inset-bottom));
+      margin-top: 3px;
     }
 
-    .address-confirmation-actions {
-      grid-template-columns: 1fr;
-    }
-
-    .address-confirmation-continue {
-      grid-row: 1;
+    .checkout-address-summary {
+      margin-left: 0;
     }
 
     .field-grid.two-columns,
