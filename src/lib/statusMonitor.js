@@ -1077,9 +1077,6 @@ async function buildStatusSnapshot() {
   const feedProbe = request(
     wp ? `${wp}/wp-json/phaseone/v1/feed` : "",
   );
-  const verifyPassProbe = request("https://verifypass.com/auth/b08f6507d1", {
-    headers: { Accept: "text/html,application/xhtml+xml" },
-  });
   const googleAdsProbe = request(
     "https://www.googletagmanager.com/gtag/js?id=AW-18266891349",
     { headers: { Accept: "application/javascript,*/*;q=0.8" } },
@@ -1149,7 +1146,6 @@ async function buildStatusSnapshot() {
     couponProbe,
     agreementsProbe,
     feedProbe,
-    verifyPassProbe,
     googleAdsProbe,
     omnisendLauncherProbe,
     wordpressCoreVersionProbe,
@@ -1176,7 +1172,6 @@ async function buildStatusSnapshot() {
     coupon,
     agreements,
     feed,
-    verifyPass,
     googleAds,
     omnisendLauncher,
     wordpressCoreVersion,
@@ -1438,21 +1433,6 @@ async function buildStatusSnapshot() {
         passed: Number(coaCurrentValid) + Number(coaHistoryValid),
         total: 2,
       },
-      checkedAt,
-    }),
-  );
-
-  services.push(
-    service({
-      id: "verification",
-      name: "Military verification",
-      group: "Customer services",
-      status: verifyPass.ok ? "operational" : unavailableStatus(verifyPass),
-      message: verifyPass.ok
-        ? "The external eligibility verification portal is reachable."
-        : "The eligibility verification portal could not be reached.",
-      latencyMs: verifyPass.latencyMs,
-      monitorType: "external_availability",
       checkedAt,
     }),
   );

@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   ArrowRight,
+  BadgeDollarSign,
+  Boxes,
   Check,
   ChevronDown,
   LockKeyhole,
   LogOut,
   PackageCheck,
   Search,
+  ShieldCheck,
   ShoppingBag,
   Trash2,
   X,
@@ -466,11 +469,30 @@ export default function BulkOrders() {
       <div className="bulk-shell">
         <section className="bulk-hero">
           <div className="bulk-hero-copy">
-            <span className="bulk-eyebrow">Phase One / {accessMode === "public" ? "Bulk desk" : "Authorized desk"}</span>
-            <h1>Build by product family.</h1>
-            <p>Choose the exact configuration and add complete bundles to one verified order.</p>
+            <span className="bulk-eyebrow">Phase One / {accessMode === "public" ? "Bulk purchasing" : "Private bulk access"}</span>
+            <h1>Buy in volume. <em>Get better value.</em></h1>
+            <p>Choose ready-priced bundles, combine products in one order, and review the complete total before payment.</p>
           </div>
           {accessMode === "private" && <button type="button" className="bulk-end-session" onClick={logout}><LogOut size={16} /> End session</button>}
+        </section>
+
+        <section className="bulk-commercial-points" aria-label="Bulk order benefits">
+          <article>
+            <BadgeDollarSign size={19} aria-hidden="true" />
+            <div><strong>Bundle-first pricing</strong><span>One clear total per selection</span></div>
+          </article>
+          <article>
+            <Boxes size={19} aria-hidden="true" />
+            <div><strong>Mix product families</strong><span>Build one organized bulk order</span></div>
+          </article>
+          <article>
+            <PackageCheck size={19} aria-hidden="true" />
+            <div><strong>Inventory checked</strong><span>Availability confirmed before payment</span></div>
+          </article>
+          <article>
+            <ShieldCheck size={19} aria-hidden="true" />
+            <div><strong>Flexible checkout</strong><span>Card, ACH, and Zelle supported</span></div>
+          </article>
         </section>
 
         <div className="bulk-toolbar">

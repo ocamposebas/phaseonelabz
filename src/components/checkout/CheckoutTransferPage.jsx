@@ -8,7 +8,9 @@ import {
   CreditCard,
   Building2,
   Landmark,
+  MapPin,
   PackageCheck,
+  PencilLine,
   Truck,
   ShieldCheck,
   Sparkles,
@@ -1460,6 +1462,46 @@ function normalizeCheckoutFormForOrder(form = {}) {
   };
 }
 
+const REQUIRED_CHECKOUT_ADDRESS_FIELDS = [
+  ["first_name", "First name"],
+  ["last_name", "Last name"],
+  ["email", "Email"],
+  ["phone", "Phone number"],
+  ["address_1", "Address"],
+  ["city", "City"],
+  ["state", "State / Province"],
+  ["postcode", "Postal code"],
+  ["country", "Country"],
+];
+
+function validateCheckoutAddressForm(form = {}, fallbackEmail = "") {
+  const address = normalizeCheckoutFormForOrder(form);
+  address.email = normalizeEmail(address.email || fallbackEmail);
+
+  const missingField = REQUIRED_CHECKOUT_ADDRESS_FIELDS.find(
+    ([key]) => !address[key],
+  );
+
+  if (missingField) {
+    return {
+      address,
+      error: `${missingField[1]} is required before continuing.`,
+    };
+  }
+
+  if (!isValidEmail(address.email)) {
+    return { address, error: "Enter a valid email before continuing." };
+  }
+
+  return { address, error: "" };
+}
+
+function checkoutAddressFingerprint(address = {}) {
+  return REQUIRED_CHECKOUT_ADDRESS_FIELDS.map(([key]) =>
+    String(address?.[key] || "").trim().toLowerCase(),
+  ).join("|");
+}
+
 function formatAddressBlock(address = {}) {
   const clean = normalizeCheckoutAddress(address || {}, {});
   const fullName = [clean.first_name, clean.last_name]
@@ -1840,6 +1882,7 @@ export default function CheckoutTransferPage() {
   const [checkoutForm, setCheckoutForm] = useState(() =>
     getBlankCheckoutForm(),
   );
+  const [addressConfirmation, setAddressConfirmation] = useState(null);
   const [shippingProtectionSelected, setShippingProtectionSelected] =
     useState(false);
   const [selectedShippingMethodId] = useState("fedex");
@@ -1857,6 +1900,23 @@ export default function CheckoutTransferPage() {
   const handleSignatureChange = useCallback((nextSignature) => {
     setSignatureConsent(nextSignature);
   }, []);
+
+  useEffect(() => {
+    if (!addressConfirmation || typeof document === "undefined") return undefined;
+
+    const previousOverflow = document.body.style.overflow;
+    const closeOnEscape = (event) => {
+      if (event.key === "Escape") setAddressConfirmation(null);
+    };
+
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", closeOnEscape);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [addressConfirmation]);
 
   const hasProviderCartItems = !bulkMode &&
     Array.isArray(cart?.cartItems) && cart.cartItems.length > 0;
@@ -2407,6 +2467,7 @@ export default function CheckoutTransferPage() {
 
     setError("");
     setPaymentNotice("");
+    setAddressConfirmation(null);
   };
 
   const updateShippingProtectionSelection = (selected) => {
@@ -2816,28 +2877,11 @@ export default function CheckoutTransferPage() {
       return;
     }
 
-    const normalizedForm = normalizeCheckoutFormForOrder(checkoutForm);
-    const requiredFields = [
-      ["first_name", "First name"],
-      ["last_name", "Last name"],
-      ["email", "Email"],
-      ["phone", "Phone number"],
-      ["address_1", "Address"],
-      ["city", "City"],
-      ["state", "State / Province"],
-      ["postcode", "Postal code"],
-      ["country", "Country"],
-    ];
+    const addressValidation = validateCheckoutAddressForm(checkoutForm);
+    const normalizedForm = addressValidation.address;
 
-    const missingField = requiredFields.find(([key]) => !normalizedForm[key]);
-
-    if (missingField) {
-      setError(`${missingField[1]} is required for secure card checkout.`);
-      return;
-    }
-
-    if (!isValidEmail(normalizedForm.email)) {
-      setError("Enter a valid email for secure card checkout.");
+    if (addressValidation.error) {
+      setError(addressValidation.error);
       return;
     }
 
@@ -2993,30 +3037,15 @@ export default function CheckoutTransferPage() {
       return;
     }
 
-    const normalizedForm = normalizeCheckoutFormForOrder(checkoutForm);
-    const finalBankEmail = normalizeEmail(
-      normalizedForm.email || bankTransferEmail,
+    const addressValidation = validateCheckoutAddressForm(
+      checkoutForm,
+      bankTransferEmail,
     );
+    const normalizedForm = addressValidation.address;
+    const finalBankEmail = normalizedForm.email;
 
-    if (!isValidEmail(finalBankEmail)) {
-      setError("Enter a valid email before creating the Bank Transfer order.");
-      return;
-    }
-
-    const requiredFields = [
-      ["first_name", "First name"],
-      ["last_name", "Last name"],
-      ["address_1", "Address"],
-      ["city", "City"],
-      ["state", "State / Province"],
-      ["postcode", "Postal code"],
-      ["phone", "Phone number"],
-    ];
-
-    const missingField = requiredFields.find(([key]) => !normalizedForm[key]);
-
-    if (missingField) {
-      setError(`${missingField[1]} is required for Bank Transfer checkout.`);
+    if (addressValidation.error) {
+      setError(addressValidation.error);
       return;
     }
 
@@ -3242,43 +3271,22 @@ export default function CheckoutTransferPage() {
       return;
     }
 
-    const normalizedForm = normalizeCheckoutFormForOrder(checkoutForm);
     const customerData = getSessionCustomerData(
       session || {},
       accountUser || {},
     );
-    const finalEmail = normalizeEmail(
-      normalizedForm.email ||
-        bankTransferEmail ||
+    const addressValidation = validateCheckoutAddressForm(
+      checkoutForm,
+      bankTransferEmail ||
         customerData?.billing?.email ||
         customerData?.customer?.email ||
         "",
     );
+    const normalizedForm = addressValidation.address;
+    const finalEmail = normalizedForm.email;
 
-    if (!isValidEmail(finalEmail)) {
-      setError(
-        "Enter a valid email before generating Zelle payment instructions.",
-      );
-      setManualPaymentStatus("error");
-      return;
-    }
-
-    const requiredFields = [
-      ["first_name", "First name"],
-      ["last_name", "Last name"],
-      ["address_1", "Address"],
-      ["city", "City"],
-      ["state", "State"],
-      ["postcode", "Postal code"],
-      ["phone", "Phone number"],
-    ];
-
-    const missingField = requiredFields.find(([key]) => !normalizedForm[key]);
-
-    if (missingField) {
-      setError(
-        `${missingField[1]} is required before creating the ${manualMethod.title} order.`,
-      );
+    if (addressValidation.error) {
+      setError(addressValidation.error);
       setManualPaymentStatus("error");
       return;
     }
@@ -3581,6 +3589,57 @@ export default function CheckoutTransferPage() {
     createPrismCardCheckout();
   };
 
+  const requestAddressConfirmation = () => {
+    if (!validateBeforePayment()) return;
+
+    const addressValidation = validateCheckoutAddressForm(
+      checkoutForm,
+      effectiveBankTransferEmail,
+    );
+
+    if (addressValidation.error) {
+      setError(addressValidation.error);
+      return;
+    }
+
+    setError("");
+    setPaymentNotice("");
+    setAddressConfirmation(addressValidation.address);
+  };
+
+  const confirmAddressAndContinue = () => {
+    if (!addressConfirmation || loading || manualPaymentStatus === "loading") {
+      return;
+    }
+
+    const currentValidation = validateCheckoutAddressForm(
+      checkoutForm,
+      effectiveBankTransferEmail,
+    );
+
+    if (currentValidation.error) {
+      setAddressConfirmation(null);
+      setError(currentValidation.error);
+      return;
+    }
+
+    if (
+      checkoutAddressFingerprint(currentValidation.address) !==
+      checkoutAddressFingerprint(addressConfirmation)
+    ) {
+      setAddressConfirmation(currentValidation.address);
+      setError("Your address changed. Review the updated address before continuing.");
+      return;
+    }
+
+    setAddressConfirmation(null);
+    handleContinuePayment();
+  };
+
+  const formattedConfirmationAddress = addressConfirmation
+    ? formatAddressBlock(addressConfirmation)
+    : null;
+
   if (!hasItems) {
     return (
       <main className="checkout-page checkout-empty-page">
@@ -3639,7 +3698,7 @@ export default function CheckoutTransferPage() {
             className="traditional-checkout-form"
             onSubmit={(event) => {
               event.preventDefault();
-              handleContinuePayment();
+              requestAddressConfirmation();
             }}
           >
             <section className="checkout-section">
@@ -4180,6 +4239,72 @@ export default function CheckoutTransferPage() {
           </aside>
         </div>
       </section>
+
+      {addressConfirmation && formattedConfirmationAddress && (
+        <div className="address-confirmation-layer">
+          <section
+            className="address-confirmation-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="address-confirmation-title"
+            aria-describedby="address-confirmation-description"
+          >
+            <header className="address-confirmation-head">
+              <span className="address-confirmation-icon" aria-hidden="true">
+                <MapPin size={21} />
+              </span>
+              <div>
+                <span>Final delivery check</span>
+                <h2 id="address-confirmation-title">Confirm your address</h2>
+                <p id="address-confirmation-description">
+                  Your order will be shipped exactly as shown below.
+                </p>
+              </div>
+            </header>
+
+            <address className="address-confirmation-card">
+              <strong>{formattedConfirmationAddress.fullName}</strong>
+              {formattedConfirmationAddress.lines.map((line, index) => (
+                <span key={`${line}-${index}`}>
+                  {line === addressConfirmation.country && line === "US"
+                    ? "United States"
+                    : line}
+                </span>
+              ))}
+              <div>
+                <span>{formattedConfirmationAddress.email}</span>
+                <span>{formattedConfirmationAddress.phone}</span>
+              </div>
+            </address>
+
+            <div className="address-confirmation-note">
+              <AlertTriangle size={16} aria-hidden="true" />
+              <span>Check the street number, apartment, state, and ZIP code carefully.</span>
+            </div>
+
+            <div className="address-confirmation-actions">
+              <button
+                type="button"
+                className="address-confirmation-edit"
+                onClick={() => setAddressConfirmation(null)}
+              >
+                <PencilLine size={16} />
+                Edit address
+              </button>
+              <button
+                type="button"
+                className="address-confirmation-continue"
+                onClick={confirmAddressAndContinue}
+                disabled={loading || manualPaymentStatus === "loading"}
+                autoFocus
+              >
+                <BadgeCheck size={17} />
+                Confirm and continue
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
 
       <style>{styles}</style>
     </main>
@@ -5625,6 +5750,160 @@ const styles = `
     margin-top: 16px;
   }
 
+  .address-confirmation-layer {
+    position: fixed;
+    z-index: 300;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    background: rgba(0, 4, 12, 0.82);
+  }
+
+  .address-confirmation-dialog {
+    width: min(520px, 100%);
+    max-height: calc(100dvh - 48px);
+    overflow-y: auto;
+    border: 1px solid rgba(148, 211, 255, 0.2);
+    border-radius: 20px;
+    background: #07111f;
+    box-shadow: 0 28px 80px rgba(0, 0, 0, 0.42);
+    padding: 24px;
+  }
+
+  .address-confirmation-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 13px;
+  }
+
+  .address-confirmation-icon {
+    display: grid;
+    width: 42px;
+    height: 42px;
+    flex: 0 0 42px;
+    place-items: center;
+    border: 1px solid rgba(103, 232, 249, 0.22);
+    border-radius: 12px;
+    background: rgba(103, 232, 249, 0.08);
+    color: #67e8f9;
+  }
+
+  .address-confirmation-head > div > span {
+    color: #67e8f9;
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+  }
+
+  .address-confirmation-head h2 {
+    margin: 5px 0 5px;
+    color: #f8fafc;
+    font-size: 22px;
+    letter-spacing: -0.03em;
+  }
+
+  .address-confirmation-head p {
+    margin: 0;
+    color: #94a3b8;
+    font-size: 13px;
+    line-height: 1.45;
+  }
+
+  .address-confirmation-card {
+    display: grid;
+    gap: 5px;
+    margin: 20px 0 0;
+    border: 1px solid rgba(148, 163, 184, 0.14);
+    border-left: 3px solid #67e8f9;
+    border-radius: 13px;
+    background: #020914;
+    padding: 17px 18px;
+    font-style: normal;
+  }
+
+  .address-confirmation-card > strong {
+    margin-bottom: 2px;
+    color: #ffffff;
+    font-size: 15px;
+  }
+
+  .address-confirmation-card > span {
+    color: #cbd5e1;
+    font-size: 14px;
+    line-height: 1.35;
+  }
+
+  .address-confirmation-card > div {
+    display: grid;
+    gap: 4px;
+    margin-top: 10px;
+    border-top: 1px solid rgba(148, 163, 184, 0.12);
+    padding-top: 10px;
+  }
+
+  .address-confirmation-card > div span {
+    color: #8297b3;
+    font-size: 12px;
+  }
+
+  .address-confirmation-note {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-top: 13px;
+    color: #a7b6c8;
+    font-size: 12px;
+    line-height: 1.45;
+  }
+
+  .address-confirmation-note svg {
+    flex: 0 0 auto;
+    margin-top: 1px;
+    color: #fbbf24;
+  }
+
+  .address-confirmation-actions {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 10px;
+    margin-top: 22px;
+  }
+
+  .address-confirmation-actions button {
+    display: inline-flex;
+    min-height: 46px;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    border-radius: 11px;
+    padding: 0 16px;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 850;
+    cursor: pointer;
+  }
+
+  .address-confirmation-edit {
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    background: transparent;
+    color: #cbd5e1;
+  }
+
+  .address-confirmation-continue {
+    border: 1px solid #67e8f9;
+    background: #67e8f9;
+    color: #021018;
+  }
+
+  .address-confirmation-continue:disabled {
+    border-color: #243448;
+    background: #243448;
+    color: #7f8da0;
+    cursor: not-allowed;
+  }
+
   @media (max-width: 960px) {
     .checkout-layout {
       grid-template-columns: 1fr;
@@ -5659,6 +5938,29 @@ const styles = `
 
     .checkout-section:first-child {
       padding-top: 28px;
+    }
+
+    .address-confirmation-layer {
+      place-items: end center;
+      padding: 0;
+    }
+
+    .address-confirmation-dialog {
+      width: 100%;
+      max-height: 88dvh;
+      border-right: 0;
+      border-bottom: 0;
+      border-left: 0;
+      border-radius: 20px 20px 0 0;
+      padding: 22px 18px calc(20px + env(safe-area-inset-bottom));
+    }
+
+    .address-confirmation-actions {
+      grid-template-columns: 1fr;
+    }
+
+    .address-confirmation-continue {
+      grid-row: 1;
     }
 
     .field-grid.two-columns,
