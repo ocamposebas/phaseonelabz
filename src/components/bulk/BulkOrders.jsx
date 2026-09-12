@@ -469,12 +469,6 @@ export default function BulkOrders() {
           {accessMode === "private" && <button type="button" className="bulk-end-session" onClick={logout}><LogOut size={16} /> End session</button>}
         </section>
 
-        <section className="bulk-assurances" aria-label="Bulk ordering details">
-          <div><span>Bundle pricing</span><strong>Total price shown upfront</strong></div>
-          <div><span>Inventory</span><strong>Synced with WooCommerce</strong></div>
-          <div><span>Checkout</span><strong>Server-verified before payment</strong></div>
-        </section>
-
         <div className="bulk-toolbar">
           <label>
             <Search size={18} />

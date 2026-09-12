@@ -22,7 +22,7 @@
   width: 100%;
   min-height: 72vh;
   margin: 0;
-  padding: 92px 0 110px;
+  padding: 170px 0 110px;
   background: var(--bulk-bg);
   color: var(--bulk-text);
 }
@@ -79,40 +79,12 @@
   cursor: pointer;
 }
 
-.bulk-assurances {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  margin: 0 0 24px;
-  overflow: hidden;
-  border: 1px solid #21405a;
-  border-radius: 14px;
-  background: #0a1d30;
-}
-
-.bulk-assurances div {
-  display: grid;
-  min-height: 78px;
-  align-content: center;
-  gap: 5px;
-  padding: 14px 18px;
-}
-
-.bulk-assurances div + div { border-left: 1px solid #21405a; }
-.bulk-assurances span {
-  color: #7e96ad;
-  font-size: .73rem;
-  font-weight: 750;
-  letter-spacing: .06em;
-  text-transform: uppercase;
-}
-.bulk-assurances strong { color: var(--bulk-text); font-size: .9rem; font-weight: 750; }
-
 .bulk-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 18px;
-  margin-top: 2px;
+  margin-top: 26px;
 }
 
 .bulk-toolbar > label {
@@ -364,7 +336,7 @@
 .bulk-order-facts span { color: var(--bulk-muted); font-size: .67rem; }
 .bulk-order-facts b { color: var(--bulk-text); }
 .bulk-total-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.bulk-cart-total span { color: #a7b6c6; font-size: .75rem; }
+.bulk-total-row > span { color: #a7b6c6; font-size: .75rem; }
 .bulk-cart-total strong { color: var(--bulk-text); font-size: 1.18rem; }
 .bulk-cart-total p { margin: 8px 0 13px; color: var(--bulk-muted); font-size: .65rem; line-height: 1.45; }
 .bulk-checkout {
@@ -384,6 +356,7 @@
   cursor: pointer;
 }
 .bulk-checkout:disabled { background: #213447; color: #8291a1; cursor: not-allowed; }
+.bulk-checkout span { color: inherit; }
 .bulk-inline-error,
 .bulk-access-error { margin: 8px 0; color: var(--bulk-danger); font-size: .72rem; }
 
@@ -397,7 +370,7 @@
   place-items: center;
   align-content: center;
   gap: 12px;
-  padding: 112px 20px 72px;
+  padding: 170px 20px 72px;
   background: #020a17;
   color: #f1f6fb;
   text-align: center;
@@ -426,14 +399,11 @@
 }
 
 @media (max-width: 840px) {
-  .bulk-page { padding-top: 72px; }
+  .bulk-page { padding-top: 148px; }
   .bulk-shell { width: min(100% - 24px, 660px); }
   .bulk-hero { align-items: flex-start; }
   .bulk-hero h1 { font-size: 2.35rem; }
   .bulk-end-session { padding: 0 9px; font-size: 0; }
-  .bulk-assurances { grid-template-columns: 1fr; }
-  .bulk-assurances div { min-height: 61px; }
-  .bulk-assurances div + div { border-top: 1px solid #21405a; border-left: 0; }
   .bulk-toolbar { display: grid; }
   .bulk-toolbar > label { width: 100%; }
   .bulk-toolbar > span { display: none; }
@@ -463,17 +433,15 @@
   .bulk-sheet { position: fixed; z-index: 120; inset: 0; display: grid; align-items: end; }
   .bulk-sheet-backdrop { position: absolute; inset: 0; border: 0; background: rgba(0, 5, 13, .7); }
   .bulk-sheet .bulk-cart { position: relative; z-index: 1; min-height: 0; max-height: 84vh; border-radius: 16px 16px 0 0; }
-  .bulk-access-shell { padding-top: 88px; }
+  .bulk-access-shell { padding-top: 148px; }
 }
 
 @media (max-width: 590px) {
-  .bulk-page { padding-top: 64px; }
+  .bulk-page { padding-top: 138px; }
   .bulk-shell { width: calc(100% - 20px); }
   .bulk-hero { padding-bottom: 18px; }
   .bulk-hero h1 { max-width: 320px; font-size: 2rem; }
   .bulk-hero p { max-width: 330px; font-size: .88rem; }
-  .bulk-assurances { margin-bottom: 18px; }
-  .bulk-assurances div { min-height: 56px; padding: 11px 14px; }
   .bulk-catalog { grid-template-columns: 1fr; }
   .bulk-product-visual { height: 245px; }
   .bulk-product-visual img { height: 212px; }
