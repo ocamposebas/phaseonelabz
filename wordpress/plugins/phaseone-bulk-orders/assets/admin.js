@@ -1,9 +1,11 @@
 document.addEventListener("DOMContentLoaded", () => {
   const updatePricingVisibility = (rule) => {
     const mode = rule.querySelector("[data-pricing-mode]")?.value || "fixed";
-    const fixed = rule.querySelector("[data-fixed-price]");
+    const bundle = rule.querySelector("[data-bundle-price-wrap]");
+    const preview = rule.querySelector("[data-unit-preview]");
     const tiers = rule.querySelector("[data-tier-prices]");
-    if (fixed) fixed.hidden = mode !== "fixed";
+    if (bundle) bundle.hidden = mode !== "fixed";
+    if (preview) preview.hidden = mode !== "fixed";
     if (tiers) tiers.hidden = mode !== "tiered";
   };
 

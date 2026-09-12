@@ -83,18 +83,28 @@ final class PhaseOne_Bulk_Admin {
 			return;
 		}
 		$tier_text = implode( "\n", array_map( static fn( array $tier ): string => (int) $tier['minimum'] . ': ' . wc_format_decimal( $tier['price'], wc_get_price_decimals() ), $rule['tiers'] ) );
+		$bundle_price = 'fixed' === $rule['mode'] && $rule['fixed_price'] > 0
+			? round( (float) $rule['fixed_price'] * (int) $rule['minimum'], wc_get_price_decimals() )
+			: 0;
+		$advanced_open = 'tiered' === $rule['mode'] || $rule['maximum'] > 0;
 		?>
 		<article class="phaseone-bulk-rule" data-rule>
-			<header><div><strong><?php echo esc_html( wp_strip_all_tags( $product->get_formatted_name() ) ); ?></strong><span>SKU <?php echo esc_html( $product->get_sku() ?: 'missing' ); ?></span></div><label><input type="checkbox" name="rules[<?php echo esc_attr( $id ); ?>][enabled]" value="1" <?php checked( $rule['enabled'] ); ?>> Enabled</label></header>
+			<header><div><strong><?php echo esc_html( wp_strip_all_tags( $product->get_formatted_name() ) ); ?></strong><span>SKU <?php echo esc_html( $product->get_sku() ?: 'missing' ); ?></span></div><label class="phaseone-bulk-enabled"><input type="checkbox" name="rules[<?php echo esc_attr( $id ); ?>][enabled]" value="1" <?php checked( $rule['enabled'] ); ?>> Show in Bulk catalog</label></header>
 			<input type="hidden" name="rules[<?php echo esc_attr( $id ); ?>][product_id]" value="<?php echo esc_attr( $id ); ?>">
-			<div class="phaseone-bulk-rule-grid">
-				<label>Minimum<input type="number" min="1" step="1" name="rules[<?php echo esc_attr( $id ); ?>][minimum]" value="<?php echo esc_attr( $rule['minimum'] ); ?>" required></label>
-				<label>Pricing Mode<select name="rules[<?php echo esc_attr( $id ); ?>][mode]" data-pricing-mode><option value="fixed" <?php selected( $rule['mode'], 'fixed' ); ?>>Fixed price</option><option value="tiered" <?php selected( $rule['mode'], 'tiered' ); ?>>Tier pricing</option></select></label>
-				<label data-fixed-price>Bulk price<input type="number" min="0" step="0.01" name="rules[<?php echo esc_attr( $id ); ?>][fixed_price]" value="<?php echo esc_attr( $rule['fixed_price'] ); ?>"></label>
-				<label>Maximum <small>optional</small><input type="number" min="0" step="1" name="rules[<?php echo esc_attr( $id ); ?>][maximum]" value="<?php echo esc_attr( $rule['maximum'] ?: '' ); ?>" placeholder="No Bulk maximum"></label>
-				<label class="phaseone-bulk-tiers" data-tier-prices>Tiers <small>one per line: quantity: price</small><textarea name="rules[<?php echo esc_attr( $id ); ?>][tiers]" rows="3" placeholder="10: 18.00&#10;50: 15.00"><?php echo esc_textarea( $tier_text ); ?></textarea></label>
-				<label class="phaseone-bulk-remove"><input type="checkbox" name="rules[<?php echo esc_attr( $id ); ?>][_delete]" value="1"> Remove this configuration</label>
+			<div class="phaseone-bulk-simple-grid">
+				<label>Quantity of this SKU in the bundle <small>The selected SKU already includes its pack size</small><input type="number" min="1" step="1" name="rules[<?php echo esc_attr( $id ); ?>][minimum]" value="<?php echo esc_attr( $rule['minimum'] ); ?>" required></label>
+				<label data-bundle-price-wrap <?php echo 'fixed' === $rule['mode'] ? '' : 'hidden'; ?>>Total bundle price <small>The complete price for all units above</small><input type="number" min="0" step="0.01" name="rules[<?php echo esc_attr( $id ); ?>][bundle_price]" value="<?php echo esc_attr( wc_format_decimal( $bundle_price, wc_get_price_decimals() ) ); ?>"></label>
 			</div>
+			<input type="hidden" name="rules[<?php echo esc_attr( $id ); ?>][fixed_price]" value="<?php echo esc_attr( $rule['fixed_price'] ); ?>">
+			<details class="phaseone-bulk-advanced" <?php echo $advanced_open ? 'open' : ''; ?>>
+				<summary>Advanced pricing <small>Optional</small></summary>
+				<div class="phaseone-bulk-advanced-grid">
+					<label>Pricing behavior<select name="rules[<?php echo esc_attr( $id ); ?>][mode]" data-pricing-mode><option value="fixed" <?php selected( $rule['mode'], 'fixed' ); ?>>One simple bundle price</option><option value="tiered" <?php selected( $rule['mode'], 'tiered' ); ?>>Quantity tiers</option></select></label>
+					<label>Maximum quantity <small>Optional</small><input type="number" min="0" step="1" name="rules[<?php echo esc_attr( $id ); ?>][maximum]" value="<?php echo esc_attr( $rule['maximum'] ?: '' ); ?>" placeholder="No maximum"></label>
+					<label class="phaseone-bulk-tiers" data-tier-prices <?php echo 'tiered' === $rule['mode'] ? '' : 'hidden'; ?>>Quantity tiers <small>One per line: quantity: unit price</small><textarea name="rules[<?php echo esc_attr( $id ); ?>][tiers]" rows="3" placeholder="10: 18.00&#10;50: 15.00"><?php echo esc_textarea( $tier_text ); ?></textarea></label>
+				</div>
+				<label class="phaseone-bulk-remove"><input type="checkbox" name="rules[<?php echo esc_attr( $id ); ?>][_delete]" value="1"> <span>Remove this product from Bulk settings</span></label>
+			</details>
 		</article>
 		<?php
 	}

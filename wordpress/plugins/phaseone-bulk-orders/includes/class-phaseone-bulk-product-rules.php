@@ -46,6 +46,10 @@ final class PhaseOne_Bulk_Product_Rules {
 		$mode    = 'tiered' === sanitize_key( $raw['mode'] ?? '' ) ? 'tiered' : 'fixed';
 		$price   = self::money( $raw['fixed_price'] ?? 0 );
 		$tiers   = self::sanitize_tiers( $raw['tiers'] ?? array() );
+		if ( 'fixed' === $mode && array_key_exists( 'bundle_price', $raw ) ) {
+			$bundle_price = self::money( $raw['bundle_price'] );
+			$price = $bundle_price > 0 ? self::money( $bundle_price / $minimum ) : 0.0;
+		}
 
 		if ( $maximum > 0 && $maximum < $minimum ) {
 			return new WP_Error( 'phaseone_bulk_invalid_maximum', 'Maximum quantity cannot be lower than the minimum.' );
@@ -58,7 +62,7 @@ final class PhaseOne_Bulk_Product_Rules {
 			return new WP_Error( 'phaseone_bulk_duplicate_sku', 'Bulk requires a unique SKU for every enabled product or variation.' );
 		}
 		if ( $enabled && 'fixed' === $mode && $price <= 0 ) {
-			return new WP_Error( 'phaseone_bulk_invalid_price', 'Enter a positive fixed Bulk price.' );
+			return new WP_Error( 'phaseone_bulk_invalid_price', 'Enter a positive Bundle price.' );
 		}
 		if ( $enabled && 'tiered' === $mode && empty( $tiers ) ) {
 			return new WP_Error( 'phaseone_bulk_invalid_tiers', 'Add at least one valid pricing tier.' );

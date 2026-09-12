@@ -1,5 +1,17 @@
 # Phase One Bulk Orders
 
+Version 1.2.1 presents fixed offers as complete bundles in both administration
+and storefront UI. Per-unit values remain internal to WooCommerce for stock,
+order lines and authoritative payment validation.
+
+Version 1.2.0 simplifies product setup to starting quantity plus total bundle
+price. The server derives and stores the authoritative unit price; optional
+quantity tiers and maximums remain available inside Advanced pricing.
+
+Version 1.1.1 fixes the rule-removal checkbox layout and renders only the
+pricing fields relevant to the selected pricing mode, including before the
+administration JavaScript initializes.
+
 Version 1.1.0 adds an administrator-controlled Public/Private catalog mode.
 Public mode removes the customer Access Code gate while retaining the private
 server bridge, authoritative pricing, isolated Bulk Cart and required customer
