@@ -104,7 +104,7 @@ function offerPrice(item, currency = "USD") {
   return tiers.length ? `${money(tiers[0].price, currency)}/unit` : money(item.line_total, currency);
 }
 
-function ProductFamily({ name, items, cart, currency, addLine, selectedKey, selectOffer }) {
+function ProductFamily({ name, items, cart, currency, addLine, selectedKey, selectOffer, index }) {
   const representative = items[0];
   const selected = items.find((item) => itemKey(item) === selectedKey)
     || items.find((item) => item.available)
@@ -120,6 +120,10 @@ function ProductFamily({ name, items, cart, currency, addLine, selectedKey, sele
   return (
     <article className="bulk-product-card">
       <div className="bulk-product-visual">
+        <div className="bulk-family-index" aria-hidden="true">
+          <span>Family</span>
+          <strong>{String(index + 1).padStart(2, "0")}</strong>
+        </div>
         <img src={representative.image} alt="" loading="lazy" decoding="async" />
         <span><Check size={13} /> Stock verified live</span>
       </div>
@@ -127,7 +131,7 @@ function ProductFamily({ name, items, cart, currency, addLine, selectedKey, sele
         <header>
           <span>{representative.categories?.[0] || "Bulk catalog"}</span>
           <h2>{name}</h2>
-          <p>Choose the exact bundle below.</p>
+          <p>{items.length} bundle option{items.length === 1 ? "" : "s"}</p>
         </header>
         <div className="bulk-variant-list" role="radiogroup" aria-label={`${name} bundle options`}>
           {items.map((item) => (
@@ -197,8 +201,8 @@ function BulkCart({ cart, catalogById, quote, quoteState, error, updateLine, rem
     <aside className="bulk-cart" aria-label="Bulk order">
       <div className="bulk-cart-head">
         <div>
-          <span>Your Bulk order</span>
-          <h2>{cart.length ? `${orderSummary.bundles || orderSummary.units} bundle${(orderSummary.bundles || orderSummary.units) === 1 ? "" : "s"}` : "No bundles yet"}</h2>
+          <span>Bulk manifest</span>
+          <h2>{cart.length ? `${orderSummary.bundles || orderSummary.units} bundle${(orderSummary.bundles || orderSummary.units) === 1 ? "" : "s"} ready` : "No bundles selected"}</h2>
         </div>
         {close && <button type="button" onClick={close} aria-label="Close Bulk cart"><X size={20} /></button>}
       </div>
@@ -207,7 +211,7 @@ function BulkCart({ cart, catalogById, quote, quoteState, error, updateLine, rem
         {!cart.length ? (
           <div className="bulk-cart-empty">
             <ShoppingBag size={22} />
-            <p>Select a bundle to begin your Bulk order.</p>
+            <p>Choose a product family and add its bundle here.</p>
           </div>
         ) : cart.map((line) => {
           const product = catalogById.get(itemKey(line));
@@ -461,12 +465,16 @@ export default function BulkOrders() {
     <main className="bulk-page">
       <div className="bulk-shell">
         <section className="bulk-hero">
-          <div>
-            <span className="bulk-eyebrow">{accessMode === "public" ? "Volume purchasing" : "Authorized purchasing"}</span>
-            <h1>Bulk ordering, made clear.</h1>
-            <p>Select a product bundle and see the complete price before checkout.</p>
+          <div className="bulk-hero-copy">
+            <span className="bulk-eyebrow">Phase One / {accessMode === "public" ? "Bulk desk" : "Authorized desk"}</span>
+            <h1>Build by product family.</h1>
+            <p>Choose the exact configuration and add complete bundles to one verified order.</p>
           </div>
-          {accessMode === "private" && <button type="button" className="bulk-end-session" onClick={logout}><LogOut size={16} /> End session</button>}
+          <div className="bulk-hero-aside">
+            <span>Live catalog</span>
+            <div><strong>{catalog.length}</strong><small>bundle option{catalog.length === 1 ? "" : "s"}</small></div>
+            {accessMode === "private" && <button type="button" className="bulk-end-session" onClick={logout}><LogOut size={16} /> End session</button>}
+          </div>
         </section>
 
         <div className="bulk-toolbar">
@@ -486,11 +494,12 @@ export default function BulkOrders() {
 
         <div className="bulk-layout">
           <section className="bulk-catalog" aria-label="Bulk products">
-            {!groups.length ? <div className="bulk-no-results">No Bulk products match these filters.</div> : groups.map(([name, items]) => (
+            {!groups.length ? <div className="bulk-no-results">No Bulk products match these filters.</div> : groups.map(([name, items], index) => (
               <ProductFamily
                 key={name}
                 name={name}
                 items={items}
+                index={index}
                 cart={cart}
                 currency={currency}
                 addLine={addLine}
