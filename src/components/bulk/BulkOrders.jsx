@@ -88,7 +88,7 @@ function availabilityCopy(item) {
   const maximum = Math.max(0, Number(item?.maximum || 0));
   const minimum = bundleSize(item);
   if (!item?.available && maximum > 0 && maximum < minimum) {
-    return `Only ${maximum} SKU units in stock; this bundle requires ${minimum}.`;
+    return `Only ${maximum} units of this option are in stock; the bundle needs ${minimum}.`;
   }
   if (!item?.available) return "Currently unavailable.";
   if (isBundle(item)) {
@@ -98,75 +98,68 @@ function availabilityCopy(item) {
   return maximum > 0 ? `Up to ${maximum} SKU units currently available.` : "Available to order.";
 }
 
-function OfferPrice({ item, currency = "USD" }) {
-  if (isBundle(item)) {
-    return (
-      <div className="bulk-offer-price">
-        <strong>{money(item.line_total, currency)}</strong>
-        <span>total · {bundleSize(item)} × SKU</span>
-      </div>
-    );
-  }
+function offerPrice(item, currency = "USD") {
+  if (isBundle(item)) return money(item.line_total, currency);
   const tiers = Array.isArray(item.tiers) ? item.tiers : [];
-  return (
-    <div className="bulk-tier-prices" aria-label="Quantity pricing">
-      {tiers.map((tier) => (
-        <span key={`${tier.minimum}-${tier.price}`}><b>{tier.minimum}+</b> {money(tier.price, currency)}/unit</span>
-      ))}
-    </div>
-  );
+  return tiers.length ? `${money(tiers[0].price, currency)}/unit` : money(item.line_total, currency);
 }
 
-function OfferRow({ item, cartLine, currency, addLine }) {
-  const bundles = cartLine && isBundle(item) ? bundleCount(item, cartLine.quantity) : 0;
-  const stockCopy = availabilityCopy(item);
-  const increment = bundleSize(item);
-  const maximum = Math.max(0, Number(item.maximum || 0));
-  const atMaximum = Boolean(cartLine && maximum > 0 && Number(cartLine.quantity) + increment > maximum);
-  return (
-    <section className={`bulk-offer${cartLine ? " is-selected" : ""}${!item.available ? " is-unavailable" : ""}`}>
-      <div className="bulk-offer-main">
-        <div className="bulk-offer-name">
-          <strong>{productLabel(item)}</strong>
-          <span>SKU {item.sku}</span>
-        </div>
-        <OfferPrice item={item} currency={currency} />
-      </div>
-      <div className="bulk-offer-action">
-        <small>{stockCopy}</small>
-        <button type="button" disabled={!item.available || atMaximum} onClick={() => addLine(item)}>
-          {atMaximum ? "Maximum added" : cartLine ? <><Check size={14} /> {isBundle(item) ? `${bundles} bundle${bundles === 1 ? "" : "s"}` : `${cartLine.quantity} units`}</> : isBundle(item) ? "Add bundle" : "Add quantity"}
-        </button>
-      </div>
-    </section>
-  );
-}
-
-function ProductFamily({ name, items, cart, currency, addLine }) {
+function ProductFamily({ name, items, cart, currency, addLine, selectedKey, selectOffer }) {
   const representative = items[0];
+  const selected = items.find((item) => itemKey(item) === selectedKey)
+    || items.find((item) => item.available)
+    || representative;
+  const selectedLine = cart.find((line) => itemKey(line) === itemKey(selected));
+  const selectedBundles = selectedLine && isBundle(selected) ? bundleCount(selected, selectedLine.quantity) : 0;
+  const increment = bundleSize(selected);
+  const maximum = Math.max(0, Number(selected.maximum || 0));
+  const atMaximum = Boolean(selectedLine && maximum > 0 && Number(selectedLine.quantity) + increment > maximum);
+  const selectionCopy = isBundle(selected)
+    ? `Contains ${bundleSize(selected)} × ${productLabel(selected)}`
+    : "Quantity pricing applies";
   return (
     <article className="bulk-product-card">
       <div className="bulk-product-visual">
         <img src={representative.image} alt="" loading="lazy" decoding="async" />
-        <span><Check size={12} /> Live inventory</span>
+        <span><Check size={13} /> Stock verified live</span>
       </div>
       <div className="bulk-product-body">
         <header>
           <span>{representative.categories?.[0] || "Bulk catalog"}</span>
           <h2>{name}</h2>
-          <p>{items.length === 1 ? "1 bundle option" : `${items.length} bundle options`}</p>
+          <p>Choose the exact bundle below.</p>
         </header>
-        <div className="bulk-offer-list">
+        <div className="bulk-variant-list" role="radiogroup" aria-label={`${name} bundle options`}>
           {items.map((item) => (
-            <OfferRow
+            <button
+              type="button"
               key={itemKey(item)}
-              item={item}
-              cartLine={cart.find((line) => itemKey(line) === itemKey(item))}
-              currency={currency}
-              addLine={addLine}
-            />
+              role="radio"
+              aria-checked={itemKey(selected) === itemKey(item)}
+              className={`${itemKey(selected) === itemKey(item) ? "is-active" : ""}${!item.available ? " is-unavailable" : ""}`}
+              onClick={() => selectOffer(item)}
+            >
+              <span>
+                <strong>{productLabel(item)}</strong>
+                <small>{isBundle(item) ? `Bundle of ${bundleSize(item)}` : `Minimum ${bundleSize(item)} units`}</small>
+              </span>
+              <b>{offerPrice(item, currency)}</b>
+            </button>
           ))}
         </div>
+        <div className="bulk-product-purchase">
+          <div>
+            <span>{isBundle(selected) ? "Bundle total" : "Starting price"}</span>
+            <strong>{offerPrice(selected, currency)}</strong>
+            <small>{selectionCopy}</small>
+          </div>
+          <button type="button" disabled={!selected.available || atMaximum} onClick={() => addLine(selected)}>
+            {atMaximum ? "Maximum added" : selectedLine
+              ? <><Check size={15} /> {isBundle(selected) ? `${selectedBundles} in order` : `${selectedLine.quantity} units`}</>
+              : isBundle(selected) ? "Add bundle" : "Add quantity"}
+          </button>
+        </div>
+        <p className={`bulk-product-availability${selected.available ? "" : " is-error"}`}>{availabilityCopy(selected)}</p>
       </div>
     </article>
   );
@@ -193,12 +186,19 @@ function LineCounter({ product, line, updateLine }) {
 function BulkCart({ cart, catalogById, quote, quoteState, error, updateLine, removeLine, checkout, checkingOut, close }) {
   const currency = quote?.currency || "USD";
   const quoteLines = new Map((quote?.lines || []).map((line) => [itemKey(line), line]));
+  const orderSummary = cart.reduce((summary, line) => {
+    const product = catalogById.get(itemKey(line));
+    if (!product) return summary;
+    summary.units += Number(line.quantity || 0);
+    summary.bundles += isBundle(product) ? bundleCount(product, line.quantity) : 0;
+    return summary;
+  }, { units: 0, bundles: 0 });
   return (
     <aside className="bulk-cart" aria-label="Bulk order">
       <div className="bulk-cart-head">
         <div>
           <span>Your Bulk order</span>
-          <h2>{cart.length ? `${cart.length} selected SKU${cart.length === 1 ? "" : "s"}` : "No bundles yet"}</h2>
+          <h2>{cart.length ? `${orderSummary.bundles || orderSummary.units} bundle${(orderSummary.bundles || orderSummary.units) === 1 ? "" : "s"}` : "No bundles yet"}</h2>
         </div>
         {close && <button type="button" onClick={close} aria-label="Close Bulk cart"><X size={20} /></button>}
       </div>
@@ -220,7 +220,7 @@ function BulkCart({ cart, catalogById, quote, quoteState, error, updateLine, rem
               <div className="bulk-cart-line-info">
                 <strong>{product.parent_name || product.name}</strong>
                 <span>{productLabel(product)}</span>
-                <small>{bundles ? `${bundles} bundle${bundles === 1 ? "" : "s"} · ${line.quantity} × SKU total` : `${line.quantity} units`}</small>
+                <small>{bundles ? `${bundles} bundle${bundles === 1 ? "" : "s"} · ${line.quantity} total units` : `${line.quantity} units`}</small>
                 <LineCounter product={product} line={line} updateLine={updateLine} />
               </div>
               <div className="bulk-cart-line-total">
@@ -233,7 +233,13 @@ function BulkCart({ cart, catalogById, quote, quoteState, error, updateLine, rem
       </div>
 
       <div className="bulk-cart-total">
-        <div><span>Merchandise total</span><strong>{quoteState === "loading" ? "Updating…" : money(quote?.subtotal || 0, currency)}</strong></div>
+        {!!cart.length && (
+          <div className="bulk-order-facts">
+            <span><b>{cart.length}</b> selected SKU{cart.length === 1 ? "" : "s"}</span>
+            <span><b>{orderSummary.units}</b> total units</span>
+          </div>
+        )}
+        <div className="bulk-total-row"><span>Merchandise total</span><strong>{quoteState === "loading" ? "Updating…" : money(quote?.subtotal || 0, currency)}</strong></div>
         <p>Inventory and totals are verified again by WooCommerce before payment.</p>
         {error && <div className="bulk-inline-error" role="alert">{error}</div>}
         <button type="button" className="bulk-checkout" disabled={!cart.length || !quote || quoteState === "loading" || checkingOut} onClick={checkout}>
@@ -298,6 +304,7 @@ export default function BulkOrders() {
   const [cartOpen, setCartOpen] = useState(false);
   const [checkingOut, setCheckingOut] = useState(false);
   const [accessMode, setAccessMode] = useState("private");
+  const [selectedOffers, setSelectedOffers] = useState({});
 
   const loadCatalog = async () => {
     setStatus("loading");
@@ -452,45 +459,56 @@ export default function BulkOrders() {
   const currency = quote?.currency || "USD";
   return (
     <main className="bulk-page">
-      <section className="bulk-hero">
-        <div>
-          <span className="bulk-eyebrow">{accessMode === "public" ? "Volume purchasing" : "Authorized purchasing"}</span>
-          <h1>Build your Bulk order</h1>
-          <p>Choose a product, select its bundle, and review the complete order in one place.</p>
-        </div>
-        {accessMode === "private" && <button type="button" className="bulk-end-session" onClick={logout}><LogOut size={16} /> End session</button>}
-      </section>
-
-      <section className="bulk-assurances" aria-label="Bulk ordering details">
-        <div><strong>{catalog.length}</strong><span>live bundle offers</span></div>
-        <div><strong>Live</strong><span>WooCommerce inventory</span></div>
-        <div><strong>Locked</strong><span>server-verified totals</span></div>
-      </section>
-
-      <div className="bulk-toolbar">
-        <label>
-          <Search size={18} />
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search products or SKUs" />
-          {query && <button type="button" onClick={() => setQuery("")} aria-label="Clear search"><X size={16} /></button>}
-        </label>
-        <span>{groups.length} product {groups.length === 1 ? "family" : "families"}</span>
-      </div>
-
-      {categories.length > 1 && (
-        <div className="bulk-categories" aria-label="Product categories">
-          {categories.map((name) => <button type="button" className={category === name ? "is-active" : ""} onClick={() => setCategory(name)} key={name}>{name}</button>)}
-        </div>
-      )}
-
-      <div className="bulk-layout">
-        <section className="bulk-catalog" aria-label="Bulk products">
-          {!groups.length ? <div className="bulk-no-results">No Bulk products match these filters.</div> : groups.map(([name, items]) => (
-            <ProductFamily key={name} name={name} items={items} cart={cart} currency={currency} addLine={addLine} />
-          ))}
+      <div className="bulk-shell">
+        <section className="bulk-hero">
+          <div>
+            <span className="bulk-eyebrow">{accessMode === "public" ? "Volume purchasing" : "Authorized purchasing"}</span>
+            <h1>Bulk ordering, made clear.</h1>
+            <p>Select a product bundle and see the complete price before checkout.</p>
+          </div>
+          {accessMode === "private" && <button type="button" className="bulk-end-session" onClick={logout}><LogOut size={16} /> End session</button>}
         </section>
 
-        <div className="bulk-cart-desktop">
-          <BulkCart {...{ cart, catalogById, quote, quoteState, error, updateLine, removeLine, checkout, checkingOut }} />
+        <section className="bulk-assurances" aria-label="Bulk ordering details">
+          <div><span>Bundle pricing</span><strong>Total price shown upfront</strong></div>
+          <div><span>Inventory</span><strong>Synced with WooCommerce</strong></div>
+          <div><span>Checkout</span><strong>Server-verified before payment</strong></div>
+        </section>
+
+        <div className="bulk-toolbar">
+          <label>
+            <Search size={18} />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search products or SKUs" />
+            {query && <button type="button" onClick={() => setQuery("")} aria-label="Clear search"><X size={16} /></button>}
+          </label>
+          <span>{groups.length} product {groups.length === 1 ? "family" : "families"}</span>
+        </div>
+
+        {categories.length > 1 && (
+          <div className="bulk-categories" aria-label="Product categories">
+            {categories.map((name) => <button type="button" className={category === name ? "is-active" : ""} onClick={() => setCategory(name)} key={name}>{name}</button>)}
+          </div>
+        )}
+
+        <div className="bulk-layout">
+          <section className="bulk-catalog" aria-label="Bulk products">
+            {!groups.length ? <div className="bulk-no-results">No Bulk products match these filters.</div> : groups.map(([name, items]) => (
+              <ProductFamily
+                key={name}
+                name={name}
+                items={items}
+                cart={cart}
+                currency={currency}
+                addLine={addLine}
+                selectedKey={selectedOffers[name]}
+                selectOffer={(item) => setSelectedOffers((current) => ({ ...current, [name]: itemKey(item) }))}
+              />
+            ))}
+          </section>
+
+          <div className="bulk-cart-desktop">
+            <BulkCart {...{ cart, catalogById, quote, quoteState, error, updateLine, removeLine, checkout, checkingOut }} />
+          </div>
         </div>
       </div>
 
