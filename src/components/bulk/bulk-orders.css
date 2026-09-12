@@ -66,30 +66,6 @@
   line-height: 1.5;
 }
 
-.bulk-hero-aside {
-  display: grid;
-  min-width: 190px;
-  grid-template-columns: 1fr auto;
-  align-items: end;
-  gap: 7px 14px;
-  padding-left: 22px;
-  border-left: 1px solid var(--bulk-line);
-}
-
-.bulk-hero-aside > span {
-  grid-column: 1 / -1;
-  color: var(--bulk-muted);
-  font-size: .7rem;
-  font-weight: 800;
-  letter-spacing: .11em;
-  text-transform: uppercase;
-}
-
-.bulk-hero-aside > div { display: flex; align-items: baseline; gap: 8px; }
-.bulk-hero-aside > div strong { color: var(--bulk-text); font-size: 1.85rem; line-height: 1; }
-.bulk-hero-aside > div small { max-width: 72px; color: var(--bulk-muted); font-size: .7rem; line-height: 1.25; }
-.bulk-hero-aside .bulk-end-session { grid-row: 2; grid-column: 2; }
-
 .bulk-end-session {
   display: inline-flex;
   flex: 0 0 auto;
@@ -140,7 +116,6 @@
 
 .bulk-toolbar input::placeholder { color: #687e96; }
 .bulk-toolbar button { display: grid; padding: 4px; border: 0; background: transparent; color: var(--bulk-muted); cursor: pointer; }
-.bulk-toolbar > span { color: var(--bulk-muted); font-size: .78rem; white-space: nowrap; }
 
 .bulk-categories {
   display: flex;
@@ -469,7 +444,6 @@
   .bulk-end-session { padding: 0 9px; font-size: 0; }
   .bulk-toolbar { display: grid; }
   .bulk-toolbar > label { width: 100%; }
-  .bulk-toolbar > span { display: none; }
   .bulk-layout { display: block; }
   .bulk-catalog { grid-template-columns: 1fr; }
   .bulk-cart-desktop { display: none; }
@@ -502,12 +476,9 @@
 @media (max-width: 590px) {
   .bulk-page { padding-top: 138px; }
   .bulk-shell { width: calc(100% - 20px); }
-  .bulk-hero { grid-template-columns: 1fr; gap: 18px; padding-bottom: 18px; }
+  .bulk-hero { padding-bottom: 18px; }
   .bulk-hero h1 { max-width: 320px; font-size: 2rem; }
   .bulk-hero p { max-width: 330px; font-size: .88rem; }
-  .bulk-hero-aside { min-width: 0; padding: 13px 0 0; border-top: 1px solid var(--bulk-line); border-left: 0; }
-  .bulk-hero-aside > span { grid-column: auto; }
-  .bulk-hero-aside > div { justify-self: end; }
   .bulk-catalog { grid-template-columns: 1fr; }
   .bulk-product-card { display: block; min-height: 0; }
   .bulk-product-card:last-child:nth-child(odd) { width: 100%; }

@@ -470,11 +470,7 @@ export default function BulkOrders() {
             <h1>Build by product family.</h1>
             <p>Choose the exact configuration and add complete bundles to one verified order.</p>
           </div>
-          <div className="bulk-hero-aside">
-            <span>Live catalog</span>
-            <div><strong>{catalog.length}</strong><small>bundle option{catalog.length === 1 ? "" : "s"}</small></div>
-            {accessMode === "private" && <button type="button" className="bulk-end-session" onClick={logout}><LogOut size={16} /> End session</button>}
-          </div>
+          {accessMode === "private" && <button type="button" className="bulk-end-session" onClick={logout}><LogOut size={16} /> End session</button>}
         </section>
 
         <div className="bulk-toolbar">
@@ -483,7 +479,6 @@ export default function BulkOrders() {
             <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search products or SKUs" />
             {query && <button type="button" onClick={() => setQuery("")} aria-label="Clear search"><X size={16} /></button>}
           </label>
-          <span>{groups.length} product {groups.length === 1 ? "family" : "families"}</span>
         </div>
 
         {categories.length > 1 && (
