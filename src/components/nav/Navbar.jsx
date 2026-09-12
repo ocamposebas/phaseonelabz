@@ -1,6 +1,6 @@
 import "./navbar.css";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Menu, Search, ShoppingCart, User, X, LogOut } from "lucide-react";
+import { ArrowRight, Menu, Search, ShoppingCart, User, X, LogOut } from "lucide-react";
 import { useCart } from "../cart/CartContext";
 import { FREE_SHIPPING_MINIMUM } from "../data/storeConfig";
 import { requestClientLogout } from "../../lib/authClient";
@@ -830,23 +830,23 @@ export default function SiteHeader({
                 <img src={logoSrc} alt={logoAlt} />
               </a>
 
-              {showCart && <button
+              <button
                 type="button"
                 onClick={() => setMobileOpen(false)}
                 aria-label="Close menu"
                 className="sh-mobile-close"
               >
                 <X size={24} />
-              </button>}
+              </button>
             </div>
 
             <div className="sh-mobile-label">
               <span />
-              Menu
+              Explore
             </div>
 
             <div className="sh-mobile-links">
-              {navItems.map((item, index) => {
+              {navItems.map((item) => {
                 const isActive =
                   currentPath === item.href ||
                   (item.href !== "/" &&
@@ -856,13 +856,12 @@ export default function SiteHeader({
                   <a
                     href={item.href}
                     key={item.label}
-                    className={isActive ? "is-active" : ""}
+                    className={`sh-mobile-nav-link${isActive ? " is-active" : ""}`}
                     aria-current={isActive ? "page" : undefined}
                     onClick={() => setMobileOpen(false)}
-                    style={{ "--delay": `${index * 45}ms` }}
                   >
-                    <span>{String(index + 1).padStart(2, "0")}</span>
-                    {item.label}
+                    <span>{item.label}</span>
+                    <ArrowRight size={16} aria-hidden="true" />
                   </a>
                 );
               })}
@@ -871,19 +870,20 @@ export default function SiteHeader({
                 <>
                   <a
                     href="/account"
+                    className="sh-mobile-account-start"
                     onClick={() => setMobileOpen(false)}
-                    style={{ "--delay": "210ms" }}
                   >
-                    <span>05</span>
+                    <User size={16} aria-hidden="true" />
                     View profile
+                    <ArrowRight className="sh-mobile-account-arrow" size={16} aria-hidden="true" />
                   </a>
 
                   <button
                     type="button"
+                    className="sh-mobile-account-secondary"
                     onClick={handleLogout}
-                    style={{ "--delay": "255ms" }}
                   >
-                    <span>06</span>
+                    <LogOut size={16} aria-hidden="true" />
                     Log out
                   </button>
                 </>
@@ -891,26 +891,28 @@ export default function SiteHeader({
                 <>
                   <a
                     href="/account"
+                    className="sh-mobile-account-start"
                     onClick={() => setMobileOpen(false)}
-                    style={{ "--delay": "210ms" }}
                   >
-                    <span>05</span>
+                    <User size={16} aria-hidden="true" />
                     Login
                   </a>
 
                   <a
                     href="/register"
+                    className="sh-mobile-account-secondary"
                     onClick={() => setMobileOpen(false)}
-                    style={{ "--delay": "255ms" }}
                   >
-                    <span>06</span>
                     Sign up
+                    <ArrowRight className="sh-mobile-account-arrow" size={16} aria-hidden="true" />
                   </a>
                 </>
               )}
             </div>
 
             <div className="sh-mobile-search">
+              <div className="sh-mobile-search-label">Search catalog</div>
+
               <div className="sh-mobile-search-box">
                 <Search size={16} />
 
@@ -978,8 +980,8 @@ export default function SiteHeader({
 
             <div className="sh-mobile-bottom">
               <a href="/shop" onClick={() => setMobileOpen(false)}>
-                <Search size={21} />
-                Search
+                Catalog
+                <ArrowRight size={18} />
               </a>
 
               <button

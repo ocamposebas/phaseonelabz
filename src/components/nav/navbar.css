@@ -1594,3 +1594,196 @@
           backdrop-filter: none;
           -webkit-backdrop-filter: none;
         }
+
+        /* Mobile menu: grouped navigation with comfortable touch targets. */
+        @media (max-width: 1024px) {
+          .sh-mobile-panel {
+            width: min(92vw, 430px);
+            padding: max(20px, env(safe-area-inset-top)) 24px
+              max(18px, env(safe-area-inset-bottom));
+            border-right-color: rgba(165, 243, 252, 0.12);
+            background: #040b17;
+          }
+
+          .sh-mobile-top {
+            order: 1;
+            min-height: 54px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid rgba(165, 243, 252, 0.1);
+          }
+
+          .sh-mobile-top img {
+            max-width: 138px;
+            max-height: 44px;
+          }
+
+          .sh-mobile-close {
+            width: 42px;
+            height: 42px;
+            border-radius: 12px;
+            background: transparent;
+          }
+
+          .sh-mobile-search {
+            order: 2;
+            margin-top: 22px;
+          }
+
+          .sh-mobile-search-label {
+            margin-bottom: 9px;
+            color: rgba(165, 243, 252, 0.58);
+            font-size: 9px;
+            font-weight: 900;
+            letter-spacing: 0.22em;
+            text-transform: uppercase;
+          }
+
+          .sh-mobile-search-box {
+            min-height: 52px;
+            border-radius: 13px;
+            background: rgba(255, 255, 255, 0.025);
+          }
+
+          .sh-mobile-label {
+            order: 3;
+            margin-top: 27px;
+            font-size: 9px;
+            letter-spacing: 0.22em;
+          }
+
+          .sh-mobile-label span {
+            width: 22px;
+          }
+
+          .sh-mobile-links {
+            order: 4;
+            gap: 0;
+            margin-top: 10px;
+            border-top: 1px solid rgba(165, 243, 252, 0.1);
+          }
+
+          .sh-mobile-links a,
+          .sh-mobile-links button {
+            min-height: 56px;
+            justify-content: flex-start;
+            gap: 12px;
+            border: 0;
+            border-bottom: 1px solid rgba(165, 243, 252, 0.1);
+            border-radius: 0;
+            background: transparent;
+            padding: 0 4px;
+            color: rgba(241, 245, 249, 0.86);
+            font-size: 14px;
+            font-weight: 700;
+            letter-spacing: 0.01em;
+            text-transform: none;
+            opacity: 1;
+            transform: none;
+            animation: none;
+          }
+
+          .sh-mobile-links a:hover,
+          .sh-mobile-links button:hover {
+            border-color: rgba(165, 243, 252, 0.2);
+            background: rgba(103, 232, 249, 0.035);
+            transform: none;
+          }
+
+          .sh-mobile-links .sh-mobile-nav-link span {
+            flex: 1;
+            color: inherit;
+            font-size: 15px;
+            font-weight: 700;
+            letter-spacing: -0.01em;
+          }
+
+          .sh-mobile-nav-link > svg {
+            flex: 0 0 auto;
+            color: rgba(165, 243, 252, 0.42);
+          }
+
+          .sh-mobile-links a.is-active {
+            border-color: rgba(165, 243, 252, 0.14);
+            background: linear-gradient(90deg, rgba(103, 232, 249, 0.09), transparent 74%);
+            color: #ecfeff;
+          }
+
+          .sh-mobile-links a.is-active::before {
+            content: "";
+            width: 3px;
+            height: 20px;
+            border-radius: 999px;
+            background: #67e8f9;
+            box-shadow: 0 0 14px rgba(103, 232, 249, 0.4);
+          }
+
+          .sh-mobile-account-start {
+            position: relative;
+            margin-top: 42px;
+            border-top: 1px solid rgba(165, 243, 252, 0.1) !important;
+          }
+
+          .sh-mobile-account-start::before {
+            content: "Account";
+            position: absolute;
+            top: -28px;
+            left: 0;
+            color: rgba(165, 243, 252, 0.58);
+            font-size: 9px;
+            font-weight: 900;
+            letter-spacing: 0.22em;
+            text-transform: uppercase;
+          }
+
+          .sh-mobile-account-start > svg,
+          .sh-mobile-account-secondary > svg {
+            color: rgba(165, 243, 252, 0.62);
+          }
+
+          .sh-mobile-links .sh-mobile-account-arrow {
+            margin-left: auto;
+          }
+
+          .sh-mobile-account-secondary {
+            color: rgba(203, 213, 225, 0.68) !important;
+          }
+
+          .sh-mobile-note {
+            display: none;
+          }
+
+          .sh-mobile-bottom {
+            order: 6;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: auto;
+            padding-top: 22px;
+          }
+
+          .sh-mobile-bottom a,
+          .sh-mobile-bottom button {
+            min-height: 50px;
+            border-radius: 12px;
+            font-size: 10px;
+            letter-spacing: 0.12em;
+          }
+
+          .sh-mobile-bottom a {
+            background: transparent;
+          }
+
+          .sh-mobile-bottom button {
+            border-color: #67e8f9;
+            background: #67e8f9;
+            color: #04111d;
+          }
+        }
+
+        @media (max-width: 440px) {
+          .sh-mobile-panel {
+            width: 100%;
+            max-width: none;
+            padding-right: 20px;
+            padding-left: 20px;
+          }
+        }
