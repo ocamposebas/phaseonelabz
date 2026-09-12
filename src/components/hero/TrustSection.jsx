@@ -67,7 +67,7 @@ export default function TrustSection() {
   return (
     <section className="relative py-10 text-white sm:py-14 lg:py-16 xl:py-20">
       <div className="mx-auto max-w-7xl px-5 sm:px-6 lg:px-8">
-        <div className="trust-shell relative overflow-hidden border-cyan-200/10 bg-transparent lg:rounded-[2rem] lg:border lg:bg-white/[0.018]">
+        <div className="trust-shell relative overflow-hidden border-y border-cyan-200/10 bg-transparent">
           <div
             aria-hidden="true"
             className="trust-glow trust-glow-main hidden lg:block"
@@ -108,7 +108,7 @@ export default function TrustSection() {
                   visibility, and responsible scientific presentation.
                 </p>
 
-                <div className="mx-auto mt-5 max-w-[370px] rounded-2xl border border-cyan-200/10 bg-[#020617]/45 p-4 text-left lg:mx-0 lg:mt-8 lg:max-w-none">
+                <div className="trust-disclaimer mx-auto mt-5 max-w-[370px] rounded-2xl border border-cyan-200/10 bg-[#020617]/45 p-4 text-left lg:mx-0 lg:mt-8 lg:max-w-none">
                   <div className="flex gap-3">
                     <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-cyan-200/10 bg-cyan-300/[0.06] text-cyan-200 lg:h-auto lg:w-auto lg:border-0 lg:bg-transparent">
                       <ShieldCheck size={18} aria-hidden="true" />

@@ -3,6 +3,11 @@
           isolation: isolate;
         }
 
+        .category-grid {
+          gap: 0;
+          border-top: 1px solid rgba(165, 243, 252, 0.1);
+        }
+
         .category-bg {
           pointer-events: none;
           position: absolute;
@@ -16,11 +21,12 @@
         .category-card {
           position: relative;
           overflow: hidden;
-          border-radius: 1.35rem;
-          border: 1px solid rgba(165, 243, 252, 0.1);
-          background: rgba(7, 20, 33, 0.72);
-          padding: 1rem;
-          box-shadow: 0 14px 38px rgba(0, 0, 0, 0.14);
+          border: 0;
+          border-bottom: 1px solid rgba(165, 243, 252, 0.1);
+          border-radius: 0;
+          background: transparent;
+          padding: 1.25rem 1rem;
+          box-shadow: none;
           transition:
             transform 200ms ease,
             border-color 200ms ease,
@@ -39,6 +45,7 @@
             rgba(103, 232, 249, 0.1),
             transparent 44%
           );
+          display: none;
           opacity: 0.72;
           transition: opacity 200ms ease;
         }
@@ -57,14 +64,14 @@
             rgba(103, 232, 249, 0.08),
             transparent 68%
           );
+          display: none;
           opacity: 0.85;
           transition: opacity 200ms ease;
         }
 
         .category-card:hover {
-          transform: translate3d(0, -4px, 0);
-          border-color: rgba(165, 243, 252, 0.24);
-          background: rgba(10, 27, 43, 0.82);
+          transform: none;
+          background: rgba(103, 232, 249, 0.025);
         }
 
         .category-card:hover::before,
@@ -77,9 +84,9 @@
           height: 44px;
           width: 44px;
           place-items: center;
-          border-radius: 1rem;
-          border: 1px solid rgba(165, 243, 252, 0.1);
-          background: rgba(103, 232, 249, 0.055);
+          border: 0;
+          border-radius: 0;
+          background: transparent;
           color: rgb(165, 243, 252);
           transition:
             background 200ms ease,
@@ -87,8 +94,7 @@
         }
 
         .category-card:hover .category-icon {
-          border-color: rgba(165, 243, 252, 0.24);
-          background: rgba(103, 232, 249, 0.1);
+          background: transparent;
         }
 
         .category-arrow {
@@ -96,9 +102,9 @@
           height: 36px;
           width: 36px;
           place-items: center;
-          border-radius: 999px;
-          border: 1px solid rgba(165, 243, 252, 0.1);
-          background: rgba(255, 255, 255, 0.03);
+          border: 0;
+          border-radius: 0;
+          background: transparent;
           color: rgba(207, 250, 254, 0.55);
           transition:
             background 200ms ease,
@@ -109,9 +115,12 @@
 
         .category-card:hover .category-arrow {
           transform: translate3d(1px, -1px, 0);
-          border-color: rgba(165, 243, 252, 0.24);
-          background: rgba(103, 232, 249, 0.09);
+          background: transparent;
           color: rgb(207, 250, 254);
+        }
+
+        .category-card:nth-child(odd) {
+          border-right: 1px solid rgba(165, 243, 252, 0.1);
         }
 
         .category-dot {
@@ -130,13 +139,33 @@
 
         @media (min-width: 640px) {
           .category-card {
-            border-radius: 1.55rem;
-            padding: 1.25rem;
+            border-radius: 0;
+            padding: 1.5rem;
           }
 
           .category-icon {
             height: 48px;
             width: 48px;
+          }
+        }
+
+        @media (min-width: 1024px) and (max-width: 1279px) {
+          .category-card:nth-child(odd) {
+            border-right: 0;
+          }
+
+          .category-card:not(:nth-child(3n)) {
+            border-right: 1px solid rgba(165, 243, 252, 0.1);
+          }
+        }
+
+        @media (min-width: 1280px) {
+          .category-card:nth-child(odd) {
+            border-right: 0;
+          }
+
+          .category-card:not(:nth-child(4n)) {
+            border-right: 1px solid rgba(165, 243, 252, 0.1);
           }
         }
 
@@ -147,10 +176,42 @@
               radial-gradient(circle at 100% 90%, rgba(59, 130, 246, 0.055), transparent 32%);
           }
 
+          .category-grid {
+            gap: 0;
+            border-top: 1px solid rgba(165, 243, 252, 0.1);
+          }
+
           .category-card {
             content-visibility: visible;
             contain-intrinsic-size: auto;
-            box-shadow: 0 10px 28px rgba(0, 0, 0, 0.12);
+            border: 0;
+            border-bottom: 1px solid rgba(165, 243, 252, 0.1);
+            border-radius: 0;
+            background: transparent;
+            padding: 18px 10px;
+            box-shadow: none;
+          }
+
+          .category-card:nth-child(odd) {
+            border-right: 1px solid rgba(165, 243, 252, 0.1);
+          }
+
+          .category-card::before,
+          .category-card::after,
+          .category-description,
+          .category-meta {
+            display: none;
+          }
+
+          .category-card > div > div:first-child {
+            margin-bottom: 14px;
+          }
+
+          .category-icon,
+          .category-arrow {
+            border: 0;
+            border-radius: 0;
+            background: transparent;
           }
 
           .category-card:hover {

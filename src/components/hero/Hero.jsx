@@ -136,14 +136,6 @@ export default function Hero({
 
       <div className="hero-inner relative z-20 mx-auto flex min-h-screen w-full max-w-7xl flex-col items-center justify-center px-5 pb-14 pt-[136px] text-center sm:px-6 lg:px-8 lg:pb-16 lg:pt-[144px]">
         <div className="hero-content w-full">
-          <div className="hero-eyebrow mb-5 inline-flex items-center justify-center gap-3 rounded-full border border-cyan-200/20 bg-slate-950/35 px-4 py-2">
-            <span className="h-px w-8 bg-cyan-300/70 sm:w-10" />
-            <span className="text-[9px] font-bold uppercase tracking-[0.28em] text-cyan-100 sm:text-[10px] sm:tracking-[0.34em]">
-              Research Use Only
-            </span>
-            <span className="h-px w-8 bg-cyan-300/70 sm:w-10" />
-          </div>
-
           <h1 className="hero-title mx-auto max-w-[1040px] text-center font-semibold text-white">
             <span className="hero-title-desktop">
               <span className="block">Research compounds,</span>

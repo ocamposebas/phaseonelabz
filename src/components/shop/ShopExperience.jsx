@@ -24,11 +24,12 @@ export default function ShopExperience({ products = [], promo = null }) {
       <main className="pt-0">
         <Hero videoSrc="/prueba.mp4" promo={promo} />
 
-        <Trust />
-
         <ShopByCategorySection />
 
         <ProductCatalog products={products} />
+
+        <Trust />
+
         <RewardsProgram />
 
         <New />

@@ -230,7 +230,7 @@ const ProductCard = memo(function ProductCard({ item }) {
         />
       </div>
 
-      <div className="px-0.5 pb-1 pt-3 sm:px-1 sm:pt-5">
+      <div className="featured-body px-0.5 pb-1 pt-3 sm:px-1 sm:pt-5">
         <div className="mb-2 flex items-center justify-between gap-2 sm:mb-3">
           <span className="text-[7.5px] font-black uppercase tracking-[0.12em] text-cyan-200/55 sm:text-[10px] sm:tracking-[0.18em]">
             Featured
@@ -241,11 +241,11 @@ const ProductCard = memo(function ProductCard({ item }) {
           </span>
         </div>
 
-        <h3 className="line-clamp-2 min-h-[38px] text-[15px] font-semibold leading-[1.08] tracking-[-0.04em] text-white transition-colors duration-200 group-hover:text-cyan-100 sm:min-h-0 sm:text-[22px] lg:text-[24px]">
+        <h3 className="featured-title line-clamp-2 min-h-[38px] text-[15px] font-semibold leading-[1.08] tracking-[-0.04em] text-white transition-colors duration-200 group-hover:text-cyan-100 sm:text-[22px] lg:text-[24px]">
           {item.name}
         </h3>
 
-        <div className="mt-3 flex items-end justify-between gap-2 border-t border-cyan-200/10 pt-3 sm:mt-4 sm:pt-4">
+        <div className="featured-price-row mt-3 flex items-end justify-between gap-2 border-t border-cyan-200/10 pt-3 sm:mt-4 sm:pt-4">
           <div>
             <p className="text-[7.5px] font-black uppercase tracking-[0.14em] text-slate-500 sm:text-[10px] sm:tracking-[0.18em]">
               Price

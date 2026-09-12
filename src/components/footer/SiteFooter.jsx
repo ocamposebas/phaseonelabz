@@ -81,7 +81,7 @@ export default function SiteFooter({
           </div>
 
           {/* Links */}
-          <div className="grid grid-cols-3 gap-3 rounded-[1.35rem] border border-white/10 bg-transparent p-4 sm:gap-6 sm:p-5 xl:border-0 xl:p-0">
+          <div className="grid grid-cols-3 gap-3 border-y border-white/10 py-5 sm:gap-6 md:border-y-0 md:py-0">
             {footerColumns.map((column) => (
               <div key={column.title} className="min-w-0">
                 <h3 className="mb-3 text-[8px] font-black uppercase tracking-[0.18em] text-cyan-200/55 sm:text-[10px] sm:tracking-[0.26em]">
@@ -105,7 +105,7 @@ export default function SiteFooter({
           </div>
 
           {/* Need help */}
-          <div className="rounded-[1.35rem] border border-cyan-200/10 bg-cyan-300/[0.025] p-4 sm:rounded-2xl sm:p-5 md:col-span-2 xl:col-span-1">
+          <div className="border-y border-cyan-200/10 py-5 md:col-span-2 xl:col-span-1 xl:border-y-0 xl:border-l xl:py-0 xl:pl-7">
             <div className="flex items-center justify-between gap-3">
               <p className="text-[8.5px] font-black uppercase tracking-[0.22em] text-cyan-200/60 sm:text-[10px] sm:tracking-[0.24em]">
                 Need Help?
@@ -164,7 +164,7 @@ export default function SiteFooter({
         </div>
 
         {/* Disclaimer */}
-        <div className="rounded-[1.25rem] border border-white/10 bg-transparent px-4 py-4 sm:rounded-2xl sm:px-5">
+        <div className="border-y border-white/10 py-5">
           <p className="text-[10.5px] leading-5 text-red-50/70 sm:text-xs sm:leading-6">
             <span className="font-black uppercase tracking-[0.1em] text-red-300">
               For laboratory and research use only.

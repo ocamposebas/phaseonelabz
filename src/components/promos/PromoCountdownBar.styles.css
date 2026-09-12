@@ -412,6 +412,195 @@
           }
         }
 
+        /* Product promotions keep clear hierarchy without competing with the hero. */
+        .promo-countdown-product {
+          width: min(calc(100% - 32px), 1240px);
+          border-color: rgba(103, 232, 249, 0.3);
+          border-radius: 17px;
+          background: linear-gradient(105deg, rgba(3, 14, 28, 0.96), rgba(5, 27, 48, 0.94), rgba(4, 19, 35, 0.96));
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.055), 0 16px 42px rgba(0, 0, 0, 0.28);
+        }
+
+        .promo-countdown-product::before,
+        .promo-countdown-product::after,
+        .promo-countdown-product .promo-product-variation,
+        .promo-countdown-product .promo-product-live {
+          display: none;
+        }
+
+        .promo-countdown-product .promo-countdown-glow {
+          display: block;
+          opacity: 0.58;
+        }
+
+        .promo-countdown-product .promo-countdown-content {
+          grid-template-columns: auto minmax(0, 1fr) auto auto;
+          min-height: 76px;
+          gap: 18px;
+          padding: 10px 13px 10px 16px;
+        }
+
+        .promo-countdown-product .promo-countdown-icon {
+          display: grid;
+          width: 44px;
+          height: 52px;
+        }
+
+        .promo-countdown-product .promo-countdown-copy {
+          min-width: 0;
+          overflow: hidden;
+        }
+
+        .promo-countdown-product .promo-countdown-copy p {
+          color: rgba(207, 250, 254, 0.66);
+          font-size: 8px;
+          letter-spacing: 0.2em;
+        }
+
+        .promo-countdown-product .promo-countdown-copy h2 {
+          margin-top: 3px;
+          overflow: hidden;
+          font-size: clamp(19px, 1.8vw, 25px);
+          line-height: 1;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .promo-countdown-product .promo-product-details,
+        .promo-countdown-product .promo-product-prices {
+          gap: 8px;
+        }
+
+        .promo-countdown-product .promo-product-details { margin-top: 5px; }
+        .promo-countdown-product .promo-product-prices del {
+          font-size: 11px;
+        }
+
+        .promo-countdown-product .promo-product-prices strong {
+          color: #a5f3fc;
+          font-size: 18px;
+          text-shadow: 0 0 16px rgba(34, 211, 238, 0.2);
+        }
+
+        .promo-countdown-product .promo-countdown-timer-wrap {
+          min-width: 194px;
+        }
+
+        .promo-countdown-product .promo-countdown-label {
+          margin-bottom: 4px;
+          font-size: 8px;
+          letter-spacing: 0.14em;
+        }
+
+        .promo-countdown-product .promo-countdown-timer {
+          gap: 5px;
+        }
+
+        .promo-countdown-product .promo-countdown-timer > b {
+          color: rgba(125, 211, 252, 0.5);
+          font-size: 15px;
+        }
+
+        .promo-countdown-product .promo-countdown-unit {
+          display: grid;
+          min-width: 50px;
+          border: 1px solid rgba(34, 211, 238, 0.19);
+          border-radius: 9px;
+          background: rgba(2, 6, 23, 0.4);
+          padding: 5px 5px 4px;
+        }
+
+        .promo-countdown-product .promo-countdown-unit strong {
+          font-size: 18px;
+        }
+
+        .promo-countdown-product .promo-countdown-unit span {
+          margin-top: 2px;
+          font-size: 6px;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+        }
+
+        .promo-countdown-product .promo-countdown-cta {
+          min-height: 38px;
+          padding-inline: 15px;
+          font-size: 9px;
+          letter-spacing: 0.1em;
+        }
+
+        @media (max-width: 900px) {
+          .promo-countdown-product .promo-countdown-content {
+            grid-template-columns: minmax(0, 1fr) auto;
+            padding-inline: 16px;
+          }
+
+          .promo-countdown-product .promo-countdown-icon,
+          .promo-countdown-product .promo-countdown-cta,
+          .promo-countdown-product .promo-product-variation,
+          .promo-countdown-product .promo-product-live {
+            display: none;
+          }
+        }
+
+        @media (max-width: 640px) {
+          .promo-countdown-product {
+            top: 88px;
+            width: calc(100% - 20px);
+            border-radius: 15px;
+            transform: translateX(-50%);
+          }
+
+          .promo-countdown-product .promo-countdown-content {
+            grid-template-columns: minmax(0, 1fr) auto;
+            min-height: 94px;
+            gap: 10px;
+            padding: 11px 12px;
+            text-align: left;
+          }
+
+          .promo-countdown-product .promo-countdown-copy {
+            display: block;
+          }
+
+          .promo-countdown-product .promo-countdown-copy h2 {
+            margin-top: 4px;
+            font-size: clamp(17px, 5vw, 20px);
+          }
+
+          .promo-countdown-product .promo-product-details { margin-top: 7px; }
+          .promo-countdown-product .promo-product-prices del { font-size: 10px; }
+
+          .promo-countdown-product .promo-product-prices strong {
+            font-size: 18px;
+          }
+
+          .promo-countdown-product .promo-countdown-timer-wrap { min-width: 152px; }
+          .promo-countdown-product .promo-countdown-label { justify-content: flex-end; }
+          .promo-countdown-product .promo-countdown-timer { gap: 3px; }
+          .promo-countdown-product .promo-countdown-timer > b { font-size: 13px; }
+          .promo-countdown-product .promo-countdown-unit { min-width: 42px; padding: 5px 3px 4px; }
+
+          .promo-countdown-product .promo-countdown-unit strong {
+            font-size: 17px;
+          }
+
+          .promo-countdown-product .promo-countdown-unit span {
+            font-size: 5.5px;
+          }
+
+          .promo-countdown-product ~ .hero-inner {
+            padding-top: calc(176px + env(safe-area-inset-top)) !important;
+          }
+        }
+
+        @media (max-width: 360px) {
+          .promo-countdown-product .promo-countdown-content { gap: 7px; padding-inline: 10px; }
+          .promo-countdown-product .promo-countdown-copy h2 { font-size: 16px; }
+          .promo-countdown-product .promo-product-prices strong { font-size: 16px; }
+          .promo-countdown-product .promo-countdown-timer-wrap { min-width: 139px; }
+          .promo-countdown-product .promo-countdown-unit { min-width: 38px; }
+        }
+
         @media (prefers-reduced-motion: reduce) {
           .promo-countdown-cta, a.promo-countdown-shell { transition: none; }
         }

@@ -5,12 +5,15 @@
 
         .featured-card {
           position: relative;
+          display: flex;
+          height: 100%;
+          flex-direction: column;
           cursor: pointer;
           overflow: hidden;
           border-radius: 1.35rem;
           border: 1px solid rgba(165, 243, 252, 0.1);
           background: rgba(255, 255, 255, 0.025);
-          padding: 0.625rem;
+          padding: 0;
           outline: none;
           transition:
             transform 200ms ease,
@@ -37,7 +40,7 @@
           align-items: center;
           justify-content: center;
           overflow: hidden;
-          border-radius: 1rem;
+          border-radius: 1.35rem 1.35rem 0 0;
           background:
             radial-gradient(circle at 50% 34%, rgba(103, 232, 249, 0.14), transparent 46%),
             linear-gradient(145deg, rgba(3, 12, 24, 0.98), rgba(8, 38, 56, 0.78), rgba(4, 14, 28, 0.96));
@@ -104,15 +107,34 @@
           filter: drop-shadow(0 22px 30px rgba(0, 0, 0, 0.42));
         }
 
+        .featured-body {
+          display: flex;
+          flex: 1;
+          flex-direction: column;
+          padding: 0.85rem 0.75rem 0.75rem;
+        }
+
+        .featured-title {
+          min-height: 2.16em;
+        }
+
+        .featured-price-row {
+          margin-top: auto;
+        }
+
         @media (min-width: 640px) {
           .featured-card {
             border-radius: 2rem;
-            padding: 1rem;
+            padding: 0;
           }
 
           .featured-visual {
             height: 260px;
-            border-radius: 1.5rem;
+            border-radius: 2rem 2rem 0 0;
+          }
+
+          .featured-body {
+            padding: 1rem 1rem 1rem;
           }
 
           .featured-rings {

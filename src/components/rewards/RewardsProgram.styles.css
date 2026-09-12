@@ -1,120 +1,267 @@
+.rewards-section {
+  isolation: isolate;
+}
 
-        .rewards-section {
-          isolation: isolate;
-        }
+.rewards-bg {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgba(4, 16, 30, 0.42), rgba(3, 11, 23, 0.18)),
+    radial-gradient(circle at 82% 30%, rgba(103, 232, 249, 0.07), transparent 34%);
+}
 
-        .rewards-bg {
-          pointer-events: none;
-          position: absolute;
-          inset: 0;
-          z-index: 0;
-          background:
-            radial-gradient(circle at 50% 12%, rgba(103, 232, 249, 0.07), transparent 30%),
-            radial-gradient(circle at 100% 92%, rgba(59, 130, 246, 0.075), transparent 32%);
-        }
+.rewards-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(360px, 0.95fr);
+  border-top: 1px solid rgba(165, 243, 252, 0.12);
+  border-bottom: 1px solid rgba(165, 243, 252, 0.12);
+}
 
-        .reward-main-card,
-        .reward-side-card,
-        .reward-timeline {
-          transform: translate3d(0, 0, 0);
-          contain: paint;
-        }
+.rewards-copy {
+  padding: 52px 64px 52px 0;
+}
 
-        .reward-main-card {
-          box-shadow: 0 18px 60px rgba(0, 0, 0, 0.2);
-        }
+.rewards-kicker {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: rgba(165, 243, 252, 0.66);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+}
 
-        .reward-card-bg {
-          pointer-events: none;
-          position: absolute;
-          inset: 0;
-          background:
-            radial-gradient(circle at 70% 20%, rgba(103, 232, 249, 0.13), transparent 34%),
-            radial-gradient(circle at 25% 85%, rgba(59, 130, 246, 0.11), transparent 34%);
-        }
+.rewards-kicker span {
+  width: 30px;
+  height: 1px;
+  background: rgba(103, 232, 249, 0.72);
+}
 
-        .reward-card-bg::after {
-          content: "";
-          position: absolute;
-          inset-inline: 2rem;
-          top: 0;
-          height: 1px;
-          background: linear-gradient(
-            90deg,
-            transparent,
-            rgba(165, 243, 252, 0.3),
-            transparent
-          );
-        }
+.rewards-copy h2 {
+  max-width: 650px;
+  margin: 20px 0 0;
+  color: #f8fafc;
+  font-size: clamp(40px, 4.2vw, 60px);
+  font-weight: 650;
+  line-height: 0.98;
+  letter-spacing: -0.065em;
+}
 
-        .reward-card-orb {
-          pointer-events: none;
-          position: absolute;
-          height: 220px;
-          width: 220px;
-          border-radius: 999px;
-          background: radial-gradient(
-            circle,
-            rgba(103, 232, 249, 0.1),
-            transparent 68%
-          );
-        }
+.rewards-copy h2 span {
+  color: rgba(165, 243, 252, 0.88);
+}
 
-        .rewards-float-card {
-          box-shadow: 0 22px 58px rgba(0, 0, 0, 0.28);
-        }
+.rewards-intro {
+  max-width: 560px;
+  margin: 22px 0 0;
+  color: rgba(203, 213, 225, 0.66);
+  font-size: 14px;
+  line-height: 1.9;
+}
 
-        .reward-side-card {
-          box-shadow: 0 16px 48px rgba(0, 0, 0, 0.14);
-        }
+.rewards-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  margin-top: 30px;
+}
 
-        .reward-side-glow {
-          pointer-events: none;
-          position: absolute;
-          right: -120px;
-          top: -120px;
-          height: 280px;
-          width: 280px;
-          border-radius: 999px;
-          background: radial-gradient(
-            circle,
-            rgba(103, 232, 249, 0.09),
-            transparent 68%
-          );
-        }
+.rewards-actions a {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  border-bottom: 1px solid rgba(165, 243, 252, 0.26);
+  color: rgba(240, 249, 255, 0.82);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.17em;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: border-color 180ms ease, color 180ms ease;
+}
 
-        .reward-step {
-          content-visibility: auto;
-          contain-intrinsic-size: 74px;
-        }
+.rewards-actions a.is-primary {
+  min-width: 174px;
+  border: 0;
+  border-radius: 12px;
+  background: #67e8f9;
+  padding: 0 20px;
+  color: #04111d;
+}
 
-        @media (max-width: 768px) {
-          .rewards-bg {
-            background:
-              radial-gradient(circle at 50% 10%, rgba(103, 232, 249, 0.045), transparent 32%),
-              radial-gradient(circle at 100% 92%, rgba(59, 130, 246, 0.055), transparent 34%);
-          }
+.rewards-actions a:hover {
+  border-color: rgba(165, 243, 252, 0.7);
+  color: #ffffff;
+}
 
-          .reward-main-card {
-            min-height: auto;
-            box-shadow: 0 12px 36px rgba(0, 0, 0, 0.16);
-          }
+.rewards-actions a.is-primary:hover {
+  background: #a5f3fc;
+  color: #04111d;
+}
 
-          .reward-side-card {
-            box-shadow: 0 12px 34px rgba(0, 0, 0, 0.12);
-          }
+.reward-note {
+  display: flex;
+  max-width: 570px;
+  gap: 10px;
+  margin-top: 30px;
+  padding-top: 17px;
+  border-top: 1px solid rgba(165, 243, 252, 0.09);
+  color: rgba(148, 163, 184, 0.7);
+}
 
-          .reward-step {
-            content-visibility: visible;
-            contain-intrinsic-size: auto;
-          }
-        }
+.reward-note svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  color: rgba(165, 243, 252, 0.8);
+}
 
-        @media (prefers-reduced-motion: reduce) {
-          .rewards-section *,
-          .rewards-section *::before,
-          .rewards-section *::after {
-            transition: none !important;
-            animation: none !important;
-          }
-        }
+.reward-note p {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+.rewards-flow {
+  border-left: 1px solid rgba(165, 243, 252, 0.12);
+  padding: 52px 0 52px 56px;
+}
+
+.rewards-flow > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+.rewards-flow > header p {
+  margin: 0;
+  color: rgba(165, 243, 252, 0.55);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+}
+
+.rewards-flow > header h3 {
+  margin: 5px 0 0;
+  color: #f8fafc;
+  font-size: 25px;
+  font-weight: 650;
+  letter-spacing: -0.04em;
+}
+
+.rewards-flow > header > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding-top: 4px;
+  color: rgba(165, 243, 252, 0.58);
+  font-size: 8px;
+  font-weight: 850;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.rewards-steps {
+  border-top: 1px solid rgba(165, 243, 252, 0.1);
+}
+
+.reward-step {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 16px;
+  padding: 20px 0;
+  border-bottom: 1px solid rgba(165, 243, 252, 0.1);
+}
+
+.reward-step-number {
+  color: rgba(103, 232, 249, 0.62);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.15em;
+}
+
+.reward-step h3 {
+  margin: 0;
+  color: #f8fafc;
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.reward-step p {
+  margin: 5px 0 0;
+  color: rgba(148, 163, 184, 0.78);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.rewards-eligibility {
+  margin: 17px 0 0;
+  color: rgba(100, 116, 139, 0.82);
+  font-size: 10px;
+  line-height: 1.65;
+}
+
+@media (max-width: 900px) {
+  .rewards-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .rewards-copy {
+    padding: 40px 0;
+  }
+
+  .rewards-flow {
+    border-top: 1px solid rgba(165, 243, 252, 0.12);
+    border-left: 0;
+    padding: 40px 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .rewards-copy {
+    padding: 34px 0;
+  }
+
+  .rewards-copy h2 {
+    font-size: 38px;
+  }
+
+  .rewards-flow {
+    padding: 32px 0 34px;
+  }
+
+  .rewards-flow > header > span {
+    display: none;
+  }
+
+  .rewards-actions {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .rewards-actions a {
+    width: 100%;
+  }
+
+  .reward-step {
+    grid-template-columns: 34px minmax(0, 1fr);
+    gap: 12px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rewards-section *,
+  .rewards-section *::before,
+  .rewards-section *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+}

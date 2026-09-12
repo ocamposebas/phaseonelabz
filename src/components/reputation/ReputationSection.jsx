@@ -71,6 +71,27 @@ function TrustpilotWidget({ config }) {
   );
 }
 
+function RatingStars({ rating, compact = false }) {
+  const value = Math.min(5, Math.max(0, Number(rating) || 0));
+
+  return (
+    <span
+      className={`reputation-stars${compact ? " is-compact" : ""}`}
+      role="img"
+      aria-label={`${value.toFixed(1)} out of 5 stars`}
+    >
+      <span className="reputation-stars__base" aria-hidden="true">★★★★★</span>
+      <span
+        className="reputation-stars__fill"
+        style={{ width: `${(value / 5) * 100}%` }}
+        aria-hidden="true"
+      >
+        ★★★★★
+      </span>
+    </span>
+  );
+}
+
 function SourceStanding({ source }) {
   if (source.rating !== null && source.reviewCount !== null) {
     return (
@@ -78,8 +99,11 @@ function SourceStanding({ source }) {
         className="reputation-dock__metrics"
         aria-label={`${source.rating} out of 5 from ${source.reviewCount} reviews`}
       >
-        <strong>{source.rating.toFixed(1)}</strong>
-        <span>/ 5</span>
+        <RatingStars rating={source.rating} />
+        <span className="reputation-dock__score">
+          <strong>{source.rating.toFixed(1)}</strong>
+          <span>/ 5</span>
+        </span>
         <small>{new Intl.NumberFormat("en-US").format(source.reviewCount)} reviews</small>
       </div>
     );
@@ -117,11 +141,11 @@ function ReputationSource({ source }) {
 
       <div className="reputation-dock__actions">
         <a href={source.publicUrl} target="_blank" rel="noopener noreferrer">
-          Read reviews <ArrowUpRight size={13} aria-hidden="true" />
+          Explore reviews <ArrowUpRight size={13} aria-hidden="true" />
         </a>
         {source.leaveReviewUrl && (
           <a className="is-secondary" href={source.leaveReviewUrl} target="_blank" rel="noopener noreferrer">
-            <PenLine size={12} aria-hidden="true" /> Leave a review
+            <PenLine size={12} aria-hidden="true" /> Share your experience
           </a>
         )}
       </div>
@@ -229,20 +253,29 @@ export default function ReputationSection() {
       <div id="phase-reputation-panel" className="reputation-dock__panel" aria-hidden={!open}>
         <header className="reputation-dock__header">
           <div>
-            <p>Customer confidence</p>
-            <h2>Independent reviews</h2>
+            <p>Real customer feedback</p>
+            <h2>Your experience matters.</h2>
           </div>
           <button type="button" onClick={() => setOpen(false)} aria-label="Close reviews panel">
             <X size={16} aria-hidden="true" />
           </button>
         </header>
 
+        <div className="reputation-dock__invitation">
+          <strong>Tell it exactly as it was.</strong>
+          <p>
+            Share what worked, what did not, and what we can improve. Every
+            honest rating is welcome.
+          </p>
+        </div>
+
         <div className="reputation-dock__sources">
           {open && sources.map((source) => <ReputationSource key={source.provider} source={source} />)}
         </div>
 
         <p className="reputation-dock__disclosure">
-          Scores remain attached to their original source and are never combined.
+          Invitations are never filtered by rating. Scores remain attached to
+          their original source.
         </p>
       </div>
 
@@ -261,11 +294,14 @@ export default function ReputationSection() {
         >
           <strong>{activeTabSource?.name || "Reviews"}</strong>
           {activeTabSource?.rating !== null && activeTabSource?.reviewCount !== null ? (
+            <span className="reputation-dock__tab-rating">
+              <RatingStars rating={activeTabSource.rating} compact />
             <small>
               <b>{activeTabSource.rating.toFixed(1)}</b> / 5 · {new Intl.NumberFormat("en-US").format(activeTabSource.reviewCount)} reviews
             </small>
+            </span>
           ) : (
-            <small>Independent reviews</small>
+            <small>Share your experience</small>
           )}
         </span>
         <ChevronLeft className="reputation-dock__chevron" size={14} aria-hidden="true" />

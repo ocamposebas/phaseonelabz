@@ -9,6 +9,14 @@
           contain: paint;
         }
 
+        .trust-disclaimer {
+          border: 0;
+          border-top: 1px solid rgba(165, 243, 252, 0.1);
+          border-radius: 0;
+          background: transparent;
+          padding: 20px 0 0;
+        }
+
         .trust-item {
           content-visibility: auto;
           contain-intrinsic-size: 150px;
@@ -41,9 +49,50 @@
         }
 
         @media (max-width: 768px) {
+          .trust-shell {
+            overflow: visible;
+          }
+
+          .trust-editorial {
+            border: 0;
+            border-bottom: 1px solid rgba(165, 243, 252, 0.12);
+            border-radius: 0;
+            background: transparent;
+            padding: 0 0 28px;
+          }
+
+          .trust-disclaimer {
+            border: 0;
+            border-top: 1px solid rgba(165, 243, 252, 0.1);
+            border-radius: 0;
+            background: transparent;
+            padding: 16px 0 0;
+          }
+
+          .trust-disclaimer > div > div {
+            border: 0;
+            border-radius: 0;
+            background: transparent;
+          }
+
+          .trust-shell > .relative {
+            gap: 0;
+          }
+
           .trust-item {
             content-visibility: visible;
             contain-intrinsic-size: auto;
+            border: 0;
+            border-bottom: 1px solid rgba(165, 243, 252, 0.1);
+            border-radius: 0;
+            background: transparent;
+            padding: 20px 0;
+          }
+
+          .trust-item > div > div:first-child {
+            border: 0;
+            border-radius: 0;
+            background: transparent;
           }
         }
 

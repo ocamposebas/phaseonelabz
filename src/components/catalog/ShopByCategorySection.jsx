@@ -223,14 +223,14 @@ const CategoryCard = memo(function CategoryCard({ category }) {
             {category.name}
           </h3>
 
-          <p className="mt-2 truncate text-[12px] font-medium text-slate-400 sm:text-[13px]">
+          <p className="category-description mt-2 truncate text-[12px] font-medium text-slate-400 sm:text-[13px]">
             {category.description}
           </p>
         </div>
 
         <div className="h-px w-full bg-gradient-to-r from-cyan-200/18 via-cyan-200/6 to-transparent" />
 
-        <div className="mt-4 flex items-center justify-between gap-3">
+        <div className="category-meta mt-4 flex items-center justify-between gap-3">
           <span className="text-[9px] font-black uppercase tracking-[0.18em] text-cyan-200/62">
             Explore
           </span>
@@ -259,28 +259,28 @@ export default function ShopByCategorySection({
       <div className="category-bg" aria-hidden="true" />
 
       <div className="relative mx-auto max-w-6xl">
-        <div className="mx-auto mb-9 flex max-w-4xl flex-col items-center text-center md:mx-0 md:items-start md:text-left lg:mb-10">
-          <div className="mb-4 inline-flex items-center justify-center gap-3 md:justify-start">
-            <span className="h-2 w-2 rounded-full bg-cyan-300 shadow-[0_0_16px_rgba(103,232,249,0.55)]" />
+        <div className="category-heading mb-8 grid gap-5 border-b border-cyan-200/10 pb-7 md:grid-cols-[minmax(0,0.9fr)_minmax(280px,0.55fr)] md:items-end md:gap-12 lg:mb-9">
+          <div>
+            <div className="mb-3 inline-flex items-center gap-3">
+              <span className="h-px w-7 bg-cyan-300/70" />
 
-            <span className="text-[9px] font-black uppercase tracking-[0.28em] text-cyan-200/65 sm:text-[10px] sm:tracking-[0.34em]">
-              {eyebrow}
-            </span>
+              <span className="text-[9px] font-black uppercase tracking-[0.28em] text-cyan-200/65 sm:text-[10px] sm:tracking-[0.32em]">
+                {eyebrow}
+              </span>
+            </div>
+
+            <h2 className="max-w-[520px] text-[34px] font-semibold leading-[0.98] tracking-[-0.065em] text-white sm:text-[42px] lg:text-[48px] lg:tracking-[-0.055em]">
+              {titleTop}{" "}
+              <span className="text-cyan-200/85">{titleBottom}</span>
+            </h2>
           </div>
 
-          <h2 className="mx-auto max-w-[420px] text-[40px] font-semibold leading-[0.92] tracking-[-0.075em] text-white sm:max-w-4xl sm:text-[48px] md:mx-0 lg:text-[60px] lg:leading-[1.02] lg:tracking-[-0.06em]">
-            {titleTop}
-            <span className="block bg-gradient-to-r from-cyan-100 via-cyan-200 to-white bg-clip-text text-transparent">
-              {titleBottom}
-            </span>
-          </h2>
-
-          <p className="mx-auto mt-5 max-w-xl text-[13.5px] leading-7 text-slate-300/65 sm:text-[14px] md:mx-0">
+          <p className="max-w-lg text-[13.5px] leading-7 text-slate-300/65 sm:text-[14px] md:justify-self-end">
             {subtitle}
           </p>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
+        <div className="category-grid grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
           {normalizedCategories.map((category) => (
             <CategoryCard key={category.slug || category.name} category={category} />
           ))}

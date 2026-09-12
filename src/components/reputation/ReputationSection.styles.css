@@ -38,9 +38,10 @@
 
 .reputation-dock__tab-summary {
   animation: reputation-source-enter 220ms ease both;
-  align-items: baseline;
+  align-items: center;
   display: flex;
-  gap: 0.4rem;
+  flex-direction: column;
+  gap: 0.22rem;
   left: 50%;
   position: absolute;
   text-align: center;
@@ -69,6 +70,13 @@
   color: #d7fff2;
   font-variant-numeric: tabular-nums;
   font-weight: 800;
+}
+
+.reputation-dock__tab-rating {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-width: 0;
 }
 
 .reputation-dock__chevron {
@@ -147,6 +155,27 @@
   width: 2rem;
 }
 
+.reputation-dock__invitation {
+  margin: 0 0 0.95rem;
+  border-left: 2px solid #00b67a;
+  padding: 0.1rem 0 0.1rem 0.8rem;
+}
+
+.reputation-dock__invitation strong {
+  display: block;
+  color: #effcff;
+  font-size: 0.78rem;
+  font-weight: 750;
+  letter-spacing: -0.01em;
+}
+
+.reputation-dock__invitation p {
+  margin: 0.3rem 0 0;
+  color: #8297ae;
+  font-size: 0.65rem;
+  line-height: 1.55;
+}
+
 .reputation-dock__sources {
   border-bottom: 1px solid rgba(148, 211, 255, 0.1);
   border-top: 1px solid rgba(148, 211, 255, 0.1);
@@ -198,9 +227,16 @@
 }
 
 .reputation-dock__metrics {
-  align-items: baseline;
+  align-items: center;
   display: flex;
+  gap: 0.55rem;
   margin: 0.1rem 0 0.8rem;
+}
+
+.reputation-dock__score {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.2rem;
 }
 
 .reputation-dock__metrics strong {
@@ -211,8 +247,38 @@
   line-height: 1;
 }
 
-.reputation-dock__metrics > span { color: #71849d; font-size: 0.68rem; margin-left: 0.25rem; }
+.reputation-dock__score > span { color: #71849d; font-size: 0.68rem; }
 .reputation-dock__metrics small { color: #9badc1; font-size: 0.68rem; margin-left: auto; }
+
+.reputation-stars {
+  position: relative;
+  display: inline-block;
+  flex: 0 0 auto;
+  overflow: hidden;
+  font-family: Arial, sans-serif;
+  font-size: 0.78rem;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
+.reputation-stars.is-compact {
+  font-size: 0.58rem;
+  letter-spacing: 0.04em;
+}
+
+.reputation-stars__base {
+  color: rgba(0, 182, 122, 0.22);
+}
+
+.reputation-stars__fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: hidden;
+  color: #00b67a;
+  white-space: nowrap;
+}
 
 .reputation-dock__trustbox {
   min-height: 3.25rem;
@@ -232,7 +298,7 @@
 .reputation-dock__actions {
   display: grid;
   gap: 0.45rem;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 0.9fr 1.1fr;
   margin-top: 0.7rem;
 }
 
@@ -293,32 +359,106 @@ html.phase-cart-open .phase-reputation-dock {
 }
 
 @media (max-width: 640px) {
-  .phase-reputation-dock { top: 58%; }
-
-  .reputation-dock__tab {
-    border-radius: 0.78rem 0 0 0.78rem;
-    height: 9.8rem;
-    padding: 0.7rem 0;
-    width: 2.7rem;
+  .phase-reputation-dock {
+    align-items: flex-end;
+    bottom: calc(12px + env(safe-area-inset-bottom));
+    flex-direction: column;
+    right: 12px;
+    top: auto;
+    transform: none;
   }
 
-  .phase-reputation-dock.is-open .reputation-dock__tab { width: 2.7rem; }
-  .reputation-dock__tab-summary { width: 7.25rem; }
-  .reputation-dock__tab-summary strong { font-size: 0.67rem; }
-  .reputation-dock__tab-summary small { font-size: 0.515rem; }
+  .reputation-dock__tab,
+  .phase-reputation-dock.is-open .reputation-dock__tab {
+    border: 1px solid rgba(148, 211, 255, 0.22);
+    border-radius: 999px;
+    box-shadow: 0 12px 30px rgba(0, 4, 12, 0.34);
+    flex-direction: row;
+    gap: 9px;
+    height: 46px;
+    justify-content: flex-start;
+    padding: 0 13px;
+    width: min(190px, calc(100vw - 24px));
+  }
+
+  .reputation-dock__tab-summary {
+    align-items: flex-start;
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 1px;
+    left: auto;
+    min-width: 0;
+    position: static;
+    text-align: left;
+    top: auto;
+    transform: none;
+    width: auto;
+  }
+
+  .reputation-dock__tab-summary strong {
+    font-size: 0.72rem;
+    line-height: 1.1;
+  }
+
+  .reputation-dock__tab-summary small {
+    max-width: 130px;
+    overflow: hidden;
+    font-size: 0.58rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .reputation-dock__tab-rating {
+    max-width: 128px;
+  }
+
+  .phase-reputation-dock.is-open .reputation-dock__tab-summary {
+    display: flex;
+  }
+
+  .reputation-dock__chevron {
+    flex: 0 0 auto;
+    transform: rotate(-90deg);
+  }
+
+  .phase-reputation-dock.is-open .reputation-dock__chevron {
+    transform: rotate(90deg);
+  }
 
   .reputation-dock__panel {
-    border-radius: 0.9rem;
-    margin-right: 0.4rem;
-    max-height: min(30rem, 72dvh);
+    bottom: calc(100% + 9px);
+    margin: 0;
+    max-height: min(31rem, calc(100dvh - 90px));
     overflow-y: auto;
-    padding: 0.9rem;
-    overscroll-behavior: contain;
-    width: calc(100vw - 3.65rem);
+    padding: 1.1rem;
+    position: absolute;
+    right: 0;
+    transform: translateY(0.65rem);
+    width: min(22rem, calc(100vw - 24px));
   }
 
-  .reputation-dock__actions { grid-template-columns: 1fr; }
-  .reputation-dock__actions a { min-height: 2.45rem; }
+  .phase-reputation-dock.is-open .reputation-dock__panel {
+    transform: translateY(0);
+  }
+
+  .reputation-dock__header {
+    padding-bottom: 1rem;
+  }
+
+  .reputation-dock__source {
+    padding: 1rem 0;
+  }
+
+  .reputation-dock__actions a {
+    min-height: 2.6rem;
+  }
+}
+
+@media (max-width: 370px) {
+  .reputation-dock__actions {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
