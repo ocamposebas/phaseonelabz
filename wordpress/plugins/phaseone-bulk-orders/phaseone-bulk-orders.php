@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Phase One Labz - Bulk Orders
  * Description: Private, server-authoritative bulk ordering for the Phase One Astro storefront and WooCommerce.
- * Version: 1.2.1
+ * Version: 2.0.3
  * Author: Phase One Labz
  * Requires at least: 6.2
  * Requires PHP: 8.1
@@ -12,13 +12,14 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'PHASEONE_BULK_VERSION', '1.2.1' );
+define( 'PHASEONE_BULK_VERSION', '2.0.3' );
 define( 'PHASEONE_BULK_FILE', __FILE__ );
 define( 'PHASEONE_BULK_DIR', plugin_dir_path( __FILE__ ) );
 define( 'PHASEONE_BULK_URL', plugin_dir_url( __FILE__ ) );
 
 require_once PHASEONE_BULK_DIR . 'includes/class-phaseone-bulk-installer.php';
 require_once PHASEONE_BULK_DIR . 'includes/class-phaseone-bulk-access.php';
+require_once PHASEONE_BULK_DIR . 'includes/class-phaseone-bulk-access-requests.php';
 require_once PHASEONE_BULK_DIR . 'includes/class-phaseone-bulk-product-rules.php';
 require_once PHASEONE_BULK_DIR . 'includes/class-phaseone-bulk-pricing-engine.php';
 require_once PHASEONE_BULK_DIR . 'includes/class-phaseone-bulk-intents.php';
@@ -54,10 +55,16 @@ add_action(
 			return;
 		}
 
+		PhaseOne_Bulk_Installer::maybe_upgrade();
 		PhaseOne_Bulk_REST::boot();
 		PhaseOne_Bulk_Order_Integration::boot();
 		PhaseOne_Bulk_Admin::boot();
 		add_action( 'phaseone_bulk_cleanup', array( 'PhaseOne_Bulk_Installer', 'cleanup' ) );
+		add_action( 'woocommerce_new_product', array( 'PhaseOne_Bulk_Product_Rules', 'invalidate_cache' ) );
+		add_action( 'woocommerce_update_product', array( 'PhaseOne_Bulk_Product_Rules', 'invalidate_cache' ) );
+		add_action( 'woocommerce_update_product_variation', array( 'PhaseOne_Bulk_Product_Rules', 'invalidate_cache' ) );
+		add_action( 'woocommerce_product_set_stock', array( 'PhaseOne_Bulk_Product_Rules', 'invalidate_cache' ) );
+		add_action( 'woocommerce_variation_set_stock', array( 'PhaseOne_Bulk_Product_Rules', 'invalidate_cache' ) );
 	},
 	20
 );

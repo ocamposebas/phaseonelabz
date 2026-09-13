@@ -38,6 +38,10 @@ final class PhaseOne_Bulk_Order_Integration {
 						'_phaseone_bulk_tier',
 						'_phaseone_bulk_min_qty',
 						'_phaseone_bulk_rule_revision',
+						'_phaseone_bulk_kit_units',
+						'_phaseone_bulk_retail_unit_price',
+						'_phaseone_bulk_savings_percent',
+						'_phaseone_bulk_pricing_source',
 					)
 				)
 			)

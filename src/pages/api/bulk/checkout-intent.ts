@@ -20,10 +20,17 @@ export const POST: APIRoute = async ({ request }) => {
     const result = await wordpressBulkRequest("phaseone/v1/bulk/checkout-intent", request, {
       method: "POST",
       session: true,
+      auth: true,
       body: { items: body.items },
     });
     const token = String(result.data.token || "");
-    if (result.status >= 400 || !token) return jsonResponse(publicBulkData(result.data), result.status);
+    if (result.status >= 400 || !token) {
+      return jsonResponse(
+        publicBulkData(result.data),
+        result.status,
+        result.status === 401 || result.status === 403 ? clearBulkCookies(request) : [],
+      );
+    }
     return jsonResponse(publicBulkData(result.data), result.status, [
       bulkCookie(request, BULK_INTENT_COOKIE, token, Number(result.data.max_age || 1)),
     ]);
@@ -38,10 +45,11 @@ export const GET: APIRoute = async ({ request }) => {
     const result = await wordpressBulkRequest("phaseone/v1/bulk/checkout-intent", request, {
       session: true,
       intent: true,
+      auth: true,
     });
     const data = publicBulkData(result.data);
     delete data.customer_id;
-    return jsonResponse(data, result.status, result.status === 401 ? clearBulkCookies(request) : []);
+    return jsonResponse(data, result.status, result.status === 401 || result.status === 403 ? clearBulkCookies(request) : []);
   } catch (error) {
     console.error("Bulk checkout intent lookup failed", error);
     return jsonResponse({ success: false, error: "Bulk checkout could not be loaded." }, 502);

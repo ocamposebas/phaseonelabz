@@ -3,36 +3,42 @@
 declare(strict_types=1);
 
 define( 'ABSPATH', __DIR__ . '/' );
-define( 'MINUTE_IN_SECONDS', 60 );
 
-$phaseone_bulk_test_settings = array();
+$phaseone_bulk_test_user_meta = array();
+$phaseone_bulk_completed_orders = 0;
 
-function get_option( string $key, mixed $default = false ): mixed {
-	global $phaseone_bulk_test_settings;
-	return 'phaseone_bulk_settings' === $key ? $phaseone_bulk_test_settings : $default;
+function sanitize_key( string $value ): string { return preg_replace( '/[^a-z0-9_\-]/', '', strtolower( $value ) ) ?: ''; }
+function sanitize_textarea_field( string $value ): string { return trim( strip_tags( $value ) ); }
+function get_user_meta( int $customer_id, string $key, bool $single = true ): mixed {
+	global $phaseone_bulk_test_user_meta;
+	return $phaseone_bulk_test_user_meta[ $customer_id ][ $key ] ?? '';
+}
+function update_user_meta( int $customer_id, string $key, mixed $value ): bool {
+	global $phaseone_bulk_test_user_meta;
+	$phaseone_bulk_test_user_meta[ $customer_id ][ $key ] = $value;
+	return true;
+}
+function delete_user_meta( int $customer_id, string $key ): bool {
+	global $phaseone_bulk_test_user_meta;
+	unset( $phaseone_bulk_test_user_meta[ $customer_id ][ $key ] );
+	return true;
+}
+function get_userdata( int $customer_id ): object|false {
+	return 7 === $customer_id ? (object) array( 'ID' => 7, 'display_name' => 'Bulk Customer', 'user_email' => 'bulk@example.com' ) : false;
+}
+function wc_get_orders(): object {
+	global $phaseone_bulk_completed_orders;
+	return (object) array( 'total' => $phaseone_bulk_completed_orders );
+}
+function get_current_user_id(): int { return 99; }
+
+final class WP_Error {
+	public function __construct( public string $code = '', public string $message = '', public mixed $data = null ) {}
+	public function get_error_code(): string { return $this->code; }
 }
 
-function sanitize_key( string $value ): string {
-	return preg_replace( '/[^a-z0-9_\-]/', '', strtolower( $value ) ) ?: '';
-}
+function is_wp_error( mixed $value ): bool { return $value instanceof WP_Error; }
 
-function absint( mixed $value ): int {
-	return abs( (int) $value );
-}
-
-class WP_Error {
-	public function __construct(
-		public string $code = '',
-		public string $message = '',
-		public mixed $data = null
-	) {}
-}
-
-function is_wp_error( mixed $value ): bool {
-	return $value instanceof WP_Error;
-}
-
-require_once dirname( __DIR__, 2 ) . '/wordpress/plugins/phaseone-bulk-orders/includes/class-phaseone-bulk-installer.php';
 require_once dirname( __DIR__, 2 ) . '/wordpress/plugins/phaseone-bulk-orders/includes/class-phaseone-bulk-access.php';
 
 function assert_bulk_access( bool $condition, string $message ): void {
@@ -42,16 +48,15 @@ function assert_bulk_access( bool $condition, string $message ): void {
 	}
 }
 
-$phaseone_bulk_test_settings = array( 'access_mode' => 'private' );
-$private = PhaseOne_Bulk_Access::context( '' );
-assert_bulk_access( is_wp_error( $private ), 'Private mode must reject a missing customer session.' );
-assert_bulk_access( 401 === (int) $private->data['status'], 'Private rejection must use HTTP 401.' );
+assert_bulk_access( 'private' === PhaseOne_Bulk_Access::mode() && ! PhaseOne_Bulk_Access::is_public(), 'private catalog data must never be public' );
+$missing = PhaseOne_Bulk_Access::context( '' );
+assert_bulk_access( is_wp_error( $missing ) && 401 === (int) $missing->data['status'], 'a missing session must be rejected' );
 
-$phaseone_bulk_test_settings = array( 'access_mode' => 'public', 'intent_minutes' => 30 );
-$public = PhaseOne_Bulk_Access::context( '' );
-assert_bulk_access( is_array( $public ), 'Public mode must create an anonymous authorization context.' );
-assert_bulk_access( 'public' === $public['access_mode'], 'Public context must be explicitly marked.' );
-assert_bulk_access( 0 === $public['id'] && 0 === $public['access_id'], 'Public context must not impersonate an Access Code session.' );
-assert_bulk_access( strtotime( $public['expires_at'] . ' UTC' ) > time(), 'Public context must have a bounded intent lifetime.' );
+$ineligible = PhaseOne_Bulk_Access::grant_special_tier( 7 );
+assert_bulk_access( is_wp_error( $ineligible ) && 'phaseone_bulk_customer_ineligible' === $ineligible->get_error_code(), 'an order alone makes the customer eligible; it must not auto-grant access' );
 
-echo "Bulk access mode smoke tests passed.\n";
+$phaseone_bulk_completed_orders = 1;
+$granted = PhaseOne_Bulk_Access::grant_special_tier( 7, 'Reviewed manually' );
+assert_bulk_access( true === $granted && PhaseOne_Bulk_Access::has_special_tier( 7 ), 'an eligible customer can be manually granted Special Tier' );
+
+echo "Bulk access policy smoke tests passed.\n";

@@ -5,6 +5,7 @@ import {
   Boxes,
   Check,
   ChevronDown,
+  Clock3,
   LockKeyhole,
   LogOut,
   PackageCheck,
@@ -12,11 +13,57 @@ import {
   ShieldCheck,
   ShoppingBag,
   Trash2,
+  UserCheck,
   X,
 } from "lucide-react";
 import "./bulk-orders.css";
 
 const STORAGE_KEY = "phaseone_bulk_cart_v1";
+
+// Mirrors the storefront's default "Most popular" product-family order.
+const CATALOG_FAMILY_ORDER = [
+  { rank: 1, groups: [["pl", "rt"], ["pl rt"], ["r3ta"], ["rt3"], ["reta"], ["retatrutide"]] },
+  { rank: 2, groups: [["pl", "tirz"], ["pl tirz"], ["tirz"], ["pl tz"], ["tz2"], ["tirzepatide"]] },
+  { rank: 3, groups: [["h recon water"]] },
+  { rank: 4, groups: [["eloralintide"]] },
+  { rank: 5, groups: [["mitoprime"]] },
+  { rank: 5, groups: [["recon", "water", "30ml"], ["recon", "water"], ["reconstitution", "water", "30ml"], ["reconstitution", "water"], ["p1", "water"], ["phase one", "water"], ["p1", "bacteriostatic"]], exclude: ["hospira", "3ml"] },
+  { rank: 6, groups: [["adamax"]] },
+  { rank: 7, groups: [["bundle"], ["kit"], ["stack"]] },
+  { rank: 10, groups: [["glow"]] },
+  { rank: 11, groups: [["klow"]] },
+  { rank: 12, groups: [["ghk cu"], ["ghk-cu"], ["ghk"]], exclude: ["glow", "klow"] },
+  { rank: 13, groups: [["tesa"], ["tesamorelin"]] },
+  { rank: 14, groups: [["cartalax", "bpc", "tb500"]] },
+];
+
+function normalizeCatalogOrderText(value = "") {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/&amp;/g, "and")
+    .replace(/\+/g, " plus ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function includesCatalogOrderTerm(searchable, term) {
+  const cleanTerm = normalizeCatalogOrderText(term);
+  return cleanTerm ? ` ${searchable} `.includes(` ${cleanTerm} `) : false;
+}
+
+function catalogFamilySortData(name, items) {
+  const searchable = normalizeCatalogOrderText([
+    name,
+    ...items.flatMap((item) => [item?.name, item?.sku, ...(item?.categories || [])]),
+  ].filter(Boolean).join(" "));
+  const matched = CATALOG_FAMILY_ORDER.find((rule) =>
+    !rule.exclude?.some((term) => includesCatalogOrderTerm(searchable, term))
+      && rule.groups.some((group) => group.every((term) => includesCatalogOrderTerm(searchable, term))),
+  );
+  const strength = searchable.match(/(?:^|\s)(\d+(?:\.\d+)?)\s*mg(?:\s|$)/i);
+  return { rank: matched?.rank || 9999, strength: strength ? Number(strength[1]) : 9999 };
+}
 
 function money(value, currency = "USD") {
   return new Intl.NumberFormat("en-US", {
@@ -24,6 +71,10 @@ function money(value, currency = "USD") {
     currency,
     minimumFractionDigits: 2,
   }).format(Number(value || 0));
+}
+
+function percentage(value) {
+  return new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(Number(value || 0));
 }
 
 function errorMessage(data, fallback) {
@@ -70,142 +121,164 @@ function productLabel(item) {
   return item?.name === item?.parent_name ? "Standard" : item?.name || "Standard";
 }
 
-function isBundle(item) {
-  return item?.pricing_mode !== "tiered";
+function kitSize(item) {
+  return Math.max(1, Number(item?.kit_units || 1));
 }
 
-function bundleSize(item) {
-  return Math.max(1, Number(item?.minimum || 1));
+function minimumKits(item) {
+  return Math.max(1, Number(item?.minimum_kits || Math.ceil(Number(item?.minimum || 1) / kitSize(item))));
 }
 
-function bundleCount(item, quantity) {
-  return Math.max(1, Math.round(Number(quantity || bundleSize(item)) / bundleSize(item)));
+function kitCount(item, quantity) {
+  return Math.max(minimumKits(item), Math.round(Number(quantity || item?.minimum || kitSize(item)) / kitSize(item)));
 }
 
-function maximumBundles(item) {
+function maximumKits(item) {
   const maximum = Math.max(0, Number(item?.maximum || 0));
-  return maximum > 0 ? Math.floor(maximum / bundleSize(item)) : 0;
+  return maximum > 0 ? Math.floor(maximum / kitSize(item)) : 0;
 }
 
 function availabilityCopy(item) {
-  const maximum = Math.max(0, Number(item?.maximum || 0));
-  const minimum = bundleSize(item);
-  if (!item?.available && maximum > 0 && maximum < minimum) {
-    return `Only ${maximum} units of this option are in stock; the bundle needs ${minimum}.`;
-  }
-  if (!item?.available) return "Currently unavailable.";
-  if (isBundle(item)) {
-    const capacity = maximumBundles(item);
-    return capacity > 0 ? `${capacity} bundle${capacity === 1 ? "" : "s"} currently available.` : "Available to order.";
-  }
-  return maximum > 0 ? `Up to ${maximum} SKU units currently available.` : "Available to order.";
+  const capacity = maximumKits(item);
+  if (!item?.available) return "This SKU is currently unavailable for a complete kit.";
+  return capacity > 0
+    ? `${capacity} kit${capacity === 1 ? "" : "s"} currently available.`
+    : "Available to order.";
 }
 
-function offerPrice(item, currency = "USD") {
-  if (isBundle(item)) return money(item.line_total, currency);
-  const tiers = Array.isArray(item.tiers) ? item.tiers : [];
-  return tiers.length ? `${money(tiers[0].price, currency)}/unit` : money(item.line_total, currency);
+function startingKitPrice(item, currency) {
+  return money(item?.kit_price || 0, currency);
 }
 
-function ProductFamily({ name, items, cart, currency, addLine, selectedKey, selectOffer, index }) {
+function Savings({ value }) {
+  const amount = Number(value || 0);
+  if (amount <= 0) return null;
+  return <span className="bulk-savings">Save {percentage(amount)}%</span>;
+}
+
+function ProductFamily({ name, items, cart, currency, addLine, selectedKey, selectOffer }) {
   const representative = items[0];
   const selected = items.find((item) => itemKey(item) === selectedKey)
     || items.find((item) => item.available)
     || representative;
   const selectedLine = cart.find((line) => itemKey(line) === itemKey(selected));
-  const selectedBundles = selectedLine && isBundle(selected) ? bundleCount(selected, selectedLine.quantity) : 0;
-  const increment = bundleSize(selected);
-  const maximum = Math.max(0, Number(selected.maximum || 0));
-  const atMaximum = Boolean(selectedLine && maximum > 0 && Number(selectedLine.quantity) + increment > maximum);
-  const selectionCopy = isBundle(selected)
-    ? `Contains ${bundleSize(selected)} × ${productLabel(selected)}`
-    : "Quantity pricing applies";
+  const selectedKits = selectedLine ? kitCount(selected, selectedLine.quantity) : 0;
+  const maximum = maximumKits(selected);
+  const atMaximum = Boolean(selectedLine && maximum > 0 && selectedKits >= maximum);
+  const tiers = Array.isArray(selected?.tiers) ? selected.tiers : [];
+  const retailKitPrice = Number(selected?.retail_unit_price || 0) * kitSize(selected);
+
   return (
     <article className="bulk-product-card">
       <div className="bulk-product-visual">
-        <div className="bulk-family-index" aria-hidden="true">
-          <span>Family</span>
-          <strong>{String(index + 1).padStart(2, "0")}</strong>
-        </div>
-        <img src={representative.image} alt="" loading="lazy" decoding="async" />
-        <span><Check size={13} /> Stock verified live</span>
+        <img src={selected.image || representative.image} alt={name} loading="lazy" decoding="async" />
+        <span className={selected.available ? "" : "is-error"}>
+          {selected.available ? <Check size={13} /> : <X size={13} />}
+          {selected.available ? "Available in complete kits" : "Currently unavailable"}
+        </span>
       </div>
+
       <div className="bulk-product-body">
         <header>
           <span>{representative.categories?.[0] || "Bulk catalog"}</span>
           <h2>{name}</h2>
-          <p>{items.length} bundle option{items.length === 1 ? "" : "s"}</p>
+          <p>{items.length > 1 ? `${items.length} available configurations` : productLabel(selected)}</p>
         </header>
-        <div className="bulk-variant-list" role="radiogroup" aria-label={`${name} bundle options`}>
-          {items.map((item) => (
-            <button
-              type="button"
-              key={itemKey(item)}
-              role="radio"
-              aria-checked={itemKey(selected) === itemKey(item)}
-              className={`${itemKey(selected) === itemKey(item) ? "is-active" : ""}${!item.available ? " is-unavailable" : ""}`}
-              onClick={() => selectOffer(item)}
-            >
-              <span>
-                <strong>{productLabel(item)}</strong>
-                <small>{isBundle(item) ? `Bundle of ${bundleSize(item)}` : `Minimum ${bundleSize(item)} units`}</small>
-              </span>
-              <b>{offerPrice(item, currency)}</b>
-            </button>
-          ))}
+
+        {items.length > 1 && (
+          <div className="bulk-variant-picker">
+            <span>Choose configuration</span>
+            <div className="bulk-variant-options" role="radiogroup" aria-label={`${name} configurations`}>
+              {items.map((item) => {
+                const active = itemKey(item) === itemKey(selected);
+                return (
+                  <button
+                    key={itemKey(item)}
+                    type="button"
+                    role="radio"
+                    aria-checked={active}
+                    aria-label={`${productLabel(item)}${item.available ? "" : ", unavailable"}`}
+                    className={`${active ? "is-active" : ""}${item.available ? "" : " is-unavailable"}`}
+                    disabled={!item.available}
+                    onClick={() => selectOffer(item)}
+                  >
+                    {productLabel(item)}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        <div className="bulk-product-pricing">
+          <div>
+            <span>Bulk price</span>
+            <strong>{startingKitPrice(selected, currency)} <small>/ kit</small></strong>
+          </div>
+          <div className="bulk-price-proof">
+            {retailKitPrice > 0 && <del>{money(retailKitPrice, currency)} retail</del>}
+            <Savings value={selected?.savings_percent} />
+          </div>
         </div>
+
+        {tiers.length > 1 && (
+          <div className="bulk-tier-summary" aria-label="Volume pricing tiers">
+            {tiers.map((tier) => (
+              <span key={`${tier.kits}-${tier.kit_price}`}><b>{tier.kits} kits</b> {money(tier.kit_price, currency)}/kit</span>
+            ))}
+          </div>
+        )}
+
         <div className="bulk-product-purchase">
           <div>
-            <span>{isBundle(selected) ? "Bundle total" : "Starting price"}</span>
-            <strong>{offerPrice(selected, currency)}</strong>
-            <small>{selectionCopy}</small>
+            <strong>{minimumKits(selected)} Kit{minimumKits(selected) === 1 ? "" : "s"}</strong>
+            <small>{Number(selected?.minimum || kitSize(selected))} units of the same SKU</small>
           </div>
           <button type="button" disabled={!selected.available || atMaximum} onClick={() => addLine(selected)}>
             {atMaximum ? "Maximum added" : selectedLine
-              ? <><Check size={15} /> {isBundle(selected) ? `${selectedBundles} in order` : `${selectedLine.quantity} units`}</>
-              : isBundle(selected) ? "Add bundle" : "Add quantity"}
+              ? <><Check size={15} /> {selectedKits} kit{selectedKits === 1 ? "" : "s"} added</>
+              : `Add ${minimumKits(selected)} Kit${minimumKits(selected) === 1 ? "" : "s"}`}
           </button>
         </div>
-        <p className={`bulk-product-availability${selected.available ? "" : " is-error"}`}>{availabilityCopy(selected)}</p>
+        {!selected.available && <p className="bulk-product-availability is-error">{availabilityCopy(selected)}</p>}
       </div>
     </article>
   );
 }
 
 function LineCounter({ product, line, updateLine }) {
-  const step = isBundle(product) ? bundleSize(product) : 1;
-  const display = isBundle(product) ? bundleCount(product, line.quantity) : Number(line.quantity);
-  const maximum = Math.max(0, Number(product?.maximum || 0));
-  const maxDisplay = isBundle(product) ? maximumBundles(product) : maximum;
+  const minimum = minimumKits(product);
+  const display = kitCount(product, line.quantity);
+  const maximum = maximumKits(product);
   const change = (next) => {
-    const normalized = Math.max(1, maxDisplay > 0 ? Math.min(maxDisplay, next) : next);
-    updateLine(product, normalized * step);
+    const normalized = Math.max(minimum, maximum > 0 ? Math.min(maximum, next) : next);
+    updateLine(product, normalized * kitSize(product));
   };
   return (
-    <div className="bulk-line-counter" aria-label={`${product?.name || "Product"} ${isBundle(product) ? "bundles" : "quantity"}`}>
-      <button type="button" onClick={() => change(display - 1)} disabled={display <= 1}>−</button>
+    <div className="bulk-line-counter" aria-label={`${product?.name || "Product"} kits`}>
+      <button type="button" onClick={() => change(display - 1)} disabled={display <= minimum}>−</button>
       <span>{display}</span>
-      <button type="button" onClick={() => change(display + 1)} disabled={maxDisplay > 0 && display >= maxDisplay}>+</button>
+      <button type="button" onClick={() => change(display + 1)} disabled={maximum > 0 && display >= maximum}>+</button>
     </div>
   );
 }
 
-function BulkCart({ cart, catalogById, quote, quoteState, error, updateLine, removeLine, checkout, checkingOut, close }) {
-  const currency = quote?.currency || "USD";
+function BulkCart({ cart, catalogById, quote, quoteState, error, updateLine, removeLine, checkout, checkingOut, close, currency }) {
   const quoteLines = new Map((quote?.lines || []).map((line) => [itemKey(line), line]));
   const orderSummary = cart.reduce((summary, line) => {
     const product = catalogById.get(itemKey(line));
     if (!product) return summary;
     summary.units += Number(line.quantity || 0);
-    summary.bundles += isBundle(product) ? bundleCount(product, line.quantity) : 0;
+    summary.kits += kitCount(product, line.quantity);
     return summary;
-  }, { units: 0, bundles: 0 });
+  }, { units: 0, kits: 0 });
+
   return (
     <aside className="bulk-cart" aria-label="Bulk order">
       <div className="bulk-cart-head">
         <div>
-          <span>Bulk manifest</span>
-          <h2>{cart.length ? `${orderSummary.bundles || orderSummary.units} bundle${(orderSummary.bundles || orderSummary.units) === 1 ? "" : "s"} ready` : "No bundles selected"}</h2>
+          <span>Bulk cart</span>
+          <h2>{cart.length ? `${orderSummary.kits} kit${orderSummary.kits === 1 ? "" : "s"} ready` : "No kits selected"}</h2>
         </div>
         {close && <button type="button" onClick={close} aria-label="Close Bulk cart"><X size={20} /></button>}
       </div>
@@ -214,20 +287,21 @@ function BulkCart({ cart, catalogById, quote, quoteState, error, updateLine, rem
         {!cart.length ? (
           <div className="bulk-cart-empty">
             <ShoppingBag size={22} />
-            <p>Choose a product family and add its bundle here.</p>
+            <p>Choose a SKU and add its minimum kit quantity here.</p>
           </div>
         ) : cart.map((line) => {
           const product = catalogById.get(itemKey(line));
           const priced = quoteLines.get(itemKey(line));
           if (!product) return null;
-          const bundles = isBundle(product) ? bundleCount(product, line.quantity) : 0;
+          const kits = kitCount(product, line.quantity);
           return (
             <div className="bulk-cart-line" key={itemKey(line)}>
               <img src={product.image} alt="" loading="lazy" decoding="async" />
               <div className="bulk-cart-line-info">
                 <strong>{product.parent_name || product.name}</strong>
                 <span>{productLabel(product)}</span>
-                <small>{bundles ? `${bundles} bundle${bundles === 1 ? "" : "s"} · ${line.quantity} total units` : `${line.quantity} units`}</small>
+                <small>{kits} kit{kits === 1 ? "" : "s"} · {line.quantity} total units</small>
+                {priced && <Savings value={priced.savings_percent} />}
                 <LineCounter product={product} line={line} updateLine={updateLine} />
               </div>
               <div className="bulk-cart-line-total">
@@ -247,7 +321,7 @@ function BulkCart({ cart, catalogById, quote, quoteState, error, updateLine, rem
           </div>
         )}
         <div className="bulk-total-row"><span>Merchandise total</span><strong>{quoteState === "loading" ? "Updating…" : money(quote?.subtotal || 0, currency)}</strong></div>
-        <p>Inventory and totals are verified again by WooCommerce before payment.</p>
+        <p>WooCommerce verifies prices, kit quantities and inventory again before payment.</p>
         {error && <div className="bulk-inline-error" role="alert">{error}</div>}
         <button type="button" className="bulk-checkout" disabled={!cart.length || !quote || quoteState === "loading" || checkingOut} onClick={checkout}>
           <span>{checkingOut ? "Preparing checkout…" : `Continue · ${money(quote?.subtotal || 0, currency)}`}</span>
@@ -258,7 +332,7 @@ function BulkCart({ cart, catalogById, quote, quoteState, error, updateLine, rem
   );
 }
 
-function AccessGate({ onAccess }) {
+function CodeAccess({ onAccess }) {
   const [code, setCode] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -270,7 +344,7 @@ function AccessGate({ onAccess }) {
     setError("");
     try {
       await api("/api/bulk/access", { method: "POST", body: JSON.stringify({ code: code.trim() }) });
-      onAccess();
+      await onAccess();
     } catch (requestError) {
       setError(requestError.message || "That access code is not available.");
     } finally {
@@ -279,47 +353,171 @@ function AccessGate({ onAccess }) {
   };
 
   return (
-    <main className="bulk-access-shell">
-      <section className="bulk-access-panel">
-        <div className="bulk-access-mark"><LockKeyhole size={22} /></div>
-        <span className="bulk-eyebrow">Private procurement</span>
-        <h1>Bulk Orders</h1>
-        <p>Enter the access code issued to your organization.</p>
+    <section className="bulk-public-code">
+      <div className="bulk-access-mark"><LockKeyhole size={21} /></div>
+      <span className="bulk-eyebrow">Already approved?</span>
+      <h2>Enter your Access Code</h2>
+      <p>A valid code creates a secure temporary session on this device.</p>
+      <form onSubmit={submit}>
+        <label htmlFor="bulk-code">Access code</label>
+        <div className="bulk-code-field">
+          <input id="bulk-code" value={code} onChange={(event) => setCode(event.target.value)} autoComplete="one-time-code" spellCheck="false" placeholder="P1B-••••••-••••••-••••••-••••••" />
+          <button type="submit" disabled={!code.trim() || submitting}>{submitting ? "Checking…" : "Unlock catalog"}</button>
+        </div>
+        {error && <div className="bulk-access-error" role="alert">{error}</div>}
+      </form>
+      <small>Access can expire or be revoked by Phase One.</small>
+    </section>
+  );
+}
+
+function RequestAccess({ account, refresh }) {
+  const [note, setNote] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const authenticated = Boolean(account?.authenticated);
+  const customer = account?.customer || null;
+  const currentRequest = account?.request || null;
+  const pending = currentRequest?.status === "pending";
+  const approved = customer?.tier === "special";
+  const eligible = Boolean(customer?.eligible);
+
+  const submit = async (event) => {
+    event.preventDefault();
+    if (!eligible || pending || approved || submitting) return;
+    setSubmitting(true);
+    setError("");
+    try {
+      await api("/api/bulk/access-request", { method: "POST", body: JSON.stringify({ note }) });
+      setNote("");
+      await refresh();
+    } catch (requestError) {
+      setError(requestError.message || "Your request could not be sent.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <section className="bulk-public-request">
+      <span className="bulk-eyebrow">Request access</span>
+      <h2>Apply for Bulk pricing</h2>
+      {!authenticated ? (
+        <>
+          <p>Sign in so we can verify your completed-order history and prefill your application.</p>
+          <a className="bulk-primary-link" href="/account">Sign in to request access <ArrowRight size={17} /></a>
+        </>
+      ) : (
         <form onSubmit={submit}>
-          <label htmlFor="bulk-code">Access code</label>
-          <div className="bulk-code-field">
-            <input id="bulk-code" value={code} onChange={(event) => setCode(event.target.value)} autoComplete="one-time-code" spellCheck="false" placeholder="P1B-••••••-••••••-••••••-••••••" />
-            <button type="submit" disabled={!code.trim() || submitting}>{submitting ? "Checking" : "Continue"}</button>
+          <div className="bulk-customer-summary">
+            <div><span>Customer</span><strong>{customer?.name || "Account customer"}</strong><small>{customer?.email}</small></div>
+            <div><span>Completed orders</span><strong>{Number(customer?.completed_orders || 0)}</strong><small>{eligible ? "Eligible to apply" : "Not yet eligible"}</small></div>
           </div>
+          {approved ? (
+            <div className="bulk-request-status is-approved"><UserCheck size={18} /> Access approved. Refreshing this page will open your private catalog.</div>
+          ) : pending ? (
+            <div className="bulk-request-status"><Clock3 size={18} /> Request received. Phase One will review it manually.</div>
+          ) : (
+            <>
+              <label htmlFor="bulk-request-note">Anything we should know? <span>Optional</span></label>
+              <textarea id="bulk-request-note" rows="3" maxLength="1000" value={note} onChange={(event) => setNote(event.target.value)} placeholder="Expected volume, products of interest, or purchasing context." />
+              <button className="bulk-request-button" type="submit" disabled={!eligible || submitting}>
+                {submitting ? "Sending request…" : currentRequest ? "Request access again" : "Request Bulk Access"}
+                {!submitting && <ArrowRight size={17} />}
+              </button>
+              {!eligible && <small>Complete at least one order before applying. Approval is never automatic.</small>}
+            </>
+          )}
           {error && <div className="bulk-access-error" role="alert">{error}</div>}
         </form>
-        <small>Access is session-based and can be revoked by Phase One.</small>
-      </section>
+      )}
+    </section>
+  );
+}
+
+function PublicBulkPage({ program, account, refreshAccount, onAccess, warning }) {
+  const kitUnits = Number(program?.kit_units || 0);
+  const defaultMinimum = Number(program?.default_minimum || 0);
+  const maximumSavings = Number(program?.max_savings_percent || 0);
+  const savingsCopy = maximumSavings > 0 ? `Save up to ${percentage(maximumSavings)}%` : "Private volume pricing";
+  const minimumCopy = kitUnits > 0 && defaultMinimum > 0
+    ? `${Math.max(1, Math.ceil(defaultMinimum / kitUnits))} kit minimum per SKU`
+    : "Complete-kit minimums";
+
+  return (
+    <main className="bulk-public-page">
+      <div className="bulk-public-shell">
+        <section className="bulk-public-hero">
+          <div className="bulk-public-hero-copy">
+            <span className="bulk-eyebrow">Phase One / Bulk Orders</span>
+            <h1>{program?.title || "Bulk Orders"}</h1>
+            <strong>{savingsCopy}</strong>
+            <p>{program?.intro || "Approved customers receive access to private bulk pricing."}</p>
+          </div>
+          <div className="bulk-public-proof" aria-label="Bulk program requirements">
+            <span><ShieldCheck size={18} /> Manually approved</span>
+            <span><Boxes size={18} /> {minimumCopy}</span>
+            <span><PackageCheck size={18} /> Same SKU per kit</span>
+          </div>
+        </section>
+
+        {warning && <div className="bulk-public-warning" role="status">{warning}</div>}
+
+        <section className="bulk-public-explainer">
+          <div>
+            <span className="bulk-section-number">01</span>
+            <h2>Built for repeat purchasing</h2>
+          </div>
+          <p>Approved customers receive private pricing without mixing Bulk items with regular store promotions or the retail cart.</p>
+        </section>
+
+        <div className="bulk-public-steps">
+          <article><strong>Qualify</strong><p>At least one previous completed order is required before your account can be considered.</p></article>
+          <article><strong>Get approved</strong><p>Phase One reviews every request manually. Eligibility does not grant access automatically.</p></article>
+          <article><strong>Order by kit</strong><p>{kitUnits > 0 ? `${kitUnits} units of the same SKU equal one kit.` : "Each kit contains a fixed number of units from the same SKU."}</p></article>
+        </div>
+
+        <div className="bulk-public-actions">
+          <RequestAccess account={account} refresh={refreshAccount} />
+          <CodeAccess onAccess={onAccess} />
+        </div>
+      </div>
     </main>
   );
 }
 
 export default function BulkOrders() {
   const [status, setStatus] = useState("checking");
+  const [program, setProgram] = useState(null);
+  const [account, setAccount] = useState(null);
   const [catalog, setCatalog] = useState([]);
+  const [currency, setCurrency] = useState("USD");
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("All products");
   const [cart, setCart] = useState([]);
   const [quote, setQuote] = useState(null);
   const [quoteState, setQuoteState] = useState("idle");
   const [error, setError] = useState("");
+  const [publicWarning, setPublicWarning] = useState("");
   const [cartOpen, setCartOpen] = useState(false);
   const [checkingOut, setCheckingOut] = useState(false);
-  const [accessMode, setAccessMode] = useState("private");
+  const [accessSource, setAccessSource] = useState("");
   const [selectedOffers, setSelectedOffers] = useState({});
+
+  const refreshAccount = async () => {
+    const data = await api("/api/bulk/customer-access");
+    setAccount(data);
+    return data;
+  };
 
   const loadCatalog = async () => {
     setStatus("loading");
     setError("");
     try {
       const data = await api("/api/bulk/catalog");
-      setAccessMode(data.access_mode === "public" ? "public" : "private");
+      setAccessSource(String(data.access_source || "code"));
       setCatalog(Array.isArray(data.items) ? data.items : []);
+      setCurrency(String(data.currency || "USD"));
       setStatus("ready");
     } catch (requestError) {
       if (requestError.status === 401 || requestError.status === 403) setStatus("locked");
@@ -330,24 +528,32 @@ export default function BulkOrders() {
     }
   };
 
+  const checkAccess = async () => {
+    try {
+      const data = await api("/api/bulk/session");
+      setAccessSource(String(data.access_source || "code"));
+      await loadCatalog();
+    } catch (requestError) {
+      if (requestError.status === 401 || requestError.status === 403) setStatus("locked");
+      else {
+        setStatus("error");
+        setError(requestError.message || "Bulk access is temporarily unavailable.");
+      }
+    }
+  };
+
   useEffect(() => {
     try {
       setCart(cleanStoredCart(JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]")));
     } catch {
       localStorage.removeItem(STORAGE_KEY);
     }
-    api("/api/bulk/session")
-      .then((data) => {
-        setAccessMode(data.access_mode === "public" ? "public" : "private");
-        return loadCatalog();
-      })
-      .catch((requestError) => {
-        if (requestError.status === 401 || requestError.status === 403) setStatus("locked");
-        else {
-          setStatus("error");
-          setError(requestError.message || "Bulk access is temporarily unavailable.");
-        }
-      });
+
+    api("/api/bulk/program")
+      .then((data) => setProgram(data?.program || null))
+      .catch(() => setPublicWarning("Live program details are temporarily unavailable."));
+    refreshAccount().catch(() => setAccount({ authenticated: false, customer: null, request: null }));
+    checkAccess();
   }, []);
 
   useEffect(() => {
@@ -357,9 +563,10 @@ export default function BulkOrders() {
       const cleaned = current.flatMap((line) => {
         const item = byId.get(itemKey(line));
         if (!item) return [];
-        if (!isBundle(item)) return [line];
-        const minimum = bundleSize(item);
-        const normalized = Math.max(minimum, bundleCount(item, line.quantity) * minimum);
+        const size = kitSize(item);
+        const normalized = Math.max(Number(item.minimum || size), Math.ceil(Number(line.quantity || 0) / size) * size);
+        const maximum = Math.max(0, Number(item.maximum || 0));
+        if (maximum > 0 && normalized > maximum) return [];
         return [{ ...line, quantity: normalized }];
       });
       localStorage.setItem(STORAGE_KEY, JSON.stringify(cleaned));
@@ -388,6 +595,11 @@ export default function BulkOrders() {
         setQuoteState("ready");
       } catch (requestError) {
         if (requestError.name === "AbortError") return;
+        if (requestError.status === 401 || requestError.status === 403) {
+          setStatus("locked");
+          setQuote(null);
+          return;
+        }
         setQuote(null);
         setQuoteState("error");
         setError(requestError.message || "The Bulk order could not be validated.");
@@ -408,7 +620,7 @@ export default function BulkOrders() {
     const normalized = query.trim().toLowerCase();
     const result = new Map();
     for (const item of catalog) {
-      const itemCategories = Array.isArray(item.categories) ? item.categories : [];
+      const itemCategories = Array.isArray(item?.categories) ? item.categories : [];
       if (category !== "All products" && !itemCategories.includes(category)) continue;
       const haystack = `${item.parent_name} ${item.name} ${item.sku} ${itemCategories.join(" ")}`.toLowerCase();
       if (normalized && !haystack.includes(normalized)) continue;
@@ -416,7 +628,13 @@ export default function BulkOrders() {
       if (!result.has(family)) result.set(family, []);
       result.get(family).push(item);
     }
-    return Array.from(result.entries());
+    return Array.from(result.entries()).sort(([leftName, leftItems], [rightName, rightItems]) => {
+      const left = catalogFamilySortData(leftName, leftItems);
+      const right = catalogFamilySortData(rightName, rightItems);
+      if (left.rank !== right.rank) return left.rank - right.rank;
+      if (left.strength !== right.strength) return left.strength - right.strength;
+      return leftName.localeCompare(rightName);
+    });
   }, [catalog, category, query]);
 
   const setLine = (item, quantity) => {
@@ -427,13 +645,11 @@ export default function BulkOrders() {
     };
     setCart((current) => [...current.filter((entry) => itemKey(entry) !== itemKey(item)), line]);
   };
+
   const addLine = (item) => {
     const existing = cart.find((line) => itemKey(line) === itemKey(item));
-    const step = isBundle(item) ? bundleSize(item) : bundleSize(item);
-    setLine(item, existing ? Number(existing.quantity) + step : step);
+    setLine(item, existing ? Number(existing.quantity) + kitSize(item) : Number(item.minimum || kitSize(item)));
   };
-  const updateLine = (item, quantity) => setLine(item, quantity);
-  const removeLine = (line) => setCart((current) => current.filter((entry) => itemKey(entry) !== itemKey(line)));
 
   const checkout = async () => {
     if (!quote || checkingOut) return;
@@ -443,6 +659,11 @@ export default function BulkOrders() {
       await api("/api/bulk/checkout-intent", { method: "POST", body: JSON.stringify({ items: cart }) });
       window.location.assign("/checkout?mode=bulk");
     } catch (requestError) {
+      if (requestError.status === 401 || requestError.status === 403) {
+        setStatus("locked");
+        setCheckingOut(false);
+        return;
+      }
       setError(requestError.message || "Bulk checkout could not be prepared.");
       setCheckingOut(false);
     }
@@ -452,47 +673,40 @@ export default function BulkOrders() {
     await api("/api/bulk/session", { method: "DELETE" }).catch(() => null);
     setCatalog([]);
     setQuote(null);
+    setAccessSource("");
     setStatus("locked");
   };
 
   if (status === "checking" || status === "loading") {
-    return <main className="bulk-state"><PackageCheck size={24} /><p>Loading Bulk catalog…</p></main>;
+    return <main className="bulk-state"><PackageCheck size={24} /><p>{status === "checking" ? "Checking Bulk access…" : "Loading Bulk catalog…"}</p></main>;
   }
-  if (status === "locked") return <AccessGate onAccess={loadCatalog} />;
+  if (status === "locked") {
+    return <PublicBulkPage program={program} account={account} refreshAccount={refreshAccount} onAccess={checkAccess} warning={publicWarning} />;
+  }
   if (status === "error") {
-    return <main className="bulk-state"><p>{error}</p><button type="button" onClick={loadCatalog}>Try again</button></main>;
+    return <main className="bulk-state"><p>{error}</p><button type="button" onClick={checkAccess}>Try again</button></main>;
   }
 
-  const currency = quote?.currency || "USD";
+  const maximumSavings = Number(program?.max_savings_percent || 0);
+  const heroSavings = maximumSavings > 0 ? `Save up to ${percentage(maximumSavings)}%` : "Private volume pricing";
+  const removeLine = (line) => setCart((current) => current.filter((entry) => itemKey(entry) !== itemKey(line)));
   return (
     <main className="bulk-page">
       <div className="bulk-shell">
         <section className="bulk-hero">
           <div className="bulk-hero-copy">
-            <span className="bulk-eyebrow">Phase One / {accessMode === "public" ? "Bulk purchasing" : "Private bulk access"}</span>
-            <h1>Buy in volume. <em>Get better value.</em></h1>
-            <p>Choose ready-priced bundles, combine products in one order, and review the complete total before payment.</p>
+            <span className="bulk-eyebrow">Phase One / Private bulk access</span>
+            <h1>Buy by the kit. <em>{heroSavings}.</em></h1>
+            <p>Every kit contains one SKU only. Prices, savings and inventory come directly from WooCommerce.</p>
           </div>
-          {accessMode === "private" && <button type="button" className="bulk-end-session" onClick={logout}><LogOut size={16} /> End session</button>}
+          {accessSource === "code" && <button type="button" className="bulk-end-session" onClick={logout}><LogOut size={16} /> End temporary session</button>}
         </section>
 
         <section className="bulk-commercial-points" aria-label="Bulk order benefits">
-          <article>
-            <BadgeDollarSign size={19} aria-hidden="true" />
-            <div><strong>Bundle-first pricing</strong><span>One clear total per selection</span></div>
-          </article>
-          <article>
-            <Boxes size={19} aria-hidden="true" />
-            <div><strong>Mix product families</strong><span>Build one organized bulk order</span></div>
-          </article>
-          <article>
-            <PackageCheck size={19} aria-hidden="true" />
-            <div><strong>Inventory checked</strong><span>Availability confirmed before payment</span></div>
-          </article>
-          <article>
-            <ShieldCheck size={19} aria-hidden="true" />
-            <div><strong>Flexible checkout</strong><span>Card, ACH, and Zelle supported</span></div>
-          </article>
+          <article><BadgeDollarSign size={19} aria-hidden="true" /><div><strong>Real savings shown</strong><span>Compared with current retail pricing</span></div></article>
+          <article><Boxes size={19} aria-hidden="true" /><div><strong>Kit-based ordering</strong><span>One SKU per complete kit</span></div></article>
+          <article><PackageCheck size={19} aria-hidden="true" /><div><strong>Inventory checked</strong><span>Availability confirmed before payment</span></div></article>
+          <article><ShieldCheck size={19} aria-hidden="true" /><div><strong>Server-side pricing</strong><span>Every total is verified by WooCommerce</span></div></article>
         </section>
 
         <div className="bulk-toolbar">
@@ -511,12 +725,11 @@ export default function BulkOrders() {
 
         <div className="bulk-layout">
           <section className="bulk-catalog" aria-label="Bulk products">
-            {!groups.length ? <div className="bulk-no-results">No Bulk products match these filters.</div> : groups.map(([name, items], index) => (
+            {!groups.length ? <div className="bulk-no-results">No Bulk products match these filters.</div> : groups.map(([name, items]) => (
               <ProductFamily
                 key={name}
                 name={name}
                 items={items}
-                index={index}
                 cart={cart}
                 currency={currency}
                 addLine={addLine}
@@ -527,7 +740,7 @@ export default function BulkOrders() {
           </section>
 
           <div className="bulk-cart-desktop">
-            <BulkCart {...{ cart, catalogById, quote, quoteState, error, updateLine, removeLine, checkout, checkingOut }} />
+            <BulkCart cart={cart} catalogById={catalogById} quote={quote} quoteState={quoteState} error={error} updateLine={setLine} removeLine={removeLine} checkout={checkout} checkingOut={checkingOut} currency={currency} />
           </div>
         </div>
       </div>
@@ -539,7 +752,7 @@ export default function BulkOrders() {
       {cartOpen && (
         <div className="bulk-sheet" role="dialog" aria-modal="true" aria-label="Bulk cart">
           <button className="bulk-sheet-backdrop" type="button" onClick={() => setCartOpen(false)} aria-label="Close Bulk cart" />
-          <BulkCart {...{ cart, catalogById, quote, quoteState, error, updateLine, removeLine, checkout, checkingOut }} close={() => setCartOpen(false)} />
+          <BulkCart cart={cart} catalogById={catalogById} quote={quote} quoteState={quoteState} error={error} updateLine={setLine} removeLine={removeLine} checkout={checkout} checkingOut={checkingOut} close={() => setCartOpen(false)} currency={currency} />
         </div>
       )}
     </main>

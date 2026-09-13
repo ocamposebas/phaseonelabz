@@ -95,7 +95,7 @@ final class PhaseOne_Bulk_Intents {
 		return 1 === $updated;
 	}
 
-	public static function claim( int $intent_id ): true|WP_Error {
+	public static function claim( int $intent_id ): bool|WP_Error {
 		global $wpdb;
 		$updated = $wpdb->query(
 			$wpdb->prepare(

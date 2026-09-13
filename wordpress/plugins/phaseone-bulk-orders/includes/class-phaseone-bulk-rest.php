@@ -12,6 +12,9 @@ final class PhaseOne_Bulk_REST {
 
 	public static function routes(): void {
 		$permission = array( __CLASS__, 'authorize_server' );
+		register_rest_route( self::NAMESPACE, '/bulk/program', array( 'methods' => WP_REST_Server::READABLE, 'callback' => array( __CLASS__, 'program' ), 'permission_callback' => $permission ) );
+		register_rest_route( self::NAMESPACE, '/bulk/customer-access', array( 'methods' => WP_REST_Server::READABLE, 'callback' => array( __CLASS__, 'customer_access' ), 'permission_callback' => $permission ) );
+		register_rest_route( self::NAMESPACE, '/bulk/access-request', array( 'methods' => WP_REST_Server::CREATABLE, 'callback' => array( __CLASS__, 'access_request' ), 'permission_callback' => $permission ) );
 		register_rest_route( self::NAMESPACE, '/bulk/access', array( 'methods' => WP_REST_Server::CREATABLE, 'callback' => array( __CLASS__, 'access' ), 'permission_callback' => $permission ) );
 		register_rest_route(
 			self::NAMESPACE,
@@ -33,7 +36,7 @@ final class PhaseOne_Bulk_REST {
 		);
 	}
 
-	public static function authorize_server( WP_REST_Request $request ): true|WP_Error {
+	public static function authorize_server( WP_REST_Request $request ): bool|WP_Error {
 		$content_length = absint( $request->get_header( 'content-length' ) );
 		if ( $content_length > self::MAX_BODY_BYTES ) {
 			return new WP_Error( 'phaseone_bulk_payload_too_large', 'Request payload is too large.', array( 'status' => 413 ) );
@@ -52,12 +55,19 @@ final class PhaseOne_Bulk_REST {
 		}
 		$params = $request->get_json_params();
 		$code   = is_array( $params ) ? (string) ( $params['code'] ?? '' ) : '';
-		$result = PhaseOne_Bulk_Access::create_session( $code, $ip, (string) $request->get_header( 'user-agent' ) );
+		$customer_id = PhaseOne_Bulk_Checkout::authenticated_customer_id( $request );
+		$result = PhaseOne_Bulk_Access::create_session( $code, $ip, (string) $request->get_header( 'user-agent' ), $customer_id );
 		return is_wp_error( $result ) ? $result : self::response( array( 'success' => true ) + $result );
 	}
 
 	public static function session( WP_REST_Request $request ): WP_REST_Response|WP_Error {
-		$session = self::access_context( $request );
+		$customer_id = PhaseOne_Bulk_Checkout::authenticated_customer_id( $request );
+		$session = PhaseOne_Bulk_Access::ensure(
+			self::session_token( $request ),
+			$customer_id,
+			sanitize_text_field( (string) $request->get_header( 'x-phaseone-client-ip' ) ),
+			(string) $request->get_header( 'user-agent' )
+		);
 		if ( is_wp_error( $session ) ) {
 			return $session;
 		}
@@ -65,11 +75,49 @@ final class PhaseOne_Bulk_REST {
 			array(
 				'success'    => true,
 				'authorized' => true,
-				'access_mode' => (string) $session['access_mode'],
+				'access_mode' => 'private',
+				'access_source' => (string) $session['source'],
 				'access_id'  => (int) $session['access_id'],
 				'expires_at' => gmdate( DATE_ATOM, strtotime( $session['expires_at'] . ' UTC' ) ),
+				'token'      => (string) ( $session['token'] ?? '' ),
+				'max_age'    => isset( $session['max_age'] ) ? (int) $session['max_age'] : max( 1, strtotime( $session['expires_at'] . ' UTC' ) - time() ),
 			)
 		);
+	}
+
+	public static function program( WP_REST_Request $request ): WP_REST_Response {
+		return self::response( array( 'success' => true, 'program' => PhaseOne_Bulk_Pricing_Engine::program() ) );
+	}
+
+	public static function customer_access( WP_REST_Request $request ): WP_REST_Response {
+		$customer_id = PhaseOne_Bulk_Checkout::authenticated_customer_id( $request );
+		if ( $customer_id <= 0 ) {
+			return self::response( array( 'success' => true, 'authenticated' => false, 'customer' => null ) );
+		}
+		$status = PhaseOne_Bulk_Access::customer_status( $customer_id );
+		$request_row = PhaseOne_Bulk_Access_Requests::current_for_customer( $customer_id );
+		return self::response(
+			array(
+				'success'       => true,
+				'authenticated' => true,
+				'customer'      => $status,
+				'request'       => is_array( $request_row ) ? array(
+					'id'         => (int) $request_row['id'],
+					'status'     => (string) $request_row['status'],
+					'created_at' => gmdate( DATE_ATOM, strtotime( $request_row['created_at'] . ' UTC' ) ),
+				) : null,
+			)
+		);
+	}
+
+	public static function access_request( WP_REST_Request $request ): WP_REST_Response|WP_Error {
+		$customer_id = PhaseOne_Bulk_Checkout::authenticated_customer_id( $request );
+		$params = $request->get_json_params();
+		$result = PhaseOne_Bulk_Access_Requests::submit( $customer_id, is_array( $params ) ? (string) ( $params['note'] ?? '' ) : '' );
+		if ( is_wp_error( $result ) ) {
+			return $result;
+		}
+		return self::response( array( 'success' => true, 'request' => array( 'id' => (int) $result['id'], 'status' => (string) $result['status'] ) ), 201 );
 	}
 
 	public static function logout( WP_REST_Request $request ): WP_REST_Response {
@@ -90,7 +138,7 @@ final class PhaseOne_Bulk_REST {
 			$catalog = PhaseOne_Bulk_Pricing_Engine::catalog();
 			wp_cache_set( 'catalog', $catalog, 'phaseone_bulk', 30 );
 		}
-		return self::response( array( 'success' => true, 'access_mode' => (string) $session['access_mode'] ) + $catalog );
+		return self::response( array( 'success' => true, 'access_mode' => (string) $session['access_mode'], 'access_source' => (string) $session['source'] ) + $catalog );
 	}
 
 	public static function quote( WP_REST_Request $request ): WP_REST_Response|WP_Error {
@@ -131,6 +179,9 @@ final class PhaseOne_Bulk_REST {
 		if ( is_wp_error( $quote ) ) {
 			return $quote;
 		}
+		if ( ! hash_equals( (string) $intent['quote_fingerprint'], (string) $quote['fingerprint'] ) ) {
+			return new WP_Error( 'phaseone_bulk_quote_changed', 'Bulk pricing changed after this checkout was prepared. Return to the Bulk catalog and continue again.', array( 'status' => 409 ) );
+		}
 		return self::response(
 			array(
 				'success'    => true,
@@ -144,7 +195,7 @@ final class PhaseOne_Bulk_REST {
 	}
 
 	public static function access_context( WP_REST_Request $request ): array|WP_Error {
-		return PhaseOne_Bulk_Access::context( self::session_token( $request ) );
+		return PhaseOne_Bulk_Access::context( self::session_token( $request ), PhaseOne_Bulk_Checkout::authenticated_customer_id( $request ) );
 	}
 
 	private static function session_token( WP_REST_Request $request ): string {

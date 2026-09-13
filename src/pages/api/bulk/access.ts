@@ -21,6 +21,7 @@ export const POST: APIRoute = async ({ request }) => {
   try {
     const result = await wordpressBulkRequest("phaseone/v1/bulk/access", request, {
       method: "POST",
+      auth: true,
       body: { code },
     });
     const token = String(result.data.token || "");

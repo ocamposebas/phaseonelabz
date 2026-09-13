@@ -4,15 +4,25 @@ defined( 'ABSPATH' ) || exit;
 
 final class PhaseOne_Bulk_Admin {
 	private const PAGE = 'phaseone-bulk-orders';
+	private const TABS = array(
+		'overview'  => 'Overview',
+		'rules'     => 'Product Rules',
+		'customers' => 'Customer Access',
+		'requests'  => 'Access Requests',
+		'codes'     => 'Access Codes',
+		'settings'  => 'Settings',
+	);
 
 	public static function boot(): void {
 		add_action( 'admin_menu', array( __CLASS__, 'menu' ) );
 		add_action( 'admin_enqueue_scripts', array( __CLASS__, 'assets' ) );
 		add_action( 'admin_post_phaseone_bulk_add_rule', array( __CLASS__, 'add_rule' ) );
 		add_action( 'admin_post_phaseone_bulk_save_rules', array( __CLASS__, 'save_rules' ) );
-		add_action( 'admin_post_phaseone_bulk_save_access_mode', array( __CLASS__, 'save_access_mode' ) );
+		add_action( 'admin_post_phaseone_bulk_save_settings', array( __CLASS__, 'save_settings' ) );
 		add_action( 'admin_post_phaseone_bulk_create_access', array( __CLASS__, 'create_access' ) );
 		add_action( 'admin_post_phaseone_bulk_access_action', array( __CLASS__, 'access_action' ) );
+		add_action( 'admin_post_phaseone_bulk_customer_action', array( __CLASS__, 'customer_action' ) );
+		add_action( 'admin_post_phaseone_bulk_request_action', array( __CLASS__, 'request_action' ) );
 	}
 
 	public static function menu(): void {
@@ -34,204 +44,268 @@ final class PhaseOne_Bulk_Admin {
 		if ( ! current_user_can( 'manage_woocommerce' ) ) {
 			return;
 		}
-		$tab = sanitize_key( wp_unslash( $_GET['tab'] ?? 'rules' ) );
-		$tab = in_array( $tab, array( 'rules', 'access' ), true ) ? $tab : 'rules';
+		$tab = sanitize_key( wp_unslash( $_GET['tab'] ?? 'overview' ) );
+		$tab = array_key_exists( $tab, self::TABS ) ? $tab : 'overview';
 		?>
 		<div class="wrap phaseone-bulk-admin">
 			<header class="phaseone-bulk-heading">
-				<div><h1>Bulk Orders</h1><p>Private product rules and access control. Retail pricing remains unchanged.</p></div>
+				<div><h1>Bulk Orders</h1><p>Private customer access, kit rules and server-authoritative pricing.</p></div>
 			</header>
 			<nav class="nav-tab-wrapper" aria-label="Bulk Orders sections">
-				<a class="nav-tab <?php echo 'rules' === $tab ? 'nav-tab-active' : ''; ?>" href="<?php echo esc_url( self::page_url( 'rules' ) ); ?>">Product Rules</a>
-				<a class="nav-tab <?php echo 'access' === $tab ? 'nav-tab-active' : ''; ?>" href="<?php echo esc_url( self::page_url( 'access' ) ); ?>">Access Codes</a>
+				<?php foreach ( self::TABS as $key => $label ) : ?>
+					<a class="nav-tab <?php echo $key === $tab ? 'nav-tab-active' : ''; ?>" href="<?php echo esc_url( self::page_url( $key ) ); ?>"><?php echo esc_html( $label ); ?></a>
+				<?php endforeach; ?>
 			</nav>
 			<?php self::notice(); ?>
-			<?php 'access' === $tab ? self::render_access() : self::render_rules(); ?>
+			<?php
+			switch ( $tab ) {
+				case 'rules': self::render_rules(); break;
+				case 'customers': self::render_customers(); break;
+				case 'requests': self::render_requests(); break;
+				case 'codes': self::render_codes(); break;
+				case 'settings': self::render_settings(); break;
+				default: self::render_overview();
+			}
+			?>
 		</div>
+		<?php
+	}
+
+	private static function render_overview(): void {
+		global $wpdb;
+		$settings = PhaseOne_Bulk_Installer::settings();
+		$pending = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . PhaseOne_Bulk_Installer::requests_table() . ' WHERE status = %s', 'pending' ) );
+		$tier_query = new WP_User_Query( array( 'meta_key' => PhaseOne_Bulk_Access::META_TIER, 'meta_value' => 'special', 'count_total' => true, 'number' => 1 ) );
+		$cards = array(
+			'Catalog mode'       => 'include_all' === $settings['catalog_mode'] ? 'Include all' : 'Legacy explicit',
+			'Global discount'    => self::percent( $settings['global_discount'] ),
+			'Configured rules'   => count( PhaseOne_Bulk_Product_Rules::configured_ids() ),
+			'Special customers'  => (int) $tier_query->get_total(),
+			'Pending requests'   => $pending,
+			'Session duration'   => (int) $settings['session_days'] . ' days',
+		);
+		?>
+		<section class="phaseone-bulk-overview-grid">
+			<?php foreach ( $cards as $label => $value ) : ?>
+				<article class="phaseone-bulk-panel"><span><?php echo esc_html( $label ); ?></span><strong><?php echo esc_html( (string) $value ); ?></strong></article>
+			<?php endforeach; ?>
+		</section>
+		<section class="phaseone-bulk-panel">
+			<h2>Access policy</h2>
+			<p>Special Tier is checked first. A valid temporary Access Code session is checked second. Everyone else sees only the public Bulk program page.</p>
+		</section>
 		<?php
 	}
 
 	private static function render_rules(): void {
 		$ids = PhaseOne_Bulk_Product_Rules::configured_ids();
+		$settings = PhaseOne_Bulk_Installer::settings();
+		$categories = get_terms( array( 'taxonomy' => 'product_cat', 'hide_empty' => false ) );
+		$families = wc_get_products( array( 'type' => 'variable', 'status' => array( 'publish', 'private' ), 'limit' => -1, 'orderby' => 'name', 'order' => 'ASC' ) );
 		?>
 		<section class="phaseone-bulk-panel phaseone-bulk-add-rule">
-			<div><h2>Add product or variation</h2><p>Variable products must be configured one variation at a time.</p></div>
+			<div><h2>Add product, family or variation</h2><p>Add only exceptions or pricing overrides. Example: add Reta, choose Custom Discount %, enter 30, and save. All other products keep inheriting the global setting.</p></div>
 			<form action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" method="post">
-				<input type="hidden" name="action" value="phaseone_bulk_add_rule">
-				<?php wp_nonce_field( 'phaseone_bulk_manage_rules' ); ?>
+				<input type="hidden" name="action" value="phaseone_bulk_add_rule"><?php wp_nonce_field( 'phaseone_bulk_manage_rules' ); ?>
 				<select class="wc-product-search" name="product_id" data-placeholder="Search by product or SKU..." data-action="woocommerce_json_search_products_and_variations" required></select>
-				<button class="button button-primary" type="submit">Add</button>
+				<button class="button button-primary" type="submit">Add rule</button>
 			</form>
 		</section>
 
 		<form action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" method="post">
-			<input type="hidden" name="action" value="phaseone_bulk_save_rules">
-			<?php wp_nonce_field( 'phaseone_bulk_manage_rules' ); ?>
+			<input type="hidden" name="action" value="phaseone_bulk_save_rules"><?php wp_nonce_field( 'phaseone_bulk_manage_rules' ); ?>
+			<section class="phaseone-bulk-panel">
+				<h2>Catalog exclusions</h2>
+				<div class="phaseone-bulk-simple-grid">
+					<label>Excluded categories<select name="excluded_category_ids[]" multiple class="wc-enhanced-select">
+						<?php if ( ! is_wp_error( $categories ) ) : foreach ( $categories as $term ) : ?>
+							<option value="<?php echo esc_attr( $term->term_id ); ?>" <?php selected( in_array( (int) $term->term_id, $settings['excluded_category_ids'], true ) ); ?>><?php echo esc_html( $term->name ); ?></option>
+						<?php endforeach; endif; ?>
+					</select><small>Explicit product or variation Include overrides this.</small></label>
+					<label>Excluded families<select name="excluded_family_ids[]" multiple class="wc-enhanced-select">
+						<?php foreach ( $families as $family ) : ?><option value="<?php echo esc_attr( $family->get_id() ); ?>" <?php selected( in_array( (int) $family->get_id(), $settings['excluded_family_ids'], true ) ); ?>><?php echo esc_html( $family->get_name() ); ?></option><?php endforeach; ?>
+					</select><small>A family is an existing WooCommerce variable parent.</small></label>
+				</div>
+			</section>
 			<div class="phaseone-bulk-rule-list">
-				<?php if ( empty( $ids ) ) : ?><div class="phaseone-bulk-empty">No Bulk product rules configured yet.</div><?php endif; ?>
+				<?php if ( empty( $ids ) ) : ?><div class="phaseone-bulk-empty">No explicit exceptions or pricing overrides yet.</div><?php endif; ?>
 				<?php foreach ( $ids as $id ) : self::render_rule( $id ); endforeach; ?>
 			</div>
-			<?php if ( $ids ) : ?><p class="submit"><button class="button button-primary" type="submit">Save product rules</button></p><?php endif; ?>
+			<p class="submit"><button class="button button-primary" type="submit">Save product rules</button></p>
 		</form>
 		<?php
 	}
 
 	private static function render_rule( int $id ): void {
 		$product = wc_get_product( $id );
-		$rule    = PhaseOne_Bulk_Product_Rules::get( $id );
+		$rule = PhaseOne_Bulk_Product_Rules::get( $id );
 		if ( ! $product instanceof WC_Product || is_wp_error( $rule ) ) {
 			return;
 		}
-		$tier_text = implode( "\n", array_map( static fn( array $tier ): string => (int) $tier['minimum'] . ': ' . wc_format_decimal( $tier['price'], wc_get_price_decimals() ), $rule['tiers'] ) );
-		$bundle_price = 'fixed' === $rule['mode'] && $rule['fixed_price'] > 0
-			? round( (float) $rule['fixed_price'] * (int) $rule['minimum'], wc_get_price_decimals() )
-			: 0;
-		$advanced_open = 'tiered' === $rule['mode'] || $rule['maximum'] > 0;
+		$kit_units = PhaseOne_Bulk_Installer::KIT_UNITS;
+		$tier_text = implode( "\n", array_map( static fn( array $tier ): string => max( 1, (int) ( $tier['minimum'] / $kit_units ) ) . ': ' . wc_format_decimal( (float) $tier['price'] * $kit_units, wc_get_price_decimals() ), $rule['tiers'] ) );
+		$kit_price = $rule['fixed_price'] > 0 ? (float) $rule['fixed_price'] * $kit_units : 0;
 		?>
 		<article class="phaseone-bulk-rule" data-rule>
-			<header><div><strong><?php echo esc_html( wp_strip_all_tags( $product->get_formatted_name() ) ); ?></strong><span>SKU <?php echo esc_html( $product->get_sku() ?: 'missing' ); ?></span></div><label class="phaseone-bulk-enabled"><input type="checkbox" name="rules[<?php echo esc_attr( $id ); ?>][enabled]" value="1" <?php checked( $rule['enabled'] ); ?>> Show in Bulk catalog</label></header>
+			<header><div><strong><?php echo esc_html( wp_strip_all_tags( $product->get_formatted_name() ) ); ?></strong><span><?php echo $product->is_type( 'variable' ) ? 'WooCommerce family' : 'SKU ' . esc_html( $product->get_sku() ?: 'missing' ); ?></span></div></header>
 			<input type="hidden" name="rules[<?php echo esc_attr( $id ); ?>][product_id]" value="<?php echo esc_attr( $id ); ?>">
+			<div class="phaseone-bulk-rule-grid">
+				<label>Catalog<select name="rules[<?php echo esc_attr( $id ); ?>][catalog_override]"><option value="inherit" <?php selected( $rule['catalog_override'], 'inherit' ); ?>>Inherit catalog rules</option><option value="include" <?php selected( $rule['catalog_override'], 'include' ); ?>>Explicitly include</option><option value="exclude" <?php selected( $rule['catalog_override'], 'exclude' ); ?>>Exclude</option></select></label>
+				<label>Minimum kits <small>optional; blank inherits Settings</small><input type="number" min="1" step="1" name="rules[<?php echo esc_attr( $id ); ?>][minimum_kits]" value="<?php echo ! empty( $rule['minimum_explicit'] ) ? esc_attr( max( 1, (int) ceil( $rule['minimum'] / $kit_units ) ) ) : ''; ?>" placeholder="Inherit"></label>
+				<label>Maximum units <small>optional; use multiples of 10</small><input type="number" min="0" step="10" name="rules[<?php echo esc_attr( $id ); ?>][maximum]" value="<?php echo esc_attr( $rule['maximum'] ?: '' ); ?>"></label>
+			</div>
 			<div class="phaseone-bulk-simple-grid">
-				<label>Quantity of this SKU in the bundle <small>The selected SKU already includes its pack size</small><input type="number" min="1" step="1" name="rules[<?php echo esc_attr( $id ); ?>][minimum]" value="<?php echo esc_attr( $rule['minimum'] ); ?>" required></label>
-				<label data-bundle-price-wrap <?php echo 'fixed' === $rule['mode'] ? '' : 'hidden'; ?>>Total bundle price <small>The complete price for all units above</small><input type="number" min="0" step="0.01" name="rules[<?php echo esc_attr( $id ); ?>][bundle_price]" value="<?php echo esc_attr( wc_format_decimal( $bundle_price, wc_get_price_decimals() ) ); ?>"></label>
+				<label>Pricing<select name="rules[<?php echo esc_attr( $id ); ?>][mode]" data-pricing-mode><option value="inherit" <?php selected( $rule['mode'], 'inherit' ); ?>>Inherit Global Discount</option><option value="discount" <?php selected( $rule['mode'], 'discount' ); ?>>Custom Discount % (this product)</option><option value="fixed" <?php selected( $rule['mode'], 'fixed' ); ?>>Fixed Price</option><option value="tiered" <?php selected( $rule['mode'], 'tiered' ); ?>>Tier Pricing</option></select></label>
+				<label data-discount-wrap>Product / Variation Discount (%) <small>Overrides the global discount only for this product, family or variation.</small><input type="number" min="0" max="99.99" step="0.01" inputmode="decimal" name="rules[<?php echo esc_attr( $id ); ?>][discount]" value="<?php echo esc_attr( wc_format_decimal( $rule['discount'], 2 ) ); ?>" placeholder="Example: 30"></label>
+				<label data-bundle-price-wrap>Fixed price per 10-unit Kit<input type="number" min="0" step="0.01" name="rules[<?php echo esc_attr( $id ); ?>][bundle_price]" value="<?php echo esc_attr( $kit_price > 0 ? wc_format_decimal( $kit_price, wc_get_price_decimals() ) : '' ); ?>"></label>
+				<label data-tier-prices>Tier Pricing <small>One per line: kits: kit price. Example 1: 120</small><textarea name="rules[<?php echo esc_attr( $id ); ?>][tier_kits]" rows="4"><?php echo esc_textarea( $tier_text ); ?></textarea></label>
 			</div>
 			<input type="hidden" name="rules[<?php echo esc_attr( $id ); ?>][fixed_price]" value="<?php echo esc_attr( $rule['fixed_price'] ); ?>">
-			<details class="phaseone-bulk-advanced" <?php echo $advanced_open ? 'open' : ''; ?>>
-				<summary>Advanced pricing <small>Optional</small></summary>
-				<div class="phaseone-bulk-advanced-grid">
-					<label>Pricing behavior<select name="rules[<?php echo esc_attr( $id ); ?>][mode]" data-pricing-mode><option value="fixed" <?php selected( $rule['mode'], 'fixed' ); ?>>One simple bundle price</option><option value="tiered" <?php selected( $rule['mode'], 'tiered' ); ?>>Quantity tiers</option></select></label>
-					<label>Maximum quantity <small>Optional</small><input type="number" min="0" step="1" name="rules[<?php echo esc_attr( $id ); ?>][maximum]" value="<?php echo esc_attr( $rule['maximum'] ?: '' ); ?>" placeholder="No maximum"></label>
-					<label class="phaseone-bulk-tiers" data-tier-prices <?php echo 'tiered' === $rule['mode'] ? '' : 'hidden'; ?>>Quantity tiers <small>One per line: quantity: unit price</small><textarea name="rules[<?php echo esc_attr( $id ); ?>][tiers]" rows="3" placeholder="10: 18.00&#10;50: 15.00"><?php echo esc_textarea( $tier_text ); ?></textarea></label>
-				</div>
-				<label class="phaseone-bulk-remove"><input type="checkbox" name="rules[<?php echo esc_attr( $id ); ?>][_delete]" value="1"> <span>Remove this product from Bulk settings</span></label>
-			</details>
+			<label class="phaseone-bulk-remove"><input type="checkbox" name="rules[<?php echo esc_attr( $id ); ?>][_delete]" value="1"> <span>Remove this explicit rule and return to inherited defaults</span></label>
 		</article>
 		<?php
 	}
 
-	private static function render_access(): void {
+	private static function render_customers(): void {
+		$users = get_users( array( 'role__in' => array( 'customer', 'subscriber' ), 'number' => 250, 'orderby' => 'registered', 'order' => 'DESC' ) );
+		?>
+		<section class="phaseone-bulk-panel"><div class="phaseone-bulk-table-wrap"><table class="widefat striped"><thead><tr><th>Customer</th><th>Completed</th><th>Eligible</th><th>Tier</th><th>Temporary access</th><th>Actions</th></tr></thead><tbody>
+		<?php if ( empty( $users ) ) : ?><tr><td colspan="6">No customer accounts found.</td></tr><?php endif; ?>
+		<?php foreach ( $users as $user ) : $status = PhaseOne_Bulk_Access::customer_status( (int) $user->ID ); ?>
+			<tr><td><strong><?php echo esc_html( $status['name'] ); ?></strong><br><small><?php echo esc_html( $status['email'] ); ?></small></td><td><?php echo esc_html( $status['completed_orders'] ); ?></td><td><?php echo $status['eligible'] ? 'Eligible' : 'Not yet'; ?></td><td><?php echo esc_html( ucfirst( $status['tier'] ) ); ?></td><td><?php echo $status['temporary_access'] ? esc_html( self::display_date( $status['temporary_expires_at'] ) ) : 'None'; ?></td><td>
+				<form class="phaseone-bulk-inline-actions" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" method="post"><input type="hidden" name="action" value="phaseone_bulk_customer_action"><input type="hidden" name="customer_id" value="<?php echo esc_attr( $user->ID ); ?>"><?php wp_nonce_field( 'phaseone_bulk_manage_customer' ); ?>
+				<?php if ( 'special' === $status['tier'] ) : ?><button class="button" name="operation" value="remove-tier">Remove Tier</button><?php elseif ( $status['eligible'] ) : ?><button class="button button-primary" name="operation" value="grant-tier">Grant Special Tier</button><?php endif; ?>
+				<?php if ( $status['temporary_access'] ) : ?><button class="button" name="operation" value="revoke-temporary">Revoke Temporary</button><?php endif; ?></form>
+			</td></tr>
+		<?php endforeach; ?></tbody></table></div></section>
+		<?php
+	}
+
+	private static function render_requests(): void {
+		$rows = PhaseOne_Bulk_Access_Requests::list_all();
+		?>
+		<section class="phaseone-bulk-panel"><div class="phaseone-bulk-table-wrap"><table class="widefat striped"><thead><tr><th>Customer</th><th>Orders</th><th>Eligibility</th><th>Requested</th><th>Notes / Actions</th></tr></thead><tbody>
+		<?php if ( empty( $rows ) ) : ?><tr><td colspan="5">No Bulk access requests yet.</td></tr><?php endif; ?>
+		<?php foreach ( $rows as $row ) : ?><tr><td><strong><?php echo esc_html( $row['customer_name'] ); ?></strong><br><small><?php echo esc_html( $row['customer_email'] ); ?> · <?php echo esc_html( ucfirst( $row['status'] ) ); ?></small></td><td><?php echo esc_html( $row['completed_orders'] ); ?></td><td><?php echo ! empty( $row['eligible'] ) ? 'Eligible' : 'Not yet'; ?></td><td><?php echo esc_html( self::display_date( $row['created_at'] ) ); ?></td><td><p><?php echo esc_html( $row['customer_note'] ?: 'No customer note.' ); ?></p>
+			<form action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" method="post"><input type="hidden" name="action" value="phaseone_bulk_request_action"><input type="hidden" name="request_id" value="<?php echo esc_attr( $row['id'] ); ?>"><?php wp_nonce_field( 'phaseone_bulk_manage_request' ); ?><textarea name="internal_note" rows="2" placeholder="Internal note"><?php echo esc_textarea( $row['internal_note'] ); ?></textarea><div class="phaseone-bulk-inline-actions"><button class="button button-primary" name="operation" value="approve">Approve</button><button class="button" name="operation" value="reject">Reject</button><button class="button" name="operation" value="archive">Archive</button></div></form>
+		</td></tr><?php endforeach; ?></tbody></table></div></section>
+		<?php
+	}
+
+	private static function render_codes(): void {
 		$rows = PhaseOne_Bulk_Access::list_all();
 		$request_id = wp_generate_uuid4();
-		$access_mode = PhaseOne_Bulk_Access::mode();
 		?>
-		<section class="phaseone-bulk-panel phaseone-bulk-access-mode">
-			<div><h2>Catalog visibility</h2><p>Controls whether visitors need an Access Code before viewing Bulk products. Checkout always requires a customer login.</p></div>
-			<form action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" method="post">
-				<input type="hidden" name="action" value="phaseone_bulk_save_access_mode">
-				<?php wp_nonce_field( 'phaseone_bulk_manage_access_mode' ); ?>
-				<label><input type="radio" name="access_mode" value="private" <?php checked( $access_mode, 'private' ); ?>> <span><strong>Private</strong><small>Require an active Access Code.</small></span></label>
-				<label><input type="radio" name="access_mode" value="public" <?php checked( $access_mode, 'public' ); ?>> <span><strong>Public</strong><small>Open the Bulk catalog without a code.</small></span></label>
-				<button class="button button-primary" type="submit">Save visibility</button>
-			</form>
-		</section>
+		<section class="phaseone-bulk-panel phaseone-bulk-create-access"><div><h2>Create temporary Access Code</h2><p>Shown once. The complete code is never stored as plaintext. Sessions last for the duration configured in Settings.</p></div><form action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" method="post"><input type="hidden" name="action" value="phaseone_bulk_create_access"><input type="hidden" name="request_id" value="<?php echo esc_attr( $request_id ); ?>"><?php wp_nonce_field( 'phaseone_bulk_manage_access' ); ?><label>Code expiration <small>optional</small><input type="datetime-local" name="expires_at"></label><label>Usage limit <small>optional</small><input type="number" min="1" step="1" name="usage_limit" placeholder="Unlimited"></label><label class="phaseone-bulk-notes">Internal notes<textarea name="notes" rows="2" maxlength="500"></textarea></label><label class="phaseone-bulk-checkbox"><input type="checkbox" name="is_active" value="1" checked> Active</label><button class="button button-primary" type="submit">Generate code</button></form></section>
+		<section class="phaseone-bulk-panel"><div class="phaseone-bulk-table-wrap"><table class="widefat striped phaseone-bulk-access-table"><thead><tr><th>Code</th><th>Status</th><th>Expiration</th><th>Usage</th><th>Notes</th><th>Actions</th></tr></thead><tbody>
+		<?php if ( empty( $rows ) ) : ?><tr><td colspan="6">No access codes created yet.</td></tr><?php endif; ?>
+		<?php foreach ( $rows as $row ) : $expired = ! empty( $row['expires_at'] ) && strtotime( $row['expires_at'] . ' UTC' ) <= time(); $status = ! empty( $row['revoked_at'] ) ? 'Revoked' : ( $expired ? 'Expired' : ( ! empty( $row['is_active'] ) ? 'Active' : 'Inactive' ) ); ?>
+			<tr><td><code>••••••<?php echo esc_html( $row['code_suffix'] ); ?></code></td><td><?php echo esc_html( $status ); ?></td><td><?php echo esc_html( self::display_date( $row['expires_at'] ) ); ?></td><td><?php echo esc_html( (string) $row['uses'] ); ?> / <?php echo esc_html( $row['usage_limit'] ?: '∞' ); ?></td><td><?php echo esc_html( $row['notes'] ?: '—' ); ?></td><td><?php if ( empty( $row['revoked_at'] ) ) : echo wp_kses_post( self::access_action_link( (int) $row['id'], ! empty( $row['is_active'] ) ? 'deactivate' : 'activate', ! empty( $row['is_active'] ) ? 'Deactivate' : 'Activate' ) ); ?> · <?php echo wp_kses_post( self::access_action_link( (int) $row['id'], 'revoke', 'Revoke', true ) ); endif; ?></td></tr>
+		<?php endforeach; ?></tbody></table></div></section>
+		<?php
+	}
 
-		<section class="phaseone-bulk-panel phaseone-bulk-create-access">
-			<div><h2>Create access code</h2><p>The complete code is shown once and is never stored as plaintext.</p></div>
-			<form action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" method="post">
-				<input type="hidden" name="action" value="phaseone_bulk_create_access"><input type="hidden" name="request_id" value="<?php echo esc_attr( $request_id ); ?>">
-				<?php wp_nonce_field( 'phaseone_bulk_manage_access' ); ?>
-				<label>Expiration <small>optional</small><input type="datetime-local" name="expires_at"></label>
-				<label>Usage limit <small>optional</small><input type="number" min="1" step="1" name="usage_limit" placeholder="Unlimited"></label>
-				<label class="phaseone-bulk-notes">Internal notes <textarea name="notes" rows="2" maxlength="500"></textarea></label>
-				<label class="phaseone-bulk-checkbox"><input type="checkbox" name="is_active" value="1" checked> Active</label>
-				<button class="button button-primary" type="submit">Create code</button>
-			</form>
-		</section>
-
-		<section class="phaseone-bulk-panel">
-			<div class="phaseone-bulk-table-wrap"><table class="widefat striped phaseone-bulk-access-table"><thead><tr><th>Code</th><th>Status</th><th>Expiration</th><th>Usage</th><th>Notes</th><th>Actions</th></tr></thead><tbody>
-			<?php if ( empty( $rows ) ) : ?><tr><td colspan="6">No access codes created yet.</td></tr><?php endif; ?>
-			<?php foreach ( $rows as $row ) :
-				$expired = ! empty( $row['expires_at'] ) && strtotime( $row['expires_at'] . ' UTC' ) <= time();
-				$status = ! empty( $row['revoked_at'] ) ? 'Revoked' : ( $expired ? 'Expired' : ( ! empty( $row['is_active'] ) ? 'Active' : 'Inactive' ) );
-				?>
-				<tr><td><code>••••••<?php echo esc_html( $row['code_suffix'] ); ?></code></td><td><?php echo esc_html( $status ); ?></td><td><?php echo esc_html( self::display_date( $row['expires_at'] ) ); ?></td><td><?php echo esc_html( (string) $row['uses'] ); ?> / <?php echo esc_html( $row['usage_limit'] ?: '∞' ); ?></td><td><?php echo esc_html( $row['notes'] ?: '—' ); ?></td><td><?php if ( empty( $row['revoked_at'] ) ) : ?><?php echo wp_kses_post( self::access_action_link( (int) $row['id'], ! empty( $row['is_active'] ) ? 'deactivate' : 'activate', ! empty( $row['is_active'] ) ? 'Deactivate' : 'Activate' ) ); ?> <span aria-hidden="true">·</span> <?php echo wp_kses_post( self::access_action_link( (int) $row['id'], 'revoke', 'Revoke', true ) ); ?><?php else : ?>—<?php endif; ?></td></tr>
-			<?php endforeach; ?>
-			</tbody></table></div>
-		</section>
+	private static function render_settings(): void {
+		$settings = PhaseOne_Bulk_Installer::settings();
+		$preset = in_array( (int) $settings['session_days'], array( 7, 14, 30 ), true ) ? (string) $settings['session_days'] : 'custom';
+		?>
+		<form class="phaseone-bulk-panel phaseone-bulk-settings-form" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" method="post"><input type="hidden" name="action" value="phaseone_bulk_save_settings"><?php wp_nonce_field( 'phaseone_bulk_manage_settings' ); ?>
+			<h2>Bulk Settings</h2>
+			<div class="phaseone-bulk-rule-grid">
+				<label>Global Bulk Discount (%)<small>Default only. Explicit Product/Variation pricing remains stronger.</small><input type="number" name="global_discount" min="0" max="99.99" step="0.01" required value="<?php echo esc_attr( wc_format_decimal( $settings['global_discount'], 2 ) ); ?>"></label>
+				<label>Global Catalog Mode<small>Include all applies inherited pricing automatically; exclusions still win.</small><select name="catalog_mode"><option value="include_all" <?php selected( $settings['catalog_mode'], 'include_all' ); ?>>Include all eligible products (recommended)</option><option value="legacy_explicit" <?php selected( $settings['catalog_mode'], 'legacy_explicit' ); ?>>Only explicitly included products</option></select></label>
+				<label>Default Minimum Units<small>Saved in complete 10-unit Kits.</small><input type="number" name="default_minimum" min="10" step="10" value="<?php echo esc_attr( $settings['default_minimum'] ); ?>"></label>
+				<label>Session Duration<select name="session_preset" data-session-preset><option value="7" <?php selected( $preset, '7' ); ?>>7 days</option><option value="14" <?php selected( $preset, '14' ); ?>>14 days</option><option value="30" <?php selected( $preset, '30' ); ?>>30 days</option><option value="custom" <?php selected( $preset, 'custom' ); ?>>Custom</option></select><input type="number" name="session_days" data-session-days min="1" max="3650" value="<?php echo esc_attr( $settings['session_days'] ); ?>"></label>
+				<label>Checkout Intent Minutes<input type="number" name="intent_minutes" min="5" max="120" value="<?php echo esc_attr( $settings['intent_minutes'] ); ?>"></label>
+				<label>Public Bulk Title<input type="text" name="public_title" maxlength="100" value="<?php echo esc_attr( $settings['public_title'] ); ?>"></label>
+				<label class="phaseone-bulk-wide">Public introduction<textarea name="public_intro" rows="3" maxlength="500"><?php echo esc_textarea( $settings['public_intro'] ); ?></textarea></label>
+			</div>
+			<p><strong>Public savings wording is calculated automatically.</strong> The storefront uses the highest real savings available after all Product and Variation overrides; no percentage is hardcoded in frontend copy.</p>
+			<p class="submit"><button class="button button-primary" type="submit">Save Bulk Settings</button></p>
+		</form>
 		<?php
 	}
 
 	public static function add_rule(): void {
 		self::authorize( 'phaseone_bulk_manage_rules' );
 		$id = absint( $_POST['product_id'] ?? 0 );
-		$result = PhaseOne_Bulk_Product_Rules::save( $id, array( 'enabled' => false, 'minimum' => 10, 'maximum' => 0, 'mode' => 'fixed', 'fixed_price' => 0, 'tiers' => array() ) );
-		self::redirect( 'rules', is_wp_error( $result ) ? $result->get_error_message() : 'Product added. Configure its Bulk rule before enabling it.', is_wp_error( $result ) ? 'error' : 'success' );
+		$result = PhaseOne_Bulk_Product_Rules::save( $id, array( 'catalog_override' => 'inherit', 'minimum_kits' => '', 'maximum' => 0, 'mode' => 'inherit', 'discount' => 0, 'fixed_price' => 0, 'tiers' => array() ) );
+		self::redirect( 'rules', is_wp_error( $result ) ? $result->get_error_message() : 'Rule added. Configure only the exception you need.', is_wp_error( $result ) ? 'error' : 'success' );
 	}
 
 	public static function save_rules(): void {
 		self::authorize( 'phaseone_bulk_manage_rules' );
-		$rules  = isset( $_POST['rules'] ) && is_array( $_POST['rules'] ) ? wp_unslash( $_POST['rules'] ) : array();
+		PhaseOne_Bulk_Installer::update_settings( array( 'excluded_category_ids' => (array) ( $_POST['excluded_category_ids'] ?? array() ), 'excluded_family_ids' => (array) ( $_POST['excluded_family_ids'] ?? array() ) ) );
+		$rules = isset( $_POST['rules'] ) && is_array( $_POST['rules'] ) ? wp_unslash( $_POST['rules'] ) : array();
 		$errors = array();
 		foreach ( $rules as $id => $raw ) {
 			$id = absint( $id );
-			if ( ! $id || ! is_array( $raw ) ) {
-				continue;
-			}
+			if ( ! $id || ! is_array( $raw ) ) continue;
 			$result = ! empty( $raw['_delete'] ) ? PhaseOne_Bulk_Product_Rules::delete( $id ) : PhaseOne_Bulk_Product_Rules::save( $id, $raw );
-			if ( is_wp_error( $result ) ) {
-				$errors[] = $result->get_error_message();
-			} elseif ( false === $result ) {
-				$errors[] = 'A product rule could not be saved.';
-			}
+			if ( is_wp_error( $result ) ) $errors[] = $result->get_error_message();
+			elseif ( false === $result ) $errors[] = 'A product rule could not be saved.';
 		}
 		self::redirect( 'rules', $errors ? implode( ' ', array_unique( $errors ) ) : 'Product rules saved.', $errors ? 'error' : 'success' );
 	}
 
-	public static function create_access(): void {
-		self::authorize( 'phaseone_bulk_manage_access' );
-		$result = PhaseOne_Bulk_Access::create(
-			array(
-				'is_active'  => ! empty( $_POST['is_active'] ),
-				'expires_at' => sanitize_text_field( wp_unslash( $_POST['expires_at'] ?? '' ) ),
-				'usage_limit' => absint( $_POST['usage_limit'] ?? 0 ),
-				'notes'      => sanitize_textarea_field( wp_unslash( $_POST['notes'] ?? '' ) ),
-			),
-			sanitize_text_field( wp_unslash( $_POST['request_id'] ?? '' ) )
-		);
-		if ( is_wp_error( $result ) ) {
-			self::redirect( 'access', $result->get_error_message(), 'error' );
-		}
-		nocache_headers();
-		?><!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Bulk access code created</title><style>body{font-family:system-ui,sans-serif;background:#f0f0f1;margin:0;padding:40px;color:#1d2327}.box{max-width:680px;margin:auto;background:#fff;border:1px solid #c3c4c7;border-radius:8px;padding:28px}.code{display:block;margin:20px 0;padding:18px;background:#f6f7f7;border:1px solid #dcdcde;font:700 21px ui-monospace,monospace;letter-spacing:.05em;overflow-wrap:anywhere}.button{display:inline-block;background:#2271b1;color:#fff;text-decoration:none;padding:9px 14px;border-radius:3px}</style></head><body><main class="box"><h1>Access code created</h1><p>Copy it now. For security, the complete code will not be shown again.</p><code class="code"><?php echo esc_html( $result['code'] ); ?></code><a class="button" href="<?php echo esc_url( self::page_url( 'access' ) ); ?>">Return to Access Codes</a></main></body></html><?php
-		exit;
+	public static function save_settings(): void {
+		self::authorize( 'phaseone_bulk_manage_settings' );
+		$result = PhaseOne_Bulk_Installer::update_settings( array(
+			'global_discount' => wp_unslash( $_POST['global_discount'] ?? '' ),
+			'catalog_mode' => sanitize_key( wp_unslash( $_POST['catalog_mode'] ?? '' ) ),
+			'default_minimum' => absint( $_POST['default_minimum'] ?? 10 ),
+			'session_days' => absint( $_POST['session_days'] ?? 14 ),
+			'intent_minutes' => absint( $_POST['intent_minutes'] ?? 30 ),
+			'public_title' => sanitize_text_field( wp_unslash( $_POST['public_title'] ?? '' ) ),
+			'public_intro' => sanitize_textarea_field( wp_unslash( $_POST['public_intro'] ?? '' ) ),
+		) );
+		self::redirect( 'settings', is_wp_error( $result ) ? $result->get_error_message() : 'Bulk settings saved. New quotes now use the updated pricing.', is_wp_error( $result ) ? 'error' : 'success' );
 	}
 
-	public static function save_access_mode(): void {
-		self::authorize( 'phaseone_bulk_manage_access_mode' );
-		$mode = 'public' === sanitize_key( wp_unslash( $_POST['access_mode'] ?? '' ) ) ? 'public' : 'private';
-		$settings = get_option( 'phaseone_bulk_settings', array() );
-		$settings = is_array( $settings ) ? $settings : array();
-		$settings['access_mode'] = $mode;
-		update_option( 'phaseone_bulk_settings', $settings, false );
-		self::redirect( 'access', 'Catalog visibility updated.', 'success' );
+	public static function customer_action(): void {
+		self::authorize( 'phaseone_bulk_manage_customer' );
+		$id = absint( $_POST['customer_id'] ?? 0 );
+		$operation = sanitize_key( wp_unslash( $_POST['operation'] ?? '' ) );
+		$result = true;
+		if ( 'grant-tier' === $operation ) $result = PhaseOne_Bulk_Access::grant_special_tier( $id );
+		elseif ( 'remove-tier' === $operation ) PhaseOne_Bulk_Access::remove_special_tier( $id );
+		elseif ( 'revoke-temporary' === $operation ) PhaseOne_Bulk_Access::revoke_customer_sessions( $id, 'code' );
+		else $result = new WP_Error( 'phaseone_bulk_customer_action_invalid', 'Choose a valid customer action.' );
+		self::redirect( 'customers', is_wp_error( $result ) ? $result->get_error_message() : 'Customer access updated.', is_wp_error( $result ) ? 'error' : 'success' );
+	}
+
+	public static function request_action(): void {
+		self::authorize( 'phaseone_bulk_manage_request' );
+		$result = PhaseOne_Bulk_Access_Requests::review( absint( $_POST['request_id'] ?? 0 ), sanitize_key( wp_unslash( $_POST['operation'] ?? '' ) ), sanitize_textarea_field( wp_unslash( $_POST['internal_note'] ?? '' ) ) );
+		self::redirect( 'requests', is_wp_error( $result ) ? $result->get_error_message() : 'Access request updated.', is_wp_error( $result ) ? 'error' : 'success' );
+	}
+
+	public static function create_access(): void {
+		self::authorize( 'phaseone_bulk_manage_access' );
+		$result = PhaseOne_Bulk_Access::create( array( 'is_active' => ! empty( $_POST['is_active'] ), 'expires_at' => sanitize_text_field( wp_unslash( $_POST['expires_at'] ?? '' ) ), 'usage_limit' => absint( $_POST['usage_limit'] ?? 0 ), 'notes' => sanitize_textarea_field( wp_unslash( $_POST['notes'] ?? '' ) ) ), sanitize_text_field( wp_unslash( $_POST['request_id'] ?? '' ) ) );
+		if ( is_wp_error( $result ) ) self::redirect( 'codes', $result->get_error_message(), 'error' );
+		nocache_headers();
+		?><!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Bulk access code created</title><style>body{font-family:system-ui,sans-serif;background:#f0f0f1;margin:0;padding:40px;color:#1d2327}.box{max-width:680px;margin:auto;background:#fff;border:1px solid #c3c4c7;border-radius:8px;padding:28px}.code{display:block;margin:20px 0;padding:18px;background:#f6f7f7;border:1px solid #dcdcde;font:700 21px ui-monospace,monospace;letter-spacing:.05em;overflow-wrap:anywhere}.button{display:inline-block;background:#2271b1;color:#fff;text-decoration:none;padding:9px 14px;border-radius:3px}</style></head><body><main class="box"><h1>Access code created</h1><p>Copy it now. It will not be shown again.</p><code class="code"><?php echo esc_html( $result['code'] ); ?></code><a class="button" href="<?php echo esc_url( self::page_url( 'codes' ) ); ?>">Return to Access Codes</a></main></body></html><?php exit;
 	}
 
 	public static function access_action(): void {
 		self::authorize( 'phaseone_bulk_access_action' );
 		$id = absint( $_GET['access_id'] ?? 0 );
 		$operation = sanitize_key( wp_unslash( $_GET['operation'] ?? '' ) );
-		if ( 'revoke' === $operation ) {
-			PhaseOne_Bulk_Access::revoke( $id );
-		} elseif ( in_array( $operation, array( 'activate', 'deactivate' ), true ) ) {
-			PhaseOne_Bulk_Access::set_active( $id, 'activate' === $operation );
-		}
-		self::redirect( 'access', 'Access code updated.', 'success' );
+		if ( 'revoke' === $operation ) PhaseOne_Bulk_Access::revoke( $id );
+		elseif ( in_array( $operation, array( 'activate', 'deactivate' ), true ) ) PhaseOne_Bulk_Access::set_active( $id, 'activate' === $operation );
+		self::redirect( 'codes', 'Access code updated.', 'success' );
 	}
 
 	private static function notice(): void {
 		$message = sanitize_text_field( wp_unslash( $_GET['phaseone_bulk_message'] ?? '' ) );
-		if ( '' === $message ) {
-			return;
-		}
+		if ( '' === $message ) return;
 		$type = 'error' === sanitize_key( wp_unslash( $_GET['phaseone_bulk_type'] ?? '' ) ) ? 'error' : 'success';
 		echo '<div class="notice notice-' . esc_attr( $type ) . ' is-dismissible"><p>' . esc_html( $message ) . '</p></div>';
 	}
 
 	private static function authorize( string $nonce_action ): void {
-		if ( ! current_user_can( 'manage_woocommerce' ) ) {
-			wp_die( esc_html__( 'You are not allowed to manage Bulk Orders.', 'phaseone-bulk-orders' ) );
-		}
+		if ( ! current_user_can( 'manage_woocommerce' ) ) wp_die( esc_html__( 'You are not allowed to manage Bulk Orders.', 'phaseone-bulk-orders' ) );
 		check_admin_referer( $nonce_action );
 	}
 
@@ -250,9 +324,11 @@ final class PhaseOne_Bulk_Admin {
 	}
 
 	private static function display_date( ?string $utc ): string {
-		if ( empty( $utc ) ) {
-			return 'Never';
-		}
-		return wp_date( 'M j, Y g:i a', strtotime( $utc . ' UTC' ), wp_timezone() );
+		if ( empty( $utc ) ) return 'Never';
+		return wp_date( 'M j, Y g:i a', strtotime( $utc . ( str_contains( $utc, 'T' ) ? '' : ' UTC' ) ), wp_timezone() );
+	}
+
+	private static function percent( float $value ): string {
+		return rtrim( rtrim( number_format( $value, 2, '.', '' ), '0' ), '.' ) . '%';
 	}
 }

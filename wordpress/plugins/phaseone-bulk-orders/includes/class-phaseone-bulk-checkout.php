@@ -40,7 +40,7 @@ final class PhaseOne_Bulk_Checkout {
 			return new WP_Error( 'phaseone_bulk_login_required', 'You must be signed in to complete a Bulk order.', array( 'status' => 401 ) );
 		}
 
-		$session = PhaseOne_Bulk_Access::context( $session_token );
+		$session = PhaseOne_Bulk_Access::context( $session_token, $customer_id );
 		if ( is_wp_error( $session ) ) {
 			return $session;
 		}
@@ -70,6 +70,9 @@ final class PhaseOne_Bulk_Checkout {
 		if ( is_wp_error( $quote ) ) {
 			return $quote;
 		}
+		if ( ! hash_equals( (string) $intent['quote_fingerprint'], (string) $quote['fingerprint'] ) ) {
+			return new WP_Error( 'phaseone_bulk_quote_changed', 'Bulk pricing changed after this checkout was prepared. Return to the Bulk catalog and continue again.', array( 'status' => 409 ) );
+		}
 		$claimed = PhaseOne_Bulk_Intents::claim( (int) $intent['id'] );
 		if ( is_wp_error( $claimed ) ) {
 			return $claimed;
@@ -79,6 +82,7 @@ final class PhaseOne_Bulk_Checkout {
 			'is_bulk'       => true,
 			'is_idempotent' => false,
 			'access_mode'   => (string) $session['access_mode'],
+			'access_source' => (string) $session['source'],
 			'access_id'     => (int) $session['access_id'],
 			'session_id'    => (int) $session['id'],
 			'intent_id'     => (int) $intent['id'],
@@ -88,7 +92,7 @@ final class PhaseOne_Bulk_Checkout {
 		);
 	}
 
-	public static function apply_to_order( WC_Order $order, array $context ): true|WP_Error {
+	public static function apply_to_order( WC_Order $order, array $context ): bool|WP_Error {
 		if ( empty( $context['is_bulk'] ) || empty( $context['quote']['lines'] ) ) {
 			return new WP_Error( 'phaseone_bulk_context_invalid', 'Bulk checkout context is invalid.' );
 		}
@@ -98,6 +102,7 @@ final class PhaseOne_Bulk_Checkout {
 
 		$order->update_meta_data( '_phaseone_bulk_order', 'yes' );
 		$order->update_meta_data( '_phaseone_bulk_access_mode', sanitize_key( (string) ( $context['access_mode'] ?? 'private' ) ) );
+		$order->update_meta_data( '_phaseone_bulk_access_source', sanitize_key( (string) ( $context['access_source'] ?? 'code' ) ) );
 		$order->update_meta_data( '_phaseone_bulk_access_id', (int) $context['access_id'] );
 		$order->update_meta_data( '_phaseone_bulk_intent_id', (int) $context['intent_id'] );
 		$order->update_meta_data( '_phaseone_bulk_pricing_fingerprint', sanitize_text_field( $context['quote']['fingerprint'] ) );
@@ -123,6 +128,10 @@ final class PhaseOne_Bulk_Checkout {
 			$item->update_meta_data( '_phaseone_bulk_tier', sanitize_text_field( $line['tier'] ) );
 			$item->update_meta_data( '_phaseone_bulk_min_qty', (int) $line['minimum'] );
 			$item->update_meta_data( '_phaseone_bulk_rule_revision', sanitize_text_field( $line['rule_revision'] ) );
+			$item->update_meta_data( '_phaseone_bulk_kit_units', (int) ( $line['kit_units'] ?? PhaseOne_Bulk_Installer::KIT_UNITS ) );
+			$item->update_meta_data( '_phaseone_bulk_retail_unit_price', wc_format_decimal( $line['retail_unit_price'] ?? 0, wc_get_price_decimals() ) );
+			$item->update_meta_data( '_phaseone_bulk_savings_percent', wc_format_decimal( $line['savings_percent'] ?? 0, 2 ) );
+			$item->update_meta_data( '_phaseone_bulk_pricing_source', sanitize_key( (string) ( $line['pricing_source'] ?? '' ) ) );
 			$item->save();
 		}
 
@@ -134,7 +143,7 @@ final class PhaseOne_Bulk_Checkout {
 		return ! empty( $context['intent_id'] ) && PhaseOne_Bulk_Intents::mark_order( (int) $context['intent_id'], (int) $order->get_id() );
 	}
 
-	public static function decorate_existing_order( WC_Order $order, array $context ): true|WP_Error {
+	public static function decorate_existing_order( WC_Order $order, array $context ): bool|WP_Error {
 		$items = array_values( $order->get_items( 'line_item' ) );
 		$lines = array_values( $context['quote']['lines'] ?? array() );
 		if ( count( $items ) !== count( $lines ) ) {
@@ -143,6 +152,7 @@ final class PhaseOne_Bulk_Checkout {
 
 		$order->update_meta_data( '_phaseone_bulk_order', 'yes' );
 		$order->update_meta_data( '_phaseone_bulk_access_mode', sanitize_key( (string) ( $context['access_mode'] ?? 'private' ) ) );
+		$order->update_meta_data( '_phaseone_bulk_access_source', sanitize_key( (string) ( $context['access_source'] ?? 'code' ) ) );
 		$order->update_meta_data( '_phaseone_bulk_access_id', (int) $context['access_id'] );
 		$order->update_meta_data( '_phaseone_bulk_intent_id', (int) $context['intent_id'] );
 		$order->update_meta_data( '_phaseone_bulk_pricing_fingerprint', sanitize_text_field( $context['quote']['fingerprint'] ) );
@@ -163,6 +173,10 @@ final class PhaseOne_Bulk_Checkout {
 			$item->update_meta_data( '_phaseone_bulk_tier', sanitize_text_field( $line['tier'] ) );
 			$item->update_meta_data( '_phaseone_bulk_min_qty', (int) $line['minimum'] );
 			$item->update_meta_data( '_phaseone_bulk_rule_revision', sanitize_text_field( $line['rule_revision'] ) );
+			$item->update_meta_data( '_phaseone_bulk_kit_units', (int) ( $line['kit_units'] ?? PhaseOne_Bulk_Installer::KIT_UNITS ) );
+			$item->update_meta_data( '_phaseone_bulk_retail_unit_price', wc_format_decimal( $line['retail_unit_price'] ?? 0, wc_get_price_decimals() ) );
+			$item->update_meta_data( '_phaseone_bulk_savings_percent', wc_format_decimal( $line['savings_percent'] ?? 0, 2 ) );
+			$item->update_meta_data( '_phaseone_bulk_pricing_source', sanitize_key( (string) ( $line['pricing_source'] ?? '' ) ) );
 			$item->save();
 		}
 		$order->save();
