@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Phase eDebit Order Endpoint
  * Description: Creates securely priced WooCommerce orders from a custom frontend checkout and returns the hosted eDebit/Yodlee redirect URL.
- * Version: 1.1.9
+ * Version: 1.2.0
  * Author: Phase One Labz
  */
 
@@ -37,7 +37,7 @@ final class Phase_Edebit_Shipping_Resolution_Exception_V117 extends InvalidArgum
 }
 
 final class Phase_Edebit_Order_Endpoint_V117 {
-    const VERSION = '1.1.9';
+    const VERSION = '1.2.0';
     const NAMESPACE = 'phase/v1';
     const DEFAULT_GATEWAY_ID = 'edd_draft_yodlee_gateway';
 
@@ -1508,13 +1508,34 @@ final class Phase_Edebit_Order_Endpoint_V117 {
         }
 
         $fee_sum = 0.0;
+        $protection_fee_sum = 0.0;
+        $store_credit_fee_sum = 0.0;
         foreach ($order->get_items('fee') as $fee_item) {
-            $fee_sum += self::money($fee_item->get_total());
-        }
-        $fee_sum = self::money($fee_sum);
+            $fee_total = round((float) $fee_item->get_total(), 2);
+            $fee_name = sanitize_title((string) $fee_item->get_name());
+            $fee_sum += $fee_total;
 
-        if ($fee_sum !== self::money($shipping_protection)) {
+            if ($fee_name === 'shipping-protection') {
+                $protection_fee_sum += $fee_total;
+            } elseif ($fee_name === 'store-credit') {
+                $store_credit_fee_sum += $fee_total;
+            } else {
+                throw new RuntimeException('An unrecognized fee was added before the Yodlee pricing lock.');
+            }
+        }
+        $fee_sum = round($fee_sum, 2);
+        $protection_fee_sum = self::money($protection_fee_sum);
+        $store_credit_amount = class_exists('PhaseOne_Checkout_Store_Credit')
+            ? PhaseOne_Checkout_Store_Credit::order_amount($order)
+            : 0.0;
+        $store_credit_fee_sum = round($store_credit_fee_sum, 2);
+
+        if ($protection_fee_sum !== self::money($shipping_protection)) {
             throw new RuntimeException('Shipping Protection changed after the authoritative calculation.');
+        }
+
+        if ($store_credit_fee_sum !== round(-$store_credit_amount, 2)) {
+            throw new RuntimeException('Store credit changed after the authoritative reservation.');
         }
 
         $tax_total = self::money($order->get_total_tax());
@@ -1535,6 +1556,7 @@ final class Phase_Edebit_Order_Endpoint_V117 {
             'couponDiscount' => $coupon_discount,
             'shipping' => $shipping_sum,
             'fees' => $fee_sum,
+            'storeCredit' => $store_credit_amount,
             'tax' => $tax_total,
             'orderTotal' => $actual_total,
             'expectedTotal' => $expected_total,
@@ -1715,6 +1737,24 @@ final class Phase_Edebit_Order_Endpoint_V117 {
         $is_bulk_request = 'bulk' === sanitize_key((string) ($body['checkout_mode'] ?? ''))
             || !empty($body['bulk_session_token'])
             || !empty($body['bulk_intent_token']);
+        $store_credit_flag = !empty($body['store_credit']['apply'])
+            || !empty($body['storeCredit']['apply'])
+            || !empty($body['apply_store_credit'])
+            || !empty($body['applyStoreCredit']);
+        $store_credit_requested = false;
+        $store_credit_user_id = 0;
+        $store_credit_amount = 0.0;
+
+        if (!$is_bulk_request && $store_credit_flag) {
+            if (!class_exists('PhaseOne_Checkout_Store_Credit')) {
+                return new WP_Error('phase_store_credit_unavailable', 'Store credit is temporarily unavailable.', ['status' => 503]);
+            }
+            $store_credit_requested = PhaseOne_Checkout_Store_Credit::requested($body);
+            $store_credit_user_id = PhaseOne_Checkout_Store_Credit::authenticated_user_id($request);
+            if ($store_credit_requested && $store_credit_user_id <= 0) {
+                return new WP_Error('phase_store_credit_auth_required', 'Sign in again to use store credit.', ['status' => 401]);
+            }
+        }
 
         try {
             if ($is_bulk_request) {
@@ -1756,6 +1796,8 @@ final class Phase_Edebit_Order_Endpoint_V117 {
             );
             if ($bulk_context) {
                 $fingerprint = hash('sha256', $fingerprint . '|bulk-intent:' . (int) $bulk_context['intent_id']);
+            } elseif ($store_credit_requested) {
+                $fingerprint = hash('sha256', $fingerprint . '|store-credit:yes|customer:' . $store_credit_user_id);
             }
 
             $existing = self::find_recent_duplicate($fingerprint);
@@ -1808,6 +1850,8 @@ final class Phase_Edebit_Order_Endpoint_V117 {
             ];
             if ($bulk_context) {
                 $order_args['customer_id'] = (int) $bulk_context['customer_id'];
+            } elseif ($store_credit_user_id > 0) {
+                $order_args['customer_id'] = $store_credit_user_id;
             }
             $order = wc_create_order($order_args);
 
@@ -1838,6 +1882,18 @@ final class Phase_Edebit_Order_Endpoint_V117 {
             // apply_coupon() already recalculates coupons/totals. This second pass only
             // sums the persisted authoritative components; it does not recalculate coupons.
             $order->calculate_totals(false);
+
+            if ($store_credit_requested) {
+                $reserved_credit = PhaseOne_Checkout_Store_Credit::reserve_for_order(
+                    $order,
+                    $store_credit_user_id,
+                    (int) apply_filters('phaseone_edebit_store_credit_reservation_ttl', 2 * HOUR_IN_SECONDS, $order)
+                );
+                if (is_wp_error($reserved_credit)) {
+                    throw new RuntimeException($reserved_credit->get_error_message());
+                }
+                $store_credit_amount = (float) $reserved_credit;
+            }
 
             $coupon_discount = self::money($order->get_discount_total());
 
@@ -1906,6 +1962,34 @@ final class Phase_Edebit_Order_Endpoint_V117 {
             $persisted_order->update_meta_data('_phaseone_persisted_integrity', wp_json_encode($persisted_integrity));
             $persisted_order->save();
             $order = $persisted_order;
+
+            if ($store_credit_amount > 0 && $locked_total <= 0.01) {
+                $order->set_payment_method('phaseone_store_credit');
+                $order->set_payment_method_title('Store Credit');
+                $order->add_order_note('Paid in full with reserved store credit. No eDebit transfer is required.');
+                $order->save();
+                $order->payment_complete('store-credit-' . $order->get_id());
+
+                return rest_ensure_response([
+                    'success' => true,
+                    'version' => self::VERSION,
+                    'orderId' => $order->get_id(),
+                    'orderNumber' => $order->get_order_number(),
+                    'orderKey' => $order->get_order_key(),
+                    'status' => $order->get_status(),
+                    'paymentMethod' => 'phaseone_store_credit',
+                    'paymentTitle' => 'Store Credit',
+                    'storeCreditApplied' => $store_credit_amount,
+                    'storeCreditOnly' => true,
+                    'orderTotal' => self::money($order->get_total()),
+                    'redirectUrl' => add_query_arg([
+                        'order_id' => $order->get_id(),
+                        'order_key' => $order->get_order_key(),
+                        'payment' => 'success',
+                        'gateway' => 'store-credit',
+                    ], '/checkout/thank-you'),
+                ]);
+            }
 
             $fallback_payment_url = $order->get_checkout_payment_url();
             $gateway_result = null;
@@ -1994,6 +2078,7 @@ final class Phase_Edebit_Order_Endpoint_V117 {
                     'couponDiscount' => $coupon_discount,
                     'shipping' => self::money($shipping['charged_cost']),
                     'shippingProtection' => self::money($shipping_protection),
+                    'storeCredit' => self::money($store_credit_amount),
                     'lockedTotal' => $locked_total,
                 ],
                 'orderTotal' => self::money($order->get_total()),
@@ -2008,6 +2093,9 @@ final class Phase_Edebit_Order_Endpoint_V117 {
                 delete_transient($lock_key);
             }
             if ($order && !$gateway_invoked) {
+                if (class_exists('PhaseOne_Checkout_Store_Credit')) {
+                    PhaseOne_Checkout_Store_Credit::release_order((int) $order->get_id(), 'eDebit checkout failed before the gateway was opened.');
+                }
                 $order->delete(true);
             }
             if ($bulk_context && !$gateway_invoked) {
@@ -2028,6 +2116,9 @@ final class Phase_Edebit_Order_Endpoint_V117 {
                 delete_transient($lock_key);
             }
             if ($order && !$gateway_invoked) {
+                if (class_exists('PhaseOne_Checkout_Store_Credit')) {
+                    PhaseOne_Checkout_Store_Credit::release_order((int) $order->get_id(), 'eDebit checkout validation failed.');
+                }
                 $order->delete(true);
             }
             if ($bulk_context && !$gateway_invoked) {
@@ -2040,6 +2131,9 @@ final class Phase_Edebit_Order_Endpoint_V117 {
                 delete_transient($lock_key);
             }
             if ($order && !$gateway_invoked) {
+                if (class_exists('PhaseOne_Checkout_Store_Credit')) {
+                    PhaseOne_Checkout_Store_Credit::release_order((int) $order->get_id(), 'eDebit checkout failed before the gateway was opened.');
+                }
                 $order->delete(true);
             }
             if ($bulk_context && !$gateway_invoked) {

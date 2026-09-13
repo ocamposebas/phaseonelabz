@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Phase One Manual Zelle / Venmo Orders
  * Description: Creates WooCommerce on-hold Zelle/Venmo orders, sends dedicated branded payment instructions, prevents duplicate WooCommerce notifications, and cancels unpaid manual orders after 24 hours.
- * Version: 5.4.0
+ * Version: 5.5.0
  * Author: Phase One Labz
  */
 
@@ -991,6 +991,28 @@ function phaseone_mzv_manual_payment_order_endpoint(WP_REST_Request $request) {
     }
   }
 
+  $store_credit_requested = !$bulk_context
+    && class_exists('PhaseOne_Checkout_Store_Credit')
+    && PhaseOne_Checkout_Store_Credit::requested($params);
+  $store_credit_user_id = $store_credit_requested
+    ? PhaseOne_Checkout_Store_Credit::authenticated_user_id($request)
+    : 0;
+
+  if (!$bulk_context && !class_exists('PhaseOne_Checkout_Store_Credit')
+      && (!empty($params['store_credit']['apply']) || !empty($params['storeCredit']['apply']))) {
+    return new WP_REST_Response(array(
+      'success' => false,
+      'message' => 'Store credit is temporarily unavailable.',
+    ), 503);
+  }
+
+  if ($store_credit_requested && $store_credit_user_id <= 0) {
+    return new WP_REST_Response(array(
+      'success' => false,
+      'message' => 'Sign in again to use store credit.',
+    ), 401);
+  }
+
   $existing_order_id = $bulk_context ? 0 : absint(phaseone_mzv_get_param($params, 'existingOrderId', 'existing_order_id'));
   $order = phaseone_mzv_get_reusable_order($existing_order_id);
   $is_new_order = false;
@@ -999,6 +1021,8 @@ function phaseone_mzv_manual_payment_order_endpoint(WP_REST_Request $request) {
     $order_args = array('status' => 'pending');
     if ($bulk_context) {
       $order_args['customer_id'] = (int) $bulk_context['customer_id'];
+    } elseif ($store_credit_user_id > 0) {
+      $order_args['customer_id'] = $store_credit_user_id;
     }
     $order = wc_create_order($order_args);
     $is_new_order = true;
@@ -1015,6 +1039,19 @@ function phaseone_mzv_manual_payment_order_endpoint(WP_REST_Request $request) {
   }
 
   $previous_payment_id = $order->get_payment_method();
+
+  if ($store_credit_requested) {
+    $existing_customer_id = (int) $order->get_customer_id();
+    if ($existing_customer_id > 0 && $existing_customer_id !== $store_credit_user_id) {
+      return new WP_REST_Response(array(
+        'success' => false,
+        'message' => 'Store credit does not belong to this order.',
+      ), 403);
+    }
+    $order->set_customer_id($store_credit_user_id);
+  } elseif (class_exists('PhaseOne_Checkout_Store_Credit')) {
+    PhaseOne_Checkout_Store_Credit::release_order((int) $order->get_id(), 'Store credit was removed before the manual order was submitted.');
+  }
 
   $payment_id = phaseone_mzv_payment_id($method);
   $details = phaseone_mzv_payment_details($method);
@@ -1040,8 +1077,6 @@ function phaseone_mzv_manual_payment_order_endpoint(WP_REST_Request $request) {
   $payment_discount = $bulk_context
     ? round((float) $bulk_context['quote']['subtotal'] * max(0, (float) apply_filters('phaseone_mzv_bulk_payment_discount_rate', 0.05, $order)), 2)
     : (float) phaseone_mzv_get_param($params, 'paymentDiscountAmount', 'payment_discount_amount');
-  $cashback_amount = $bulk_context ? 0 : (float) phaseone_mzv_get_param($params, 'cashbackAmount', 'cashback_amount');
-
   $shipping = $params['shipping'] ?? $billing;
   phaseone_mzv_set_address($order, $billing, 'billing');
   phaseone_mzv_set_address($order, $shipping, 'shipping');
@@ -1103,9 +1138,51 @@ function phaseone_mzv_manual_payment_order_endpoint(WP_REST_Request $request) {
   }
 
   phaseone_mzv_add_negative_fee($order, $payment_title . ' 5% discount', $payment_discount);
-  phaseone_mzv_add_negative_fee($order, 'Cashback selected', $cashback_amount);
-
   $order->calculate_totals(false);
+
+  $store_credit_amount = 0.0;
+  if ($store_credit_requested) {
+    $expires_hours = absint(phaseone_mzv_get_param($params, 'expiresInHours', 'expires_in_hours') ?: PHASEONE_MZV_CANCEL_HOURS);
+    $reserved_credit = PhaseOne_Checkout_Store_Credit::reserve_for_order(
+      $order,
+      $store_credit_user_id,
+      max(2, $expires_hours + 1) * HOUR_IN_SECONDS
+    );
+
+    if (is_wp_error($reserved_credit)) {
+      if ($is_new_order) {
+        $order->delete(true);
+      }
+      return new WP_REST_Response(array(
+        'success' => false,
+        'message' => $reserved_credit->get_error_message(),
+      ), 409);
+    }
+    $store_credit_amount = (float) $reserved_credit;
+  }
+
+  if ($store_credit_amount > 0 && (float) $order->get_total() <= 0.01) {
+    $order->set_payment_method('phaseone_store_credit');
+    $order->set_payment_method_title('Store Credit');
+    $order->add_order_note('Paid in full with reserved store credit. No manual transfer is required.');
+    $order->save();
+    $order->payment_complete('store-credit-' . $order->get_id());
+
+    $payload = phaseone_mzv_export_order_payload($order);
+    $payload['success'] = true;
+    $payload['reused'] = !$is_new_order;
+    $payload['instructions_sent'] = false;
+    $payload['storeCreditApplied'] = $store_credit_amount;
+    $payload['storeCreditOnly'] = true;
+    $payload['redirectUrl'] = add_query_arg(array(
+      'order_id' => $order->get_id(),
+      'order_key' => $order->get_order_key(),
+      'payment' => 'success',
+      'gateway' => 'store-credit',
+    ), '/checkout/thank-you');
+    return new WP_REST_Response($payload, 200);
+  }
+
   $order->set_status('on-hold');
 
   $reference = phaseone_mzv_save_payment_reference($order);
@@ -1140,6 +1217,7 @@ function phaseone_mzv_manual_payment_order_endpoint(WP_REST_Request $request) {
   $payload['success'] = true;
   $payload['reused'] = !$is_new_order;
   $payload['instructions_sent'] = $should_send_manual_email;
+  $payload['storeCreditApplied'] = $store_credit_amount;
 
   return new WP_REST_Response($payload, 200);
 }

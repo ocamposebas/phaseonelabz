@@ -2,12 +2,14 @@
 /**
  * Plugin Name: Phase One PRISM Checkout Bridge
  * Description: Creates authoritative WooCommerce orders from the Phase One custom Astro checkout and starts the installed PRISM payment gateway.
- * Version: 1.7.1
+ * Version: 1.8.0
  * Author: Phase One Labz
  * Requires PHP: 8.1
  */
 
 defined( 'ABSPATH' ) || exit;
+
+require_once __DIR__ . '/includes/class-phaseone-checkout-store-credit.php';
 
 add_action(
     'before_woocommerce_init',
@@ -294,6 +296,18 @@ final class PhaseOne_Prism_Checkout_Bridge {
         $is_bulk_request = 'bulk' === sanitize_key( (string) ( $payload['checkout_mode'] ?? '' ) )
             || ! empty( $payload['bulk_session_token'] )
             || ! empty( $payload['bulk_intent_token'] );
+        $store_credit_requested = ! $is_bulk_request && PhaseOne_Checkout_Store_Credit::requested( $payload );
+        $store_credit_user_id   = $store_credit_requested
+            ? PhaseOne_Checkout_Store_Credit::authenticated_user_id( $request )
+            : 0;
+
+        if ( $store_credit_requested && $store_credit_user_id <= 0 ) {
+            return new WP_Error(
+                'phaseone_store_credit_auth_required',
+                'Sign in again to use store credit.',
+                array( 'status' => 401 )
+            );
+        }
 
         $items = isset( $payload['items'] ) && is_array( $payload['items'] )
             ? array_values( $payload['items'] )
@@ -342,6 +356,7 @@ final class PhaseOne_Prism_Checkout_Bridge {
         $order = null;
         $bulk_context = null;
         $gateway_redirect_generated = false;
+        $store_credit_amount = 0.0;
 
         try {
             if ( $is_bulk_request ) {
@@ -374,7 +389,9 @@ final class PhaseOne_Prism_Checkout_Bridge {
                     'status'      => 'pending',
                     'customer_id' => $bulk_context
                         ? (int) $bulk_context['customer_id']
-                        : self::customer_id_from_email( $billing['email'] ),
+                        : ( $store_credit_user_id > 0
+                            ? $store_credit_user_id
+                            : self::customer_id_from_email( $billing['email'] ) ),
                 )
             );
 
@@ -437,6 +454,18 @@ final class PhaseOne_Prism_Checkout_Bridge {
             $order->calculate_totals( false );
             self::apply_shipping_protection( $order, $payload, $billing );
 
+            if ( $store_credit_requested ) {
+                $reserved_credit = PhaseOne_Checkout_Store_Credit::reserve_for_order(
+                    $order,
+                    $store_credit_user_id,
+                    (int) apply_filters( 'phaseone_prism_store_credit_reservation_ttl', 2 * HOUR_IN_SECONDS, $order )
+                );
+                if ( is_wp_error( $reserved_credit ) ) {
+                    throw new RuntimeException( $reserved_credit->get_error_message() );
+                }
+                $store_credit_amount = (float) $reserved_credit;
+            }
+
             self::store_custom_fields( $order, $payload );
             self::store_acknowledgements( $order, $payload );
             $order->update_meta_data( '_phaseone_recon_water_promo', $pricing['recon_water_promo_active'] ? 'yes' : 'no' );
@@ -447,6 +476,47 @@ final class PhaseOne_Prism_Checkout_Bridge {
             $order->update_meta_data( '_phaseone_bundle_discount_percent', (int) $pricing['bundle_percent'] );
             $order->update_meta_data( '_phaseone_bundle_required_quantity', (int) $pricing['bundle_required_quantity'] );
             $order->update_meta_data( '_phaseone_bundle_tier', sanitize_key( (string) $pricing['bundle_tier_key'] ) );
+
+            // When store credit covers the complete order there is no external
+            // card charge to create. WooCommerce completes the zero-due order
+            // directly and the normal payment-complete hook commits the credit.
+            if ( $store_credit_amount > 0 && (float) $order->get_total() <= self::PRICING_TOLERANCE ) {
+                $order->set_payment_method( 'phaseone_store_credit' );
+                $order->set_payment_method_title( 'Store Credit' );
+                $order->calculate_totals( true );
+                $pricing_lock = self::lock_and_assert_pricing( $order, $pricing, 'store_credit_only' );
+                $order->add_order_note( 'Paid in full with reserved store credit. No external gateway was opened.' );
+                $order->save();
+                $order->payment_complete( 'store-credit-' . $order->get_id() );
+
+                $redirect = add_query_arg(
+                    array(
+                        'order_id'  => $order->get_id(),
+                        'order_key' => $order->get_order_key(),
+                        'payment'   => 'success',
+                        'gateway'   => 'store-credit',
+                    ),
+                    '/checkout/thank-you'
+                );
+                $order->update_meta_data( '_phaseone_prism_redirect_url', esc_url_raw( $redirect ) );
+                $order->save();
+                $gateway_redirect_generated = true;
+
+                return new WP_REST_Response(
+                    array(
+                        'success'            => true,
+                        'orderId'            => $order->get_id(),
+                        'orderNumber'        => $order->get_order_number(),
+                        'orderKey'           => $order->get_order_key(),
+                        'total'              => (float) $pricing_lock['total'],
+                        'currency'           => $order->get_currency(),
+                        'storeCreditApplied' => $store_credit_amount,
+                        'storeCreditOnly'    => true,
+                        'redirectUrl'        => esc_url_raw( $redirect ),
+                    ),
+                    200
+                );
+            }
 
             $gateways = WC()->payment_gateways()->payment_gateways();
             $gateway  = $gateways[ self::GATEWAY_ID ] ?? null;
@@ -548,12 +618,14 @@ final class PhaseOne_Prism_Checkout_Bridge {
                     'orderKey'    => $order->get_order_key(),
                     'total'       => (float) $order->get_total(),
                     'currency'    => $order->get_currency(),
+                    'storeCreditApplied' => $store_credit_amount,
                     'redirectUrl' => esc_url_raw( $payment['redirect'] ),
                 ),
                 200
             );
         } catch ( Throwable $exception ) {
             if ( $order instanceof WC_Order && ! $gateway_redirect_generated ) {
+                PhaseOne_Checkout_Store_Credit::release_order( (int) $order->get_id(), 'Checkout failed before a valid payment redirect was created.' );
                 self::release_order_stock( $order );
                 $order->update_status( 'failed', 'Custom checkout failed before PRISM redirect.' );
             }

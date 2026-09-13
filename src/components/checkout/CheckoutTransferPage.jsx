@@ -2866,13 +2866,6 @@ export default function CheckoutTransferPage() {
   const createPrismCardCheckout = async () => {
     if (!validateBeforePayment()) return;
 
-    if (cashbackToApply > 0) {
-      setError(
-        "Cashback cannot be applied through the new PRISM card flow yet. Turn off cashback and try again.",
-      );
-      return;
-    }
-
     const checkoutItems = buildCheckoutItems(cartItems);
 
     if (!checkoutItems.length) {
@@ -2948,6 +2941,8 @@ export default function CheckoutTransferPage() {
           })),
           couponCodes,
           coupon_codes: couponCodes,
+          storeCredit: { apply: applyCashback && canApplyCashback },
+          store_credit: { apply: applyCashback && canApplyCashback },
           acknowledgements: {
             age21OrOlder: true,
             inVitroResearchUseOnly: true,
@@ -3181,6 +3176,8 @@ export default function CheckoutTransferPage() {
           paymentDiscountLabel: paymentDiscountLabel,
           payment_discount_label: paymentDiscountLabel,
           cashbackAmount: cashbackToApply,
+          storeCredit: { apply: applyCashback && canApplyCashback },
+          store_credit: { apply: applyCashback && canApplyCashback },
           previewTotal: paymentPreviewTotal,
           cartTotal,
           source: bulkMode
@@ -3444,6 +3441,8 @@ export default function CheckoutTransferPage() {
           payment_discount_label: paymentDiscountLabel,
           cashbackAmount: cashbackToApply,
           cashback_amount: cashbackToApply,
+          storeCredit: { apply: applyCashback && canApplyCashback },
+          store_credit: { apply: applyCashback && canApplyCashback },
           previewTotal: paymentPreviewTotal,
           preview_total: paymentPreviewTotal,
           cartTotal,
@@ -3491,6 +3490,13 @@ export default function CheckoutTransferPage() {
         customerEmail: finalEmail,
         contract: signedContract,
       });
+
+      if (data?.storeCreditOnly && data?.redirectUrl) {
+        if (typeof window !== "undefined") {
+          window.location.assign(data.redirectUrl);
+        }
+        return;
+      }
 
       const normalizedOrderData = normalizeManualOrderData(data);
 
@@ -4240,6 +4246,36 @@ export default function CheckoutTransferPage() {
                 )}
               </div>}
 
+              {!bulkMode && isLoggedIn && cashbackAvailable > 0 && (
+                <label
+                  className={`store-credit-choice ${
+                    applyCashback ? "is-selected" : ""
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={applyCashback}
+                    onChange={(event) => {
+                      setApplyCashback(event.target.checked);
+                      setError("");
+                    }}
+                    disabled={!canApplyCashback}
+                  />
+                  <span className="store-credit-check" aria-hidden="true">
+                    <Check size={14} />
+                  </span>
+                  <span className="store-credit-copy">
+                    <strong>Use store credit</strong>
+                    <small>{formatMoney(cashbackAvailable)} available</small>
+                  </span>
+                  <b>
+                    {applyCashback
+                      ? `-${formatMoney(cashbackToApply)}`
+                      : "Apply"}
+                  </b>
+                </label>
+              )}
+
               <div className="summary-lines">
                 <div>
                   <span>Subtotal</span>
@@ -4257,6 +4293,13 @@ export default function CheckoutTransferPage() {
                   <div className="discount-line">
                     <span>Discount</span>
                     <strong>-{formatMoney(validatedCouponDiscount)}</strong>
+                  </div>
+                )}
+
+                {cashbackToApply > 0 && (
+                  <div className="discount-line store-credit-line">
+                    <span>Store credit</span>
+                    <strong>-{formatMoney(cashbackToApply)}</strong>
                   </div>
                 )}
 
@@ -5610,6 +5653,87 @@ const styles = `
     box-shadow: none;
     color: #cbd5e1;
     padding: 0 12px;
+  }
+
+  .store-credit-choice {
+    position: relative;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 11px;
+    min-height: 62px;
+    margin-top: 14px;
+    padding: 11px 13px;
+    border: 1px solid rgba(103, 232, 249, 0.16);
+    border-radius: 14px;
+    background: rgba(8, 27, 44, 0.56);
+    cursor: pointer;
+    transition: border-color 160ms ease, background 160ms ease;
+  }
+
+  .store-credit-choice:hover,
+  .store-credit-choice.is-selected {
+    border-color: rgba(103, 232, 249, 0.34);
+    background: rgba(8, 39, 56, 0.7);
+  }
+
+  .store-credit-choice input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .store-credit-choice input:focus-visible + .store-credit-check {
+    outline: 2px solid #67e8f9;
+    outline-offset: 3px;
+  }
+
+  .store-credit-check {
+    display: grid;
+    width: 26px;
+    height: 26px;
+    place-items: center;
+    border: 1px solid rgba(148, 163, 184, 0.3);
+    border-radius: 8px;
+    color: transparent;
+    transition: border-color 160ms ease, background 160ms ease, color 160ms ease;
+  }
+
+  .store-credit-choice.is-selected .store-credit-check {
+    border-color: #67e8f9;
+    background: #67e8f9;
+    color: #03111d;
+  }
+
+  .store-credit-copy {
+    display: grid;
+    min-width: 0;
+    gap: 3px;
+  }
+
+  .store-credit-copy strong {
+    color: #f8fafc;
+    font-size: 13px;
+    line-height: 1.2;
+  }
+
+  .store-credit-copy small {
+    color: #94a3b8;
+    font-size: 11px;
+    line-height: 1.3;
+  }
+
+  .store-credit-choice > b {
+    color: #a5f3fc;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  .summary-lines .store-credit-line span,
+  .summary-lines .store-credit-line strong {
+    color: #a5f3fc;
   }
 
   .summary-lines {

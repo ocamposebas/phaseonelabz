@@ -1,4 +1,11 @@
-Phase One PRISM Checkout Bridge 1.7.1
+Phase One PRISM Checkout Bridge 1.8.0
+
+Version 1.8.0 connects redeemed rewards credit to checkout:
+- Reads the existing _lab_store_credit_balance owned by the rewards system.
+- Calculates the usable amount on the server; browser-submitted amounts are ignored.
+- Reserves credit per WooCommerce order and prevents duplicate use.
+- Returns reserved credit automatically when an unpaid order fails, expires or is cancelled.
+- Supports PRISM, ACH and manual-payment adapters while keeping Bulk credit disabled.
 
 Version 1.7.1 removes the retired H-Recon/Recon Water special-price rule:
 - Uses the current WooCommerce catalog price for H-Recon/Recon Water.
