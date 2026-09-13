@@ -31,11 +31,11 @@ const SHIPPING_PROTECTION_COOKIE_MAX_AGE = 60 * 60 * 24;
 // These products are identified by stable WooCommerce slugs/names rather than
 // numeric IDs because IDs can differ between environments.
 const RECON_WATER_IDENTIFIERS = new Set([
+  "h-recon",
+  "h-recon-water",
   "recon-water",
   "recon-water-30ml",
 ]);
-const H_RECON_IDENTIFIERS = new Set(["h-recon", "h-recon-water"]);
-const H_RECON_PURCHASE_LIMIT = 2;
 const INVENTORY_REQUEST_TIMEOUT_MS = 8000;
 const BUNDLE_DISCOUNT_TIERS = [
   { requiredQuantity: 10, discountRate: 0.3, discountPercent: 30 },
@@ -692,10 +692,6 @@ export function getProductPurchaseLimit(item = {}) {
     limits.push(Math.floor(stockQuantity));
   }
 
-  if (isHReconProduct(item)) {
-    limits.push(H_RECON_PURCHASE_LIMIT);
-  }
-
   return limits.length ? Math.max(1, Math.min(...limits)) : null;
 }
 
@@ -720,24 +716,8 @@ export function isReconWaterProduct(item = {}) {
   return identifiers.some(
     (identifier) =>
       RECON_WATER_IDENTIFIERS.has(identifier) ||
+      identifier.startsWith("h-recon-") ||
       identifier.startsWith("recon-water-"),
-  );
-}
-
-export function isHReconProduct(item = {}) {
-  const identifiers = [
-    item.slug,
-    item.product_slug,
-    item.productSlug,
-    item.sku,
-    item.name,
-    item.title,
-  ].map(normalizeProductIdentifier);
-
-  return identifiers.some(
-    (identifier) =>
-      H_RECON_IDENTIFIERS.has(identifier) ||
-      identifier.startsWith("h-recon-"),
   );
 }
 

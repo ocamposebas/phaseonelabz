@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Phase One PRISM Checkout Bridge
  * Description: Creates authoritative WooCommerce orders from the Phase One custom Astro checkout and starts the installed PRISM payment gateway.
- * Version: 1.7.0
+ * Version: 1.7.1
  * Author: Phase One Labz
  * Requires PHP: 8.1
  */
@@ -26,9 +26,6 @@ final class PhaseOne_Prism_Checkout_Bridge {
     private const MAX_ITEMS      = 50;
     private const MAX_COUPONS    = 3;
     private const SECRET_HASH_OPTION = 'phaseone_prism_bridge_secret_hash';
-    private const RECON_WATER_PROMO_THRESHOLD = 100.00;
-    private const RECON_WATER_PROMO_PRICE     = 15.00;
-    private const H_RECON_PURCHASE_LIMIT      = 2;
     private const BUNDLE_TIER_ONE_QUANTITY      = 5;
     private const BUNDLE_TIER_ONE_DISCOUNT_RATE = 0.10;
     private const BUNDLE_TIER_TWO_QUANTITY      = 10;
@@ -875,10 +872,6 @@ final class PhaseOne_Prism_Checkout_Bridge {
             }
         }
 
-        if ( self::is_h_recon_product( $product ) ) {
-            $limits[] = self::H_RECON_PURCHASE_LIMIT;
-        }
-
         if ( empty( $limits ) ) {
             return null;
         }
@@ -1082,42 +1075,9 @@ final class PhaseOne_Prism_Checkout_Bridge {
             foreach ( $identifiers as $identifier ) {
                 $normalized_identifier = self::normalize_product_identifier( $identifier );
                 if (
-                    in_array( $normalized_identifier, array( 'recon-water', 'recon-water-30ml' ), true ) ||
+                    in_array( $normalized_identifier, array( 'h-recon', 'h-recon-water', 'recon-water', 'recon-water-30ml' ), true ) ||
+                    0 === strpos( $normalized_identifier, 'h-recon-' ) ||
                     0 === strpos( $normalized_identifier, 'recon-water-' )
-                ) {
-                    return true;
-                }
-            }
-        }
-
-        return false;
-    }
-
-    private static function is_h_recon_product( $product ): bool {
-        if ( ! $product instanceof WC_Product ) {
-            return false;
-        }
-
-        $products = array( $product );
-        if ( $product instanceof WC_Product_Variation && $product->get_parent_id() ) {
-            $parent = wc_get_product( $product->get_parent_id() );
-            if ( $parent instanceof WC_Product ) {
-                $products[] = $parent;
-            }
-        }
-
-        foreach ( $products as $candidate ) {
-            $identifiers = array(
-                $candidate->get_slug(),
-                $candidate->get_sku(),
-                $candidate->get_name(),
-            );
-
-            foreach ( $identifiers as $identifier ) {
-                $normalized_identifier = self::normalize_product_identifier( $identifier );
-                if (
-                    in_array( $normalized_identifier, array( 'h-recon', 'h-recon-water' ), true ) ||
-                    0 === strpos( $normalized_identifier, 'h-recon-' )
                 ) {
                     return true;
                 }
@@ -1248,7 +1208,6 @@ final class PhaseOne_Prism_Checkout_Bridge {
      * derived again from WooCommerce data before the PRISM request is signed.
      */
     private static function apply_phaseone_pricing_rules( WC_Order $order ): array {
-        $qualifying_subtotal = 0.0;
         $quantity            = 0;
         $decimals            = wc_get_price_decimals();
 
@@ -1278,11 +1237,10 @@ final class PhaseOne_Prism_Checkout_Bridge {
 
             if ( ! $is_recon ) {
                 $quantity += $item_qty;
-                $qualifying_subtotal += $base_subtotal;
             }
         }
 
-        $recon_promo_active   = $qualifying_subtotal >= self::RECON_WATER_PROMO_THRESHOLD;
+        $recon_promo_active   = false;
         $recon_water_discount = 0.0;
         $bundle_tier          = self::resolve_bundle_tier( $quantity );
         $bundle_active        = (bool) $bundle_tier['active'];
@@ -1301,14 +1259,7 @@ final class PhaseOne_Prism_Checkout_Bridge {
             $is_recon      = self::is_recon_water_product( $item->get_product() );
             $bundle_applies_to_line = false;
 
-            if ( $is_recon && $recon_promo_active ) {
-                // Preserve the existing Recon Water price rule without allowing
-                // Recon Water to count toward or receive a quantity-tier discount.
-                $base_unit        = $base_subtotal / $item_qty;
-                $discounted_unit  = min( $base_unit, self::RECON_WATER_PROMO_PRICE );
-                $target_total     = round( $discounted_unit * $item_qty, $decimals );
-                $recon_water_discount += max( 0, $base_subtotal - $target_total );
-            } elseif ( ! $is_recon && $bundle_active ) {
+            if ( ! $is_recon && $bundle_active ) {
                 // Exactly one tier applies. At 10+ items, 30% replaces 10%;
                 // the discounts are never added or multiplied together.
                 $target_total = round(
@@ -1368,11 +1319,6 @@ final class PhaseOne_Prism_Checkout_Bridge {
             return $base_subtotal;
         }
         $is_recon      = self::is_recon_water_product( $item->get_product() );
-
-        if ( $is_recon && ! empty( $pricing['recon_water_promo_active'] ) ) {
-            $base_unit = $base_subtotal / $item_qty;
-            return round( min( $base_unit, self::RECON_WATER_PROMO_PRICE ) * $item_qty, $decimals );
-        }
 
         if ( ! $is_recon && ! empty( $pricing['bundle_active'] ) ) {
             $bundle_rate = (float) ( $pricing['bundle_rate'] ?? 0.0 );

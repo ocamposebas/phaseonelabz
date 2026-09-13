@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Phase One Labz - Site Gifts
  * Description: Server-authoritative, tiered promotional gifts for WooCommerce and the Phase One custom checkout.
- * Version: 1.0.2
+ * Version: 1.0.3
  * Author: Phase One Labz
  * Requires at least: 6.2
  * Requires PHP: 8.1
@@ -12,7 +12,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'PHASEONE_SITE_GIFTS_VERSION', '1.0.2' );
+define( 'PHASEONE_SITE_GIFTS_VERSION', '1.0.3' );
 define( 'PHASEONE_SITE_GIFTS_FILE', __FILE__ );
 define( 'PHASEONE_SITE_GIFTS_DIR', plugin_dir_path( __FILE__ ) );
 define( 'PHASEONE_SITE_GIFTS_URL', plugin_dir_url( __FILE__ ) );

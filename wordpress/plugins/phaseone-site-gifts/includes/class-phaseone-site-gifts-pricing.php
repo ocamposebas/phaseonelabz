@@ -3,8 +3,6 @@
 defined( 'ABSPATH' ) || exit;
 
 final class PhaseOne_Site_Gifts_Pricing {
-	private const RECON_THRESHOLD = 100.0;
-	private const RECON_PRICE = 15.0;
 	private const BUNDLE_ONE_QUANTITY = 5;
 	private const BUNDLE_ONE_RATE = 0.10;
 	private const BUNDLE_TWO_QUANTITY = 10;
@@ -16,7 +14,6 @@ final class PhaseOne_Site_Gifts_Pricing {
 	}
 
 	public static function apply_to_order( WC_Order $order ): array {
-		$qualifying_subtotal = 0.0;
 		$quantity            = 0;
 		$decimals            = wc_get_price_decimals();
 
@@ -40,12 +37,11 @@ final class PhaseOne_Site_Gifts_Pricing {
 
 			if ( ! $is_recon ) {
 				$quantity += $item_qty;
-				$qualifying_subtotal += $base;
 			}
 		}
 
-		$recon_active   = $qualifying_subtotal >= self::recon_threshold();
-		$recon_discount = 0.0;
+		$recon_active    = false;
+		$recon_discount  = 0.0;
 		$bundle          = self::bundle_tier( $quantity );
 		$bundle_discount = 0.0;
 
@@ -60,10 +56,7 @@ final class PhaseOne_Site_Gifts_Pricing {
 			$is_recon = self::is_recon( $item->get_product() );
 			$bundle_applies = false;
 
-			if ( $is_recon && $recon_active ) {
-				$target = round( min( $base / $item_qty, self::recon_price() ) * $item_qty, $decimals );
-				$recon_discount += max( 0, $base - $target );
-			} elseif ( ! $is_recon && $bundle['active'] ) {
+			if ( ! $is_recon && $bundle['active'] ) {
 				$target = round( $base * ( 1 - $bundle['discount_rate'] ), $decimals );
 				$bundle_discount += max( 0, $base - $target );
 				$bundle_applies = true;
@@ -126,17 +119,14 @@ final class PhaseOne_Site_Gifts_Pricing {
 		}
 
 		try {
-			$qualifying_subtotal = 0.0;
 			$quantity = 0;
 			foreach ( $items as $item ) {
 				if ( ! $item['is_recon'] ) {
 					$quantity += $item['quantity'];
-					$qualifying_subtotal += $item['base_unit'] * $item['quantity'];
 				}
 			}
 
 			$bundle = self::bundle_tier( $quantity );
-			$recon_active = $qualifying_subtotal >= self::recon_threshold();
 			$disable_session_hooks = static fn(): bool => false;
 			add_filter( 'woocommerce_cart_session_initialize', $disable_session_hooks, PHP_INT_MAX );
 			$cart = new WC_Cart();
@@ -149,9 +139,7 @@ final class PhaseOne_Site_Gifts_Pricing {
 			$cart_contents = array();
 			foreach ( $items as &$item ) {
 				$unit = $item['base_unit'];
-				if ( $item['is_recon'] && $recon_active ) {
-					$unit = min( $unit, self::recon_price() );
-				} elseif ( ! $item['is_recon'] && $bundle['active'] ) {
+				if ( ! $item['is_recon'] && $bundle['active'] ) {
 					$unit = round( $unit * ( 1 - $bundle['discount_rate'] ), wc_get_price_decimals() );
 				}
 
@@ -195,7 +183,7 @@ final class PhaseOne_Site_Gifts_Pricing {
 					'bundle_active'            => (bool) $bundle['active'],
 					'bundle_percent'           => (int) $bundle['discount_percent'],
 					'bundle_required_quantity' => (int) $bundle['required_quantity'],
-					'recon_water_promo_active' => $recon_active,
+					'recon_water_promo_active' => false,
 				),
 			);
 		} finally {
@@ -267,7 +255,11 @@ final class PhaseOne_Site_Gifts_Pricing {
 		foreach ( $products as $candidate ) {
 			foreach ( array( $candidate->get_slug(), $candidate->get_sku(), $candidate->get_name() ) as $identifier ) {
 				$clean = self::normalize_identifier( $identifier );
-				if ( in_array( $clean, array( 'recon-water', 'recon-water-30ml' ), true ) || str_starts_with( $clean, 'recon-water-' ) ) {
+				if (
+					in_array( $clean, array( 'h-recon', 'h-recon-water', 'recon-water', 'recon-water-30ml' ), true )
+					|| str_starts_with( $clean, 'h-recon-' )
+					|| str_starts_with( $clean, 'recon-water-' )
+				) {
 					return true;
 				}
 			}
@@ -292,11 +284,4 @@ final class PhaseOne_Site_Gifts_Pricing {
 		return array( 'active' => false, 'required_quantity' => 0, 'discount_rate' => 0.0, 'discount_percent' => 0, 'key' => 'none' );
 	}
 
-	private static function recon_threshold(): float {
-		return (float) apply_filters( 'phaseone_prism_recon_water_threshold', self::RECON_THRESHOLD );
-	}
-
-	private static function recon_price(): float {
-		return (float) apply_filters( 'phaseone_prism_recon_water_price', self::RECON_PRICE );
-	}
 }

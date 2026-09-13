@@ -13,6 +13,10 @@ order creation. Eligible merchandise is the sum of paid product line totals
 after Phase One product pricing and WooCommerce coupons, excluding gifts,
 shipping, taxes, protection, and other fees.
 
+Version 1.0.3 keeps H-Recon/Recon Water at its current WooCommerce catalog
+price and outside the 5/10-item quantity tiers. The retired $15 Recon rule is
+not calculated by either the quote or order-pricing service.
+
 ## Order behavior
 
 Gift lines are normal `WC_Order_Item_Product` records with a zero subtotal and
@@ -35,7 +39,7 @@ The zero-price gift therefore never enters the PRISM payment request.
 ## Installation
 
 1. Install and activate **Phase One Site Gifts**.
-2. Replace the installed PRISM bridge with the companion 1.6.2 package.
+2. Replace the installed PRISM bridge with the companion 1.7.1 package.
 3. Deploy the Astro frontend from the matching source revision.
 4. In **WooCommerce > Site Gifts**, add tiers and activate only the rules that
    have a valid, in-stock WooCommerce product or variation.
@@ -50,5 +54,5 @@ consumer credentials. No credential is exposed to the browser.
 Important availability and reconciliation errors are written to WooCommerce
 logs with source `phaseone-site-gifts`. Normal cart evaluations are not logged.
 
-Rollback is safe: deactivate Site Gifts and restore bridge 1.6.1. Existing
+Rollback is safe: deactivate Site Gifts and restore the previously installed bridge. Existing
 zero-value gift order lines remain historical order data and are not modified.

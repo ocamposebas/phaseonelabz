@@ -382,7 +382,7 @@ export default function CartDrawer() {
 
                 <div className="mt-1.5 flex justify-between text-[7px] font-black uppercase tracking-[0.1em] text-slate-600">
                   <span>5 items · 10%</span>
-                  <span>Recon excluded</span>
+                  <span>Full-price items excluded</span>
                   <span>10 items · 30%</span>
                 </div>
               </div>

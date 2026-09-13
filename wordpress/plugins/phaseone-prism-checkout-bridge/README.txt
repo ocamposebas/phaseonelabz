@@ -1,4 +1,10 @@
-Phase One PRISM Checkout Bridge 1.7.0
+Phase One PRISM Checkout Bridge 1.7.1
+
+Version 1.7.1 removes the retired H-Recon/Recon Water special-price rule:
+- Uses the current WooCommerce catalog price for H-Recon/Recon Water.
+- Keeps those full-price items outside the 5/10-item quantity tiers.
+- Removes the former H-Recon two-unit application cap while preserving real WooCommerce stock, backorder and sold-individually rules.
+- Keeps compatibility metadata inactive (no Recon promotion and zero Recon discount).
 
 Version 1.7.0 adds the isolated Phase One Bulk checkout adapter:
 - Accepts only a valid server-authorized Bulk checkout intent.
@@ -13,10 +19,10 @@ Version 1.6.2 adds the narrow Site Gifts integration:
 - Does not send gift products or zero-price overrides to the PRISM gateway.
 - Preserves the 1.6.1 behavior unchanged when Site Gifts is inactive.
 
-Version 1.6.1 fixes authoritative quantity pricing for Recon Water:
+Version 1.6.1 introduced authoritative quantity pricing for Recon Water:
 - Recognizes all Recon Water slugs/SKUs/names beginning with recon-water-.
 - Excludes Recon Water from bundle-tier quantities and discounts.
-- Keeps the two-unit purchase limit scoped to H-Recon only.
+- Historical note: that release still included the former H-Recon two-unit application cap, removed in 1.7.1.
 - Preserves the 1.6.0 PRISM pricing lock and gateway amount verification.
 
 This version does not require editing wp-config.php.

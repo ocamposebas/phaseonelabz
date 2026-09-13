@@ -20,6 +20,8 @@ import { useCart } from "../cart/CartContext";
 import DispatchCutoff from "../shipping/DispatchCutoff";
 
 const RECON_WATER_IDENTIFIERS = new Set([
+  "h-recon",
+  "h-recon-water",
   "recon-water",
   "recon-water-30ml",
 ]);
@@ -41,6 +43,7 @@ function isReconWaterProduct(product = {}) {
     .some(
       (identifier) =>
         RECON_WATER_IDENTIFIERS.has(identifier) ||
+        identifier.startsWith("h-recon-") ||
         identifier.startsWith("recon-water-"),
     );
 }
@@ -2347,7 +2350,7 @@ const ProductCard = memo(function ProductCard({
               }`}
             >
               {isReconWaterProduct(product)
-                ? "Recon Water does not count toward quantity discount tiers."
+                ? "This item stays at its regular price and does not count toward quantity discounts."
                 : "This option counts toward both quantity discount tiers."}
             </p>
           </div>
@@ -2771,8 +2774,8 @@ export default function ShopCatalogSection({
               </p>
 
               <p className="mt-2 text-sm font-bold leading-6 text-red-400">
-                Recon Water is excluded: it does not count as a bundle product
-                and does not receive the bundle discount.
+                Items marked as full price do not count toward quantity tiers
+                and never receive the bundle discount.
               </p>
             </div>
 

@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Phase eDebit Order Endpoint
  * Description: Creates securely priced WooCommerce orders from a custom frontend checkout and returns the hosted eDebit/Yodlee redirect URL.
- * Version: 1.1.8
+ * Version: 1.1.9
  * Author: Phase One Labz
  */
 
@@ -37,12 +37,10 @@ final class Phase_Edebit_Shipping_Resolution_Exception_V117 extends InvalidArgum
 }
 
 final class Phase_Edebit_Order_Endpoint_V117 {
-    const VERSION = '1.1.8';
+    const VERSION = '1.1.9';
     const NAMESPACE = 'phase/v1';
     const DEFAULT_GATEWAY_ID = 'edd_draft_yodlee_gateway';
 
-    const RECON_PROMO_UNIT_PRICE = 15.00;
-    const RECON_PROMO_MIN_NON_RECON_SUBTOTAL = 100.00;
     const FREE_SHIPPING_MIN_PROMO_SUBTOTAL = 150.00;
     const SHIPPING_PROTECTION_PER_100 = 1.09;
     const DUPLICATE_WINDOW_SECONDS = 300;
@@ -594,7 +592,14 @@ final class Phase_Edebit_Order_Endpoint_V117 {
                 return true;
             }
 
-            if (in_array($slug, $allowed_slugs, true) || in_array($sku, $allowed_skus, true)) {
+            if (
+                in_array($slug, $allowed_slugs, true) ||
+                in_array($sku, $allowed_skus, true) ||
+                strpos($slug, 'h-recon-') === 0 ||
+                strpos($sku, 'h-recon-') === 0 ||
+                strpos($slug, 'recon-water-') === 0 ||
+                strpos($sku, 'recon-water-') === 0
+            ) {
                 return true;
             }
         }
@@ -679,7 +684,7 @@ final class Phase_Edebit_Order_Endpoint_V117 {
         }
 
         $pricing = self::calculate_product_promotions($lines);
-        self::assert_recon_promotion_model($pricing);
+        self::assert_recon_full_price_model($pricing);
         return $pricing;
     }
 
@@ -690,6 +695,7 @@ final class Phase_Edebit_Order_Endpoint_V117 {
         $original_subtotal = 0.0;
         $non_recon_subtotal = 0.0;
         $total_quantity = 0;
+        $bundle_eligible_quantity = 0;
         $recon_quantity = 0;
 
         foreach ($lines as $index => $line) {
@@ -697,9 +703,9 @@ final class Phase_Edebit_Order_Endpoint_V117 {
             $unit_price = self::money((float) ($line['unit_price'] ?? 0));
             $line_original = self::money($unit_price * $quantity);
 
-            // Production lines are always reclassified from the trusted WC_Product
-            // here. The resulting single is_recon flag is then used for BOTH the
-            // Recon promotion branch and the bundle exclusion branch below.
+            // Production lines are always reclassified from the trusted WC_Product.
+            // The resulting flag is the single source of truth for full-price
+            // products that must remain outside the quantity bundle.
             $is_recon = !empty($line['product']) && is_a($line['product'], 'WC_Product')
                 ? self::is_recon_water_product($line['product'])
                 : !empty($line['is_recon']);
@@ -714,6 +720,7 @@ final class Phase_Edebit_Order_Endpoint_V117 {
 
             if (!$is_recon) {
                 $non_recon_subtotal += $line_original;
+                $bundle_eligible_quantity += $quantity;
             } else {
                 $recon_quantity += $quantity;
             }
@@ -722,14 +729,12 @@ final class Phase_Edebit_Order_Endpoint_V117 {
         $original_subtotal = self::money($original_subtotal);
         $non_recon_subtotal = self::money($non_recon_subtotal);
 
-        $recon_promo = $recon_quantity > 0 && $non_recon_subtotal >= self::RECON_PROMO_MIN_NON_RECON_SUBTOTAL;
-
         $bundle_percent = 0;
         $bundle_required_quantity = 0;
-        if ($total_quantity >= 10) {
+        if ($bundle_eligible_quantity >= 10) {
             $bundle_percent = 30;
             $bundle_required_quantity = 10;
-        } elseif ($total_quantity >= 5) {
+        } elseif ($bundle_eligible_quantity >= 5) {
             $bundle_percent = 10;
             $bundle_required_quantity = 5;
         }
@@ -743,14 +748,7 @@ final class Phase_Edebit_Order_Endpoint_V117 {
             $original_line = self::money($line['original_line_total']);
             $promotional_line = $original_line;
 
-            if (!empty($line['is_recon'])) {
-                if ($recon_promo) {
-                    // A promotion must never raise a lower authorized WooCommerce price.
-                    $promo_unit_price = min(self::money($line['unit_price']), self::RECON_PROMO_UNIT_PRICE);
-                    $promotional_line = self::money($promo_unit_price * $quantity);
-                    $recon_discount += self::money($original_line - $promotional_line);
-                }
-            } elseif ($bundle_percent > 0) {
+            if (empty($line['is_recon']) && $bundle_percent > 0) {
                 $line_discount = self::money($original_line * ($bundle_percent / 100));
                 $promotional_line = self::money($original_line - $line_discount);
                 $bundle_discount += $line_discount;
@@ -767,8 +765,10 @@ final class Phase_Edebit_Order_Endpoint_V117 {
             'original_subtotal' => self::money($original_subtotal),
             'non_recon_subtotal' => self::money($non_recon_subtotal),
             'total_quantity' => $total_quantity,
+            'bundle_eligible_quantity' => $bundle_eligible_quantity,
             'recon_quantity' => $recon_quantity,
-            'recon_promo' => $recon_promo,
+            // Retained as inactive compatibility fields for existing order/report consumers.
+            'recon_promo' => false,
             'recon_discount' => self::money($recon_discount),
             'bundle_promo' => $bundle_percent > 0,
             'bundle_discount' => self::money($bundle_discount),
@@ -854,12 +854,10 @@ final class Phase_Edebit_Order_Endpoint_V117 {
     }
 
     /**
-     * Fail closed if trusted Recon Water lines are not represented by the
-     * required $15 pre-coupon price when the qualifying non-Recon subtotal
-     * reaches the promotion threshold. This uses the same is_recon flag that
-     * drives both the Recon branch and the bundle exclusion branch.
+     * Fail closed unless trusted Recon Water lines retain their authorized
+     * WooCommerce price and remain outside the quantity-bundle calculation.
      */
-    private static function assert_recon_promotion_model($pricing) {
+    private static function assert_recon_full_price_model($pricing) {
         if (!is_array($pricing) || empty($pricing['lines']) || !is_array($pricing['lines'])) {
             throw new RuntimeException('Authoritative Recon pricing data is unavailable.');
         }
@@ -882,9 +880,6 @@ final class Phase_Edebit_Order_Endpoint_V117 {
             return true;
         }
 
-        $recon_present = false;
-        $recon_original_above_promo = false;
-        $expected_recon_discount = 0.0;
         $expected_bundle_discount = 0.0;
         $bundle_percent = (int) ($pricing['bundle_discount_percent'] ?? 0);
 
@@ -895,26 +890,9 @@ final class Phase_Edebit_Order_Endpoint_V117 {
             $promotional_line = self::money($line['promotional_line_total'] ?? $original_line);
 
             if (!empty($line['is_recon'])) {
-                $recon_present = true;
-
-                if (!empty($pricing['recon_promo'])) {
-                    $expected_unit = self::money(min($unit_price, self::RECON_PROMO_UNIT_PRICE));
-                    $expected_line = self::money($expected_unit * $quantity);
-
-                    if ($unit_price > self::RECON_PROMO_UNIT_PRICE) {
-                        $recon_original_above_promo = true;
-                        if ($expected_unit !== self::money(self::RECON_PROMO_UNIT_PRICE)) {
-                            throw new RuntimeException('Recon Water promotional unit price is not exactly $15 before coupons.');
-                        }
-                    }
-
-                    if ($promotional_line !== $expected_line) {
-                        throw new RuntimeException('Recon Water line did not receive the authoritative $15 pre-coupon promotion.');
-                    }
-
-                    $expected_recon_discount += self::money($original_line - $expected_line);
+                if ($promotional_line !== $original_line) {
+                    throw new RuntimeException('Recon Water must retain its authorized WooCommerce price.');
                 }
-
                 // Recon Water must never contribute to the bundle discount.
                 continue;
             }
@@ -924,24 +902,10 @@ final class Phase_Edebit_Order_Endpoint_V117 {
             }
         }
 
-        $expected_recon_discount = self::money($expected_recon_discount);
         $expected_bundle_discount = self::money($expected_bundle_discount);
 
-        if (
-            $recon_present &&
-            self::money($pricing['non_recon_subtotal'] ?? 0) >= self::RECON_PROMO_MIN_NON_RECON_SUBTOTAL
-        ) {
-            if (empty($pricing['recon_promo'])) {
-                throw new RuntimeException('Recon Water is present but the qualifying promotion was not activated.');
-            }
-
-            if ($recon_original_above_promo && $expected_recon_discount <= 0.0) {
-                throw new RuntimeException('Recon Water promotion produced a zero discount for an authorized price above $15.');
-            }
-        }
-
-        if (self::money($pricing['recon_discount'] ?? 0) !== $expected_recon_discount) {
-            throw new RuntimeException('Recon Water discount does not match the authoritative Recon lines.');
+        if (!empty($pricing['recon_promo']) || self::money($pricing['recon_discount'] ?? 0) !== 0.0) {
+            throw new RuntimeException('Recon Water no longer supports a special promotional price.');
         }
 
         if (self::money($pricing['bundle_discount'] ?? 0) !== $expected_bundle_discount) {
@@ -1429,7 +1393,7 @@ final class Phase_Edebit_Order_Endpoint_V117 {
             '_phaseone_pricing_engine',
             ($pricing['context'] ?? '') === 'bulk'
                 ? 'phaseone-bulk-v1'
-                : 'authoritative-order-lines-v3-recon-identity'
+                : 'authoritative-order-lines-v4-full-price-recon'
         );
         $order->update_meta_data('_phaseone_route_callback', __CLASS__ . '::create_order');
     }
@@ -1447,7 +1411,7 @@ final class Phase_Edebit_Order_Endpoint_V117 {
 
         // Re-run the independent Recon/bundle model guard immediately before
         // trusting any persisted order amount or invoking the gateway.
-        self::assert_recon_promotion_model($pricing);
+        self::assert_recon_full_price_model($pricing);
 
         $expected_lines = [];
         foreach ($pricing['lines'] as $index => $line) {
@@ -1500,24 +1464,12 @@ final class Phase_Edebit_Order_Endpoint_V117 {
                 throw new RuntimeException('WooCommerce overwrote a promotional product subtotal before payment.');
             }
 
-            if ($trusted_is_recon && !empty($pricing['recon_promo'])) {
-                $authorized_unit = self::money($expected['unit_price']);
-                $expected_recon_unit = self::money(min($authorized_unit, self::RECON_PROMO_UNIT_PRICE));
-                $expected_recon_total = self::money($expected_recon_unit * (int) $expected['quantity']);
-                if ($actual_subtotal !== $expected_recon_total) {
-                    throw new RuntimeException('H-Recon Water is not locked to exactly $15 per unit before coupons.');
-                }
-
-                if (
-                    $authorized_unit > self::RECON_PROMO_UNIT_PRICE &&
-                    self::money($item->get_meta('_phaseone_product_promo_discount', true)) <= 0.0
-                ) {
-                    throw new RuntimeException('H-Recon Water was above $15 but its persisted Recon promotion discount is zero.');
-                }
+            if ($trusted_is_recon && $actual_subtotal !== self::money($expected['original_line_total'])) {
+                throw new RuntimeException('H-Recon Water did not retain its authorized WooCommerce price.');
             }
 
             if ($trusted_is_recon && self::money($item->get_meta('_phaseone_product_promo_discount', true)) !== self::money($expected['product_promo_discount'])) {
-                throw new RuntimeException('Recon Water promotion metadata does not match the authoritative calculation.');
+                throw new RuntimeException('Recon Water full-price metadata does not match the authoritative calculation.');
             }
 
             $line_subtotal_sum += $actual_subtotal;
@@ -2252,9 +2204,9 @@ final class Phase_Edebit_Order_Endpoint_V117 {
 
             $math_expected = [
                 'original' => 180.00,
-                'recon' => 15.00,
-                'bundle' => 13.50,
-                'promotional' => 151.50,
+                'recon' => 0.00,
+                'bundle' => 0.00,
+                'promotional' => 180.00,
             ];
             if (
                 self::money($pricing['original_subtotal']) !== self::money($math_expected['original']) ||
@@ -2262,7 +2214,7 @@ final class Phase_Edebit_Order_Endpoint_V117 {
                 self::money($pricing['bundle_discount']) !== self::money($math_expected['bundle']) ||
                 self::money($pricing['promotional_subtotal']) !== self::money($math_expected['promotional'])
             ) {
-                throw new RuntimeException('The authoritative promotion engine did not reproduce the required $151.50 promotional subtotal.');
+                throw new RuntimeException('The authoritative promotion engine did not preserve the required $180.00 full-price subtotal.');
             }
 
             $store_coupon = new WC_Coupon('peptideprice');
@@ -2331,8 +2283,8 @@ final class Phase_Edebit_Order_Endpoint_V117 {
             $pre_save = self::assert_order_pricing_integrity($order, $pricing, $shipping, $shipping_protection);
 
             $locked_total = self::money($pre_save['expectedTotal']);
-            if ($locked_total !== 138.53) {
-                throw new RuntimeException('Integration total before persistence is not exactly $138.53.');
+            if ($locked_total !== 164.18) {
+                throw new RuntimeException('Integration total before persistence is not exactly $164.18.');
             }
 
             self::store_pricing_meta($order, $pricing, $shipping, $shipping_protection);
@@ -2353,11 +2305,11 @@ final class Phase_Edebit_Order_Endpoint_V117 {
                 $pricing,
                 $shipping,
                 $shipping_protection,
-                138.53
+                164.18
             );
 
             $line_details = [];
-            $expected_promotional_lines = [0 => 85.05, 1 => 30.00, 2 => 36.45];
+            $expected_promotional_lines = [0 => 94.50, 1 => 45.00, 2 => 40.50];
             $recon_line_verified = false;
 
             foreach ($reloaded->get_items('line_item') as $item) {
@@ -2375,11 +2327,11 @@ final class Phase_Edebit_Order_Endpoint_V117 {
                 if ($trusted_recon) {
                     if (
                         (int) $item->get_quantity() !== 2 ||
-                        $subtotal !== 30.00 ||
+                        $subtotal !== 45.00 ||
                         $item->get_meta('_phaseone_recon_water_line', true) !== 'yes' ||
-                        self::money($item->get_meta('_phaseone_product_promo_discount', true)) !== 15.00
+                        self::money($item->get_meta('_phaseone_product_promo_discount', true)) !== 0.00
                     ) {
-                        throw new RuntimeException('The real Recon Water integration line did not persist as 2 x $15 with a $15 Recon discount.');
+                        throw new RuntimeException('The real Recon Water integration line did not persist as 2 x $22.50 at full price.');
                     }
                     $recon_line_verified = true;
                 }
@@ -2399,17 +2351,17 @@ final class Phase_Edebit_Order_Endpoint_V117 {
             }
 
             if (!$recon_line_verified) {
-                throw new RuntimeException('The integration order did not reload a trusted Recon Water line at $15 per unit.');
+                throw new RuntimeException('The integration order did not reload a trusted Recon Water line at its full WooCommerce price.');
             }
 
             if (
-                $reloaded->get_meta('_phaseone_recon_water_promo', true) !== 'yes' ||
-                self::money($reloaded->get_meta('_phaseone_recon_water_discount', true)) !== 15.00 ||
-                $reloaded->get_meta('_phaseone_bundle_promo', true) !== 'yes' ||
-                self::money($reloaded->get_meta('_phaseone_bundle_discount', true)) !== 13.50 ||
-                (int) $reloaded->get_meta('_phaseone_bundle_discount_percent', true) !== 10
+                $reloaded->get_meta('_phaseone_recon_water_promo', true) !== 'no' ||
+                self::money($reloaded->get_meta('_phaseone_recon_water_discount', true)) !== 0.00 ||
+                $reloaded->get_meta('_phaseone_bundle_promo', true) !== 'no' ||
+                self::money($reloaded->get_meta('_phaseone_bundle_discount', true)) !== 0.00 ||
+                (int) $reloaded->get_meta('_phaseone_bundle_discount_percent', true) !== 0
             ) {
-                throw new RuntimeException('Persisted integration order promotion metadata does not match Recon $15 / bundle $13.50 / 10%.');
+                throw new RuntimeException('Persisted integration order metadata does not preserve full-price Recon and eligible-only bundle counting.');
             }
 
             $shipping_details = [];
@@ -2446,24 +2398,24 @@ final class Phase_Edebit_Order_Endpoint_V117 {
                 }
             };
 
-            self::invoke_yodlee_process_payment($mock_gateway, $reloaded, 138.53);
+            self::invoke_yodlee_process_payment($mock_gateway, $reloaded, 164.18);
             $gateway_observed_total = self::money($mock_gateway->observed_total);
 
             $all_passed = (
-                self::money($persisted['lineSubtotal']) === 151.50 &&
-                self::money($persisted['couponDiscount']) === 15.15 &&
-                self::money($persisted['lineTotal']) === 136.35 &&
+                self::money($persisted['lineSubtotal']) === 180.00 &&
+                self::money($persisted['couponDiscount']) === 18.00 &&
+                self::money($persisted['lineTotal']) === 162.00 &&
                 self::money($persisted['shipping']) === 0.00 &&
                 self::money($persisted['fees']) === 2.18 &&
-                self::money($persisted['orderTotal']) === 138.53 &&
-                self::money($reloaded->get_meta('_phaseone_recon_water_discount', true)) === 15.00 &&
-                self::money($reloaded->get_meta('_phaseone_bundle_discount', true)) === 13.50 &&
-                self::money($reloaded->get_meta('_phaseone_yodlee_locked_total', true)) === 138.53 &&
-                $gateway_observed_total === 138.53
+                self::money($persisted['orderTotal']) === 164.18 &&
+                self::money($reloaded->get_meta('_phaseone_recon_water_discount', true)) === 0.00 &&
+                self::money($reloaded->get_meta('_phaseone_bundle_discount', true)) === 0.00 &&
+                self::money($reloaded->get_meta('_phaseone_yodlee_locked_total', true)) === 164.18 &&
+                $gateway_observed_total === 164.18
             );
 
             if (!$all_passed) {
-                throw new RuntimeException('The persisted WC_Order integration test did not produce exactly $138.53.');
+                throw new RuntimeException('The persisted WC_Order integration test did not produce exactly $164.18.');
             }
 
             $result_payload = [
@@ -2472,7 +2424,7 @@ final class Phase_Edebit_Order_Endpoint_V117 {
                 'allPassed' => true,
                 'temporaryOrderId' => $order_id,
                 'temporaryOrderWillBeDeleted' => true,
-                'pricingEngine' => 'authoritative-order-lines-v3-recon-identity',
+                'pricingEngine' => 'authoritative-order-lines-v4-full-price-recon',
                 'reconProductId' => (int) $recon->get_id(),
                 'reconProductSku' => (string) $recon->get_sku(),
                 'reconIdentityVerified' => self::is_recon_water_product($recon),
@@ -2531,13 +2483,13 @@ final class Phase_Edebit_Order_Endpoint_V117 {
 
         $expected = [
             'originalSubtotal' => 180.00,
-            'reconDiscount' => 15.00,
-            'bundleDiscount' => 13.50,
-            'promotionalSubtotal' => 151.50,
-            'couponDiscount' => 15.15,
+            'reconDiscount' => 0.00,
+            'bundleDiscount' => 0.00,
+            'promotionalSubtotal' => 180.00,
+            'couponDiscount' => 18.00,
             'shipping' => 0.00,
             'shippingProtection' => 2.18,
-            'lockedTotal' => 138.53,
+            'lockedTotal' => 164.18,
         ];
 
         $actual = [
@@ -2566,35 +2518,40 @@ final class Phase_Edebit_Order_Endpoint_V117 {
             self::diagnostic_case('10 units', [['unit_price' => 10, 'quantity' => 10, 'is_recon' => false]], 30),
         ];
 
-        $recon_without_threshold = self::calculate_product_promotions([
+        $recon_with_four_eligible = self::calculate_product_promotions([
             ['unit_price' => 20, 'quantity' => 4, 'is_recon' => false],
             ['unit_price' => 22.50, 'quantity' => 2, 'is_recon' => true],
         ]);
-        $recon_with_threshold = self::calculate_product_promotions([
-            ['unit_price' => 25, 'quantity' => 4, 'is_recon' => false],
+        $recon_with_five_eligible = self::calculate_product_promotions([
+            ['unit_price' => 25, 'quantity' => 5, 'is_recon' => false],
             ['unit_price' => 22.50, 'quantity' => 1, 'is_recon' => true],
         ]);
 
         $variant_tests = [
             [
-                'name' => 'Recon below $100 non-Recon threshold',
-                'passed' => self::diagnostic_assert_money($recon_without_threshold['recon_discount'], 0),
-                'reconDiscount' => $recon_without_threshold['recon_discount'],
+                'name' => 'Recon stays full price and does not unlock the quantity tier',
+                'passed' => self::diagnostic_assert_money($recon_with_four_eligible['recon_discount'], 0)
+                    && (int) $recon_with_four_eligible['bundle_discount_percent'] === 0,
+                'reconDiscount' => $recon_with_four_eligible['recon_discount'],
+                'bundlePercent' => $recon_with_four_eligible['bundle_discount_percent'],
             ],
             [
-                'name' => 'Recon at $100 non-Recon threshold',
-                'passed' => self::diagnostic_assert_money($recon_with_threshold['recon_discount'], 7.50),
-                'reconDiscount' => $recon_with_threshold['recon_discount'],
+                'name' => 'Recon stays full price when eligible products unlock the bundle',
+                'passed' => self::diagnostic_assert_money($recon_with_five_eligible['recon_discount'], 0)
+                    && self::diagnostic_assert_money($recon_with_five_eligible['bundle_discount'], 12.50)
+                    && self::diagnostic_assert_money($recon_with_five_eligible['promotional_subtotal'], 135.00),
+                'reconDiscount' => $recon_with_five_eligible['recon_discount'],
+                'bundleDiscount' => $recon_with_five_eligible['bundle_discount'],
             ],
             [
                 'name' => 'No coupon',
-                'passed' => self::diagnostic_assert_money(151.50 + 2.18, 153.68),
-                'total' => self::money(151.50 + 2.18),
+                'passed' => self::diagnostic_assert_money(180.00 + 2.18, 182.18),
+                'total' => self::money(180.00 + 2.18),
             ],
             [
                 'name' => 'No shipping protection',
-                'passed' => self::diagnostic_assert_money(151.50 - 15.15, 136.35),
-                'total' => self::money(151.50 - 15.15),
+                'passed' => self::diagnostic_assert_money(180.00 - 18.00, 162.00),
+                'total' => self::money(180.00 - 18.00),
             ],
             [
                 'name' => 'Paid completion idempotency design',
