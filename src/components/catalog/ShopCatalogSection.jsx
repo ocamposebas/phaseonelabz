@@ -2755,23 +2755,25 @@ export default function ShopCatalogSection({
 
           <a
             href="/bulk-orders"
-            className="group inline-flex min-h-14 w-full items-center justify-between gap-8 rounded-2xl border border-cyan-100/20 bg-cyan-300 px-5 py-3.5 text-left text-slate-950 transition-colors duration-200 hover:bg-cyan-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200 focus-visible:ring-offset-2 focus-visible:ring-offset-[#020817] sm:mx-auto sm:w-auto sm:min-w-[230px] md:mx-0"
+            className="group inline-flex min-h-16 w-full items-center justify-between gap-7 rounded-xl border border-white/10 bg-[#071425]/90 px-4 py-3 text-left transition-colors duration-200 hover:border-cyan-200/30 hover:bg-[#0A1A2D] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200 focus-visible:ring-offset-2 focus-visible:ring-offset-[#020817] sm:mx-auto sm:w-auto sm:min-w-[246px] md:mx-0"
             aria-label="Open the Bulk Orders catalog"
           >
             <span>
-              <span className="block text-[9px] font-black uppercase tracking-[0.18em] text-slate-700">
-                Volume purchasing
+              <span className="block text-xs font-semibold text-slate-400">
+                Ordering 10+ units?
               </span>
-              <span className="mt-0.5 block text-[15px] font-black tracking-[-0.02em]">
-                Shop Bulk Orders
+              <span className="mt-1 block text-[15px] font-bold tracking-[-0.01em] text-white transition-colors group-hover:text-cyan-100">
+                Open Bulk Catalog
               </span>
             </span>
-            <ArrowRight
-              size={19}
-              strokeWidth={2.4}
-              aria-hidden="true"
-              className="shrink-0 transition-transform duration-200 group-hover:translate-x-1"
-            />
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-cyan-200/15 bg-cyan-300/[0.08] text-cyan-200 transition-colors duration-200 group-hover:border-cyan-200/30 group-hover:bg-cyan-300/[0.14]">
+              <ArrowRight
+                size={18}
+                strokeWidth={2.2}
+                aria-hidden="true"
+                className="transition-transform duration-200 group-hover:translate-x-0.5"
+              />
+            </span>
           </a>
         </div>
 
