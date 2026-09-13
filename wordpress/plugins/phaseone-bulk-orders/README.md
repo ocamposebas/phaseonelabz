@@ -1,7 +1,12 @@
 # Phase One Bulk Orders
 
-Version 2.0.3 evolves the existing private Bulk workflow without resetting
+Version 2.0.4 evolves the existing private Bulk workflow without resetting
 codes, sessions, product rules, intents, or historical orders.
+
+Version 2.0.4 replaces the variable-family-only exclusion field with one
+searchable WooCommerce selector containing simple products, variable product
+families and individual variations. Exclusions saved by earlier releases are
+migrated automatically.
 
 The 2.0.1 migration enables the exclusion-first catalog model for existing
 installations: every eligible SKU inherits Bulk pricing, while explicit
@@ -59,7 +64,7 @@ Precedence for catalog visibility is:
 
 1. Specific variation include/exclude.
 2. Product/variable-parent include/exclude.
-3. Existing variable-parent family and product-category exclusions.
+3. Searchable product, variation, family and product-category exclusions.
 4. Global catalog mode.
 
 The plugin reuses WooCommerce variable parents as product families; it does not

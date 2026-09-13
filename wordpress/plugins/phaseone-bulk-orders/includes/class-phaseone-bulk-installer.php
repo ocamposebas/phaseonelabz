@@ -3,7 +3,7 @@
 defined( 'ABSPATH' ) || exit;
 
 final class PhaseOne_Bulk_Installer {
-	private const SCHEMA_VERSION = '3';
+	private const SCHEMA_VERSION = '4';
 	public const KIT_UNITS = 10;
 
 	public static function access_table(): string {
@@ -35,7 +35,7 @@ final class PhaseOne_Bulk_Installer {
 			'global_discount'       => 50.0,
 			'default_minimum'       => self::KIT_UNITS,
 			'excluded_category_ids' => array(),
-			'excluded_family_ids'   => array(),
+			'excluded_product_ids'  => array(),
 			'public_title'          => 'Bulk Orders',
 			'public_intro'          => 'Approved customers receive access to private bulk pricing.',
 			'pricing_revision'      => '',
@@ -173,6 +173,11 @@ final class PhaseOne_Bulk_Installer {
 			if ( ! array_key_exists( 'session_days', $stored ) ) {
 				$stored['session_days'] = 14;
 			}
+			// Version 2.0.4 broadens the former family-only selector to every
+			// supported WooCommerce product type without losing saved exclusions.
+			if ( ! array_key_exists( 'excluded_product_ids', $stored ) ) {
+				$stored['excluded_product_ids'] = $stored['excluded_family_ids'] ?? array();
+			}
 			$stored = array_merge( self::defaults(), $stored );
 		}
 		$stored = self::sanitize_settings( $stored );
@@ -212,7 +217,7 @@ final class PhaseOne_Bulk_Installer {
 		}
 
 		$next = self::sanitize_settings( array_merge( $current, $values ) );
-		$pricing_keys = array( 'catalog_mode', 'global_discount', 'default_minimum', 'excluded_category_ids', 'excluded_family_ids' );
+		$pricing_keys = array( 'catalog_mode', 'global_discount', 'default_minimum', 'excluded_category_ids', 'excluded_product_ids' );
 		$before = array_intersect_key( $current, array_flip( $pricing_keys ) );
 		$after  = array_intersect_key( $next, array_flip( $pricing_keys ) );
 		if ( wp_json_encode( $before ) !== wp_json_encode( $after ) ) {
@@ -248,6 +253,11 @@ final class PhaseOne_Bulk_Installer {
 		$minimum = max( self::KIT_UNITS, absint( $stored['default_minimum'] ?? self::KIT_UNITS ) );
 		$minimum = (int) ceil( $minimum / self::KIT_UNITS ) * self::KIT_UNITS;
 
+		$excluded_product_ids = self::id_list( $stored['excluded_product_ids'] ?? array() );
+		if ( empty( $excluded_product_ids ) && ! empty( $stored['excluded_family_ids'] ) ) {
+			$excluded_product_ids = self::id_list( $stored['excluded_family_ids'] );
+		}
+
 		return array(
 			'session_days'          => max( 1, min( 3650, absint( $stored['session_days'] ?? $defaults['session_days'] ) ) ),
 			'intent_minutes'        => max( 5, min( 120, absint( $stored['intent_minutes'] ?? $defaults['intent_minutes'] ) ) ),
@@ -256,7 +266,7 @@ final class PhaseOne_Bulk_Installer {
 			'global_discount'       => $discount,
 			'default_minimum'       => $minimum,
 			'excluded_category_ids' => self::id_list( $stored['excluded_category_ids'] ?? array() ),
-			'excluded_family_ids'   => self::id_list( $stored['excluded_family_ids'] ?? array() ),
+			'excluded_product_ids'  => $excluded_product_ids,
 			'public_title'          => sanitize_text_field( (string) ( $stored['public_title'] ?? $defaults['public_title'] ) ),
 			'public_intro'          => sanitize_textarea_field( (string) ( $stored['public_intro'] ?? $defaults['public_intro'] ) ),
 			'pricing_revision'      => sanitize_text_field( (string) ( $stored['pricing_revision'] ?? '' ) ),

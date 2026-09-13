@@ -2732,24 +2732,47 @@ export default function ShopCatalogSection({
   return (
     <section className="product-catalog-section relative px-3 py-10 text-white sm:px-6 sm:py-14 lg:py-16">
       <div className="mx-auto max-w-7xl">
-        <div className="catalog-hero mb-8 flex max-w-4xl flex-col items-center text-center md:mx-0 md:items-start md:text-left lg:mb-10">
-          <div className="mb-4 inline-flex items-center justify-center gap-3 md:justify-start">
-            <span className="h-2 w-2 rounded-full bg-cyan-300 shadow-[0_0_20px_rgba(103,232,249,0.75)]" />
+        <div className="catalog-hero mb-8 grid items-end gap-6 text-center md:grid-cols-[minmax(0,1fr)_auto] md:gap-10 md:text-left lg:mb-10">
+          <div className="flex max-w-4xl flex-col items-center md:items-start">
+            <div className="mb-4 inline-flex items-center justify-center gap-3 md:justify-start">
+              <span className="h-2 w-2 rounded-full bg-cyan-300 shadow-[0_0_20px_rgba(103,232,249,0.75)]" />
 
-            <span className="text-[9px] font-black uppercase tracking-[0.28em] text-cyan-200/65 sm:text-[10px] sm:tracking-[0.34em]">
-              Shop Catalog
-            </span>
+              <span className="text-[9px] font-black uppercase tracking-[0.28em] text-cyan-200/65 sm:text-[10px] sm:tracking-[0.34em]">
+                Shop Catalog
+              </span>
+            </div>
+
+            <h2 className="mx-auto max-w-[520px] text-[38px] font-semibold leading-[1] tracking-[-0.055em] text-white sm:max-w-4xl sm:text-[50px] md:mx-0 lg:text-[54px]">
+              Research products,
+              <span className="text-slate-400"> clearly organized.</span>
+            </h2>
+
+            <p className="mx-auto mt-5 max-w-xl text-[13.5px] leading-7 text-slate-300/65 sm:text-sm md:mx-0">
+              Filter products by category, price range, catalog status, and
+              research collection.
+            </p>
           </div>
 
-          <h2 className="mx-auto max-w-[520px] text-[38px] font-semibold leading-[1] tracking-[-0.055em] text-white sm:max-w-4xl sm:text-[50px] md:mx-0 lg:text-[54px]">
-            Research products,
-            <span className="text-slate-400"> clearly organized.</span>
-          </h2>
-
-          <p className="mx-auto mt-5 max-w-xl text-[13.5px] leading-7 text-slate-300/65 sm:text-sm md:mx-0">
-            Filter products by category, price range, catalog status, and
-            research collection.
-          </p>
+          <a
+            href="/bulk-orders"
+            className="group inline-flex min-h-14 w-full items-center justify-between gap-8 rounded-2xl border border-cyan-100/20 bg-cyan-300 px-5 py-3.5 text-left text-slate-950 transition-colors duration-200 hover:bg-cyan-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200 focus-visible:ring-offset-2 focus-visible:ring-offset-[#020817] sm:mx-auto sm:w-auto sm:min-w-[230px] md:mx-0"
+            aria-label="Open the Bulk Orders catalog"
+          >
+            <span>
+              <span className="block text-[9px] font-black uppercase tracking-[0.18em] text-slate-700">
+                Volume purchasing
+              </span>
+              <span className="mt-0.5 block text-[15px] font-black tracking-[-0.02em]">
+                Shop Bulk Orders
+              </span>
+            </span>
+            <ArrowRight
+              size={19}
+              strokeWidth={2.4}
+              aria-hidden="true"
+              className="shrink-0 transition-transform duration-200 group-hover:translate-x-1"
+            />
+          </a>
         </div>
 
         <DispatchCutoff variant="catalog" />

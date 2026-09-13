@@ -101,7 +101,13 @@ final class PhaseOne_Bulk_Admin {
 		$ids = PhaseOne_Bulk_Product_Rules::configured_ids();
 		$settings = PhaseOne_Bulk_Installer::settings();
 		$categories = get_terms( array( 'taxonomy' => 'product_cat', 'hide_empty' => false ) );
-		$families = wc_get_products( array( 'type' => 'variable', 'status' => array( 'publish', 'private' ), 'limit' => -1, 'orderby' => 'name', 'order' => 'ASC' ) );
+		$excluded_products = array();
+		foreach ( $settings['excluded_product_ids'] as $excluded_product_id ) {
+			$excluded_product = wc_get_product( (int) $excluded_product_id );
+			if ( $excluded_product instanceof WC_Product ) {
+				$excluded_products[] = $excluded_product;
+			}
+		}
 		?>
 		<section class="phaseone-bulk-panel phaseone-bulk-add-rule">
 			<div><h2>Add product, family or variation</h2><p>Add only exceptions or pricing overrides. Example: add Reta, choose Custom Discount %, enter 30, and save. All other products keep inheriting the global setting.</p></div>
@@ -122,9 +128,9 @@ final class PhaseOne_Bulk_Admin {
 							<option value="<?php echo esc_attr( $term->term_id ); ?>" <?php selected( in_array( (int) $term->term_id, $settings['excluded_category_ids'], true ) ); ?>><?php echo esc_html( $term->name ); ?></option>
 						<?php endforeach; endif; ?>
 					</select><small>Explicit product or variation Include overrides this.</small></label>
-					<label>Excluded families<select name="excluded_family_ids[]" multiple class="wc-enhanced-select">
-						<?php foreach ( $families as $family ) : ?><option value="<?php echo esc_attr( $family->get_id() ); ?>" <?php selected( in_array( (int) $family->get_id(), $settings['excluded_family_ids'], true ) ); ?>><?php echo esc_html( $family->get_name() ); ?></option><?php endforeach; ?>
-					</select><small>A family is an existing WooCommerce variable parent.</small></label>
+					<label>Excluded products, families or variations<select name="excluded_product_ids[]" multiple class="wc-product-search" data-placeholder="Search any product, family, SKU or variation..." data-action="woocommerce_json_search_products_and_variations" data-minimum_input_length="1" style="width:100%">
+						<?php foreach ( $excluded_products as $excluded_product ) : ?><option value="<?php echo esc_attr( $excluded_product->get_id() ); ?>" selected><?php echo esc_html( wp_strip_all_tags( $excluded_product->get_formatted_name() ) ); ?></option><?php endforeach; ?>
+					</select><small>Every published or private WooCommerce product, variable family and individual variation is searchable here.</small></label>
 				</div>
 			</section>
 			<div class="phaseone-bulk-rule-list">
@@ -235,7 +241,7 @@ final class PhaseOne_Bulk_Admin {
 
 	public static function save_rules(): void {
 		self::authorize( 'phaseone_bulk_manage_rules' );
-		PhaseOne_Bulk_Installer::update_settings( array( 'excluded_category_ids' => (array) ( $_POST['excluded_category_ids'] ?? array() ), 'excluded_family_ids' => (array) ( $_POST['excluded_family_ids'] ?? array() ) ) );
+		PhaseOne_Bulk_Installer::update_settings( array( 'excluded_category_ids' => (array) ( $_POST['excluded_category_ids'] ?? array() ), 'excluded_product_ids' => (array) ( $_POST['excluded_product_ids'] ?? array() ) ) );
 		$rules = isset( $_POST['rules'] ) && is_array( $_POST['rules'] ) ? wp_unslash( $_POST['rules'] ) : array();
 		$errors = array();
 		foreach ( $rules as $id => $raw ) {

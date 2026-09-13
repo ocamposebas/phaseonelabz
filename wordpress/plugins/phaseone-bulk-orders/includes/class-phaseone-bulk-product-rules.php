@@ -132,7 +132,11 @@ final class PhaseOne_Bulk_Product_Rules {
 		}
 
 		$settings = PhaseOne_Bulk_Installer::settings();
-		if ( $parent instanceof WC_Product && in_array( (int) $parent->get_id(), $settings['excluded_family_ids'], true ) ) {
+		$excluded_product_ids = (array) $settings['excluded_product_ids'];
+		if ( in_array( (int) $product->get_id(), $excluded_product_ids, true ) ) {
+			return false;
+		}
+		if ( $parent instanceof WC_Product && in_array( (int) $parent->get_id(), $excluded_product_ids, true ) ) {
 			return false;
 		}
 		if ( $parent instanceof WC_Product ) {
