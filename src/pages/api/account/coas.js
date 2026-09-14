@@ -68,7 +68,7 @@ function preserveFulfillmentAssociations(items) {
       lot: "",
       coa: null,
       message:
-        "COA pending — lot information has not been assigned to this order.",
+        "COA pending - a matching certificate has not been captured for this order.",
     };
   });
 }

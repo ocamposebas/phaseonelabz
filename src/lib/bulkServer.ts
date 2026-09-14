@@ -2,6 +2,13 @@ export const BULK_SESSION_COOKIE = "phaseone_bulk_session";
 export const BULK_INTENT_COOKIE = "phaseone_bulk_intent";
 
 const MAX_BODY_BYTES = 64 * 1024;
+const DEFAULT_WORDPRESS_TIMEOUT_MS = 10_000;
+
+function wordpressTimeoutMs(): number {
+  const configured = Number(import.meta.env.BULK_WORDPRESS_TIMEOUT_MS || DEFAULT_WORDPRESS_TIMEOUT_MS);
+  if (!Number.isFinite(configured)) return DEFAULT_WORDPRESS_TIMEOUT_MS;
+  return Math.min(30_000, Math.max(3_000, Math.floor(configured)));
+}
 
 export function jsonResponse(
   body: Record<string, unknown>,
@@ -141,12 +148,30 @@ export async function wordpressBulkRequest(
   }
 
   const method = options.method || "GET";
-  const response = await fetch(`${base}/wp-json/${path.replace(/^\//, "")}`, {
-    method,
-    cache: "no-store",
-    headers,
-    body: method === "GET" ? undefined : JSON.stringify(options.body || {}),
-  });
+  const controller = new AbortController();
+  const abortFromRequest = () => controller.abort();
+  const timeout = setTimeout(() => controller.abort(), wordpressTimeoutMs());
+  if (request.signal.aborted) controller.abort();
+  else request.signal.addEventListener("abort", abortFromRequest, { once: true });
+
+  let response: Response;
+  try {
+    response = await fetch(`${base}/wp-json/${path.replace(/^\//, "")}`, {
+      method,
+      cache: "no-store",
+      headers,
+      body: method === "GET" ? undefined : JSON.stringify(options.body || {}),
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (controller.signal.aborted && !request.signal.aborted) {
+      throw new Error("WordPress timed out while processing the Bulk request.");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+    request.signal.removeEventListener("abort", abortFromRequest);
+  }
   const text = await response.text();
   let data: Record<string, unknown> = {};
   try {

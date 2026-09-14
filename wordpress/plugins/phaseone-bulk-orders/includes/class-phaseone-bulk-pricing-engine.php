@@ -22,6 +22,9 @@ final class PhaseOne_Bulk_Pricing_Engine {
 			if ( is_wp_error( $rule ) || empty( $rule['enabled'] ) ) {
 				return new WP_Error( 'phaseone_bulk_not_eligible', 'One or more selected SKUs are not available for Bulk ordering.', array( 'status' => 400 ) );
 			}
+			if ( empty( $rule['bulk_available'] ) ) {
+				return new WP_Error( 'phaseone_bulk_manually_unavailable', sprintf( '%s is currently unavailable for Bulk ordering.', $product->get_name() ), array( 'status' => 409 ) );
+			}
 
 			$quantity = (int) $item['quantity'];
 			$minimum  = (int) $rule['minimum'];
@@ -95,8 +98,16 @@ final class PhaseOne_Bulk_Pricing_Engine {
 			if ( is_wp_error( $price ) ) {
 				continue;
 			}
-			$available = $product->is_purchasable() && $product->is_in_stock() && ( 0 === $maximum || $maximum >= $minimum );
-			$items[] = self::build_line( $product, $rule, $price, $retail, $minimum, $maximum, self::money( (float) $price['unit_price'] * $minimum ), $available );
+			$available = ! empty( $rule['bulk_available'] ) && $product->is_purchasable() && $product->is_in_stock() && ( 0 === $maximum || $maximum >= $minimum );
+			$availability_reason = '';
+			if ( empty( $rule['bulk_available'] ) ) {
+				$availability_reason = 'This SKU is temporarily unavailable for Bulk ordering.';
+			} elseif ( ! $product->is_purchasable() || ! $product->is_in_stock() ) {
+				$availability_reason = 'This SKU is currently unavailable in WooCommerce inventory.';
+			} elseif ( $maximum > 0 && $maximum < $minimum ) {
+				$availability_reason = 'There is not enough inventory for a complete Bulk kit.';
+			}
+			$items[] = self::build_line( $product, $rule, $price, $retail, $minimum, $maximum, self::money( (float) $price['unit_price'] * $minimum ), $available, $availability_reason );
 		}
 		$settings = PhaseOne_Bulk_Installer::settings();
 		return array(
@@ -213,7 +224,7 @@ final class PhaseOne_Bulk_Pricing_Engine {
 		return round( $maximum_savings, 2 );
 	}
 
-	private static function build_line( WC_Product $product, array $rule, array $price, float $retail, int $quantity, int $maximum, float $line_total, ?bool $available = null ): array {
+	private static function build_line( WC_Product $product, array $rule, array $price, float $retail, int $quantity, int $maximum, float $line_total, ?bool $available = null, string $availability_reason = '' ): array {
 		$parent = $product->is_type( 'variation' ) ? wc_get_product( $product->get_parent_id() ) : $product;
 		$image_id = $product->get_image_id() ?: ( $parent instanceof WC_Product ? $parent->get_image_id() : 0 );
 		$categories = $parent instanceof WC_Product ? wp_get_post_terms( $parent->get_id(), 'product_cat', array( 'fields' => 'names' ) ) : array();
@@ -272,6 +283,9 @@ final class PhaseOne_Bulk_Pricing_Engine {
 			'line_total'         => $line_total,
 			'rule_revision'      => (string) $rule['revision'],
 			'available'          => null === $available ? true : $available,
+			'availability'       => (string) ( $rule['availability'] ?? 'available' ),
+			'availability_source' => (string) ( $rule['availability_source'] ?? 'default' ),
+			'availability_reason' => $availability_reason,
 			'backorders'         => $product->backorders_allowed(),
 		);
 	}

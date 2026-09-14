@@ -276,7 +276,7 @@ export default function AccountCoas() {
           <Loader2 className="account-coas__spinner" size={22} />
           <div>
             <strong>Loading your certificates</strong>
-            <span>Checking confirmed fulfillment records for your orders.</span>
+            <span>Checking the COA snapshots saved with your orders.</span>
           </div>
         </div>
       ) : null}
@@ -361,7 +361,7 @@ export default function AccountCoas() {
               <p>
                 {orderFilter
                   ? "This order has no products associated with the COA library."
-                  : "Certificates will appear after a fulfillment lot is confirmed for an eligible order."}
+                  : "Certificates appear automatically when an order contains a product with a matching COA."}
               </p>
             </div>
           ) : visibleItems.length === 0 ? (

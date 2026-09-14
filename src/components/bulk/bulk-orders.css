@@ -1068,8 +1068,14 @@
 
 .bulk-variant-options > button.is-unavailable {
   border-style: dashed;
-  opacity: .42;
-  cursor: not-allowed;
+  opacity: .65;
+}
+
+.bulk-variant-options > button.is-unavailable.is-active {
+  border-color: #8f7843;
+  background: #171a1f;
+  color: #e7c978;
+  box-shadow: none;
 }
 
 .bulk-product-pricing {

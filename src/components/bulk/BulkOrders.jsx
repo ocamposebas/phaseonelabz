@@ -19,6 +19,7 @@ import {
 import "./bulk-orders.css";
 
 const STORAGE_KEY = "phaseone_bulk_cart_v1";
+const API_TIMEOUT_MS = 10_000;
 
 // Mirrors the storefront's default "Most popular" product-family order.
 const CATALOG_FAMILY_ORDER = [
@@ -82,21 +83,42 @@ function errorMessage(data, fallback) {
 }
 
 async function api(path, options = {}) {
-  const response = await fetch(path, {
-    credentials: "same-origin",
-    cache: "no-store",
-    ...options,
-    headers: {
-      Accept: "application/json",
-      ...(options.body ? { "Content-Type": "application/json" } : {}),
-      ...(options.headers || {}),
-    },
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw Object.assign(new Error(errorMessage(data, "Request failed.")), { status: response.status });
+  const { signal: callerSignal, ...requestOptions } = options;
+  const controller = new AbortController();
+  const abortFromCaller = () => controller.abort();
+  if (callerSignal?.aborted) controller.abort();
+  else callerSignal?.addEventListener("abort", abortFromCaller, { once: true });
+  const timeout = window.setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(path, {
+      credentials: "same-origin",
+      cache: "no-store",
+      ...requestOptions,
+      signal: controller.signal,
+      headers: {
+        Accept: "application/json",
+        ...(requestOptions.body ? { "Content-Type": "application/json" } : {}),
+        ...(requestOptions.headers || {}),
+      },
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw Object.assign(new Error(errorMessage(data, "Request failed.")), { status: response.status });
+    }
+    return data;
+  } catch (error) {
+    if (error?.name === "AbortError" && !callerSignal?.aborted) {
+      throw Object.assign(new Error("The Bulk service took too long to respond. Please try again."), {
+        code: "timeout",
+        status: 504,
+      });
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeout);
+    callerSignal?.removeEventListener("abort", abortFromCaller);
   }
-  return data;
 }
 
 function cleanStoredCart(value) {
@@ -140,7 +162,9 @@ function maximumKits(item) {
 
 function availabilityCopy(item) {
   const capacity = maximumKits(item);
-  if (!item?.available) return "This SKU is currently unavailable for a complete kit.";
+  if (!item?.available) {
+    return item?.availability_reason || "This SKU is currently unavailable for a complete kit.";
+  }
   return capacity > 0
     ? `${capacity} kit${capacity === 1 ? "" : "s"} currently available.`
     : "Available to order.";
@@ -167,6 +191,10 @@ function ProductFamily({ name, items, cart, currency, addLine, selectedKey, sele
   const atMaximum = Boolean(selectedLine && maximum > 0 && selectedKits >= maximum);
   const tiers = Array.isArray(selected?.tiers) ? selected.tiers : [];
   const retailKitPrice = Number(selected?.retail_unit_price || 0) * kitSize(selected);
+  const availableCount = items.filter((item) => item.available).length;
+  const configurationCopy = items.length > 1
+    ? `${availableCount} of ${items.length} configurations available`
+    : productLabel(selected);
 
   return (
     <article className="bulk-product-card">
@@ -182,7 +210,7 @@ function ProductFamily({ name, items, cart, currency, addLine, selectedKey, sele
         <header>
           <span>{representative.categories?.[0] || "Bulk catalog"}</span>
           <h2>{name}</h2>
-          <p>{items.length > 1 ? `${items.length} available configurations` : productLabel(selected)}</p>
+          <p>{configurationCopy}</p>
         </header>
 
         {items.length > 1 && (
@@ -199,10 +227,10 @@ function ProductFamily({ name, items, cart, currency, addLine, selectedKey, sele
                     aria-checked={active}
                     aria-label={`${productLabel(item)}${item.available ? "" : ", unavailable"}`}
                     className={`${active ? "is-active" : ""}${item.available ? "" : " is-unavailable"}`}
-                    disabled={!item.available}
+                    aria-disabled={!item.available}
                     onClick={() => selectOffer(item)}
                   >
-                    {productLabel(item)}
+                    {productLabel(item)}{item.available ? "" : " · Unavailable"}
                   </button>
                 );
               })}
@@ -562,7 +590,7 @@ export default function BulkOrders() {
     setCart((current) => {
       const cleaned = current.flatMap((line) => {
         const item = byId.get(itemKey(line));
-        if (!item) return [];
+        if (!item || !item.available) return [];
         const size = kitSize(item);
         const normalized = Math.max(Number(item.minimum || size), Math.ceil(Number(line.quantity || 0) / size) * size);
         const maximum = Math.max(0, Number(item.maximum || 0));
@@ -647,6 +675,7 @@ export default function BulkOrders() {
   };
 
   const addLine = (item) => {
+    if (!item?.available) return;
     const existing = cart.find((line) => itemKey(line) === itemKey(item));
     setLine(item, existing ? Number(existing.quantity) + kitSize(item) : Number(item.minimum || kitSize(item)));
   };

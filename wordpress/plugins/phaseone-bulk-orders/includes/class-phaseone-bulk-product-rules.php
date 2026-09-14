@@ -5,6 +5,7 @@ defined( 'ABSPATH' ) || exit;
 final class PhaseOne_Bulk_Product_Rules {
 	public const META_ENABLED  = '_phaseone_bulk_enabled';
 	public const META_CATALOG  = '_phaseone_bulk_catalog_override';
+	public const META_AVAILABILITY = '_phaseone_bulk_availability';
 	public const META_MIN      = '_phaseone_bulk_min_qty';
 	public const META_MAX      = '_phaseone_bulk_max_qty';
 	public const META_MODE     = '_phaseone_bulk_pricing_mode';
@@ -27,6 +28,11 @@ final class PhaseOne_Bulk_Product_Rules {
 				? ( 'yes' === $product->get_meta( self::META_ENABLED, true ) ? 'include' : 'exclude' )
 				: 'inherit';
 		}
+		$has_availability = self::has_meta( $product, self::META_AVAILABILITY );
+		$availability = $has_availability ? sanitize_key( (string) $product->get_meta( self::META_AVAILABILITY, true ) ) : 'inherit';
+		if ( ! in_array( $availability, array( 'inherit', 'available', 'unavailable' ), true ) ) {
+			$availability = 'inherit';
+		}
 
 		$has_mode = self::has_meta( $product, self::META_MODE );
 		$mode = $has_mode ? sanitize_key( (string) $product->get_meta( self::META_MODE, true ) ) : 'inherit';
@@ -44,6 +50,8 @@ final class PhaseOne_Bulk_Product_Rules {
 			'purchasable_id'   => $is_variable ? 0 : (int) $product->get_id(),
 			'catalog_override' => $catalog,
 			'enabled'          => 'include' === $catalog,
+			'availability_override' => $availability,
+			'availability_explicit' => $has_availability && 'inherit' !== $availability,
 			'minimum'          => max( 1, absint( $product->get_meta( self::META_MIN, true ) ?: $settings['default_minimum'] ) ),
 			'minimum_explicit' => self::has_meta( $product, self::META_MIN ),
 			'maximum'          => max( 0, absint( $product->get_meta( self::META_MAX, true ) ) ),
@@ -96,6 +104,15 @@ final class PhaseOne_Bulk_Product_Rules {
 		$maximum = ! empty( $rule['maximum_explicit'] )
 			? (int) $rule['maximum']
 			: ( is_array( $parent_rule ) && ! empty( $parent_rule['maximum_explicit'] ) ? (int) $parent_rule['maximum'] : 0 );
+		$availability = 'available';
+		$availability_source = 'default';
+		if ( ! empty( $rule['availability_explicit'] ) ) {
+			$availability = (string) $rule['availability_override'];
+			$availability_source = $product->is_type( 'variation' ) ? 'variation' : 'product';
+		} elseif ( is_array( $parent_rule ) && ! empty( $parent_rule['availability_explicit'] ) ) {
+			$availability = (string) $parent_rule['availability_override'];
+			$availability_source = 'product';
+		}
 
 		return array(
 			'product_id'       => (int) $rule['product_id'],
@@ -103,6 +120,9 @@ final class PhaseOne_Bulk_Product_Rules {
 			'purchasable_id'   => (int) $rule['purchasable_id'],
 			'enabled'          => self::is_included( $product ),
 			'catalog_override' => (string) $rule['catalog_override'],
+			'availability'     => $availability,
+			'availability_source' => $availability_source,
+			'bulk_available'   => 'unavailable' !== $availability,
 			'minimum'          => $minimum,
 			'maximum'          => $maximum,
 			'mode'             => (string) $pricing['mode'],
@@ -132,7 +152,7 @@ final class PhaseOne_Bulk_Product_Rules {
 		}
 
 		$settings = PhaseOne_Bulk_Installer::settings();
-		$excluded_product_ids = (array) $settings['excluded_product_ids'];
+		$excluded_product_ids = array_map( 'absint', (array) ( $settings['excluded_product_ids'] ?? array() ) );
 		if ( in_array( (int) $product->get_id(), $excluded_product_ids, true ) ) {
 			return false;
 		}
@@ -141,7 +161,7 @@ final class PhaseOne_Bulk_Product_Rules {
 		}
 		if ( $parent instanceof WC_Product ) {
 			$category_ids = wp_get_post_terms( $parent->get_id(), 'product_cat', array( 'fields' => 'ids' ) );
-			if ( ! is_wp_error( $category_ids ) && array_intersect( array_map( 'absint', $category_ids ), $settings['excluded_category_ids'] ) ) {
+			if ( ! is_wp_error( $category_ids ) && array_intersect( array_map( 'absint', $category_ids ), array_map( 'absint', (array) ( $settings['excluded_category_ids'] ?? array() ) ) ) ) {
 				return false;
 			}
 		}
@@ -157,6 +177,10 @@ final class PhaseOne_Bulk_Product_Rules {
 		$catalog = sanitize_key( (string) ( $raw['catalog_override'] ?? '' ) );
 		if ( ! in_array( $catalog, array( 'inherit', 'include', 'exclude' ), true ) ) {
 			$catalog = ! empty( $raw['enabled'] ) ? 'include' : 'exclude';
+		}
+		$availability = sanitize_key( (string) ( $raw['availability_override'] ?? 'inherit' ) );
+		if ( ! in_array( $availability, array( 'inherit', 'available', 'unavailable' ), true ) ) {
+			$availability = 'inherit';
 		}
 		$minimum_kits_raw = array_key_exists( 'minimum_kits', $raw ) ? trim( (string) $raw['minimum_kits'] ) : null;
 		$minimum_explicit = null !== $minimum_kits_raw ? '' !== $minimum_kits_raw : array_key_exists( 'minimum', $raw );
@@ -205,8 +229,9 @@ final class PhaseOne_Bulk_Product_Rules {
 			return new WP_Error( 'phaseone_bulk_tier_gap', 'The first tier must begin at or before the Bulk minimum.' );
 		}
 
-		$revision = hash( 'sha256', wp_json_encode( compact( 'catalog', 'minimum', 'maximum', 'mode', 'discount', 'price', 'tiers' ) ) );
+		$revision = hash( 'sha256', wp_json_encode( compact( 'catalog', 'availability', 'minimum', 'maximum', 'mode', 'discount', 'price', 'tiers' ) ) );
 		$product->update_meta_data( self::META_CATALOG, $catalog );
+		$product->update_meta_data( self::META_AVAILABILITY, $availability );
 		if ( $minimum_explicit ) {
 			$product->update_meta_data( self::META_MIN, $minimum );
 		} else {
@@ -228,7 +253,7 @@ final class PhaseOne_Bulk_Product_Rules {
 		if ( ! $product instanceof WC_Product ) {
 			return false;
 		}
-		foreach ( array( self::META_ENABLED, self::META_CATALOG, self::META_MIN, self::META_MAX, self::META_MODE, self::META_DISCOUNT, self::META_PRICE, self::META_TIERS, self::META_REVISION ) as $key ) {
+		foreach ( array( self::META_ENABLED, self::META_CATALOG, self::META_AVAILABILITY, self::META_MIN, self::META_MAX, self::META_MODE, self::META_DISCOUNT, self::META_PRICE, self::META_TIERS, self::META_REVISION ) as $key ) {
 			$product->delete_meta_data( $key );
 		}
 		$product->save_meta_data();
@@ -237,22 +262,28 @@ final class PhaseOne_Bulk_Product_Rules {
 	}
 
 	public static function configured_ids(): array {
-		$args = array(
-			'post_type'      => array( 'product', 'product_variation' ),
-			'post_status'    => array( 'publish', 'private' ),
-			'posts_per_page' => 1000,
-			'fields'         => 'ids',
-			'orderby'        => 'ID',
-			'order'          => 'ASC',
-			'no_found_rows'  => true,
-			'meta_query'     => array(
-				'relation' => 'OR',
-				array( 'key' => self::META_ENABLED, 'compare' => 'EXISTS' ),
-				array( 'key' => self::META_CATALOG, 'compare' => 'EXISTS' ),
-				array( 'key' => self::META_MODE, 'compare' => 'EXISTS' ),
-			),
+		$cached = wp_cache_get( 'configured_ids', 'phaseone_bulk' );
+		if ( is_array( $cached ) ) {
+			return array_map( 'absint', $cached );
+		}
+
+		global $wpdb;
+		$meta_keys = array( self::META_ENABLED, self::META_CATALOG, self::META_AVAILABILITY, self::META_MODE );
+		$placeholders = implode( ', ', array_fill( 0, count( $meta_keys ), '%s' ) );
+		$query = $wpdb->prepare(
+			"SELECT DISTINCT p.ID
+			FROM {$wpdb->posts} p
+			INNER JOIN {$wpdb->postmeta} pm ON pm.post_id = p.ID
+			WHERE p.post_type IN ('product', 'product_variation')
+			AND p.post_status IN ('publish', 'private')
+			AND pm.meta_key IN ({$placeholders})
+			ORDER BY p.ID ASC
+			LIMIT 1000",
+			...$meta_keys
 		);
-		return array_map( 'absint', get_posts( $args ) ?: array() );
+		$ids = array_map( 'absint', $wpdb->get_col( $query ) ?: array() );
+		wp_cache_set( 'configured_ids', $ids, 'phaseone_bulk', 5 * MINUTE_IN_SECONDS );
+		return $ids;
 	}
 
 	public static function catalog_candidate_ids(): array {
@@ -383,6 +414,7 @@ final class PhaseOne_Bulk_Product_Rules {
 	public static function invalidate_cache(): void {
 		wp_cache_delete( 'catalog', 'phaseone_bulk' );
 		wp_cache_delete( 'program', 'phaseone_bulk' );
+		wp_cache_delete( 'configured_ids', 'phaseone_bulk' );
 	}
 
 	private static function money( mixed $value ): float {

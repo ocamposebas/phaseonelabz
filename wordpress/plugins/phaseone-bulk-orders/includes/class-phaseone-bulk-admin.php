@@ -33,10 +33,12 @@ final class PhaseOne_Bulk_Admin {
 		if ( 'woocommerce_page_' . self::PAGE !== $hook ) {
 			return;
 		}
+		$tab = sanitize_key( wp_unslash( $_GET['tab'] ?? 'overview' ) );
 		wp_enqueue_style( 'woocommerce_admin_styles' );
-		wp_enqueue_script( 'wc-enhanced-select' );
+		if ( 'rules' === $tab ) {
+			wp_enqueue_script( 'wc-enhanced-select' );
+		}
 		wp_enqueue_style( 'phaseone-bulk-admin', PHASEONE_BULK_URL . 'assets/admin.css', array(), PHASEONE_BULK_VERSION );
-		wp_enqueue_style( 'phaseone-bulk-admin-access-mode', PHASEONE_BULK_URL . 'assets/admin-access-mode.css', array( 'phaseone-bulk-admin' ), PHASEONE_BULK_VERSION );
 		wp_enqueue_script( 'phaseone-bulk-admin', PHASEONE_BULK_URL . 'assets/admin.js', array(), PHASEONE_BULK_VERSION, true );
 	}
 
@@ -49,7 +51,7 @@ final class PhaseOne_Bulk_Admin {
 		?>
 		<div class="wrap phaseone-bulk-admin">
 			<header class="phaseone-bulk-heading">
-				<div><h1>Bulk Orders</h1><p>Private customer access, kit rules and server-authoritative pricing.</p></div>
+				<div><h1>Bulk Orders</h1><p>Customer access, catalog visibility, availability and server-authoritative pricing.</p></div>
 			</header>
 			<nav class="nav-tab-wrapper" aria-label="Bulk Orders sections">
 				<?php foreach ( self::TABS as $key => $label ) : ?>
@@ -72,16 +74,11 @@ final class PhaseOne_Bulk_Admin {
 	}
 
 	private static function render_overview(): void {
-		global $wpdb;
 		$settings = PhaseOne_Bulk_Installer::settings();
-		$pending = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . PhaseOne_Bulk_Installer::requests_table() . ' WHERE status = %s', 'pending' ) );
-		$tier_query = new WP_User_Query( array( 'meta_key' => PhaseOne_Bulk_Access::META_TIER, 'meta_value' => 'special', 'count_total' => true, 'number' => 1 ) );
 		$cards = array(
 			'Catalog mode'       => 'include_all' === $settings['catalog_mode'] ? 'Include all' : 'Legacy explicit',
 			'Global discount'    => self::percent( $settings['global_discount'] ),
-			'Configured rules'   => count( PhaseOne_Bulk_Product_Rules::configured_ids() ),
-			'Special customers'  => (int) $tier_query->get_total(),
-			'Pending requests'   => $pending,
+			'Default kit'        => PhaseOne_Bulk_Installer::KIT_UNITS . ' units',
 			'Session duration'   => (int) $settings['session_days'] . ' days',
 		);
 		?>
@@ -91,8 +88,14 @@ final class PhaseOne_Bulk_Admin {
 			<?php endforeach; ?>
 		</section>
 		<section class="phaseone-bulk-panel">
-			<h2>Access policy</h2>
-			<p>Special Tier is checked first. A valid temporary Access Code session is checked second. Everyone else sees only the public Bulk program page.</p>
+			<h2>Manage Bulk Orders</h2>
+			<p>Open only the section you need. Product, customer and request records are loaded inside their own tabs instead of delaying this overview.</p>
+			<p class="phaseone-bulk-inline-actions">
+				<a class="button button-primary" href="<?php echo esc_url( self::page_url( 'rules' ) ); ?>">Product Rules</a>
+				<a class="button" href="<?php echo esc_url( self::page_url( 'customers' ) ); ?>">Customer Access</a>
+				<a class="button" href="<?php echo esc_url( self::page_url( 'requests' ) ); ?>">Access Requests</a>
+				<a class="button" href="<?php echo esc_url( self::page_url( 'codes' ) ); ?>">Access Codes</a>
+			</p>
 		</section>
 		<?php
 	}
@@ -110,7 +113,7 @@ final class PhaseOne_Bulk_Admin {
 		}
 		?>
 		<section class="phaseone-bulk-panel phaseone-bulk-add-rule">
-			<div><h2>Add product, family or variation</h2><p>Add only exceptions or pricing overrides. Example: add Reta, choose Custom Discount %, enter 30, and save. All other products keep inheriting the global setting.</p></div>
+			<div><span class="phaseone-bulk-kicker">Product rules</span><h2>Add a product, family or variation</h2><p>Create a rule only when an item needs different visibility, availability, quantity limits or pricing.</p></div>
 			<form action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" method="post">
 				<input type="hidden" name="action" value="phaseone_bulk_add_rule"><?php wp_nonce_field( 'phaseone_bulk_manage_rules' ); ?>
 				<select class="wc-product-search" name="product_id" data-placeholder="Search by product or SKU..." data-action="woocommerce_json_search_products_and_variations" required></select>
@@ -118,26 +121,28 @@ final class PhaseOne_Bulk_Admin {
 			</form>
 		</section>
 
-		<form action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" method="post">
+		<form class="phaseone-bulk-rules-form" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" method="post">
 			<input type="hidden" name="action" value="phaseone_bulk_save_rules"><?php wp_nonce_field( 'phaseone_bulk_manage_rules' ); ?>
-			<section class="phaseone-bulk-panel">
-				<h2>Catalog exclusions</h2>
+			<details class="phaseone-bulk-panel phaseone-bulk-exclusions">
+				<summary><span><strong>Hide products completely</strong><small>Optional catalog exclusions</small></span><span class="phaseone-bulk-summary-action">Manage exclusions</span></summary>
+				<p>Use this only when a product should disappear from the Bulk catalog. To keep it visible without allowing orders, use <strong>Bulk availability: Unavailable</strong> inside its rule.</p>
 				<div class="phaseone-bulk-simple-grid">
-					<label>Excluded categories<select name="excluded_category_ids[]" multiple class="wc-enhanced-select">
+					<label><span>Excluded categories</span><select name="excluded_category_ids[]" multiple class="wc-enhanced-select">
 						<?php if ( ! is_wp_error( $categories ) ) : foreach ( $categories as $term ) : ?>
 							<option value="<?php echo esc_attr( $term->term_id ); ?>" <?php selected( in_array( (int) $term->term_id, $settings['excluded_category_ids'], true ) ); ?>><?php echo esc_html( $term->name ); ?></option>
 						<?php endforeach; endif; ?>
 					</select><small>Explicit product or variation Include overrides this.</small></label>
-					<label>Excluded products, families or variations<select name="excluded_product_ids[]" multiple class="wc-product-search" data-placeholder="Search any product, family, SKU or variation..." data-action="woocommerce_json_search_products_and_variations" data-minimum_input_length="1" style="width:100%">
+					<label><span>Excluded products, families or variations</span><select name="excluded_product_ids[]" multiple class="wc-product-search" data-placeholder="Search any product, family, SKU or variation..." data-action="woocommerce_json_search_products_and_variations" data-minimum_input_length="1" style="width:100%">
 						<?php foreach ( $excluded_products as $excluded_product ) : ?><option value="<?php echo esc_attr( $excluded_product->get_id() ); ?>" selected><?php echo esc_html( wp_strip_all_tags( $excluded_product->get_formatted_name() ) ); ?></option><?php endforeach; ?>
 					</select><small>Every published or private WooCommerce product, variable family and individual variation is searchable here.</small></label>
 				</div>
-			</section>
+			</details>
+			<div class="phaseone-bulk-list-heading"><div><span class="phaseone-bulk-kicker">Configured items</span><h2>Product rules</h2></div><span><?php echo esc_html( count( $ids ) ); ?> configured</span></div>
 			<div class="phaseone-bulk-rule-list">
 				<?php if ( empty( $ids ) ) : ?><div class="phaseone-bulk-empty">No explicit exceptions or pricing overrides yet.</div><?php endif; ?>
 				<?php foreach ( $ids as $id ) : self::render_rule( $id ); endforeach; ?>
 			</div>
-			<p class="submit"><button class="button button-primary" type="submit">Save product rules</button></p>
+			<div class="phaseone-bulk-savebar"><span>Changes apply to new catalog requests, quotes and checkout intents.</span><button class="button button-primary" type="submit">Save product rules</button></div>
 		</form>
 		<?php
 	}
@@ -151,23 +156,45 @@ final class PhaseOne_Bulk_Admin {
 		$kit_units = PhaseOne_Bulk_Installer::KIT_UNITS;
 		$tier_text = implode( "\n", array_map( static fn( array $tier ): string => max( 1, (int) ( $tier['minimum'] / $kit_units ) ) . ': ' . wc_format_decimal( (float) $tier['price'] * $kit_units, wc_get_price_decimals() ), $rule['tiers'] ) );
 		$kit_price = $rule['fixed_price'] > 0 ? (float) $rule['fixed_price'] * $kit_units : 0;
+		$status_key = 'inherited';
+		$status_label = 'Inherited';
+		if ( 'exclude' === $rule['catalog_override'] ) {
+			$status_key = 'hidden';
+			$status_label = 'Hidden';
+		} elseif ( 'unavailable' === $rule['availability_override'] ) {
+			$status_key = 'unavailable';
+			$status_label = 'Unavailable';
+		} elseif ( 'available' === $rule['availability_override'] ) {
+			$status_key = 'available';
+			$status_label = 'Available';
+		}
 		?>
 		<article class="phaseone-bulk-rule" data-rule>
-			<header><div><strong><?php echo esc_html( wp_strip_all_tags( $product->get_formatted_name() ) ); ?></strong><span><?php echo $product->is_type( 'variable' ) ? 'WooCommerce family' : 'SKU ' . esc_html( $product->get_sku() ?: 'missing' ); ?></span></div></header>
+			<header class="phaseone-bulk-rule-header">
+				<div class="phaseone-bulk-rule-identity"><span><?php echo esc_html( $product->is_type( 'variable' ) ? 'Product family' : ( $product->is_type( 'variation' ) ? 'Product variation' : 'Simple product' ) ); ?></span><strong><?php echo esc_html( wp_strip_all_tags( $product->get_formatted_name() ) ); ?></strong><small><?php echo $product->is_type( 'variable' ) ? 'Applies to inherited variations' : 'SKU: ' . esc_html( $product->get_sku() ?: 'Missing SKU' ); ?></small></div>
+				<span class="phaseone-bulk-rule-status is-<?php echo esc_attr( $status_key ); ?>" data-rule-status><?php echo esc_html( $status_label ); ?></span>
+			</header>
 			<input type="hidden" name="rules[<?php echo esc_attr( $id ); ?>][product_id]" value="<?php echo esc_attr( $id ); ?>">
-			<div class="phaseone-bulk-rule-grid">
-				<label>Catalog<select name="rules[<?php echo esc_attr( $id ); ?>][catalog_override]"><option value="inherit" <?php selected( $rule['catalog_override'], 'inherit' ); ?>>Inherit catalog rules</option><option value="include" <?php selected( $rule['catalog_override'], 'include' ); ?>>Explicitly include</option><option value="exclude" <?php selected( $rule['catalog_override'], 'exclude' ); ?>>Exclude</option></select></label>
-				<label>Minimum kits <small>optional; blank inherits Settings</small><input type="number" min="1" step="1" name="rules[<?php echo esc_attr( $id ); ?>][minimum_kits]" value="<?php echo ! empty( $rule['minimum_explicit'] ) ? esc_attr( max( 1, (int) ceil( $rule['minimum'] / $kit_units ) ) ) : ''; ?>" placeholder="Inherit"></label>
-				<label>Maximum units <small>optional; use multiples of 10</small><input type="number" min="0" step="10" name="rules[<?php echo esc_attr( $id ); ?>][maximum]" value="<?php echo esc_attr( $rule['maximum'] ?: '' ); ?>"></label>
+			<section class="phaseone-bulk-rule-section">
+				<div class="phaseone-bulk-section-heading"><strong>Availability &amp; limits</strong><span>Control how this item appears and how many units can be ordered.</span></div>
+				<div class="phaseone-bulk-rule-grid">
+				<label><span>Catalog visibility</span><select name="rules[<?php echo esc_attr( $id ); ?>][catalog_override]" data-catalog-override><option value="inherit" <?php selected( $rule['catalog_override'], 'inherit' ); ?>>Use catalog default</option><option value="include" <?php selected( $rule['catalog_override'], 'include' ); ?>>Show in Bulk catalog</option><option value="exclude" <?php selected( $rule['catalog_override'], 'exclude' ); ?>>Hide from Bulk catalog</option></select><small>Hidden items disappear from the Bulk page.</small></label>
+				<label><span>Bulk availability</span><select name="rules[<?php echo esc_attr( $id ); ?>][availability_override]" data-availability-override><option value="inherit" <?php selected( $rule['availability_override'], 'inherit' ); ?>>Use WooCommerce status</option><option value="available" <?php selected( $rule['availability_override'], 'available' ); ?>>Available for Bulk</option><option value="unavailable" <?php selected( $rule['availability_override'], 'unavailable' ); ?>>Unavailable - keep visible</option></select><small>Unavailable remains visible but cannot be ordered.</small></label>
+				<label><span>Minimum bundles</span><input type="number" min="1" step="1" name="rules[<?php echo esc_attr( $id ); ?>][minimum_kits]" value="<?php echo ! empty( $rule['minimum_explicit'] ) ? esc_attr( max( 1, (int) ceil( $rule['minimum'] / $kit_units ) ) ) : ''; ?>" placeholder="Use global default"><small>Leave empty to inherit Settings.</small></label>
+				<label><span>Maximum units</span><input type="number" min="0" step="10" name="rules[<?php echo esc_attr( $id ); ?>][maximum]" value="<?php echo esc_attr( $rule['maximum'] ?: '' ); ?>" placeholder="No maximum"><small>Optional; use multiples of <?php echo esc_html( (string) $kit_units ); ?>.</small></label>
 			</div>
-			<div class="phaseone-bulk-simple-grid">
-				<label>Pricing<select name="rules[<?php echo esc_attr( $id ); ?>][mode]" data-pricing-mode><option value="inherit" <?php selected( $rule['mode'], 'inherit' ); ?>>Inherit Global Discount</option><option value="discount" <?php selected( $rule['mode'], 'discount' ); ?>>Custom Discount % (this product)</option><option value="fixed" <?php selected( $rule['mode'], 'fixed' ); ?>>Fixed Price</option><option value="tiered" <?php selected( $rule['mode'], 'tiered' ); ?>>Tier Pricing</option></select></label>
-				<label data-discount-wrap>Product / Variation Discount (%) <small>Overrides the global discount only for this product, family or variation.</small><input type="number" min="0" max="99.99" step="0.01" inputmode="decimal" name="rules[<?php echo esc_attr( $id ); ?>][discount]" value="<?php echo esc_attr( wc_format_decimal( $rule['discount'], 2 ) ); ?>" placeholder="Example: 30"></label>
-				<label data-bundle-price-wrap>Fixed price per 10-unit Kit<input type="number" min="0" step="0.01" name="rules[<?php echo esc_attr( $id ); ?>][bundle_price]" value="<?php echo esc_attr( $kit_price > 0 ? wc_format_decimal( $kit_price, wc_get_price_decimals() ) : '' ); ?>"></label>
-				<label data-tier-prices>Tier Pricing <small>One per line: kits: kit price. Example 1: 120</small><textarea name="rules[<?php echo esc_attr( $id ); ?>][tier_kits]" rows="4"><?php echo esc_textarea( $tier_text ); ?></textarea></label>
-			</div>
+			</section>
+			<section class="phaseone-bulk-rule-section phaseone-bulk-rule-section--pricing">
+				<div class="phaseone-bulk-section-heading"><strong>Pricing</strong><span>Only the inputs for the selected method are used.</span></div>
+				<div class="phaseone-bulk-simple-grid">
+				<label><span>Pricing method</span><select name="rules[<?php echo esc_attr( $id ); ?>][mode]" data-pricing-mode><option value="inherit" <?php selected( $rule['mode'], 'inherit' ); ?>>Use global discount</option><option value="discount" <?php selected( $rule['mode'], 'discount' ); ?>>Custom discount</option><option value="fixed" <?php selected( $rule['mode'], 'fixed' ); ?>>Fixed bundle price</option><option value="tiered" <?php selected( $rule['mode'], 'tiered' ); ?>>Tier pricing</option></select><small>Select one pricing source for this rule.</small></label>
+				<label data-discount-wrap><span>Discount (%)</span><input type="number" min="0" max="99.99" step="0.01" inputmode="decimal" name="rules[<?php echo esc_attr( $id ); ?>][discount]" value="<?php echo esc_attr( wc_format_decimal( $rule['discount'], 2 ) ); ?>" placeholder="Example: 30"><small>Overrides the global discount for this item only.</small></label>
+				<label data-bundle-price-wrap><span>Price per <?php echo esc_html( (string) $kit_units ); ?>-unit bundle</span><input type="number" min="0" step="0.01" name="rules[<?php echo esc_attr( $id ); ?>][bundle_price]" value="<?php echo esc_attr( $kit_price > 0 ? wc_format_decimal( $kit_price, wc_get_price_decimals() ) : '' ); ?>" placeholder="0.00"><small>Enter the total for the complete bundle, not the unit price.</small></label>
+				<label data-tier-prices><span>Tier prices</span><textarea name="rules[<?php echo esc_attr( $id ); ?>][tier_kits]" rows="4" placeholder="1: 120&#10;5: 500"><?php echo esc_textarea( $tier_text ); ?></textarea><small>One per line: bundles, colon, bundle price.</small></label>
+				</div>
+			</section>
 			<input type="hidden" name="rules[<?php echo esc_attr( $id ); ?>][fixed_price]" value="<?php echo esc_attr( $rule['fixed_price'] ); ?>">
-			<label class="phaseone-bulk-remove"><input type="checkbox" name="rules[<?php echo esc_attr( $id ); ?>][_delete]" value="1"> <span>Remove this explicit rule and return to inherited defaults</span></label>
+			<footer class="phaseone-bulk-rule-footer"><label class="phaseone-bulk-remove"><input type="checkbox" name="rules[<?php echo esc_attr( $id ); ?>][_delete]" value="1"> <span>Remove this rule and return the product to inherited defaults</span></label></footer>
 		</article>
 		<?php
 	}
@@ -235,7 +262,7 @@ final class PhaseOne_Bulk_Admin {
 	public static function add_rule(): void {
 		self::authorize( 'phaseone_bulk_manage_rules' );
 		$id = absint( $_POST['product_id'] ?? 0 );
-		$result = PhaseOne_Bulk_Product_Rules::save( $id, array( 'catalog_override' => 'inherit', 'minimum_kits' => '', 'maximum' => 0, 'mode' => 'inherit', 'discount' => 0, 'fixed_price' => 0, 'tiers' => array() ) );
+		$result = PhaseOne_Bulk_Product_Rules::save( $id, array( 'catalog_override' => 'inherit', 'availability_override' => 'inherit', 'minimum_kits' => '', 'maximum' => 0, 'mode' => 'inherit', 'discount' => 0, 'fixed_price' => 0, 'tiers' => array() ) );
 		self::redirect( 'rules', is_wp_error( $result ) ? $result->get_error_message() : 'Rule added. Configure only the exception you need.', is_wp_error( $result ) ? 'error' : 'success' );
 	}
 

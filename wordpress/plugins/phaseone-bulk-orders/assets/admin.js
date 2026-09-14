@@ -9,11 +9,46 @@ document.addEventListener("DOMContentLoaded", () => {
     if (tiers) tiers.hidden = mode !== "tiered";
   };
 
+  const updateRuleStatus = (rule) => {
+    const badge = rule.querySelector("[data-rule-status]");
+    if (!badge) return;
+    const catalog =
+      rule.querySelector("[data-catalog-override], select[name$='[catalog_override]']")
+        ?.value || "inherit";
+    const availability =
+      rule.querySelector(
+        "[data-availability-override], select[name$='[availability_override]']",
+      )?.value || "inherit";
+    let status = "inherited";
+    let label = "Inherited";
+    if (catalog === "exclude") {
+      status = "hidden";
+      label = "Hidden";
+    } else if (availability === "unavailable") {
+      status = "unavailable";
+      label = "Unavailable";
+    } else if (availability === "available") {
+      status = "available";
+      label = "Available";
+    }
+    badge.className = `phaseone-bulk-rule-status is-${status}`;
+    badge.textContent = label;
+  };
+
   document.querySelectorAll("[data-rule]").forEach((rule) => {
     updatePricingVisibility(rule);
+    updateRuleStatus(rule);
     rule.querySelector("[data-pricing-mode]")?.addEventListener("change", () =>
       updatePricingVisibility(rule),
     );
+    rule
+      .querySelector("[data-catalog-override], select[name$='[catalog_override]']")
+      ?.addEventListener("change", () => updateRuleStatus(rule));
+    rule
+      .querySelector(
+        "[data-availability-override], select[name$='[availability_override]']",
+      )
+      ?.addEventListener("change", () => updateRuleStatus(rule));
   });
 
   document.querySelectorAll("[data-confirm]").forEach((link) => {

@@ -1,7 +1,25 @@
 # Phase One Bulk Orders
 
-Version 2.0.4 evolves the existing private Bulk workflow without resetting
+Version 2.2.0 evolves the existing private Bulk workflow without resetting
 codes, sessions, product rules, intents, or historical orders.
+
+Version 2.2.0 reorganizes the WordPress interface around clear operational
+groups: catalog and availability, quantity limits, and pricing. It keeps one
+compact status indicator per configured item, moves destructive catalog
+exclusions into a secondary disclosure, and uses one responsive admin
+stylesheet without changing any stored rule or checkout behavior.
+
+Version 2.1.1 keeps the WordPress overview lightweight by loading product,
+customer and request records only inside their corresponding tabs. Configured
+product-rule IDs use a focused, cached query instead of a multi-join metadata
+query generated through `WP_Query`.
+
+Version 2.1.0 separates catalog visibility from Bulk availability. An
+administrator can keep a product or variation visible while marking it
+Unavailable. The storefront shows that state and disables purchasing, while
+the quote and checkout services enforce the same rule server-side. Explicitly
+marking a variation Available can override an unavailable parent, but it never
+overrides WooCommerce stock or purchasability.
 
 Version 2.0.4 replaces the variable-family-only exclusion field with one
 searchable WooCommerce selector containing simple products, variable product
@@ -69,6 +87,11 @@ Precedence for catalog visibility is:
 
 The plugin reuses WooCommerce variable parents as product families; it does not
 create another taxonomy.
+
+Catalog visibility and availability are independent. `Hide from Bulk catalog`
+removes a product from the customer catalog. `Unavailable — keep visible`
+leaves it in place with ordering disabled. WooCommerce inventory remains the
+final authority even when a rule is marked Available.
 
 ## WordPress administration
 

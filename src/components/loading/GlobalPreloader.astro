@@ -4,11 +4,13 @@ import "./global-preloader.css";
 interface Props {
   logoSrc?: string;
   minDuration?: number;
+  maxDuration?: number;
 }
 
 const {
   logoSrc = "/TRANSPARENCIA-03.webp",
   minDuration = 1150,
+  maxDuration = 4500,
 } = Astro.props;
 ---
 
@@ -16,6 +18,7 @@ const {
   class="phase-preloader"
   data-phase-preloader
   data-min-duration={minDuration}
+  data-max-duration={maxDuration}
   aria-hidden="true"
 >
   <div class="phase-preloader__background"></div>
@@ -76,9 +79,12 @@ const {
     const body = document.body;
     const progress = element.querySelector("[data-phase-preloader-progress]");
     const minimum = Math.max(0, Number(element.dataset.minDuration) || 1150);
+    const maximum = Math.max(minimum, Number(element.dataset.maxDuration) || 4500);
     const startedAt = performance.now();
     let finished = false;
     let progressTimer = 0;
+    let removalTimer = 0;
+    let hardStopTimer = 0;
 
     root.classList.add("phase-preloader-lock");
     body.classList.add("phase-preloader-lock");
@@ -91,6 +97,9 @@ const {
     };
 
     const remove = () => {
+      window.clearInterval(progressTimer);
+      window.clearTimeout(removalTimer);
+      window.clearTimeout(hardStopTimer);
       element.remove();
       root.classList.remove("phase-preloader-lock");
       body.classList.remove("phase-preloader-lock");
@@ -102,14 +111,18 @@ const {
       window.clearInterval(progressTimer);
       if (progress) progress.textContent = "100%";
       element.classList.add("phase-preloader--complete");
-      window.setTimeout(() => {
+      removalTimer = window.setTimeout(() => {
         element.classList.add("phase-preloader--leaving");
-        window.setTimeout(remove, 650);
+        removalTimer = window.setTimeout(remove, 650);
       }, 180);
     };
 
     updateProgress();
     progressTimer = window.setInterval(updateProgress, 100);
+    hardStopTimer = window.setTimeout(() => {
+      finished = true;
+      remove();
+    }, maximum);
     const waitForMinimum = () => {
       const remaining = Math.max(0, minimum - (performance.now() - startedAt));
       window.setTimeout(finish, remaining);

@@ -70,6 +70,49 @@
   background: var(--poco-panel);
 }
 
+.poco-backfill {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) auto auto;
+  gap: 24px;
+  align-items: center;
+}
+
+.poco-backfill h2 {
+  margin: 5px 0 6px;
+  color: var(--poco-text);
+  font-size: 18px;
+}
+
+.poco-backfill p {
+  margin: 0;
+  color: var(--poco-muted);
+  line-height: 1.5;
+}
+
+.poco-backfill .poco-backfill-error {
+  margin-top: 7px;
+  color: #ff9d9d;
+}
+
+.poco-backfill-stats {
+  display: flex;
+  gap: 18px;
+}
+
+.poco-backfill-stats span {
+  display: grid;
+  gap: 3px;
+  min-width: 76px;
+  color: var(--poco-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.poco-backfill-stats strong {
+  color: var(--poco-text);
+  font-size: 18px;
+}
+
 .poco-search {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -162,6 +205,9 @@
   .poco-header { padding: 20px; }
   .poco-source { align-self: flex-start; }
   .poco-panel { padding: 16px; }
+  .poco-backfill { grid-template-columns: 1fr; gap: 16px; }
+  .poco-backfill-stats { justify-content: space-between; gap: 10px; }
+  .poco-backfill form button { width: 100%; min-height: 44px; }
   .poco-search,
   .poco-assignment-form { grid-template-columns: 1fr; }
   .poco-search button { min-height: 44px; }

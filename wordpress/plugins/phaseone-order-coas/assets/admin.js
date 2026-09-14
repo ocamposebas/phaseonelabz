@@ -99,7 +99,18 @@
     row.className = "poco-assignment";
     const details = document.createElement("div");
     details.append(text("strong", assignment.lot ? `Lot ${assignment.lot}` : "Assigned COA"));
-    details.append(text("small", `Quantity ${assignment.quantity} · Confirmed ${formatDate(assignment.assigned_at)}`));
+    const sourceLabel =
+      assignment.source === "purchase_snapshot"
+        ? "Captured at purchase"
+        : assignment.source === "historical_backfill"
+          ? "Historical snapshot"
+          : "Fulfillment confirmed";
+    details.append(
+      text(
+        "small",
+        `Quantity ${assignment.quantity} · ${sourceLabel} ${formatDate(assignment.assigned_at)}`,
+      ),
+    );
     row.append(details);
 
     const remove = text("button", "Remove", "poco-remove");
