@@ -2863,6 +2863,53 @@ export default function CheckoutTransferPage() {
     window.location.href = checkoutUrl;
   };
 
+  const renewBulkCheckoutIntent = async (checkoutItems) => {
+    if (!bulkMode) return null;
+
+    const response = await fetch("/api/bulk/checkout-intent", {
+      method: "POST",
+      credentials: "same-origin",
+      cache: "no-store",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        items: checkoutItems.map((item) => ({
+          product_id: Number(item.product_id || 0),
+          variation_id: Number(item.variation_id || 0),
+          quantity: Number(item.quantity || 0),
+        })),
+      }),
+    });
+    const data = await response.json().catch(() => null);
+
+    if (!response.ok || !data?.success || !data?.quote) {
+      throw new Error(
+        data?.message ||
+          data?.error ||
+          "Your Bulk checkout could not be refreshed. Return to Bulk Orders and try again.",
+      );
+    }
+
+    const previousFingerprint = String(bulkIntent?.quote?.fingerprint || "");
+    const refreshedFingerprint = String(data.quote.fingerprint || "");
+    setBulkIntent(data);
+    setLocalCartItems(buildBulkCheckoutItems(data));
+
+    if (
+      previousFingerprint &&
+      refreshedFingerprint &&
+      previousFingerprint !== refreshedFingerprint
+    ) {
+      throw new Error(
+        "Your Bulk price or inventory changed. Review the updated order total, then press the payment button again.",
+      );
+    }
+
+    return data;
+  };
+
   const createPrismCardCheckout = async () => {
     if (!validateBeforePayment()) return;
 
@@ -2903,7 +2950,14 @@ export default function CheckoutTransferPage() {
     try {
       setLoading(true);
       setError("");
-      setPaymentNotice("Opening secure payment...");
+      setPaymentNotice(
+        bulkMode ? "Revalidating your Bulk order..." : "Opening secure payment...",
+      );
+
+      if (bulkMode) {
+        await renewBulkCheckoutIntent(checkoutItems);
+        setPaymentNotice("Opening secure payment...");
+      }
 
       const response = await fetch(PRISM_CHECKOUT_ENDPOINT, {
         method: "POST",
@@ -3080,7 +3134,16 @@ export default function CheckoutTransferPage() {
     try {
       setLoading(true);
       setError("");
-      setPaymentNotice("Opening secure bank transfer...");
+      setPaymentNotice(
+        bulkMode
+          ? "Revalidating your Bulk order..."
+          : "Opening secure bank transfer...",
+      );
+
+      if (bulkMode) {
+        await renewBulkCheckoutIntent(checkoutItems);
+        setPaymentNotice("Opening secure bank transfer...");
+      }
 
       const endpoint = bulkMode
         ? "/api/bulk/pay-ach"
@@ -3331,6 +3394,12 @@ export default function CheckoutTransferPage() {
       setPaymentNotice("");
       setLoading(true);
       setManualPaymentStatus("loading");
+
+      if (bulkMode) {
+        setPaymentNotice("Revalidating your Bulk order...");
+        await renewBulkCheckoutIntent(checkoutItems);
+        setPaymentNotice("");
+      }
 
       const endpoint = bulkMode
         ? "/api/bulk/pay-manual"
