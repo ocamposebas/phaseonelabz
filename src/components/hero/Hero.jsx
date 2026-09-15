@@ -53,86 +53,92 @@ export default function Hero({
   promo = null,
   promoNow = 0,
 }) {
-  const [canPlayVideo, setCanPlayVideo] = useState(false);
   const [videoFailed, setVideoFailed] = useState(false);
+  const [videoAttempt, setVideoAttempt] = useState(0);
   const videoRef = useRef(null);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const reducedMotion = window.matchMedia?.(
-      "(prefers-reduced-motion: reduce)"
-    )?.matches;
-
-    const saveData =
-      navigator.connection?.saveData ||
-      navigator.mozConnection?.saveData ||
-      navigator.webkitConnection?.saveData;
-
-    if (reducedMotion || saveData) {
-      setCanPlayVideo(false);
-      return;
-    }
-
-    const timer = window.setTimeout(() => {
-      setCanPlayVideo(true);
-    }, 80);
-
-    return () => window.clearTimeout(timer);
-  }, []);
+  const videoRetryCountRef = useRef(0);
 
   useEffect(() => {
     const video = videoRef.current;
-    if (!canPlayVideo || videoFailed || !video) return undefined;
+    if (videoFailed || !video) return undefined;
 
     let isVisible = true;
-    const syncPlayback = () => {
+    const attemptPlayback = () => {
       if (document.hidden || !isVisible) {
         video.pause();
         return;
       }
 
-      video.play().catch(() => {});
+      if (video.paused) {
+        video.play().catch(() => {});
+      }
     };
     const observer = new IntersectionObserver(
       ([entry]) => {
         isVisible = Boolean(entry?.isIntersecting);
-        syncPlayback();
+        attemptPlayback();
       },
       { threshold: 0.05 },
     );
 
     observer.observe(video);
-    document.addEventListener("visibilitychange", syncPlayback);
+    video.addEventListener("loadeddata", attemptPlayback);
+    video.addEventListener("canplay", attemptPlayback);
+    document.addEventListener("visibilitychange", attemptPlayback);
+    document.addEventListener("pointerdown", attemptPlayback, {
+      passive: true,
+    });
+    window.addEventListener("focus", attemptPlayback);
+    window.addEventListener("pageshow", attemptPlayback);
+
+    const retryTimers = [250, 1000, 2500].map((delay) =>
+      window.setTimeout(attemptPlayback, delay),
+    );
 
     return () => {
       observer.disconnect();
-      document.removeEventListener("visibilitychange", syncPlayback);
+      retryTimers.forEach((timer) => window.clearTimeout(timer));
+      video.removeEventListener("loadeddata", attemptPlayback);
+      video.removeEventListener("canplay", attemptPlayback);
+      document.removeEventListener("visibilitychange", attemptPlayback);
+      document.removeEventListener("pointerdown", attemptPlayback);
+      window.removeEventListener("focus", attemptPlayback);
+      window.removeEventListener("pageshow", attemptPlayback);
       video.pause();
     };
-  }, [canPlayVideo, videoFailed]);
+  }, [videoAttempt, videoFailed]);
 
   useEffect(() => {
+    videoRetryCountRef.current = 0;
+    setVideoAttempt(0);
     setVideoFailed(false);
   }, [mobileVideoSrc, videoSrc]);
 
   const fallbackSrc = posterSrc || "/cover.webp";
-  const showVideo = canPlayVideo && !videoFailed;
+  const showVideo = !videoFailed;
+  const handleVideoError = () => {
+    if (videoRetryCountRef.current < 2) {
+      videoRetryCountRef.current += 1;
+      setVideoAttempt((current) => current + 1);
+      return;
+    }
+
+    setVideoFailed(true);
+  };
 
   return (
     <section className="hero-section relative isolate min-h-screen overflow-hidden bg-[#020617] text-white">
       {showVideo ? (
         <video
-          key={`${mobileVideoSrc}|${videoSrc}`}
+          key={`${mobileVideoSrc}|${videoSrc}|${videoAttempt}`}
           ref={videoRef}
           className="hero-bg-video absolute inset-0 z-0 h-full w-full object-cover"
-          poster={fallbackSrc}
-          onError={() => setVideoFailed(true)}
+          onError={handleVideoError}
           autoPlay
           muted
           loop
           playsInline
-          preload="metadata"
+          preload="auto"
           disablePictureInPicture
           controlsList="nodownload nofullscreen noremoteplayback"
           aria-hidden="true"

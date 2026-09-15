@@ -13,8 +13,8 @@
           min-height: 100%;
           object-fit: cover;
           object-position: center;
-          transform: translate3d(0, 0, 0) scale(1.01);
-          -webkit-transform: translate3d(0, 0, 0) scale(1.01);
+          transform: translate3d(0, 0, 0);
+          -webkit-transform: translate3d(0, 0, 0);
           backface-visibility: hidden;
           -webkit-backface-visibility: hidden;
           will-change: transform, opacity;
@@ -178,9 +178,10 @@
           }
 
           .hero-bg-video {
+            object-fit: contain;
             object-position: 50% 42%;
-            transform: translate3d(0, 0, 0) scale(1.015);
-            -webkit-transform: translate3d(0, 0, 0) scale(1.015);
+            transform: translate3d(0, 0, 0);
+            -webkit-transform: translate3d(0, 0, 0);
             opacity: 0.9;
             filter: none;
           }
