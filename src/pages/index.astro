@@ -36,11 +36,12 @@ const [siteControl, products] = await Promise.all([
   siteControlPromise,
   productsPromise,
 ]);
+const promoNow = Date.now();
 ---
 
 <BaseLayout
   title="Research Compounds // Scientific Catalog"
   description="Research-focused catalog experience for laboratory-use compounds with documentation, COA access, and responsible scientific presentation."
 >
-  <ShopExperience products={products} promo={siteControl.promo} client:load />
+  <ShopExperience products={products} promo={siteControl.promo} promoNow={promoNow} client:load />
 </BaseLayout>

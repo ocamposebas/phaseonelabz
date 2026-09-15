@@ -2,9 +2,17 @@ import "./PromoCountdownBar.styles.css";
 import { useEffect, useState } from "react";
 import { ArrowRight, BadgePercent, FlaskConical, Timer } from "lucide-react";
 
-function remainingUntil(endsAt) {
+function emptyRemaining() {
+  return { totalSeconds: 0, hours: 0, minutes: 0, seconds: 0 };
+}
+
+function remainingUntil(endsAt, now = Date.now()) {
   const end = new Date(endsAt || 0).getTime();
-  const totalSeconds = Math.max(0, Math.floor((end - Date.now()) / 1000));
+  const timestamp = Number(now);
+  if (!Number.isFinite(end) || !Number.isFinite(timestamp)) {
+    return emptyRemaining();
+  }
+  const totalSeconds = Math.max(0, Math.floor((end - timestamp) / 1000));
 
   return {
     totalSeconds,
@@ -60,9 +68,13 @@ function resolvePromoCtaUrl(promo = {}, product = null) {
   return configuredUrl;
 }
 
-export default function PromoCountdownBar({ promo }) {
+export default function PromoCountdownBar({ promo, initialNow = 0 }) {
   const [currentPromo, setCurrentPromo] = useState(promo || {});
-  const [remaining, setRemaining] = useState(() => remainingUntil(promo?.endsAt));
+  const [remaining, setRemaining] = useState(() =>
+    Number(initialNow) > 0
+      ? remainingUntil(promo?.endsAt, Number(initialNow))
+      : emptyRemaining(),
+  );
 
   useEffect(() => {
     let active = true;

@@ -157,6 +157,8 @@ const emptyCartContext = {
   applyCheckoutCoupon: () => {},
   removeCheckoutCoupon: () => {},
   account: null,
+  accountChecked: false,
+  clearAccount: () => {},
 };
 
 const CartContext = createContext(emptyCartContext);
@@ -1727,6 +1729,7 @@ export function CartProvider({ children }) {
   );
   const [giftQuote, setGiftQuote] = useState(null);
   const [account, setAccount] = useState(null);
+  const [accountChecked, setAccountChecked] = useState(false);
   const [shippingProtectionSelected, setShippingProtectionSelectedState] =
     useState(() => getSavedShippingProtectionSelection());
 
@@ -1827,7 +1830,7 @@ export function CartProvider({ children }) {
       try {
         const token = getSavedAuthToken();
 
-        const response = await fetch(`/api/account?ts=${Date.now()}`, {
+        const response = await fetch(`/api/account?optional=1&ts=${Date.now()}`, {
           method: "GET",
           cache: "no-store",
           credentials: "include",
@@ -1847,6 +1850,8 @@ export function CartProvider({ children }) {
         setAccount(data || null);
       } catch {
         setAccount(null);
+      } finally {
+        setAccountChecked(true);
       }
     };
 
@@ -2427,6 +2432,8 @@ export function CartProvider({ children }) {
         applyCheckoutCoupon,
         removeCheckoutCoupon,
         account,
+        accountChecked,
+        clearAccount: () => setAccount(null),
         getCartItemKey,
         buildCheckoutUrl,
       }}

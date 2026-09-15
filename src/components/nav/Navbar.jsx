@@ -249,8 +249,6 @@ export default function SiteHeader({
   const [isHomePage, setIsHomePage] = useState(Boolean(isHome));
   const [currentPath, setCurrentPath] = useState("");
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [account, setAccount] = useState(null);
-  const [authChecked, setAuthChecked] = useState(false);
   const [mounted, setMounted] = useState(false);
 
   const [searchExpanded, setSearchExpanded] = useState(false);
@@ -265,7 +263,13 @@ export default function SiteHeader({
   const searchInputRef = useRef(null);
   const lastY = useRef(0);
 
-  const { cartItems, setIsCartOpen } = useCart();
+  const {
+    cartItems,
+    setIsCartOpen,
+    account,
+    accountChecked: authChecked,
+    clearAccount,
+  } = useCart();
 
   const cartCount = cartItems.reduce(
     (total, item) => total + Number(item.quantity || 0),
@@ -421,47 +425,6 @@ export default function SiteHeader({
   }, [cleanSearchQuery, allProducts, productsLoaded]);
 
   useEffect(() => {
-    const checkAccount = async () => {
-      try {
-        const response = await fetch(`/api/account?ts=${Date.now()}`, {
-          method: "GET",
-          cache: "no-store",
-          headers: {
-            Accept: "application/json",
-            "Cache-Control": "no-cache",
-          },
-        });
-
-        if (!response.ok) {
-          setAccount(null);
-          setAuthChecked(true);
-          return;
-        }
-
-        const data = await response.json();
-
-        setAccount(data);
-        setAuthChecked(true);
-      } catch {
-        setAccount(null);
-        setAuthChecked(true);
-      }
-    };
-
-    checkAccount();
-
-    const handleAuthUpdate = () => checkAccount();
-
-    window.addEventListener("focus", handleAuthUpdate);
-    window.addEventListener("lab-auth-updated", handleAuthUpdate);
-
-    return () => {
-      window.removeEventListener("focus", handleAuthUpdate);
-      window.removeEventListener("lab-auth-updated", handleAuthUpdate);
-    };
-  }, []);
-
-  useEffect(() => {
     if (typeof window === "undefined") return;
 
     let rafId = 0;
@@ -543,7 +506,7 @@ export default function SiteHeader({
   };
 
   const handleLogout = async () => {
-    setAccount(null);
+    clearAccount();
     setMobileOpen(false);
 
     try {

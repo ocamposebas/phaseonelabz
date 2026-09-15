@@ -1,8 +1,22 @@
 export const prerender = false;
 
-export async function GET({ cookies }) {
+function optionalSessionResponse() {
+  return new Response("null", {
+    status: 200,
+    headers: {
+      "Content-Type": "application/json",
+      "Cache-Control": "private, no-store, max-age=0",
+    },
+  });
+}
+
+export async function GET({ cookies, request }) {
   const WOO_URL = import.meta.env.WOOCOMMERCE_URL2;
-  const token = cookies.get("lab_auth_token")?.value;
+  const optionalSession = new URL(request.url).searchParams.get("optional") === "1";
+  const bearerToken = String(request.headers.get("authorization") || "")
+    .replace(/^Bearer\s+/i, "")
+    .trim();
+  const token = cookies.get("lab_auth_token")?.value || bearerToken;
 
   if (!WOO_URL) {
     return new Response(
@@ -17,6 +31,8 @@ export async function GET({ cookies }) {
   }
 
   if (!token) {
+    if (optionalSession) return optionalSessionResponse();
+
     return new Response(
       JSON.stringify({
         error: "Not authenticated.",
@@ -42,6 +58,10 @@ export async function GET({ cookies }) {
     const data = await response.json();
 
     if (!response.ok) {
+      if (optionalSession && (response.status === 401 || response.status === 403)) {
+        return optionalSessionResponse();
+      }
+
       return new Response(JSON.stringify(data), {
         status: response.status,
         headers: { "Content-Type": "application/json" },

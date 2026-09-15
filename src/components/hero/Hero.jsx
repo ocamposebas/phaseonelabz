@@ -30,8 +30,8 @@ const FeatureCard = memo(function FeatureCard({ item }) {
   const Icon = item.icon;
 
   return (
-    <div className="hero-feature-card group relative overflow-hidden border border-cyan-200/15 bg-slate-950/30 p-5 text-center transition-colors duration-200 hover:border-cyan-200/30 hover:bg-slate-950/40">
-      <div className="hero-feature-icon mx-auto flex h-10 w-10 items-center justify-center rounded-2xl border border-cyan-200/15 bg-cyan-300/[0.08]">
+    <div className="hero-feature-card group relative overflow-hidden border border-cyan-200/15 bg-slate-950/30 p-5 text-left transition-colors duration-200 hover:border-cyan-200/30 hover:bg-slate-950/40">
+      <div className="hero-feature-icon flex h-10 w-10 items-center justify-center rounded-2xl border border-cyan-200/15 bg-cyan-300/[0.08]">
         <Icon size={18} className="text-cyan-200" aria-hidden="true" />
       </div>
 
@@ -39,7 +39,7 @@ const FeatureCard = memo(function FeatureCard({ item }) {
         {item.title}
       </p>
 
-      <p className="hero-feature-copy mx-auto mt-2 max-w-[210px] text-xs leading-5 text-slate-100/80">
+      <p className="hero-feature-copy mt-2 max-w-[210px] text-xs leading-5 text-slate-100/80">
         {item.text}
       </p>
     </div>
@@ -48,10 +48,13 @@ const FeatureCard = memo(function FeatureCard({ item }) {
 
 export default function Hero({
   videoSrc = "/prueba.mp4",
-  posterSrc = "",
+  mobileVideoSrc = "/movil.mp4",
+  posterSrc = "/cover.webp",
   promo = null,
+  promoNow = 0,
 }) {
   const [canPlayVideo, setCanPlayVideo] = useState(false);
+  const [videoFailed, setVideoFailed] = useState(false);
   const videoRef = useRef(null);
 
   useEffect(() => {
@@ -80,7 +83,7 @@ export default function Hero({
 
   useEffect(() => {
     const video = videoRef.current;
-    if (!canPlayVideo || !video) return undefined;
+    if (!canPlayVideo || videoFailed || !video) return undefined;
 
     let isVisible = true;
     const syncPlayback = () => {
@@ -107,16 +110,24 @@ export default function Hero({
       document.removeEventListener("visibilitychange", syncPlayback);
       video.pause();
     };
-  }, [canPlayVideo]);
+  }, [canPlayVideo, videoFailed]);
+
+  useEffect(() => {
+    setVideoFailed(false);
+  }, [mobileVideoSrc, videoSrc]);
+
+  const fallbackSrc = posterSrc || "/cover.webp";
+  const showVideo = canPlayVideo && !videoFailed;
 
   return (
     <section className="hero-section relative isolate min-h-screen overflow-hidden bg-[#020617] text-white">
-      {canPlayVideo ? (
+      {showVideo ? (
         <video
+          key={`${mobileVideoSrc}|${videoSrc}`}
           ref={videoRef}
           className="hero-bg-video absolute inset-0 z-0 h-full w-full object-cover"
-          src={videoSrc}
-          poster={posterSrc || undefined}
+          poster={fallbackSrc}
+          onError={() => setVideoFailed(true)}
           autoPlay
           muted
           loop
@@ -125,18 +136,38 @@ export default function Hero({
           disablePictureInPicture
           controlsList="nodownload nofullscreen noremoteplayback"
           aria-hidden="true"
-        />
+        >
+          <source
+            src={mobileVideoSrc}
+            type="video/mp4"
+            media="(max-width: 768px)"
+          />
+          <source src={videoSrc} type="video/mp4" />
+        </video>
       ) : (
-        <div className="hero-video-fallback absolute inset-0 z-0" />
+        <div className="hero-video-fallback absolute inset-0 z-0">
+          <img
+            className="hero-fallback-image h-full w-full object-cover"
+            src={fallbackSrc}
+            alt=""
+            loading="eager"
+            fetchPriority="high"
+            decoding="async"
+            onError={(event) => {
+              event.currentTarget.hidden = true;
+            }}
+            aria-hidden="true"
+          />
+        </div>
       )}
 
       <div className="hero-overlay absolute inset-0 z-10" aria-hidden="true" />
 
-      <PromoCountdownBar promo={promo} />
+      <PromoCountdownBar promo={promo} initialNow={promoNow} />
 
-      <div className="hero-inner relative z-20 mx-auto flex min-h-screen w-full max-w-7xl flex-col items-center justify-center px-5 pb-14 pt-[136px] text-center sm:px-6 lg:px-8 lg:pb-16 lg:pt-[144px]">
+      <div className="hero-inner relative z-20 mx-auto flex min-h-screen w-full max-w-7xl flex-col items-start justify-center px-5 pb-14 pt-[136px] text-left sm:px-6 lg:px-8 lg:pb-16 lg:pt-[144px]">
         <div className="hero-content w-full">
-          <h1 className="hero-title mx-auto max-w-[1040px] text-center font-semibold text-white">
+          <h1 className="hero-title max-w-[1040px] text-left font-semibold text-white">
             <span className="hero-title-desktop">
               <span className="block">Research compounds,</span>
               <span className="block bg-gradient-to-r from-cyan-100 via-cyan-200 to-white bg-clip-text text-transparent">
@@ -152,7 +183,7 @@ export default function Hero({
             </span>
           </h1>
 
-          <p className="hero-copy mx-auto mt-5 max-w-[700px] text-center text-[14px] leading-7 text-slate-100/90 sm:text-base sm:leading-8">
+          <p className="hero-copy mt-5 max-w-[700px] text-left text-[14px] leading-7 text-slate-100/90 sm:text-base sm:leading-8">
             <span className="hero-copy-desktop">
               A refined catalog experience for research-focused products, built
               around clean browsing, batch transparency, COA access, and a more
@@ -164,7 +195,7 @@ export default function Hero({
             </span>
           </p>
 
-          <div className="hero-actions mt-7 flex w-full max-w-[430px] flex-col justify-center gap-3 sm:max-w-none sm:flex-row">
+          <div className="hero-actions mt-7 flex w-full max-w-[430px] flex-col justify-start gap-3 sm:max-w-none sm:flex-row">
             <a
               href="/shop"
               className="hero-primary-cta group inline-flex items-center justify-center gap-3 rounded-full bg-cyan-300 px-7 py-4 text-[11px] font-black uppercase tracking-[0.14em] text-slate-950 transition-colors duration-200 hover:bg-cyan-200"
@@ -191,7 +222,7 @@ export default function Hero({
             </a>
           </div>
 
-          <div className="hero-feature-row mx-auto mt-10 grid w-full max-w-[920px] grid-cols-1 gap-3 sm:grid-cols-3 lg:mt-12">
+          <div className="hero-feature-row mt-10 grid w-full max-w-[920px] grid-cols-1 gap-3 sm:grid-cols-3 lg:mt-12">
             {featureCards.map((item) => (
               <FeatureCard key={item.title} item={item} />
             ))}

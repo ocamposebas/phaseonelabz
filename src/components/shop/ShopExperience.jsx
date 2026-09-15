@@ -12,7 +12,7 @@ import SiteFooter from "../footer/SiteFooter.jsx";
 import New from "../footer/NewsletterSection.jsx";
 import ReputationSection from "../reputation/ReputationSection.jsx";
 
-export default function ShopExperience({ products = [], promo = null }) {
+export default function ShopExperience({ products = [], promo = null, promoNow = 0 }) {
   return (
     <CartProvider>
       <Header
@@ -22,7 +22,7 @@ export default function ShopExperience({ products = [], promo = null }) {
       />
 
       <main className="pt-0">
-        <Hero videoSrc="/prueba.mp4" promo={promo} />
+        <Hero videoSrc="/prueba.mp4" promo={promo} promoNow={promoNow} />
 
         <ShopByCategorySection />
 

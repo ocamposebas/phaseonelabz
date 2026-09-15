@@ -1721,7 +1721,7 @@ function SoldOutNotifyCard({
       try {
         const token = getSavedAuthToken();
 
-        const response = await fetch(`${ACCOUNT_ENDPOINT}?ts=${Date.now()}`, {
+        const response = await fetch(`${ACCOUNT_ENDPOINT}?optional=1&ts=${Date.now()}`, {
           method: "GET",
           cache: "no-store",
           credentials: "include",
