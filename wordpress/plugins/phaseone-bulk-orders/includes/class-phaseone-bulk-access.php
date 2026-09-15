@@ -48,19 +48,46 @@ final class PhaseOne_Bulk_Access {
 		if ( $customer_id <= 0 || ! function_exists( 'wc_get_orders' ) ) {
 			return 0;
 		}
+
+		/*
+		 * Custom/guest checkouts can create a legitimate order with customer_id=0
+		 * even though its billing email belongs to the authenticated account. Query
+		 * through WC_Order_Query only (HPOS-safe), then merge IDs so an order linked
+		 * both ways is never counted twice.
+		 */
+		$order_ids = self::completed_order_ids( array( 'customer_id' => $customer_id ) );
+		$user      = get_userdata( $customer_id );
+		$email     = $user ? sanitize_email( (string) $user->user_email ) : '';
+
+		if ( '' !== $email ) {
+			$order_ids = array_merge(
+				$order_ids,
+				self::completed_order_ids( array( 'billing_email' => $email ) )
+			);
+		}
+
+		return count( array_unique( array_filter( array_map( 'absint', $order_ids ) ) ) );
+	}
+
+	private static function completed_order_ids( array $identity ): array {
 		$result = wc_get_orders(
-			array(
-				'customer_id' => $customer_id,
-				'status'      => array( 'wc-completed' ),
-				'limit'       => 1,
-				'paginate'    => true,
-				'return'      => 'ids',
+			array_merge(
+				array(
+					'status'  => array( 'wc-completed' ),
+					'limit'   => -1,
+					'return'  => 'ids',
+					'orderby' => 'ID',
+					'order'   => 'DESC',
+				),
+				$identity
 			)
 		);
-		if ( is_object( $result ) && isset( $result->total ) ) {
-			return max( 0, (int) $result->total );
+
+		if ( is_object( $result ) && isset( $result->orders ) ) {
+			$result = $result->orders;
 		}
-		return is_array( $result ) ? count( $result ) : 0;
+
+		return is_array( $result ) ? $result : array();
 	}
 
 	public static function customer_status( int $customer_id ): array {

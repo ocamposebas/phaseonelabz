@@ -8,6 +8,43 @@ defined( 'ABSPATH' ) || exit;
  * apply_to_order() instead of their retail line/pricing routine.
  */
 final class PhaseOne_Bulk_Checkout {
+	private static function account_identity( mixed $node, int $depth = 0 ): array {
+		if ( ! is_array( $node ) || $depth > 5 ) {
+			return array();
+		}
+
+		$id    = 0;
+		$email = '';
+		foreach ( array( 'id', 'user_id', 'customer_id' ) as $key ) {
+			if ( ! empty( $node[ $key ] ) && is_numeric( $node[ $key ] ) ) {
+				$id = absint( $node[ $key ] );
+				break;
+			}
+		}
+		foreach ( array( 'email', 'user_email', 'billing_email' ) as $key ) {
+			if ( ! empty( $node[ $key ] ) && is_email( $node[ $key ] ) ) {
+				$email = sanitize_email( $node[ $key ] );
+				break;
+			}
+		}
+
+		$is_account = '' !== $email || isset( $node['first_name'] ) || isset( $node['display_name'] ) || isset( $node['username'] );
+		if ( $is_account && ( $id > 0 || '' !== $email ) ) {
+			return array( 'id' => $id, 'email' => $email );
+		}
+
+		foreach ( array( 'user', 'account', 'customer', 'profile', 'data' ) as $key ) {
+			if ( isset( $node[ $key ] ) ) {
+				$identity = self::account_identity( $node[ $key ], $depth + 1 );
+				if ( ! empty( $identity ) ) {
+					return $identity;
+				}
+			}
+		}
+
+		return array();
+	}
+
 	public static function authenticated_customer_id( WP_REST_Request $request ): int {
 		$current = get_current_user_id();
 		if ( $current > 0 ) {
@@ -23,9 +60,15 @@ final class PhaseOne_Bulk_Checkout {
 		if ( is_wp_error( $response ) || $response->is_error() ) {
 			return 0;
 		}
-		$data = $response->get_data();
-		$user = is_array( $data ) ? ( $data['user'] ?? $data['customer'] ?? $data ) : array();
-		return is_array( $user ) ? absint( $user['id'] ?? $user['customer_id'] ?? 0 ) : 0;
+		$identity = self::account_identity( $response->get_data() );
+		if ( ! empty( $identity['id'] ) && get_userdata( (int) $identity['id'] ) ) {
+			return (int) $identity['id'];
+		}
+		if ( ! empty( $identity['email'] ) ) {
+			$user = get_user_by( 'email', $identity['email'] );
+			return $user ? (int) $user->ID : 0;
+		}
+		return 0;
 	}
 
 	public static function from_payload( array $payload, int $customer_id ): array|null|WP_Error {

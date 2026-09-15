@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Phase One Labz - Bulk Orders
  * Description: Private, server-authoritative bulk ordering for the Phase One Astro storefront and WooCommerce.
- * Version: 2.2.0
+ * Version: 2.2.1
  * Author: Phase One Labz
  * Requires at least: 6.2
  * Requires PHP: 8.1
@@ -12,7 +12,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'PHASEONE_BULK_VERSION', '2.2.0' );
+define( 'PHASEONE_BULK_VERSION', '2.2.1' );
 define( 'PHASEONE_BULK_FILE', __FILE__ );
 define( 'PHASEONE_BULK_DIR', plugin_dir_path( __FILE__ ) );
 define( 'PHASEONE_BULK_URL', plugin_dir_url( __FILE__ ) );

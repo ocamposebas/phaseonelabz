@@ -3,7 +3,7 @@
 defined( 'ABSPATH' ) || exit;
 
 final class PhaseOne_Bulk_Installer {
-	private const SCHEMA_VERSION = '4';
+	private const SCHEMA_VERSION = '5';
 	public const KIT_UNITS = 10;
 
 	public static function access_table(): string {

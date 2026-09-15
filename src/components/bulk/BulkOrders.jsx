@@ -16,6 +16,7 @@ import {
   UserCheck,
   X,
 } from "lucide-react";
+import { getClientAuthToken } from "../../lib/authClient";
 import "./bulk-orders.css";
 
 const STORAGE_KEY = "phaseone_bulk_cart_v1";
@@ -91,6 +92,7 @@ async function api(path, options = {}) {
   const timeout = window.setTimeout(() => controller.abort(), API_TIMEOUT_MS);
 
   try {
+    const authToken = getClientAuthToken();
     const response = await fetch(path, {
       credentials: "same-origin",
       cache: "no-store",
@@ -99,6 +101,7 @@ async function api(path, options = {}) {
       headers: {
         Accept: "application/json",
         ...(requestOptions.body ? { "Content-Type": "application/json" } : {}),
+        ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
         ...(requestOptions.headers || {}),
       },
     });

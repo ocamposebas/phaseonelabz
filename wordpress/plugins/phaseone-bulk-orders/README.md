@@ -1,5 +1,12 @@
 # Phase One Bulk Orders
 
+Version 2.2.1 fixes customer access applications for completed orders created
+through guest or custom checkout flows. Eligibility now uses WooCommerce's
+HPOS-compatible order query for both the authenticated customer ID and that
+account's verified billing email, deduplicating matching order IDs. The
+storefront also forwards its existing account token explicitly when available,
+while the HttpOnly cookie remains supported.
+
 Version 2.2.0 evolves the existing private Bulk workflow without resetting
 codes, sessions, product rules, intents, or historical orders.
 
