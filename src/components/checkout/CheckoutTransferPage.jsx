@@ -32,7 +32,7 @@ const WOO_URL =
   import.meta.env.PUBLIC_WOOCOMMERCE_URL || "https://staging.phaseonelabz.com";
 const PAYMENT_DISCOUNT_RATE = 0.05;
 const MAX_COMBINED_DISCOUNT_RATE = 0.4;
-const MANUAL_PAYMENT_SHIPPING_COST = 13;
+const SHIPPING_COST = 13;
 const PAYMENT_DISCOUNT_METHOD_IDS = ["zelle"];
 const MANUAL_PAYMENT_METHOD_IDS = ["zelle"];
 
@@ -138,6 +138,7 @@ const US_STATES = [
   ["OK", "Oklahoma"],
   ["OR", "Oregon"],
   ["PA", "Pennsylvania"],
+  ["PR", "Puerto Rico"],
   ["RI", "Rhode Island"],
   ["SC", "South Carolina"],
   ["SD", "South Dakota"],
@@ -152,15 +153,47 @@ const US_STATES = [
   ["WY", "Wyoming"],
 ];
 
-const FEDEX_SHIPPING_METHODS = [
-  {
-    id: "fedex",
-    title: "FedEx Shipping",
-    description: "Estimated 3–5 business days after processing.",
-    price: 13,
-    method_id: "flat_rate",
-  },
-];
+const FEDEX_SHIPPING_METHOD = {
+  id: "fedex",
+  rate_id: "fedex",
+  title: "FedEx Shipping",
+  description: "Estimated 3–5 business days after processing.",
+  freeShippingLabel: "FedEx shipping",
+  price: SHIPPING_COST,
+  method_id: "flat_rate",
+};
+
+const USPS_PRIORITY_MAIL_METHOD = {
+  id: "usps_priority_mail",
+  rate_id: "usps_priority_mail",
+  title: "USPS Priority Mail",
+  description: "For PO Box addresses and Puerto Rico deliveries.",
+  freeShippingLabel: "USPS Priority Mail",
+  price: SHIPPING_COST,
+  method_id: "usps_priority_mail",
+  service_type: "PRIORITY_MAIL",
+};
+
+function isPoBoxAddress(...addressLines) {
+  const normalizedAddress = addressLines
+    .map((line) => String(line || ""))
+    .join(" ")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, " ")
+    .trim();
+
+  return /(?:^|\s)(?:P\s*O|POST(?:AL)?\s+OFFICE)\s*BOX(?:\s|$)/.test(
+    normalizedAddress,
+  );
+}
+
+function requiresUspsPriorityMail(address = {}) {
+  const state = String(address.state || "").trim().toUpperCase();
+  const address1 = address.address1 || address.address_1 || "";
+  const address2 = address.address2 || address.address_2 || "";
+
+  return state === "PR" || isPoBoxAddress(address1, address2);
+}
 
 const POLICY_LINKS = {
   terms: "/policies/terms",
@@ -1886,7 +1919,6 @@ export default function CheckoutTransferPage() {
   const [confirmedAddress, setConfirmedAddress] = useState(null);
   const [shippingProtectionSelected, setShippingProtectionSelected] =
     useState(false);
-  const [selectedShippingMethodId] = useState("fedex");
   const [policyAcknowledged, setPolicyAcknowledged] = useState(false);
   const [signatureConsent, setSignatureConsent] = useState({
     version: "2026-07-27",
@@ -2300,10 +2332,9 @@ export default function CheckoutTransferPage() {
     selectedPaymentMethod?.id,
   );
 
-  const selectedShippingMethod =
-    FEDEX_SHIPPING_METHODS.find(
-      (method) => method.id === selectedShippingMethodId,
-    ) || FEDEX_SHIPPING_METHODS[0];
+  const selectedShippingMethod = requiresUspsPriorityMail(checkoutForm)
+    ? USPS_PRIORITY_MAIL_METHOD
+    : FEDEX_SHIPPING_METHOD;
 
   const paymentDiscountBase = Math.max(previewTotal, 0);
   const requestedPaymentMethodDiscount = getPaymentDiscountAmount(
@@ -2337,7 +2368,7 @@ export default function CheckoutTransferPage() {
 
   const manualShippingCost =
     isManualPaymentSelected && !freeShippingUnlocked
-      ? MANUAL_PAYMENT_SHIPPING_COST
+      ? selectedShippingOriginalPrice
       : 0;
 
   const cardShippingCost =
@@ -2350,10 +2381,10 @@ export default function CheckoutTransferPage() {
 
   const effectiveSelectedShippingMethod = {
     ...selectedShippingMethod,
-    price: bankShippingCost,
+    price: activeShippingCost,
+    total: activeShippingCost,
     original_price: selectedShippingOriginalPrice,
-    free_shipping_applied:
-      selectedPaymentMethod?.id === "bank" && freeShippingUnlocked,
+    free_shipping_applied: freeShippingUnlocked,
     free_shipping_minimum: FREE_SHIPPING_MINIMUM,
   };
 
@@ -2976,6 +3007,12 @@ export default function CheckoutTransferPage() {
           },
           billing: finalBilling,
           shipping: finalShipping,
+          shippingMethod: effectiveSelectedShippingMethod,
+          shipping_method: effectiveSelectedShippingMethod,
+          shippingTotal: cardShippingCost,
+          shipping_total: cardShippingCost,
+          freeShippingApplied: freeShippingUnlocked,
+          free_shipping_applied: freeShippingUnlocked,
           shippingProtection: shippingProtectionPayload,
           shipping_protection: shippingProtectionPayload,
           shippingProtectionSelected: effectiveShippingProtectionSelected,
@@ -3059,6 +3096,8 @@ export default function CheckoutTransferPage() {
             email: finalBilling.email,
             billing: finalBilling,
             shipping: finalShipping,
+            shippingMethod: effectiveSelectedShippingMethod,
+            shipping_method: effectiveSelectedShippingMethod,
             shippingProtection: shippingProtectionPayload,
             shipping_protection: shippingProtectionPayload,
             items: checkoutItems,
@@ -3434,24 +3473,14 @@ export default function CheckoutTransferPage() {
           shipping: finalShipping,
           items: checkoutItems,
           shippingMethod: {
-            id: freeShippingUnlocked
-              ? "free_fedex_shipping"
-              : "fedex_flat_rate",
-            title: "FedEx Shipping",
+            ...effectiveSelectedShippingMethod,
             price: manualShippingCost,
-            method_id: freeShippingUnlocked ? "free_shipping" : "flat_rate",
-            free_shipping_applied: freeShippingUnlocked,
-            free_shipping_minimum: FREE_SHIPPING_MINIMUM,
+            total: manualShippingCost,
           },
           shipping_method: {
-            id: freeShippingUnlocked
-              ? "free_fedex_shipping"
-              : "fedex_flat_rate",
-            title: "FedEx Shipping",
+            ...effectiveSelectedShippingMethod,
             price: manualShippingCost,
-            method_id: freeShippingUnlocked ? "free_shipping" : "flat_rate",
-            free_shipping_applied: freeShippingUnlocked,
-            free_shipping_minimum: FREE_SHIPPING_MINIMUM,
+            total: manualShippingCost,
           },
           shippingTotal: manualShippingCost,
           shipping_total: manualShippingCost,
@@ -3605,6 +3634,8 @@ export default function CheckoutTransferPage() {
           email: finalEmail,
           billing: orderData.billing || finalBilling,
           shipping: orderData.shipping || finalShipping,
+          shippingMethod: effectiveSelectedShippingMethod,
+          shipping_method: effectiveSelectedShippingMethod,
           shippingProtection:
             orderData.shippingProtection || shippingProtectionPayload,
           shipping_protection:
@@ -4010,13 +4041,13 @@ export default function CheckoutTransferPage() {
                   <Truck size={18} />
                 </span>
                 <div>
-                  <strong>FedEx Shipping</strong>
-                  <small>Estimated 3–5 business days after processing.</small>
+                  <strong>{selectedShippingMethod.title}</strong>
+                  <small>{selectedShippingMethod.description}</small>
                 </div>
                 <em>
                   {freeShippingUnlocked
                     ? "FREE"
-                    : formatMoney(MANUAL_PAYMENT_SHIPPING_COST)}
+                    : formatMoney(selectedShippingOriginalPrice)}
                 </em>
               </div>
 
@@ -4406,8 +4437,8 @@ export default function CheckoutTransferPage() {
 
               {!freeShippingUnlocked && (
                 <p className="free-shipping-progress">
-                  Add {formatMoney(amountUntilFreeShipping)} more for free FedEx
-                  shipping.
+                  Add {formatMoney(amountUntilFreeShipping)} more for free{" "}
+                  {selectedShippingMethod.freeShippingLabel}.
                 </p>
               )}
 

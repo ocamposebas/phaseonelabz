@@ -63,6 +63,21 @@ function normalizeAddress(source = {}) {
   };
 }
 
+function requiresUspsPriorityMail(address = {}) {
+  const normalized = normalizeAddress(address);
+  const addressText = [normalized.address1, normalized.address2]
+    .join(" ")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, " ")
+    .trim();
+  const isPoBox =
+    /(?:^|\s)(?:P\s*O|POST(?:AL)?\s+OFFICE)\s*BOX(?:\s|$)/.test(
+      addressText,
+    );
+
+  return normalized.state.toUpperCase() === "PR" || isPoBox;
+}
+
 function addressLines(source = {}) {
   const address = normalizeAddress(source);
   const cityLine = [address.city, address.state, address.postcode]
@@ -606,6 +621,19 @@ export default function CheckoutThankYouPage() {
     .filter(Boolean)
     .join(" ");
   const shippingAddressLines = addressLines(shipping);
+  const shippingMethod =
+    visibleOrder?.shippingMethod ||
+    visibleOrder?.shipping_method ||
+    context?.pending?.shippingMethod ||
+    context?.pending?.shipping_method ||
+    {};
+  const shippingMethodText = String(
+    shippingMethod?.title || shippingMethod?.method_title || shippingMethod,
+  ).toLowerCase();
+  const deliveryTitle =
+    shippingMethodText.includes("usps") || requiresUspsPriorityMail(shipping)
+      ? "USPS Priority Mail delivery"
+      : "FedEx delivery";
 
   async function copyReference() {
     if (!paymentReference || typeof navigator === "undefined") return;
@@ -922,7 +950,7 @@ export default function CheckoutThankYouPage() {
             <article>
               <MapPin size={18} />
               <div>
-                <strong>FedEx delivery</strong>
+                <strong>{deliveryTitle}</strong>
                 <span>Tracking is sent after fulfillment.</span>
               </div>
             </article>

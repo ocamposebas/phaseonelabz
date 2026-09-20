@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Phase One Manual Zelle / Venmo Orders
  * Description: Creates WooCommerce on-hold Zelle/Venmo orders, sends dedicated branded payment instructions, prevents duplicate WooCommerce notifications, and cancels unpaid manual orders after 24 hours.
- * Version: 5.5.0
+ * Version: 5.5.1
  * Author: Phase One Labz
  */
 
@@ -368,19 +368,40 @@ function phaseone_mzv_add_products($order, $items) {
   }
 }
 
+function phaseone_mzv_is_po_box_address($value) {
+  $normalized = strtoupper((string) $value);
+  $normalized = preg_replace('/[^A-Z0-9]+/', ' ', $normalized);
+  $normalized = trim(is_string($normalized) ? $normalized : '');
+
+  return preg_match('/(?:^|\s)(?:P\s*O|POST(?:AL)?\s+OFFICE)\s*BOX(?:\s|$)/', $normalized) === 1;
+}
+
+function phaseone_mzv_requires_usps_priority_mail($params) {
+  $shipping = isset($params['shipping']) && is_array($params['shipping'])
+    ? $params['shipping']
+    : (isset($params['billing']) && is_array($params['billing']) ? $params['billing'] : array());
+  $state = strtoupper(trim((string) ($shipping['state'] ?? '')));
+  $address = trim(
+    (string) ($shipping['address_1'] ?? $shipping['address1'] ?? '') . ' ' .
+    (string) ($shipping['address_2'] ?? $shipping['address2'] ?? '')
+  );
+
+  return $state === 'PR' || phaseone_mzv_is_po_box_address($address);
+}
+
 function phaseone_mzv_add_shipping($order, $params) {
   $shipping_total = (float) phaseone_mzv_get_param($params, 'shippingTotal', 'shipping_total');
   $shipping_total = max(0, round($shipping_total, 2));
 
   $free_applied = (bool) phaseone_mzv_get_param($params, 'freeShippingApplied', 'free_shipping_applied');
+  $uses_usps = phaseone_mzv_requires_usps_priority_mail($params);
+  $title = $uses_usps ? 'USPS Priority Mail' : 'FedEx Shipping';
 
   if ($free_applied || $shipping_total <= 0) {
-    $title = 'Free Shipping';
     $method_id = 'free_shipping';
     $shipping_total = 0;
   } else {
-    $title = 'Standard Shipping';
-    $method_id = 'flat_rate';
+    $method_id = $uses_usps ? 'usps_priority_mail' : 'flat_rate';
   }
 
   $shipping = new WC_Order_Item_Shipping();
@@ -388,25 +409,31 @@ function phaseone_mzv_add_shipping($order, $params) {
   $shipping->set_method_id($method_id);
   $shipping->set_total($shipping_total);
   $order->add_item($shipping);
+  $order->update_meta_data('_phaseone_shipping_carrier', $uses_usps ? 'USPS' : 'FedEx');
+  $order->update_meta_data('_phaseone_shipping_service', $title);
 }
 
 /**
  * Preserve the current Zelle shipping behavior for Bulk while deriving the
  * decision exclusively from the authoritative Bulk merchandise subtotal.
  */
-function phaseone_mzv_add_bulk_shipping($order, $bulk_subtotal) {
+function phaseone_mzv_add_bulk_shipping($order, $bulk_subtotal, $params = array()) {
   $free_minimum = max(0, (float) apply_filters('phaseone_mzv_bulk_free_shipping_minimum', 150.0, $order));
   $standard_cost = max(0, (float) apply_filters('phaseone_mzv_bulk_standard_shipping_cost', PHASEONE_MZV_STANDARD_SHIPPING_COST, $order));
   $is_free = $free_minimum > 0 && (float) $bulk_subtotal >= $free_minimum;
+  $uses_usps = phaseone_mzv_requires_usps_priority_mail($params);
+  $title = $uses_usps ? 'USPS Priority Mail' : 'FedEx Shipping';
 
   $shipping = new WC_Order_Item_Shipping();
-  $shipping->set_method_title($is_free ? 'Free Shipping' : 'Standard Shipping');
-  $shipping->set_method_id($is_free ? 'free_shipping' : 'flat_rate');
+  $shipping->set_method_title($title);
+  $shipping->set_method_id($is_free ? 'free_shipping' : ($uses_usps ? 'usps_priority_mail' : 'flat_rate'));
   $shipping->set_total($is_free ? 0 : round($standard_cost, 2));
   $order->add_item($shipping);
 
   $order->update_meta_data('_phaseone_manual_payment_free_shipping_minimum', $free_minimum);
   $order->update_meta_data('_phaseone_manual_payment_shipping_cost', $is_free ? 0 : round($standard_cost, 2));
+  $order->update_meta_data('_phaseone_shipping_carrier', $uses_usps ? 'USPS' : 'FedEx');
+  $order->update_meta_data('_phaseone_shipping_service', $title);
 }
 
 function phaseone_mzv_add_negative_fee($order, $name, $amount) {
@@ -1067,7 +1094,7 @@ function phaseone_mzv_manual_payment_order_endpoint(WP_REST_Request $request) {
       }
       return phaseone_mzv_bulk_error_response($bulk_applied);
     }
-    phaseone_mzv_add_bulk_shipping($order, (float) $bulk_context['quote']['subtotal']);
+    phaseone_mzv_add_bulk_shipping($order, (float) $bulk_context['quote']['subtotal'], $params);
   } else {
     phaseone_mzv_add_products($order, $items);
     phaseone_mzv_add_shipping($order, $params);

@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Phase eDebit Order Endpoint
  * Description: Creates securely priced WooCommerce orders from a custom frontend checkout and returns the hosted eDebit/Yodlee redirect URL.
- * Version: 1.2.0
+ * Version: 1.2.1
  * Author: Phase One Labz
  */
 
@@ -37,11 +37,12 @@ final class Phase_Edebit_Shipping_Resolution_Exception_V117 extends InvalidArgum
 }
 
 final class Phase_Edebit_Order_Endpoint_V117 {
-    const VERSION = '1.2.0';
+    const VERSION = '1.2.1';
     const NAMESPACE = 'phase/v1';
     const DEFAULT_GATEWAY_ID = 'edd_draft_yodlee_gateway';
 
     const FREE_SHIPPING_MIN_PROMO_SUBTOTAL = 150.00;
+    const USPS_PRIORITY_MAIL_COST = 13.00;
     const SHIPPING_PROTECTION_PER_100 = 1.09;
     const DUPLICATE_WINDOW_SECONDS = 300;
 
@@ -384,6 +385,37 @@ final class Phase_Edebit_Order_Endpoint_V117 {
         }
 
         return $selection;
+    }
+
+    private static function is_po_box_address($value) {
+        $normalized = strtoupper((string) $value);
+        $normalized = preg_replace('/[^A-Z0-9]+/', ' ', $normalized);
+        $normalized = trim(is_string($normalized) ? $normalized : '');
+
+        return preg_match('/(?:^|\s)(?:P\s*O|POST(?:AL)?\s+OFFICE)\s*BOX(?:\s|$)/', $normalized) === 1;
+    }
+
+    private static function requires_usps_priority_mail($address) {
+        $address = is_array($address) ? $address : [];
+        $state = strtoupper(trim((string) ($address['state'] ?? '')));
+        $address_text = trim(
+            (string) ($address['address_1'] ?? $address['address'] ?? '') . ' ' .
+            (string) ($address['address_2'] ?? '')
+        );
+
+        return $state === 'PR' || self::is_po_box_address($address_text);
+    }
+
+    private static function requested_shipping_is_usps($selection) {
+        $selection = is_array($selection) ? $selection : [];
+        $haystack = strtolower(implode(' ', [
+            (string) ($selection['rate_id'] ?? ''),
+            (string) ($selection['method_id'] ?? ''),
+            (string) ($selection['service_type'] ?? ''),
+            (string) ($selection['title'] ?? ''),
+        ]));
+
+        return strpos($haystack, 'usps') !== false || strpos($haystack, 'priority mail') !== false;
     }
 
     private static function normalized_shipping_match_value($value) {
@@ -1024,6 +1056,48 @@ final class Phase_Edebit_Order_Endpoint_V117 {
             );
         }
 
+        $requires_usps = self::requires_usps_priority_mail($shipping_address);
+        $requested_usps = self::requested_shipping_is_usps($requested_shipping);
+        $threshold_free = self::money($pricing['promotional_subtotal']) >= self::FREE_SHIPPING_MIN_PROMO_SUBTOTAL;
+
+        if ($requires_usps) {
+            if (!$requested_usps) {
+                throw new Phase_Edebit_Shipping_Resolution_Exception_V117(
+                    'USPS Priority Mail is required for PO Box and Puerto Rico addresses.',
+                    [[
+                        'rate_id' => 'usps_priority_mail',
+                        'instance_id' => '',
+                        'method_id' => 'usps_priority_mail',
+                        'service_type' => 'PRIORITY_MAIL',
+                        'title' => 'USPS Priority Mail',
+                        'serverPrice' => self::USPS_PRIORITY_MAIL_COST,
+                    ]],
+                    $requested_shipping
+                );
+            }
+
+            $usps_cost = max(0, (float) apply_filters(
+                'phaseone_edebit_usps_priority_mail_cost',
+                self::USPS_PRIORITY_MAIL_COST,
+                $shipping_address,
+                $pricing
+            ));
+
+            return [
+                'rate_id' => 'usps_priority_mail',
+                'method_id' => 'usps_priority_mail',
+                'title' => 'USPS Priority Mail',
+                'server_rate_cost' => self::money($usps_cost),
+                'charged_cost' => $threshold_free ? 0.0 : self::money($usps_cost),
+                'fedex_free' => false,
+                'threshold_free' => $threshold_free,
+            ];
+        }
+
+        if ($requested_usps) {
+            throw new InvalidArgumentException('USPS Priority Mail is only available for PO Box and Puerto Rico addresses.');
+        }
+
         self::ensure_woocommerce_runtime($shipping_address);
 
         if (!function_exists('WC') || !WC()->shipping()) {
@@ -1104,7 +1178,6 @@ final class Phase_Edebit_Order_Endpoint_V117 {
 
         $fedex_haystack = strtolower($rate_id . ' ' . $method_id . ' ' . $title);
         $is_fedex = strpos($fedex_haystack, 'fedex') !== false || strpos($fedex_haystack, 'fed ex') !== false;
-        $threshold_free = self::money($pricing['promotional_subtotal']) >= self::FREE_SHIPPING_MIN_PROMO_SUBTOTAL;
         $charged_cost = $threshold_free ? 0.0 : $server_cost;
 
         return [
@@ -1189,6 +1262,9 @@ final class Phase_Edebit_Order_Endpoint_V117 {
         $order->update_meta_data('_phase_shipping_total', self::money_string($shipping['charged_cost']));
         $order->update_meta_data('_phaseone_fedex_free_shipping', $shipping['fedex_free'] ? 'yes' : 'no');
         $order->update_meta_data('_phaseone_threshold_free_shipping', !empty($shipping['threshold_free']) ? 'yes' : 'no');
+        $is_usps = strpos(strtolower((string) $shipping['method_id'] . ' ' . (string) $shipping['title']), 'usps') !== false;
+        $order->update_meta_data('_phaseone_shipping_carrier', $is_usps ? 'USPS' : 'FedEx');
+        $order->update_meta_data('_phaseone_shipping_service', (string) $shipping['title']);
     }
 
     private static function add_shipping_protection_to_order($order, $amount) {

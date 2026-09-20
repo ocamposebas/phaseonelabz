@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Phase One PRISM Checkout Bridge
  * Description: Creates authoritative WooCommerce orders from the Phase One custom Astro checkout and starts the installed PRISM payment gateway.
- * Version: 1.5.1
+ * Version: 1.5.2
  * Author: Phase One Labz
  * Requires PHP: 8.1
  */
@@ -340,17 +340,23 @@ final class PhaseOne_Prism_Checkout_Bridge {
                 }
             }
 
-            // Match the frontend: FedEx is free from $150 merchandise total
-            // after product/bundle pricing, before coupons.
+            // Match the frontend: USPS Priority Mail is mandatory for PO Boxes
+            // and Puerto Rico; every other address uses FedEx. Both carriers
+            // share the same price and free-shipping threshold.
             $free_shipping_minimum = (float) apply_filters( 'phaseone_prism_free_shipping_minimum', self::FREE_SHIPPING_MINIMUM, $order );
             $shipping_cost         = (float) apply_filters( 'phaseone_prism_shipping_cost', self::SHIPPING_COST, $order );
             $is_free_shipping      = (float) $pricing['merchandise_total'] >= $free_shipping_minimum;
+            $uses_usps             = self::requires_usps_priority_mail( $shipping );
+            $shipping_title        = $uses_usps ? 'USPS Priority Mail' : 'FedEx Shipping';
+            $shipping_method_id    = $is_free_shipping ? 'free_shipping' : ( $uses_usps ? 'usps_priority_mail' : 'flat_rate' );
 
             $shipping_item = new WC_Order_Item_Shipping();
-            $shipping_item->set_method_title( 'FedEx Shipping' );
-            $shipping_item->set_method_id( $is_free_shipping ? 'free_shipping' : 'flat_rate' );
+            $shipping_item->set_method_title( $shipping_title );
+            $shipping_item->set_method_id( $shipping_method_id );
             $shipping_item->set_total( $is_free_shipping ? 0 : $shipping_cost );
             $order->add_item( $shipping_item );
+            $order->update_meta_data( '_phaseone_shipping_carrier', $uses_usps ? 'USPS' : 'FedEx' );
+            $order->update_meta_data( '_phaseone_shipping_service', $shipping_title );
 
             $order->calculate_totals( false );
             self::apply_shipping_protection( $order, $payload, $billing );
@@ -573,6 +579,24 @@ final class PhaseOne_Prism_Checkout_Bridge {
         }
 
         return $address;
+    }
+
+    private static function is_po_box_address( string $value ): bool {
+        $normalized = strtoupper( $value );
+        $normalized = preg_replace( '/[^A-Z0-9]+/', ' ', $normalized );
+        $normalized = trim( is_string( $normalized ) ? $normalized : '' );
+
+        return 1 === preg_match( '/(?:^|\s)(?:P\s*O|POST(?:AL)?\s+OFFICE)\s*BOX(?:\s|$)/', $normalized );
+    }
+
+    private static function requires_usps_priority_mail( array $address ): bool {
+        if ( 'PR' === strtoupper( trim( (string) ( $address['state'] ?? '' ) ) ) ) {
+            return true;
+        }
+
+        return self::is_po_box_address(
+            trim( (string) ( $address['address_1'] ?? '' ) . ' ' . (string) ( $address['address_2'] ?? '' ) )
+        );
     }
 
     private static function customer_id_from_email( string $email ): int {

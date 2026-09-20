@@ -1,4 +1,9 @@
-Phase One PRISM Checkout Bridge 1.8.0
+Phase One PRISM Checkout Bridge 1.8.1
+
+Version 1.8.1 routes PO Box and Puerto Rico orders through USPS Priority Mail:
+- Selects USPS automatically from the verified shipping address.
+- Keeps FedEx for every other supported address.
+- Uses the same $13 rate and $150 free-shipping threshold for both carriers.
 
 Version 1.8.0 connects redeemed rewards credit to checkout:
 - Reads the existing _lab_store_credit_balance owned by the rewards system.
