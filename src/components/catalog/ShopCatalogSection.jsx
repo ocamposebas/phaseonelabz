@@ -291,6 +291,7 @@ function getProductKey(product) {
 
 function getProductImage(product) {
   return (
+    product?.images?.[0]?.thumbnail ||
     product?.image ||
     product?.images?.[0]?.src ||
     product?.images?.[0]?.url ||
@@ -1965,6 +1966,7 @@ const ProductCard = memo(function ProductCard({
   item,
   addToCart,
   onBundleAdd,
+  imagePriority = false,
 }) {
   const { product, name, category, price, pricing, image, url, availability } = item;
   const { isUnavailable, unavailableLabel } = availability;
@@ -2202,8 +2204,21 @@ const ProductCard = memo(function ProductCard({
             src={image}
             alt={name}
             className="product-float-image"
-            loading="lazy"
+            width="300"
+            height="300"
+            loading={imagePriority ? "eager" : "lazy"}
+            fetchPriority={imagePriority ? "high" : "auto"}
             decoding="async"
+            onError={(event) => {
+              const target = event.currentTarget;
+              const fullSizeImage =
+                product?.images?.[0]?.src ||
+                product?.image ||
+                "/placeholder-product.png";
+
+              target.onerror = null;
+              target.src = fullSizeImage;
+            }}
           />
         </div>
       </div>
@@ -2446,7 +2461,7 @@ const FilterPanel = memo(function FilterPanel({
 
 export default function ShopCatalogSection({
   products = [],
-  productsPerPage = 20,
+  productsPerPage = 12,
 }) {
   const cartApi = useCart();
   const addToCart = cartApi?.addToCart;
@@ -3029,12 +3044,13 @@ export default function ShopCatalogSection({
             ) : (
               <>
                 <div className="product-catalog-grid">
-                  {paginatedItems.map((item) => (
+                  {paginatedItems.map((item, index) => (
                     <ProductCard
                       key={item.key}
                       item={item}
                       addToCart={addToCart}
                       onBundleAdd={addBundleItemToCart}
+                      imagePriority={index < 3}
                     />
                   ))}
                 </div>

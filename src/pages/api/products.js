@@ -1,7 +1,10 @@
+import { getCatalogThumbnailUrl } from "../../lib/wooCatalog.js";
+
 export const prerender = false;
 
 const REQUEST_TIMEOUT_MS = 10000;
-const PRODUCT_CACHE_TTL_MS = 30000;
+const PRODUCT_CACHE_TTL_MS = 5 * 60_000;
+const PRODUCT_STALE_TTL_MS = 60 * 60_000;
 const productCache =
   globalThis.__phaseoneProductSearchCache ||
   (globalThis.__phaseoneProductSearchCache = new Map());
@@ -72,6 +75,9 @@ async function fetchWithTimeout(url, options = {}) {
 
 function normalizeProduct(product) {
   const firstImage = product.images?.[0];
+  const fullSizeImage = firstImage?.src || product.image || "";
+  const thumbnail =
+    firstImage?.thumbnail || getCatalogThumbnailUrl(fullSizeImage);
   const storePrices = product.prices || {};
   const categories = Array.isArray(product.categories)
     ? product.categories.map(({ id, name, slug }) => ({ id, name, slug }))
@@ -104,12 +110,13 @@ function normalizeProduct(product) {
         ? product.is_in_stock
         : product.stock_status === "instock",
     permalink: product.permalink || `/products/${product.slug}`,
-    image:
-      firstImage?.src ||
-      product.image ||
-      "/placeholder-product.png",
+    image: thumbnail || fullSizeImage || "/placeholder-product.png",
     images: firstImage
-      ? [{ src: firstImage.src, alt: firstImage.alt || product.name || "" }]
+      ? [{
+          src: fullSizeImage,
+          thumbnail,
+          alt: firstImage.alt || product.name || "",
+        }]
       : [],
     categories,
     tags,
@@ -129,7 +136,13 @@ async function fetchProducts(cleanUrl, params) {
     return cached.products;
   }
 
-  if (cached?.inFlight) return cached.inFlight;
+  if (cached?.inFlight) {
+    if (cached?.products && cached.staleUntil > Date.now()) {
+      return cached.products;
+    }
+
+    return cached.inFlight;
+  }
 
   const inFlight = (async () => {
     const response = await fetchWithTimeout(
@@ -159,6 +172,8 @@ async function fetchProducts(cleanUrl, params) {
     productCache.set(cacheKey, {
       products,
       expiresAt: Date.now() + PRODUCT_CACHE_TTL_MS,
+      staleUntil:
+        Date.now() + PRODUCT_CACHE_TTL_MS + PRODUCT_STALE_TTL_MS,
       inFlight: null,
     });
 
@@ -168,8 +183,13 @@ async function fetchProducts(cleanUrl, params) {
   productCache.set(cacheKey, {
     products: cached?.products || null,
     expiresAt: cached?.expiresAt || 0,
+    staleUntil: cached?.staleUntil || 0,
     inFlight,
   });
+
+  if (cached?.products && cached.staleUntil > Date.now()) {
+    return cached.products;
+  }
 
   try {
     return await inFlight;
@@ -214,7 +234,7 @@ export async function GET({ url }) {
         products,
       },
       200,
-      "private, max-age=30, stale-while-revalidate=30"
+      "public, max-age=60, s-maxage=300, stale-while-revalidate=3600, stale-if-error=86400"
     );
   } catch (error) {
     const isAbortError = error?.name === "AbortError";

@@ -1194,6 +1194,25 @@
           }
         }
 
+        @media (max-width: 1024px), (hover: none), (pointer: coarse) {
+          .visual-glow,
+          .product-float-image-wrap,
+          .product-float-shadow {
+            animation: none !important;
+            will-change: auto;
+          }
+
+          .product-float-card:hover,
+          .product-float-card:hover .product-float-image {
+            transform: none;
+          }
+
+          .product-float-image,
+          .product-float-card:hover .product-float-image {
+            filter: drop-shadow(0 10px 14px rgba(0, 0, 0, 0.16));
+          }
+        }
+
         @media (prefers-reduced-motion: reduce) {
           .product-float-card,
           .product-float-image,

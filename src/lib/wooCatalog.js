@@ -1,6 +1,8 @@
 const DEFAULT_PRODUCTS_PER_PAGE = 100;
-const DEFAULT_CATALOG_CACHE_TTL_MS = 30_000;
-const MAX_CATALOG_CACHE_TTL_MS = 5 * 60_000;
+const DEFAULT_CATALOG_CACHE_TTL_MS = 5 * 60_000;
+const DEFAULT_CATALOG_STALE_TTL_MS = 60 * 60_000;
+const MAX_CATALOG_CACHE_TTL_MS = 30 * 60_000;
+const MAX_CATALOG_STALE_TTL_MS = 24 * 60 * 60_000;
 const WOO_REQUEST_TIMEOUT_MS = 10_000;
 
 const catalogState = globalThis.__phaseoneWooCatalogState || {
@@ -68,13 +70,47 @@ function compactTerm(term) {
   };
 }
 
+export function getCatalogThumbnailUrl(source, size = 300) {
+  const src = String(source || "").trim();
+
+  if (!src || !/\/wp-content\/uploads\//i.test(src)) return src;
+
+  try {
+    const url = new URL(src);
+    const match = url.pathname.match(/^(.*?)(?:-\d+x\d+)?(\.[a-z0-9]+)$/i);
+
+    if (!match) return src;
+
+    url.pathname = `${match[1]}-${size}x${size}${match[2]}`;
+    return url.toString();
+  } catch {
+    return src.replace(
+      /(?:-\d+x\d+)?(\.[a-z0-9]+)(\?.*)?$/i,
+      `-${size}x${size}$1$2`
+    );
+  }
+}
+
 function compactImage(image) {
-  if (typeof image === "string") return { src: image };
+  if (typeof image === "string") {
+    return {
+      src: image,
+      thumbnail: getCatalogThumbnailUrl(image),
+    };
+  }
   if (!image || typeof image !== "object") return null;
+
+  const src = image.src || image.url || "";
+  const thumbnail =
+    image.thumbnail ||
+    image.sizes?.thumbnail ||
+    image.sizes?.woocommerce_thumbnail ||
+    getCatalogThumbnailUrl(src);
 
   return {
     id: image.id,
-    src: image.src || image.url || "",
+    src,
+    thumbnail,
     alt: compactText(image.alt, 180),
   };
 }
@@ -141,6 +177,16 @@ function getCatalogCacheTtlMs(value) {
   if (!Number.isFinite(configured)) return DEFAULT_CATALOG_CACHE_TTL_MS;
 
   return Math.min(Math.max(Math.round(configured), 0), MAX_CATALOG_CACHE_TTL_MS);
+}
+
+function getCatalogStaleTtlMs(value) {
+  const configured = Number(
+    value ?? process.env.WOOCOMMERCE_CATALOG_STALE_TTL_MS
+  );
+
+  if (!Number.isFinite(configured)) return DEFAULT_CATALOG_STALE_TTL_MS;
+
+  return Math.min(Math.max(Math.round(configured), 0), MAX_CATALOG_STALE_TTL_MS);
 }
 
 function getCatalogCacheKey(baseUrl, perPage) {
@@ -328,22 +374,20 @@ export async function fetchWooCatalog({
   fetchImpl = fetch,
   perPage = DEFAULT_PRODUCTS_PER_PAGE,
   cacheTtlMs,
+  staleTtlMs,
 }) {
   if (!baseUrl || !consumerKey || !consumerSecret) {
     throw new Error("Missing WooCommerce environment variables.");
   }
 
   const ttlMs = getCatalogCacheTtlMs(cacheTtlMs);
+  const staleWindowMs = getCatalogStaleTtlMs(staleTtlMs);
   const cacheEnabled = fetchImpl === fetch && ttlMs > 0;
   const cacheKey = getCatalogCacheKey(baseUrl, perPage);
   const cached = cacheEnabled ? catalogState.entries.get(cacheKey) : null;
   const now = Date.now();
 
   if (cached && now < cached.expiresAt) return cached.products;
-
-  if (cacheEnabled && catalogState.inFlight.has(cacheKey)) {
-    return catalogState.inFlight.get(cacheKey);
-  }
 
   const loadCatalog = async () => {
     const productsUrl = createWooUrl(
@@ -400,11 +444,22 @@ export async function fetchWooCatalog({
 
   if (!cacheEnabled) return loadCatalog();
 
+  if (catalogState.inFlight.has(cacheKey)) {
+    if (cached?.products?.length && now < (cached.staleUntil || 0)) {
+      return cached.products;
+    }
+
+    return catalogState.inFlight.get(cacheKey);
+  }
+
   const inFlight = loadCatalog()
     .then((products) => {
+      const refreshedAt = Date.now();
+
       catalogState.entries.set(cacheKey, {
         products,
-        expiresAt: Date.now() + ttlMs,
+        expiresAt: refreshedAt + ttlMs,
+        staleUntil: refreshedAt + ttlMs + staleWindowMs,
       });
       return products;
     })
@@ -420,5 +475,10 @@ export async function fetchWooCatalog({
     });
 
   catalogState.inFlight.set(cacheKey, inFlight);
+
+  if (cached?.products?.length && now < (cached.staleUntil || 0)) {
+    return cached.products;
+  }
+
   return inFlight;
 }
