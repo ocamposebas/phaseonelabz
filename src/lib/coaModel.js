@@ -1,6 +1,19 @@
 const IMAGE_EXTENSION = /\.(?:avif|gif|jpe?g|png|webp)(?:$|[?#])/i;
 const PDF_EXTENSION = /\.pdf(?:$|[?#])/i;
 
+export const COA_TESTING_PANELS = Object.freeze({
+  full: Object.freeze([
+    "Sterility",
+    "Identification",
+    "Purity",
+    "Net content",
+    "Heavy Metals",
+    "Conformity",
+    "Endotoxins",
+  ]),
+  standard: Object.freeze(["Identification", "Purity", "Net content"]),
+});
+
 export function normalizeCoaText(value = "") {
   return String(value || "")
     .normalize("NFD")
@@ -130,6 +143,76 @@ export function normalizeCoaAssays(value) {
       .map((item) => item.trim())
       .filter(Boolean)
   );
+}
+
+function normalizePanelType(value = "") {
+  const compact = normalizeCoaText(value).replace(/\s+/g, "");
+
+  if (!compact) return "";
+  if (compact === "full" || compact.includes("fullpanel")) return "full";
+  if (compact === "standard" || compact.includes("standardpanel")) {
+    return "standard";
+  }
+
+  const regularMatch = compact.match(/(\d{1,2})x/);
+  const reversedMatch = compact.match(/^x(\d{1,2})/);
+  const numericMatch = compact.match(/^(\d{1,2})$/);
+  const amount =
+    regularMatch?.[1] || reversedMatch?.[1] || numericMatch?.[1];
+
+  return amount ? `${Number(amount)}x` : "";
+}
+
+function normalizePanelTypes(...values) {
+  return unique(
+    coaValueList(...values).map(normalizePanelType).filter(Boolean)
+  );
+}
+
+export function getCoaTestingPanel(record = {}) {
+  const current =
+    record.currentCoa && typeof record.currentCoa === "object"
+      ? record.currentCoa
+      : record.current_coa && typeof record.current_coa === "object"
+        ? record.current_coa
+        : {};
+  const panelTypes = normalizePanelTypes(
+    record.panelTypes,
+    record.panel_types,
+    record.reportPanels,
+    record.report_panels,
+    record.panelType,
+    record.panel_type,
+    current.panelTypes,
+    current.panel_types,
+    current.reportPanels,
+    current.report_panels,
+    current.panelType,
+    current.panel_type,
+    current.label
+  );
+
+  if (
+    panelTypes.includes("full") ||
+    panelTypes.includes("7x") ||
+    panelTypes.includes("8x")
+  ) {
+    return {
+      type: "full",
+      label: "7X Testing",
+      assays: [...COA_TESTING_PANELS.full],
+    };
+  }
+
+  if (panelTypes.includes("standard") || panelTypes.includes("3x")) {
+    return {
+      type: "standard",
+      label: "3X Testing",
+      assays: [...COA_TESTING_PANELS.standard],
+    };
+  }
+
+  return null;
 }
 
 export function createWooProductIndex(products = []) {
@@ -346,10 +429,15 @@ function normalizeCoaRecordInternal(record = {}, productIndex, overrides = {}) {
     purity: firstText(overrides.purity, current.purity, record.purity),
     method,
     assays: normalizeCoaAssays(tested),
-    panelTypes: unique(
-      coaValueList(record.panelTypes, record.panel_types)
-        .map((value) => normalizeCoaText(value).replace(/\s+/g, ""))
-        .filter(Boolean)
+    panelTypes: normalizePanelTypes(
+      record.panelTypes,
+      record.panel_types,
+      record.reportPanels,
+      record.report_panels,
+      current.panelTypes,
+      current.panel_types,
+      current.reportPanels,
+      current.report_panels
     ),
     status: firstText(record.status, "Available"),
     isCurrentShippingLot: Boolean(isCurrentShippingLot),
@@ -442,6 +530,28 @@ export function getCoaAssociation(record = {}) {
   return { level: "record", key: `record:${record.id}` };
 }
 
+function getCoaPresentationAssociation(record = {}) {
+  const product = record.product || {};
+  const productId =
+    Number(product.matchedProductId || 0) ||
+    Number(product.productIds?.[0] || 0) ||
+    Number(product.parentProductIds?.[0] || 0) ||
+    Number(product.wooIds?.[0] || 0);
+  const strength = normalizeCoaText(product.strength).replace(/\s+/g, "");
+
+  // Older COAs can point only to a parent product/SKU while newer records
+  // point to an exact variation. Parent + strength keeps one option together
+  // instead of splitting it into duplicate selectors (for example PL-TZ 10 mg).
+  if (productId && strength) {
+    return {
+      level: "product-strength",
+      key: `product:${productId}:strength:${strength}`,
+    };
+  }
+
+  return getCoaAssociation(record);
+}
+
 function familyIdentityIds(record) {
   const product = record.product || {};
   return idList(
@@ -462,13 +572,24 @@ function declaredFamilyKey(record) {
 
 function familyAssociationKey(record, familyKeysByProductId) {
   const explicitKey = declaredFamilyKey(record);
-  if (explicitKey) return explicitKey;
-
   const inheritedKeys = unique(
     familyIdentityIds(record).flatMap((id) => [
       ...(familyKeysByProductId.get(id) || []),
     ])
   );
+  const familyNameKey = normalizeCoaText(record.product?.familyName)
+    .replace(/\s+/g, "-");
+  const matchingNameKey = familyNameKey ? `family:${familyNameKey}` : "";
+
+  // If records tied to one WooCommerce product disagree on their stored
+  // family key, prefer the declared key that also matches the family name.
+  // This repairs legacy records such as PL-TZ entries stored under `pl-sm`
+  // without rewriting legitimate branded keys such as Deadpool.
+  if (matchingNameKey && inheritedKeys.includes(matchingNameKey)) {
+    return matchingNameKey;
+  }
+
+  if (explicitKey) return explicitKey;
   if (inheritedKeys.length === 1) return inheritedKeys[0];
 
   const product = record.product || {};
@@ -532,7 +653,7 @@ export function groupCoaCatalog(records = []) {
     }
 
     const family = families.get(familyKey);
-    const association = getCoaAssociation(record);
+    const association = getCoaPresentationAssociation(record);
     if (!family.presentations.has(association.key)) {
       family.presentations.set(association.key, {
         key: association.key,

@@ -595,6 +595,7 @@
           --pdp-panel-rgb: 167 139 250;
         }
 
+        .pdp-panel-badge.is-7x,
         .pdp-panel-badge.is-8x {
           --pdp-panel-rgb: 147 197 253;
         }

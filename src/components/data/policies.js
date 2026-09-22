@@ -481,9 +481,9 @@ export const policies = {
   shipping: {
     title: "Shipping Policy",
     eyebrow: "Shipping",
-    updated: "Last updated: June 2026",
+    updated: "Last updated: September 2026",
     description:
-      "This Shipping Policy explains processing, carrier delivery, tracking, address responsibility, restrictions, and shipping-related limitations.",
+      "This Shipping Policy explains domestic U.S. order processing, carrier delivery, tracking, address responsibility, restrictions, and shipping-related limitations. International shipping is not available.",
     sections: [
       {
         heading: "1. Order Processing",
@@ -505,7 +505,7 @@ export const policies = {
         heading: "3. Shipping Methods and Carriers",
         body: [
           "Available shipping options and rates are displayed at checkout when applicable.",
-          "Carrier selection may include USPS, UPS, FedEx, DHL, regional carriers, or other carriers depending on destination, service availability, product type, packaging requirements, and business needs.",
+          "Carrier selection may include USPS, UPS, FedEx, regional carriers, or other domestic carriers depending on destination, service availability, product type, packaging requirements, and business needs.",
           "Phase One Labz reserves the right to change the carrier or shipping service when necessary to complete fulfillment, improve delivery reliability, comply with carrier rules, or address operational requirements.",
         ],
       },
@@ -529,7 +529,7 @@ export const policies = {
         heading: "6. Delivery Estimates",
         body: [
           "Delivery estimates are provided by carriers and are not guaranteed by Phase One Labz.",
-          "Carrier delays, weather events, customs review, operational disruptions, holidays, security issues, address problems, delivery restrictions, and other external events may affect delivery.",
+          "Carrier delays, weather events, operational disruptions, holidays, security issues, address problems, delivery restrictions, and other external events may affect delivery.",
           "Phase One Labz is not liable for losses, inconvenience, missed deadlines, or consequential damages resulting from carrier delay or delivery estimate changes.",
         ],
       },
@@ -576,8 +576,8 @@ export const policies = {
         heading: "12. Shipping Restrictions",
         body: [
           "We reserve the right to restrict, cancel, refuse, or hold shipments to certain addresses, jurisdictions, forwarding services, reshippers, PO boxes, parcel lockers, high-risk locations, or destinations where compliance concerns exist.",
-          "Customers are responsible for ensuring products may be lawfully shipped to, received at, possessed in, and used in their destination.",
-          "Phase One Labz is not responsible for seizures, holds, restrictions, returns, disposal, penalties, customs actions, or carrier refusals caused by destination restrictions or customer noncompliance.",
+          "Customers are responsible for ensuring products may be lawfully shipped to, received at, possessed in, and used at their U.S. destination.",
+          "Phase One Labz is not responsible for seizures, holds, restrictions, returns, disposal, penalties, or carrier refusals caused by destination restrictions or customer noncompliance.",
         ],
       },
       {
@@ -588,11 +588,11 @@ export const policies = {
         ],
       },
       {
-        heading: "14. International Shipping",
+        heading: "14. Domestic Shipping Only",
         body: [
-          "International shipping, if offered, is subject to customs rules, import restrictions, taxes, duties, inspections, seizures, documentation requirements, and destination-country laws.",
-          "Customers are solely responsible for determining whether products may be lawfully imported, possessed, and used in the destination country.",
-          "Customs fees, import duties, taxes, brokerage fees, penalties, seizures, delays, or returns are the responsibility of the customer unless otherwise required by law.",
+          "Phase One Labz does not offer international shipping.",
+          "Orders may be shipped only to eligible United States addresses available at checkout, including Puerto Rico.",
+          "Orders submitted with an unsupported destination may be refused or cancelled.",
         ],
       },
       {

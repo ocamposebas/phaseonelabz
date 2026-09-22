@@ -10,6 +10,7 @@ import {
 import {
   findPreferredCoaRecord,
   formatCoaDate,
+  getCoaTestingPanel,
 } from "../../lib/coaModel.js";
 import CoaBatchHistory from "./CoaBatchHistory.jsx";
 
@@ -94,6 +95,8 @@ export default function CoaRecord({
   if (!presentation || !selectedRecord) return null;
 
   const image = selectedRecord.product.image || presentation.image || family.image || {};
+  const testingPanel = getCoaTestingPanel(selectedRecord);
+  const displayedAssays = testingPanel?.assays || selectedRecord.assays;
   const canCopyBatch =
     typeof navigator !== "undefined" && Boolean(navigator.clipboard?.writeText);
   const detailsAvailable = Boolean(
@@ -207,12 +210,22 @@ export default function CoaRecord({
           </div>
         </dl>
 
-        {selectedRecord.assays.length ? (
+        {displayedAssays.length ? (
           <section className="coa-family__tests">
-            <span>Tests performed</span>
+            <div className="coa-family__tests-heading">
+              <span>Tests performed</span>
+              {testingPanel ? (
+                <strong className={`coa-family__testing-tag is-${testingPanel.type}`}>
+                  {testingPanel.label}
+                </strong>
+              ) : null}
+            </div>
             <ul>
-              {selectedRecord.assays.slice(0, 4).map((assay) => (
-                <li key={assay}>{assay}</li>
+              {displayedAssays.map((assay) => (
+                <li key={assay}>
+                  <Check size={13} aria-hidden="true" />
+                  <span>{assay}</span>
+                </li>
               ))}
             </ul>
           </section>

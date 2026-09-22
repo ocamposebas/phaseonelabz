@@ -29,7 +29,10 @@ import {
 } from "lucide-react";
 import { getProductPurchaseLimit, useCart } from "../cart/CartContext";
 import DispatchCutoff from "../shipping/DispatchCutoff";
-import { findCoaForWooProduct } from "../../lib/coaModel.js";
+import {
+  findCoaForWooProduct,
+  getCoaTestingPanel,
+} from "../../lib/coaModel.js";
 
 function getCoaLibraryEndpoint() {
   return "/api/coas";
@@ -83,11 +86,12 @@ function normalizeText(value = "") {
 }
 
 const COA_PANEL_META = {
-  "3x": { label: "3X Tested", className: "is-3x" },
+  "3x": { label: "3X Testing", className: "is-3x" },
   "4x": { label: "4X Tested", className: "is-4x" },
-  "8x": { label: "8X Tested", className: "is-8x" },
-  standard: { label: "Standard Panel", className: "is-standard" },
-  full: { label: "Full Panel", className: "is-full" },
+  "7x": { label: "7X Testing", className: "is-7x" },
+  "8x": { label: "7X Testing", className: "is-7x" },
+  standard: { label: "3X Testing", className: "is-standard" },
+  full: { label: "7X Testing", className: "is-full" },
 };
 
 function toCoaPanelArray(value) {
@@ -124,6 +128,9 @@ function normalizeCoaPanelType(value) {
 
 function getCoaPanelTypes(record) {
   if (!record || typeof record !== "object") return [];
+
+  const testingPanel = getCoaTestingPanel(record);
+  if (testingPanel) return [testingPanel.type];
 
   const currentCoa =
     record.currentCoa && typeof record.currentCoa === "object"

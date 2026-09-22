@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Phase One PRISM Checkout Bridge
  * Description: Creates authoritative WooCommerce orders from the Phase One custom Astro checkout and starts the installed PRISM payment gateway.
- * Version: 1.8.1
+ * Version: 1.8.2
  * Author: Phase One Labz
  * Requires PHP: 8.1
  */
@@ -47,8 +47,21 @@ final class PhaseOne_Prism_Checkout_Bridge {
         add_action( 'rest_api_init', array( __CLASS__, 'register_route' ) );
         add_action( 'woocommerce_admin_order_data_after_billing_address', array( __CLASS__, 'render_admin_fields' ) );
         add_action( 'woocommerce_email_order_meta', array( __CLASS__, 'render_email_fields' ), 20, 4 );
+        add_filter( 'woocommerce_email_footer_text', array( __CLASS__, 'filter_email_footer_support_address' ), 100 );
         add_action( 'admin_menu', array( __CLASS__, 'register_settings_page' ) );
         add_action( 'admin_post_phaseone_prism_bridge_save_secret', array( __CLASS__, 'save_secret' ) );
+    }
+
+    /**
+     * Route order-email help requests to Support without changing the separate
+     * Info@ payment recipient used by Zelle instructions.
+     */
+    public static function filter_email_footer_support_address( $footer_text ): string {
+        return str_ireplace(
+            'info@phaseonelabz.com',
+            'support@phaseonelabz.com',
+            (string) $footer_text
+        );
     }
 
     public static function register_route(): void {

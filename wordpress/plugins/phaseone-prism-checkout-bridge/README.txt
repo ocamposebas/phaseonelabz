@@ -1,4 +1,8 @@
-Phase One PRISM Checkout Bridge 1.8.1
+Phase One PRISM Checkout Bridge 1.8.2
+
+Version 1.8.2 routes the help contact in WooCommerce order-email footers to
+support@phaseonelabz.com. The separate Info@ payment recipient shown in Zelle
+instructions is intentionally unchanged.
 
 Version 1.8.1 routes PO Box and Puerto Rico orders through USPS Priority Mail:
 - Selects USPS automatically from the verified shipping address.
