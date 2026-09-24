@@ -1,180 +1,65 @@
 import "./ShopByCategorySection.styles.css";
 import { memo, useMemo } from "react";
 import { ArrowUpRight } from "lucide-react";
+import {
+  CATALOG_CATEGORIES,
+  resolveCatalogCategory,
+} from "../../lib/catalogTaxonomy";
 
-const fallbackCategories = [
-  {
-    name: "Research Peptides",
-    slug: "research-peptides",
-    count: 1,
-    description: "Core catalog",
-  },
-  {
-    name: "Research Blends",
-    slug: "research-blends",
-    count: 9,
-    description: "Stacked formulas",
-  },
-  {
-    name: "Metabolic Research",
-    slug: "metabolic-research",
-    count: 2,
-    description: "Metabolic focus",
-  },
-  {
-    name: "Longevity & Other",
-    slug: "longevity-other",
-    count: 11,
-    description: "Extended catalog",
-  },
-  {
-    name: "Healing & Recovery",
-    slug: "healing-recovery",
-    count: 3,
-    description: "Recovery research",
-  },
-  {
-    name: "Cosmetic & Skin",
-    slug: "cosmetic-skin",
-    count: 8,
-    description: "Skin research",
-  },
-  {
-    name: "Recon Water",
-    slug: "reconstitution-solution",
-    count: 3,
-    description: "Support items",
-  },
-  {
-    name: "Accessories",
-    slug: "accessories",
-    count: 8,
-    description: "Catalog tools",
-  },
-];
+const fallbackCounts = {
+  Peptides: 19,
+  "Peptide Blends": 9,
+  Raws: 1,
+  "Aminos & Liquids": 13,
+};
 
-function normalizeCategoryKey(value = "") {
-  return String(value || "")
-    .toLowerCase()
-    .replace(/&amp;/g, "and")
-    .replace(/&/g, " and ")
-    .replace(/[^a-z0-9]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function categoryMatches(category, acceptedValues = []) {
-  const keys = [
-    normalizeCategoryKey(category?.name),
-    normalizeCategoryKey(category?.slug),
-  ].filter(Boolean);
-
-  return keys.some((key) => acceptedValues.includes(key));
-}
-
-function isGrowthHormoneCategory(category) {
-  return categoryMatches(category, ["growth hormone"]);
-}
-
-function isResearchPeptidesCategory(category) {
-  return categoryMatches(category, ["research peptides"]);
-}
-
-function isBacteriostaticCategory(category) {
-  return categoryMatches(category, [
-    "bacteriostatic water",
-    "bacteriostatic solution",
-    "bac water",
-    "bac",
-  ]);
-}
+const fallbackCategories = CATALOG_CATEGORIES.slice(1).map((category) => ({
+  name: category.label,
+  href: category.href,
+  count: fallbackCounts[category.label] || 0,
+  description: category.description,
+}));
 
 function prepareCategories(categories) {
-  const safeCategories = Array.isArray(categories)
-    ? categories
-    : fallbackCategories;
-
-  const growthHormoneCount = safeCategories
-    .filter(isGrowthHormoneCategory)
-    .reduce((total, category) => total + Number(category?.count || 0), 0);
-
-  const preparedCategories = safeCategories
-    .filter((category) => !isGrowthHormoneCategory(category))
-    .map((category) => {
-      if (!isBacteriostaticCategory(category)) return category;
-
-      return {
-        ...category,
-        name: "Recon Water",
-        slug: "reconstitution-solution",
-        description: category?.description || "Support items",
-        // Force getCategoryHref() to build the URL from the new slug.
-        href: undefined,
-      };
-    });
-
-  if (growthHormoneCount > 0) {
-    const researchIndex = preparedCategories.findIndex(
-      isResearchPeptidesCategory
-    );
-
-    if (researchIndex >= 0) {
-      preparedCategories[researchIndex] = {
-        ...preparedCategories[researchIndex],
-        count:
-          Number(preparedCategories[researchIndex]?.count || 0) +
-          growthHormoneCount,
-      };
-    } else {
-      preparedCategories.unshift({
-        ...fallbackCategories.find(
-          (category) => category.slug === "research-peptides"
-        ),
-        count: growthHormoneCount,
-      });
-    }
+  if (!Array.isArray(categories) || categories.length === 0) {
+    return fallbackCategories;
   }
 
-  return preparedCategories;
-}
+  const counts = new Map();
 
-const fallbackCategoryMap = new Map(
-  fallbackCategories.flatMap((category) => [
-    [category.name, category],
-    [category.slug, category],
-  ])
-);
+  categories.forEach((category) => {
+    const resolvedCategory =
+      resolveCatalogCategory(category?.name) ||
+      resolveCatalogCategory(category?.slug);
+
+    if (!resolvedCategory || resolvedCategory === "Shop All") return;
+
+    counts.set(
+      resolvedCategory,
+      (counts.get(resolvedCategory) || 0) + Number(category?.count || 0),
+    );
+  });
+
+  return CATALOG_CATEGORIES.slice(1).map((category) => ({
+    name: category.label,
+    href: category.href,
+    count: counts.get(category.label) || 0,
+    description: category.description,
+  }));
+}
 
 function formatCount(count) {
   const total = Number(count || 0);
   return `${total} ${total === 1 ? "item" : "items"}`;
 }
 
-function getCategoryHref(category) {
-  const categoryValue = category.slug || category.name;
-  return category.href || `/shop?category=${encodeURIComponent(categoryValue)}`;
-}
-
 function normalizeCategory(category) {
-  const fallback =
-    fallbackCategoryMap.get(category?.name) ||
-    fallbackCategoryMap.get(category?.slug) ||
-    null;
-
-  const slug = category?.slug || fallback?.slug || category?.name || "category";
-
-  const normalizedCategory = {
-    ...category,
-    name: category?.name || fallback?.name || "Catalog section",
-    slug,
-    count: category?.count ?? fallback?.count ?? 0,
-    description:
-      category?.description || fallback?.description || "Catalog section",
-  };
-
   return {
-    ...normalizedCategory,
-    href: getCategoryHref(normalizedCategory),
+    ...category,
+    name: category?.name || "Catalog section",
+    count: category?.count ?? 0,
+    description: category?.description || "Catalog section",
+    href: category?.href || "/shop",
   };
 }
 

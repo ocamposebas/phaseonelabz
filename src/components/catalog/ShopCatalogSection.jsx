@@ -18,6 +18,11 @@ import {
 } from "lucide-react";
 import { useCart } from "../cart/CartContext";
 import DispatchCutoff from "../shipping/DispatchCutoff";
+import {
+  CATALOG_CATEGORIES,
+  getProductCatalogCategory,
+  resolveCatalogCategory,
+} from "../../lib/catalogTaxonomy";
 
 const RECON_WATER_IDENTIFIERS = new Set([
   "h-recon",
@@ -48,17 +53,7 @@ function isReconWaterProduct(product = {}) {
     );
 }
 
-const categoryFilters = [
-  "All Products",
-  "Accessories",
-  "Recon Water",
-  "Cosmetic & Skin",
-  "Healing & Recovery",
-  "Longevity & Other",
-  "Metabolic Research",
-  "Research Blends",
-  "Research Peptides",
-];
+const categoryFilters = CATALOG_CATEGORIES.map((category) => category.label);
 
 const priceFilters = [
   { label: "Under $50", min: 0, max: 50 },
@@ -301,6 +296,10 @@ function getProductImage(product) {
 }
 
 function getProductCategory(product) {
+  const catalogCategory = getProductCatalogCategory(product);
+
+  if (catalogCategory) return catalogCategory;
+
   const rawCategory =
     getTermValue(product?.category) ||
     (Array.isArray(product?.categories) && product.categories.length > 0
@@ -310,10 +309,8 @@ function getProductCategory(product) {
 
   const normalizedCategory = normalizeCatalogFilterText(rawCategory);
 
-  if (normalizedCategory === "research peptides") return "Research Peptides";
-  if (normalizedCategory === "recon water") {
-    return "Recon Water";
-  }
+  if (normalizedCategory === "research peptides") return "Peptides";
+  if (normalizedCategory === "recon water") return "Aminos & Liquids";
 
   return rawCategory;
 }
@@ -1291,20 +1288,33 @@ function getProductOrderSearchText(product) {
 }
 
 function getCategoryFromUrl() {
-  if (typeof window === "undefined") return "All Products";
+  if (typeof window === "undefined") return "Shop All";
 
   const params = new URLSearchParams(window.location.search);
   const categoryParam = params.get("category");
 
-  if (!categoryParam) return "All Products";
+  if (!categoryParam) return "Shop All";
 
-  const normalizedParam = normalizeCatalogFilterText(categoryParam);
+  return resolveCatalogCategory(categoryParam) || "Shop All";
+}
 
-  const matchedCategory = categoryFilters.find(
-    (category) => normalizeCatalogFilterText(category) === normalizedParam
+function syncCategoryToUrl(category) {
+  if (typeof window === "undefined") return;
+
+  const nextUrl = new URL(window.location.href);
+  const resolvedCategory = resolveCatalogCategory(category) || "Shop All";
+
+  if (resolvedCategory === "Shop All") {
+    nextUrl.searchParams.delete("category");
+  } else {
+    nextUrl.searchParams.set("category", resolvedCategory);
+  }
+
+  window.history.replaceState(
+    window.history.state,
+    "",
+    `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`,
   );
-
-  return matchedCategory || "All Products";
 }
 
 function getPaginationPages(currentPage, totalPages) {
@@ -1380,6 +1390,7 @@ function prepareProductForCatalog(product, activeCatalogDiscountPercent = 0) {
     url,
     tags,
     availability,
+    catalogCategory: getProductCatalogCategory(product),
     orderText,
     categoryTerms,
     searchText,
@@ -1391,14 +1402,11 @@ function prepareProductForCatalog(product, activeCatalogDiscountPercent = 0) {
 }
 
 function productMatchesCategoryMeta(item, activeCategory) {
-  const target = normalizeCatalogFilterText(activeCategory);
+  const target = resolveCatalogCategory(activeCategory) || "Shop All";
 
-  if (!target || target === "all products") return true;
+  if (target === "Shop All") return true;
 
-  return (
-    item.categoryTerms.some((term) => term === target) ||
-    target.split(" ").every((word) => item.searchText.includes(word))
-  );
+  return item.catalogCategory === target;
 }
 
 function isVariableCatalogProduct(product = {}) {
@@ -2782,15 +2790,17 @@ export default function ShopCatalogSection({
   const clearFilters = useCallback(() => {
     setSearchQuery("");
     setDebouncedSearchQuery("");
-    setActiveCategory("All Products");
+    setActiveCategory("Shop All");
     setActivePrice(null);
     setActiveCollection(null);
     setSortBy("popular");
     setCurrentPage(1);
+    syncCategoryToUrl("Shop All");
   }, []);
 
   const handleCategoryChange = useCallback((category) => {
     setActiveCategory(category);
+    syncCategoryToUrl(category);
   }, []);
 
   const handlePriceChange = useCallback((price) => {

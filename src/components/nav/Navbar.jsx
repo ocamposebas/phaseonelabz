@@ -13,25 +13,14 @@ import {
 import { useCart } from "../cart/CartContext";
 import { FREE_SHIPPING_MINIMUM } from "../data/storeConfig";
 import { requestClientLogout } from "../../lib/authClient";
-
-const catalogMenuItems = [
-  { label: "Shop All", href: "/shop" },
-  { label: "Peptides", href: "/shop?category=Peptides" },
-  {
-    label: "Peptide Blends",
-    href: "/shop?category=Peptide%20Blends",
-  },
-  { label: "Raws", href: "/shop?category=Raws" },
-  {
-    label: "Aminos & Liquids",
-    href: "/shop?category=Aminos%20%26%20Liquids",
-  },
-  { label: "Bulk Order", href: "/bulk-orders", isUtility: true },
-];
+import {
+  CATALOG_NAV_ITEMS,
+  getProductCatalogCategory,
+} from "../../lib/catalogTaxonomy";
 
 const navItems = [
   { label: "Home", href: "/" },
-  { label: "Catalog", href: "/shop", children: catalogMenuItems },
+  { label: "Catalog", href: "/shop", children: CATALOG_NAV_ITEMS },
   { label: "COA", href: "/coa" },
   { label: "Track Order", href: "/track-order" },
   { label: "Restocks", href: "/restock-status" },
@@ -198,6 +187,10 @@ function formatStoreCredit(value) {
 }
 
 function getProductCategory(product) {
+  const catalogCategory = getProductCatalogCategory(product);
+
+  if (catalogCategory) return catalogCategory;
+
   if (product?.category) return product.category;
 
   if (Array.isArray(product?.categories) && product.categories.length > 0) {
