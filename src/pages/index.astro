@@ -2,40 +2,19 @@
 export const prerender = false;
 
 import BaseLayout from "../layouts/MainLayout.astro";
-import ShopExperience from "../components/shop/ShopExperience.jsx";
+import StorefrontChrome from "../components/shop/StorefrontChrome.jsx";
+import Hero from "../components/hero/Hero.jsx";
+import ProductCatalog from "../components/catalog/ProductCatalog.jsx";
+import Trust from "../components/hero/TrustSection.jsx";
+import RewardsProgram from "../components/rewards/RewardsProgram.jsx";
+import ShopByCategorySection from "../components/catalog/ShopByCategorySection.jsx";
+import SiteFooter from "../components/footer/SiteFooter.jsx";
+import NewsletterSection from "../components/footer/NewsletterSection.jsx";
+import ReputationSection from "../components/reputation/ReputationSection.jsx";
 import { getSiteControlConfig } from "../lib/siteControl.js";
-import { fetchWooCatalog } from "../lib/wooCatalog.js";
-import "../styles/global.css";
+import "../styles/tailwind-public.css";
 
-const WOO_URL = import.meta.env.WOOCOMMERCE_URL;
-const KEY = import.meta.env.WOOCOMMERCE_CONSUMER_KEY;
-const SECRET = import.meta.env.WOOCOMMERCE_CONSUMER_SECRET;
-
-const siteControlPromise = getSiteControlConfig({ background: import.meta.env.DEV });
-const productsPromise = (async () => {
-  if (!WOO_URL || !KEY || !SECRET) {
-    console.error("=== WOOCOMMERCE ENV ERROR === Missing variables");
-    return [];
-  }
-
-  try {
-    const catalog = await fetchWooCatalog({
-      baseUrl: WOO_URL,
-      consumerKey: KEY,
-      consumerSecret: SECRET,
-    });
-    console.log("=== API SUCCESS === Productos encontrados:", catalog.length);
-    return catalog;
-  } catch (error) {
-    console.error("=== CATCH ERROR ===:", error);
-    return [];
-  }
-})();
-
-const [siteControl, products] = await Promise.all([
-  siteControlPromise,
-  productsPromise,
-]);
+const siteControl = await getSiteControlConfig({ background: true });
 const promoNow = Date.now();
 ---
 
@@ -43,5 +22,17 @@ const promoNow = Date.now();
   title="Research Compounds // Scientific Catalog"
   description="Research-focused catalog experience for laboratory-use compounds with documentation, COA access, and responsible scientific presentation."
 >
-  <ShopExperience products={products} promo={siteControl.promo} promoNow={promoNow} client:load />
+  <StorefrontChrome isHome={true} client:load />
+
+  <div class="pt-0">
+    <Hero promo={siteControl.promo} promoNow={promoNow} client:load />
+    <ShopByCategorySection />
+    <ProductCatalog productsEndpoint="/api/products?limit=100" client:visible />
+    <Trust />
+    <RewardsProgram />
+    <NewsletterSection client:visible />
+    <SiteFooter />
+  </div>
+
+  <ReputationSection client:idle />
 </BaseLayout>

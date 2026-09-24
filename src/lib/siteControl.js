@@ -1,4 +1,5 @@
 const CACHE_TTL_MS = 60_000;
+const FAILURE_RETRY_MS = 15_000;
 
 const state = globalThis.__phaseoneSiteControlState || {
   value: null,
@@ -250,7 +251,9 @@ export async function getSiteControlConfig({ force = false, background = false }
       state.expiresAt = Date.now() + CACHE_TTL_MS;
       return value;
     } catch {
-      return state.value || emptySiteControlConfig();
+      if (!state.value) state.value = emptySiteControlConfig();
+      state.expiresAt = Date.now() + FAILURE_RETRY_MS;
+      return state.value;
     } finally {
       clearTimeout(timeout);
       state.inFlight = null;

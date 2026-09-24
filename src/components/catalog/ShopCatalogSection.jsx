@@ -2460,13 +2460,22 @@ const FilterPanel = memo(function FilterPanel({
 });
 
 export default function ShopCatalogSection({
-  products = [],
+  products: initialProducts = [],
+  productsEndpoint = "/api/products?limit=100",
   productsPerPage = 12,
 }) {
   const cartApi = useCart();
   const addToCart = cartApi?.addToCart;
   const cartItems =
     cartApi?.cartItems || cartApi?.items || cartApi?.cart || [];
+
+  const [products, setProducts] = useState(() =>
+    Array.isArray(initialProducts) ? initialProducts : []
+  );
+  const [catalogLoading, setCatalogLoading] = useState(
+    !Array.isArray(initialProducts) || initialProducts.length === 0
+  );
+  const [catalogLoadError, setCatalogLoadError] = useState("");
 
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
@@ -2478,6 +2487,52 @@ export default function ShopCatalogSection({
   const [currentPage, setCurrentPage] = useState(1);
   const catalogResultsRef = useRef(null);
   const scrollAfterPageChangeRef = useRef(false);
+
+  useEffect(() => {
+    if (products.length > 0 || !productsEndpoint) {
+      setCatalogLoading(false);
+      return undefined;
+    }
+
+    const controller = new AbortController();
+
+    const loadProducts = async () => {
+      try {
+        setCatalogLoading(true);
+        setCatalogLoadError("");
+
+        const response = await fetch(productsEndpoint, {
+          method: "GET",
+          cache: "default",
+          signal: controller.signal,
+          headers: { Accept: "application/json" },
+        });
+
+        if (!response.ok) {
+          throw new Error(`Products request failed: ${response.status}`);
+        }
+
+        const payload = await response.json();
+        const nextProducts = Array.isArray(payload)
+          ? payload
+          : Array.isArray(payload?.products)
+            ? payload.products
+            : [];
+
+        setProducts(nextProducts);
+      } catch (error) {
+        if (error?.name === "AbortError") return;
+        setCatalogLoadError(
+          "The catalog could not be loaded. Please try again shortly."
+        );
+      } finally {
+        if (!controller.signal.aborted) setCatalogLoading(false);
+      }
+    };
+
+    loadProducts();
+    return () => controller.abort();
+  }, [products.length, productsEndpoint]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -2747,141 +2802,84 @@ export default function ShopCatalogSection({
   return (
     <section className="product-catalog-section relative px-3 py-10 text-white sm:px-6 sm:py-14 lg:py-16">
       <div className="mx-auto max-w-7xl">
-        <div className="catalog-hero mb-8 grid items-end gap-6 text-center md:grid-cols-[minmax(0,1fr)_auto] md:gap-10 md:text-left lg:mb-10">
-          <div className="flex max-w-4xl flex-col items-center md:items-start">
-            <div className="mb-4 inline-flex items-center justify-center gap-3 md:justify-start">
-              <span className="h-2 w-2 rounded-full bg-cyan-300 shadow-[0_0_20px_rgba(103,232,249,0.75)]" />
-
-              <span className="text-[9px] font-black uppercase tracking-[0.28em] text-cyan-200/65 sm:text-[10px] sm:tracking-[0.34em]">
-                Shop Catalog
-              </span>
-            </div>
-
-            <h2 className="mx-auto max-w-[520px] text-[38px] font-semibold leading-[1] tracking-[-0.055em] text-white sm:max-w-4xl sm:text-[50px] md:mx-0 lg:text-[54px]">
-              Research products,
-              <span className="text-slate-400"> clearly organized.</span>
+        <header className="catalog-hero mb-8 sm:mb-10">
+          <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between sm:gap-10">
+            <h2 className="max-w-4xl text-[42px] font-semibold leading-[0.94] tracking-[-0.055em] text-white sm:text-[56px] lg:text-[64px]">
+              Browse the research catalog.
             </h2>
 
-            <p className="mx-auto mt-5 max-w-xl text-[13.5px] leading-7 text-slate-300/65 sm:text-sm md:mx-0">
-              Filter products by category, price range, catalog status, and
-              research collection.
-            </p>
-          </div>
-
-          <a
-            href="/bulk-orders"
-            className="group inline-flex min-h-16 w-full items-center justify-between gap-7 rounded-xl border border-white/10 bg-[#071425]/90 px-4 py-3 text-left transition-colors duration-200 hover:border-cyan-200/30 hover:bg-[#0A1A2D] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200 focus-visible:ring-offset-2 focus-visible:ring-offset-[#020817] sm:mx-auto sm:w-auto sm:min-w-[246px] md:mx-0"
-            aria-label="Open the Bulk Orders catalog"
-          >
-            <span>
-              <span className="block text-xs font-semibold text-slate-400">
-                Ordering 10+ units?
-              </span>
-              <span className="mt-1 block text-[15px] font-bold tracking-[-0.01em] text-white transition-colors group-hover:text-cyan-100">
-                Open Bulk Catalog
-              </span>
-            </span>
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-cyan-200/15 bg-cyan-300/[0.08] text-cyan-200 transition-colors duration-200 group-hover:border-cyan-200/30 group-hover:bg-cyan-300/[0.14]">
+            <a
+              href="/coa"
+              className="group inline-flex min-h-11 shrink-0 items-center gap-3 self-end rounded-full border border-cyan-200/20 bg-cyan-300/[0.045] px-5 text-[9px] font-black uppercase tracking-[0.16em] text-cyan-50 transition hover:border-cyan-200/40 hover:bg-cyan-300/[0.09] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200/60"
+            >
+              View COAs
               <ArrowRight
-                size={18}
-                strokeWidth={2.2}
+                size={14}
                 aria-hidden="true"
-                className="transition-transform duration-200 group-hover:translate-x-0.5"
+                className="text-cyan-200/70 transition-transform group-hover:translate-x-0.5"
               />
-            </span>
-          </a>
-        </div>
+            </a>
+          </div>
+        </header>
 
-        <DispatchCutoff variant="catalog" />
+        <div className="catalog-info-rail mb-7 border-y border-cyan-200/10 sm:mb-8">
+          <div className="grid lg:grid-cols-[minmax(0,1.08fr)_minmax(390px,.92fr)] lg:gap-10">
+            <DispatchCutoff variant="catalog-rail" />
 
-        <div className="bundle-summary mb-7 overflow-hidden rounded-[1.35rem] border border-cyan-200/12 bg-[#121E2E]/55 p-4 sm:mb-8 sm:p-5">
-          <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(420px,.9fr)] lg:items-center">
-            <div className="max-w-2xl">
-              <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-cyan-200/12 bg-cyan-300/[0.055] px-3 py-1.5">
-                <Sparkles size={13} className="text-cyan-200" />
-                <span className="text-[8px] font-black uppercase tracking-[0.18em] text-cyan-100/80">
-                  Automatic quantity savings
-                </span>
-              </div>
-
-              <h3 className="text-xl font-semibold tracking-[-0.045em] text-white sm:text-2xl">
-                Add 5 for 10% off. Reach 10 and upgrade to 30% off.
-              </h3>
-
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
-                Every eligible catalog product counts. The discount upgrades
-                automatically at 10 products—the 10% and 30% offers never stack.
-              </p>
-
-              <p className="mt-2 text-sm font-bold leading-6 text-red-400">
-                Items marked as full price do not count toward quantity tiers
-                and never receive the bundle discount.
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-cyan-200/10 bg-[#020617]/35 p-3.5 sm:p-4">
-              <div className="grid grid-cols-2 gap-2.5">
-                {BUNDLE_TIERS.map((tier) => {
-                  const isActive = activeBundleTier?.quantity === tier.quantity;
-                  const isReplaced = tier.quantity === 5 && bundleEligibleProductsCount >= 10;
-                  const remaining = Math.max(0, tier.quantity - bundleEligibleProductsCount);
-
-                  return (
-                    <div
-                      key={tier.quantity}
-                      className={`rounded-xl border px-3 py-3 transition ${
-                        isActive
-                          ? "border-emerald-300/25 bg-emerald-300/[0.08]"
-                          : "border-cyan-200/10 bg-white/[0.025]"
-                      }`}
-                    >
-                      <p className="text-[8px] font-black uppercase tracking-[0.16em] text-slate-500">
-                        Tier {tier.quantity === 5 ? "one" : "two"}
-                      </p>
-                      <p className="mt-1 text-lg font-semibold text-white">
-                        {tier.quantity} products
-                      </p>
-                      <p className={`mt-0.5 text-xs font-bold ${isActive ? "text-emerald-200" : "text-cyan-200/70"}`}>
-                        {tier.discountPercent}% off
-                      </p>
-                      <p className="mt-2 text-[9px] leading-4 text-slate-500">
-                        {isReplaced
-                          ? "Upgraded to the 30% tier."
-                          : isActive
-                            ? "Active in your cart now."
-                            : `${remaining} more product${remaining === 1 ? "" : "s"} needed.`}
-                      </p>
-                    </div>
-                  );
-                })}
-              </div>
-
-              <div className="mt-3 flex items-center justify-between gap-3">
+            <aside className="border-t border-cyan-200/10 py-5 lg:border-l lg:border-t-0 lg:py-5 lg:pl-10">
+              <div className="flex flex-wrap items-center justify-between gap-x-7 gap-y-4">
                 <div>
-                  <p className="text-[8px] font-black uppercase tracking-[0.16em] text-slate-600">
-                    Your progress
+                  <p className="text-[8px] font-black uppercase tracking-[0.2em] text-cyan-100/60">
+                    Quantity savings
                   </p>
-                  <p className="mt-1 text-[11px] font-semibold text-slate-300">
-                    {activeBundleTier?.discountPercent === 30
-                      ? "30% discount active"
-                      : activeBundleTier?.discountPercent === 10
-                        ? `10% active · ${nextBundleTier.quantity - bundleEligibleProductsCount} more to upgrade`
-                        : `${nextBundleTier.quantity - bundleEligibleProductsCount} more to unlock 10%`}
+                  <p className="mt-1.5 text-[13px] font-semibold text-white">
+                    Savings grow with your order.
                   </p>
                 </div>
-                <span className="rounded-full border border-cyan-200/12 bg-white/[0.03] px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.1em] text-cyan-100">
+
+                <div className="flex items-center gap-5 sm:gap-7">
+                  {BUNDLE_TIERS.map((tier) => {
+                    const isActive = activeBundleTier?.quantity === tier.quantity;
+
+                    return (
+                      <div key={tier.quantity} className="whitespace-nowrap">
+                        <p className="text-[9px] font-black uppercase tracking-[0.12em] text-slate-500">
+                          {tier.quantity}+ items
+                        </p>
+                        <p className={`mt-1 text-sm font-bold ${isActive ? "text-emerald-200" : "text-cyan-100/80"}`}>
+                          {tier.discountPercent}% off
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="mt-4 flex items-center justify-between gap-4 text-[9px] font-semibold">
+                <span className="text-slate-400">
+                  {activeBundleTier?.discountPercent === 30
+                    ? "30% discount active"
+                    : activeBundleTier?.discountPercent === 10
+                      ? `${nextBundleTier.quantity - bundleEligibleProductsCount} more to unlock 30%`
+                      : `${nextBundleTier.quantity - bundleEligibleProductsCount} more to unlock 10%`}
+                </span>
+                <span className="tracking-[0.1em] text-cyan-100/75">
                   {Math.min(bundleEligibleProductsCount, 10)}/10
                 </span>
               </div>
 
-              <div className="relative mt-3 h-2 rounded-full bg-white/[0.06]">
+              <div className="relative mt-2.5 h-px bg-white/10">
                 <div
-                  className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-cyan-400 to-emerald-300 transition-all duration-300"
+                  className="absolute -top-px bottom-0 left-0 h-[3px] bg-gradient-to-r from-cyan-400 to-emerald-300 transition-all duration-300"
                   style={{ width: `${bundleProgressWidth}%` }}
                 />
-                <span className="absolute left-1/2 top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border border-cyan-100/70 bg-[#07111f]" />
+                <span className="absolute left-1/2 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-cyan-100/60 bg-[#07111f]" />
               </div>
-            </div>
+
+              <p className="mt-3 text-[9px] leading-4 text-red-300/55">
+                Full-price products are excluded.
+              </p>
+            </aside>
           </div>
         </div>
 
@@ -3023,23 +3021,42 @@ export default function ShopCatalogSection({
               </p>
             </div>
 
-            {filteredItems.length === 0 ? (
+            {catalogLoading ? (
+              <div
+                className="rounded-[1.6rem] border border-cyan-200/10 bg-[#121E2E]/30 p-8 sm:p-10"
+                aria-busy="true"
+                aria-live="polite"
+              >
+                <div className="grid grid-cols-2 gap-3 sm:gap-5 xl:grid-cols-3">
+                  {[0, 1, 2, 3, 4, 5].map((item) => (
+                    <div
+                      key={item}
+                      className="h-72 animate-pulse rounded-[1.2rem] border border-cyan-200/8 bg-white/[0.02]"
+                    />
+                  ))}
+                </div>
+                <span className="sr-only">Loading catalog products</span>
+              </div>
+            ) : filteredItems.length === 0 ? (
               <div className="rounded-[1.6rem] border border-cyan-200/10 bg-[#121E2E]/45 p-8 text-center sm:p-10">
                 <p className="text-xl font-semibold text-white">
-                  No products found
+                  {catalogLoadError ? "Catalog unavailable" : "No products found"}
                 </p>
 
                 <p className="mt-2 text-sm text-slate-500">
-                  Try clearing filters or searching another term.
+                  {catalogLoadError ||
+                    "Try clearing filters or searching another term."}
                 </p>
 
-                <button
-                  type="button"
-                  onClick={clearFilters}
-                  className="mt-6 rounded-2xl border border-cyan-200/15 bg-cyan-300/[0.08] px-5 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-cyan-100 transition hover:border-cyan-200/30 hover:bg-cyan-300/[0.14]"
-                >
-                  Clear Filters
-                </button>
+                {!catalogLoadError && (
+                  <button
+                    type="button"
+                    onClick={clearFilters}
+                    className="mt-6 rounded-2xl border border-cyan-200/15 bg-cyan-300/[0.08] px-5 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-cyan-100 transition hover:border-cyan-200/30 hover:bg-cyan-300/[0.14]"
+                  >
+                    Clear Filters
+                  </button>
+                )}
               </div>
             ) : (
               <>

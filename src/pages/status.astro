@@ -4,6 +4,7 @@ export const prerender = false;
 import StatusLayout from "../layouts/StatusLayout.astro";
 import StatusExperience from "../components/status/StatusExperience.jsx";
 import StatusAccessGate from "../components/status/StatusAccessGate.jsx";
+import "../styles/tailwind-operations.css";
 import { getStatusSnapshot } from "../lib/statusMonitor.js";
 import {
   hasPrivateStatusAccess,

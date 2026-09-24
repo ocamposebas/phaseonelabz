@@ -4,7 +4,12 @@ import { Check, Eye, EyeOff, Loader2, LockKeyhole, ShieldCheck, Sparkles } from 
 
 function getSavedAuthToken() {
   if (typeof window === "undefined") return "";
-  return window.localStorage.getItem("lab_auth_token") || "";
+
+  try {
+    return window.localStorage.getItem("lab_auth_token") || "";
+  } catch {
+    return "";
+  }
 }
 
 function saveAuthToken(token = "") {
@@ -88,7 +93,13 @@ export default function MemberAccessGate({ initialHasSession = false }) {
   };
 
   useEffect(() => {
-    verifySession();
+    const hasSavedSession = initialHasSession || Boolean(getSavedAuthToken());
+
+    if (hasSavedSession) {
+      verifySession();
+    } else {
+      setStatus("unauthenticated");
+    }
 
     return () => window.clearTimeout(exitTimerRef.current);
   }, []);

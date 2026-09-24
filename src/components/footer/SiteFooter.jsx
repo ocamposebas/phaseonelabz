@@ -58,7 +58,7 @@ export default function SiteFooter({
   logoAlt = "Phase One Labz",
 }) {
   return (
-    <footer className="relative px-5 pb-7 pt-10 text-white sm:px-6 sm:pb-8 sm:pt-14">
+    <footer className="phase-footer relative px-5 pb-7 pt-10 text-white sm:px-6 sm:pb-8 sm:pt-14">
       <div className="mx-auto max-w-6xl">
         <div className="h-px w-full bg-white/10" />
 

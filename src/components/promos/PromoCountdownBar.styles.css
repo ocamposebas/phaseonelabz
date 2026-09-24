@@ -601,6 +601,249 @@
           .promo-countdown-product .promo-countdown-unit { min-width: 38px; }
         }
 
+        /* Editorial treatment for product promotions: calmer, clearer, less dashboard-like. */
+        .promo-countdown-product {
+          top: 118px;
+          width: min(calc(100% - 48px), 1240px);
+          border: 1px solid rgba(255, 255, 255, 0.13);
+          border-radius: 18px;
+          background:
+            linear-gradient(110deg, rgba(255, 255, 255, 0.055), transparent 48%),
+            rgba(4, 13, 27, 0.72);
+          box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.12),
+            0 18px 48px rgba(0, 0, 0, 0.26);
+          backdrop-filter: blur(24px) saturate(140%);
+          -webkit-backdrop-filter: blur(24px) saturate(140%);
+        }
+
+        a.promo-countdown-product:hover {
+          border-color: rgba(255, 255, 255, 0.2);
+          box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.15),
+            0 22px 56px rgba(0, 0, 0, 0.3);
+        }
+
+        .promo-countdown-product::before,
+        .promo-countdown-product::after,
+        .promo-countdown-product .promo-countdown-glow,
+        .promo-countdown-product .promo-product-variation,
+        .promo-countdown-product .promo-product-live {
+          display: none;
+        }
+
+        .promo-countdown-product .promo-countdown-content {
+          grid-template-columns: auto minmax(260px, 1fr) auto auto;
+          min-height: 84px;
+          gap: 18px;
+          padding: 12px 14px 12px 18px;
+        }
+
+        .promo-countdown-product .promo-countdown-icon {
+          display: grid;
+          width: 44px;
+          height: 44px;
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          border-radius: 50%;
+          background: rgba(255, 255, 255, 0.04);
+          color: rgba(165, 243, 252, 0.88);
+          filter: none;
+        }
+
+        .promo-countdown-product .promo-countdown-copy {
+          min-width: 0;
+          overflow: hidden;
+        }
+
+        .promo-countdown-product .promo-countdown-copy p {
+          color: rgba(189, 204, 218, 0.7);
+          font-size: 10px;
+          font-weight: 650;
+          letter-spacing: 0.045em;
+          text-transform: none;
+        }
+
+        .promo-countdown-product .promo-countdown-copy h2 {
+          margin-top: 3px;
+          overflow: hidden;
+          background: none;
+          color: rgba(248, 250, 252, 0.96);
+          font-size: clamp(20px, 1.65vw, 24px);
+          font-weight: 680;
+          line-height: 1.05;
+          letter-spacing: -0.035em;
+          text-overflow: ellipsis;
+          text-transform: none;
+          white-space: nowrap;
+          -webkit-text-fill-color: currentColor;
+        }
+
+        .promo-countdown-product .promo-product-details {
+          min-height: 0;
+          gap: 8px;
+          margin-top: 6px;
+        }
+
+        .promo-countdown-product .promo-product-prices {
+          gap: 9px;
+        }
+
+        .promo-countdown-product .promo-product-prices del {
+          color: rgba(190, 204, 218, 0.56);
+          font-size: 11px;
+          font-weight: 550;
+          text-decoration-color: rgba(248, 113, 113, 0.72);
+        }
+
+        .promo-countdown-product .promo-product-prices strong {
+          color: rgba(193, 246, 250, 0.94);
+          font-size: 18px;
+          font-weight: 720;
+          letter-spacing: -0.025em;
+          text-shadow: none;
+        }
+
+        .promo-countdown-product .promo-countdown-timer-wrap {
+          display: flex;
+          min-width: 224px;
+          align-items: center;
+          gap: 12px;
+          border-left: 1px solid rgba(255, 255, 255, 0.1);
+          padding-left: 20px;
+        }
+
+        .promo-countdown-product .promo-countdown-label {
+          justify-content: flex-start;
+          margin: 0;
+          color: rgba(190, 204, 218, 0.66);
+          font-size: 10px;
+          font-weight: 600;
+          letter-spacing: 0;
+          text-transform: none;
+          white-space: nowrap;
+        }
+
+        .promo-countdown-product .promo-countdown-label svg {
+          color: rgba(165, 243, 252, 0.68);
+        }
+
+        .promo-countdown-product .promo-countdown-timer {
+          gap: 5px;
+        }
+
+        .promo-countdown-product .promo-countdown-timer > b {
+          color: rgba(190, 204, 218, 0.38);
+          font-size: 15px;
+          font-weight: 500;
+        }
+
+        .promo-countdown-product .promo-countdown-unit {
+          display: flex;
+          min-width: 0;
+          align-items: baseline;
+          gap: 3px;
+          border: 0;
+          border-radius: 0;
+          background: transparent;
+          padding: 0;
+          box-shadow: none;
+        }
+
+        .promo-countdown-product .promo-countdown-unit strong {
+          color: rgba(245, 249, 252, 0.94);
+          font-size: 19px;
+          font-weight: 680;
+          letter-spacing: -0.035em;
+          text-shadow: none;
+        }
+
+        .promo-countdown-product .promo-countdown-unit span {
+          margin: 0;
+          color: rgba(190, 204, 218, 0.52);
+          font-size: 7px;
+          font-weight: 600;
+          letter-spacing: 0;
+          text-transform: lowercase;
+        }
+
+        .promo-countdown-product .promo-countdown-cta {
+          min-height: 42px;
+          border: 1px solid rgba(255, 255, 255, 0.78);
+          background: rgba(244, 249, 250, 0.94);
+          padding-inline: 18px;
+          color: #07111f;
+          font-size: 11px;
+          font-weight: 700;
+          letter-spacing: 0;
+          text-transform: none;
+        }
+
+        a.promo-countdown-product:hover .promo-product-cta {
+          border-color: #fff;
+          background: #fff;
+        }
+
+        @media (max-width: 900px) {
+          .promo-countdown-product {
+            top: 110px;
+            width: calc(100% - 32px);
+          }
+
+          .promo-countdown-product .promo-countdown-content {
+            grid-template-columns: minmax(0, 1fr) auto;
+            padding-inline: 18px;
+          }
+
+          .promo-countdown-product .promo-countdown-icon,
+          .promo-countdown-product .promo-countdown-cta {
+            display: none;
+          }
+
+          .promo-countdown-product .promo-countdown-timer-wrap {
+            min-width: 210px;
+          }
+        }
+
+        @media (max-width: 640px) {
+          .promo-countdown-product {
+            top: 100px;
+            width: calc(100% - 20px);
+            border-radius: 16px;
+          }
+
+          .promo-countdown-product .promo-countdown-content {
+            grid-template-columns: 1fr;
+            gap: 11px;
+            padding: 14px 16px;
+            text-align: left;
+          }
+
+          .promo-countdown-product .promo-countdown-copy h2 {
+            font-size: 19px;
+          }
+
+          .promo-countdown-product .promo-countdown-timer-wrap {
+            min-width: 0;
+            justify-content: space-between;
+            border-top: 1px solid rgba(255, 255, 255, 0.09);
+            border-left: 0;
+            padding-top: 10px;
+            padding-left: 0;
+          }
+
+          .promo-countdown-product .promo-countdown-timer {
+            gap: 4px;
+          }
+
+          .promo-countdown-product .promo-countdown-unit strong {
+            font-size: 17px;
+          }
+
+          .promo-countdown-product ~ .hero-inner {
+            padding-top: calc(208px + env(safe-area-inset-top)) !important;
+          }
+        }
+
         @media (prefers-reduced-motion: reduce) {
           .promo-countdown-cta, a.promo-countdown-shell { transition: none; }
         }

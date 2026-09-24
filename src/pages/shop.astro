@@ -3,40 +3,16 @@ export const prerender = false;
 
 import BaseLayout from "../layouts/MainLayout.astro";
 import ShopExperience from "../components/shop/ShopPageExperience";
-import { fetchWooCatalog } from "../lib/wooCatalog.js";
-import { getSiteControlConfig } from "../lib/siteControl.js";
-import "../styles/global.css";
-
-const WOO_URL = import.meta.env.WOOCOMMERCE_URL;
-const KEY = import.meta.env.WOOCOMMERCE_CONSUMER_KEY;
-const SECRET = import.meta.env.WOOCOMMERCE_CONSUMER_SECRET;
-
-let products = [];
-const siteControlPromise = getSiteControlConfig({
-  background: import.meta.env.DEV,
-});
-
-try {
-  if (!WOO_URL || !KEY || !SECRET) {
-    console.error("=== WOOCOMMERCE ENV ERROR === Missing variables");
-  } else {
-    products = await fetchWooCatalog({
-      baseUrl: WOO_URL,
-      consumerKey: KEY,
-      consumerSecret: SECRET,
-    });
-    console.log("=== API SUCCESS === Productos encontrados:", products.length);
-  }
-} catch (error) {
-  console.error("=== CATCH ERROR ===:", error);
-}
-
-await siteControlPromise;
+import SiteFooter from "../components/footer/SiteFooter.jsx";
+import NewsletterSection from "../components/footer/NewsletterSection.jsx";
+import "../styles/tailwind-public.css";
 ---
 
 <BaseLayout
   title="Research Compounds // Scientific Catalog"
   description="Research-focused catalog experience for laboratory-use compounds with documentation, COA access, and responsible scientific presentation."
 >
-  <ShopExperience products={products} client:load />
+  <ShopExperience client:load />
+  <NewsletterSection client:visible />
+  <SiteFooter />
 </BaseLayout>

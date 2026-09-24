@@ -1,0 +1,10 @@
+/* Tailwind utilities used only by individual product pages. */
+@import "tailwindcss" source(none);
+
+@source "../pages/product";
+
+@source "../components/cart";
+@source "../components/footer";
+@source "../components/nav";
+@source "../components/product";
+@source "../components/shipping";

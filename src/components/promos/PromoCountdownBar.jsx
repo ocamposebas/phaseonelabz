@@ -82,9 +82,8 @@ export default function PromoCountdownBar({ promo, initialNow = 0 }) {
 
     const refresh = async () => {
       try {
-        const response = await fetch(`/api/site-control?ts=${Date.now()}`, {
+        const response = await fetch("/api/site-control", {
           headers: { Accept: "application/json" },
-          cache: "no-store",
         });
         const data = await response.json();
         if (active && response.ok && data?.promo) setCurrentPromo(data.promo);
@@ -112,7 +111,9 @@ export default function PromoCountdownBar({ promo, initialNow = 0 }) {
       scheduleRefresh(0);
     };
 
-    scheduleRefresh();
+    // The SSR path intentionally never waits for WordPress on a cold process.
+    // Hydration fills the promotion from the short-lived edge cache instead.
+    scheduleRefresh(0);
     document.addEventListener("visibilitychange", onVisibility);
 
     return () => {
@@ -196,7 +197,13 @@ export default function PromoCountdownBar({ promo, initialNow = 0 }) {
         </div>
 
         <div className="promo-countdown-copy">
-          <p>{isSimpleGifts ? "Sitewide + gifts" : currentPromo.eyebrow}</p>
+          <p>
+            {isSimpleGifts
+              ? "Sitewide + gifts"
+              : isProductPromo
+                ? "Limited offer"
+                : currentPromo.eyebrow}
+          </p>
           <h2>
             {isSimpleGifts
               ? currentPromo.simpleGifts.sitewideLabel
@@ -258,7 +265,7 @@ export default function PromoCountdownBar({ promo, initialNow = 0 }) {
         <div className="promo-countdown-timer-wrap">
           <div className="promo-countdown-label">
             <Timer size={13} aria-hidden="true" />
-            Offer ends in
+            Ends in
           </div>
 
           <div className="promo-countdown-timer" aria-live="off">

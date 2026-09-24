@@ -25,7 +25,7 @@ const RewardStep = memo(function RewardStep({ step, index }) {
 
 export default function RewardsProgram() {
   return (
-    <section className="rewards-section relative overflow-hidden px-6 py-12 text-white sm:py-16 lg:py-20">
+    <section className="rewards-section phase-band phase-band--cobalt relative overflow-hidden px-6 py-12 text-white sm:py-16 lg:py-20">
       <div className="rewards-bg" aria-hidden="true" />
 
       <div className="rewards-layout relative mx-auto max-w-6xl">

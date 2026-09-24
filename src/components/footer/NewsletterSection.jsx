@@ -47,7 +47,7 @@ export default function NewsletterSection() {
   };
 
   return (
-    <section className="relative overflow-hidden px-6 py-12 text-white sm:py-14 lg:py-16">
+    <section className="newsletter-section phase-band phase-band--petrol-soft relative overflow-hidden px-6 py-12 text-white sm:py-14 lg:py-16">
       <div className="relative mx-auto max-w-7xl">
         <div className="relative z-10 mx-auto max-w-5xl border-y border-white/10 bg-transparent py-8 text-white sm:py-10">
           <div className="relative grid gap-5 lg:grid-cols-[0.95fr_1.05fr] lg:items-center">

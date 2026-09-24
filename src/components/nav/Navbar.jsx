@@ -1,13 +1,37 @@
 import "./navbar.css";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, Menu, Search, ShoppingCart, User, X, LogOut } from "lucide-react";
+import {
+  ArrowRight,
+  ChevronDown,
+  Menu,
+  Search,
+  ShoppingCart,
+  User,
+  X,
+  LogOut,
+} from "lucide-react";
 import { useCart } from "../cart/CartContext";
 import { FREE_SHIPPING_MINIMUM } from "../data/storeConfig";
 import { requestClientLogout } from "../../lib/authClient";
 
+const catalogMenuItems = [
+  { label: "Shop All", href: "/shop" },
+  { label: "Peptides", href: "/shop?category=Peptides" },
+  {
+    label: "Peptide Blends",
+    href: "/shop?category=Peptide%20Blends",
+  },
+  { label: "Raws", href: "/shop?category=Raws" },
+  {
+    label: "Aminos & Liquids",
+    href: "/shop?category=Aminos%20%26%20Liquids",
+  },
+  { label: "Bulk Order", href: "/bulk-orders", isUtility: true },
+];
+
 const navItems = [
   { label: "Home", href: "/" },
-  { label: "Catalog", href: "/shop" },
+  { label: "Catalog", href: "/shop", children: catalogMenuItems },
   { label: "COA", href: "/coa" },
   { label: "Track Order", href: "/track-order" },
   { label: "Restocks", href: "/restock-status" },
@@ -133,6 +157,35 @@ function getAccountStoreCredit(account) {
   return Number(
     account?.store_credit || account?.storeCredit || account?.credit || 0
   );
+}
+
+function getAccountDisplayName(account) {
+  const firstName = String(
+    account?.firstName || account?.first_name || ""
+  ).trim();
+  const lastName = String(
+    account?.lastName || account?.last_name || ""
+  ).trim();
+  const fullName = [firstName, lastName].filter(Boolean).join(" ");
+  const emailName = String(account?.email || "")
+    .split("@")[0]
+    .replace(/[._-]+/g, " ")
+    .trim();
+
+  return String(
+    account?.name || account?.displayName || fullName || emailName || "Customer"
+  ).trim();
+}
+
+function getAccountInitials(account) {
+  const words = getAccountDisplayName(account)
+    .match(/[\p{L}\p{N}]+/gu)
+    ?.filter(Boolean);
+
+  if (!words?.length) return "C";
+  if (words.length === 1) return words[0].slice(0, 1).toUpperCase();
+
+  return `${words[0][0]}${words[words.length - 1][0]}`.toUpperCase();
 }
 
 function formatStoreCredit(value) {
@@ -429,10 +482,18 @@ export default function SiteHeader({
 
     let rafId = 0;
     let activeMode = "top";
+    const ENTER_COMPACT_AT = 84;
+    const EXIT_COMPACT_AT = 20;
 
     const updateMode = () => {
       const currentY = Math.max(window.scrollY || 0, 0);
-      const nextMode = currentY <= 28 ? "top" : "compact";
+      let nextMode = activeMode;
+
+      if (activeMode === "top" && currentY >= ENTER_COMPACT_AT) {
+        nextMode = "compact";
+      } else if (activeMode === "compact" && currentY <= EXIT_COMPACT_AT) {
+        nextMode = "top";
+      }
 
       if (activeMode !== nextMode) {
         activeMode = nextMode;
@@ -491,6 +552,8 @@ export default function SiteHeader({
   const showGlass = !isTop || mobileOpen || searchExpanded;
 
   const isLoggedIn = Boolean(account);
+  const accountDisplayName = getAccountDisplayName(account);
+  const accountInitials = getAccountInitials(account);
   const storeCreditBalance = getAccountStoreCredit(account);
 
   const openCart = () => {
@@ -549,6 +612,8 @@ export default function SiteHeader({
                 className="sh-mobile-toggle"
                 onClick={() => setMobileOpen(true)}
                 aria-label="Open menu"
+                aria-expanded={mobileOpen}
+                aria-controls="site-mobile-navigation"
               >
                 <Menu size={27} />
               </button>
@@ -563,6 +628,54 @@ export default function SiteHeader({
                     currentPath === item.href ||
                     (item.href !== "/" &&
                       currentPath.startsWith(item.href + "/"));
+
+                  if (item.children) {
+                    return (
+                      <div className="sh-nav-item sh-nav-item-catalog" key={item.label}>
+                        <a
+                          href={item.href}
+                          className={`sh-link sh-link-catalog ${
+                            isActive ? "is-active" : ""
+                          }`}
+                          aria-current={isActive ? "page" : undefined}
+                          aria-haspopup="true"
+                        >
+                          {item.label}
+                          <ChevronDown size={14} aria-hidden="true" />
+                        </a>
+
+                        <div className="sh-catalog-dropdown">
+                          <div className="sh-catalog-dropdown-head">
+                            <span>Browse catalog</span>
+                            <small>Research collections</small>
+                          </div>
+
+                          <div
+                            className="sh-catalog-dropdown-list"
+                            aria-label="Catalog categories"
+                          >
+                            {item.children.map((category, index) => (
+                              <a
+                                href={category.href}
+                                className={
+                                  category.isUtility
+                                    ? "sh-catalog-dropdown-item is-utility"
+                                    : "sh-catalog-dropdown-item"
+                                }
+                                key={category.label}
+                              >
+                                <span className="sh-catalog-dropdown-index">
+                                  {String(index + 1).padStart(2, "0")}
+                                </span>
+                                <span>{category.label}</span>
+                                <ArrowRight size={14} aria-hidden="true" />
+                              </a>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
 
                   return (
                     <a
@@ -690,10 +803,22 @@ export default function SiteHeader({
                 <div className="sh-user-menu">
                   <a
                     href="/account"
-                    aria-label="Account"
-                    className="sh-icon sh-user-icon"
+                    aria-label={
+                      isLoggedIn
+                        ? `Account for ${accountDisplayName}`
+                        : "Account"
+                    }
+                    className={`sh-icon sh-user-icon${
+                      isLoggedIn ? " is-authenticated" : ""
+                    }`}
                   >
-                    <User size={24} />
+                    {isLoggedIn ? (
+                      <span className="sh-user-avatar" aria-hidden="true">
+                        {accountInitials}
+                      </span>
+                    ) : (
+                      <User size={24} aria-hidden="true" />
+                    )}
                   </a>
 
                   <div className="sh-user-dropdown">
@@ -703,7 +828,7 @@ export default function SiteHeader({
                       <span>
                         {isLoggedIn ? (
                           <>
-                            Signed in as {account?.name || "customer"}.
+                            Signed in as {accountDisplayName}.
                             <strong className="sh-user-balance">
                               Store balance:{" "}
                               {formatStoreCredit(storeCreditBalance)}
@@ -751,26 +876,34 @@ export default function SiteHeader({
                   </div>
                 </div>
 
-                {showCart && <button
-                  type="button"
-                  aria-label="Open cart"
-                  className="sh-icon sh-cart"
-                  onClick={openCart}
-                >
-                  <ShoppingCart size={25} />
-                  <span suppressHydrationWarning>{safeCartCount}</span>
-                </button>}
+                {showCart && (
+                  <button
+                    type="button"
+                    aria-label="Open cart"
+                    className="sh-icon sh-cart"
+                    onClick={openCart}
+                  >
+                    <ShoppingCart size={25} />
+                    {safeCartCount > 0 && (
+                      <span suppressHydrationWarning>{safeCartCount}</span>
+                    )}
+                  </button>
+                )}
               </div>
 
-              {showCart && <button
-                type="button"
-                aria-label="Open cart"
-                className="sh-mobile-cart"
-                onClick={openCart}
-              >
-                <ShoppingCart size={24} />
-                <span suppressHydrationWarning>{safeCartCount}</span>
-              </button>}
+              {showCart && (
+                <button
+                  type="button"
+                  aria-label="Open cart"
+                  className="sh-mobile-cart"
+                  onClick={openCart}
+                >
+                  <ShoppingCart size={24} />
+                  {safeCartCount > 0 && (
+                    <span suppressHydrationWarning>{safeCartCount}</span>
+                  )}
+                </button>
+              )}
             </nav>
           </div>
         </div>
@@ -785,7 +918,13 @@ export default function SiteHeader({
             aria-label="Close menu"
           />
 
-          <aside className="sh-mobile-panel">
+          <aside
+            id="site-mobile-navigation"
+            className="sh-mobile-panel"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Site navigation"
+          >
             <div className="sh-mobile-glow" />
 
             <div className="sh-mobile-top">
@@ -815,6 +954,41 @@ export default function SiteHeader({
                   (item.href !== "/" &&
                     currentPath.startsWith(item.href + "/"));
 
+                if (item.children) {
+                  return (
+                    <details
+                      className={`sh-mobile-catalog${
+                        isActive ? " is-active" : ""
+                      }`}
+                      key={item.label}
+                    >
+                      <summary>
+                        <span>{item.label}</span>
+                        <ChevronDown size={16} aria-hidden="true" />
+                      </summary>
+
+                      <div className="sh-mobile-catalog-list">
+                        {item.children.map((category, index) => (
+                          <a
+                            href={category.href}
+                            className={
+                              category.isUtility ? "is-utility" : undefined
+                            }
+                            key={category.label}
+                            onClick={() => setMobileOpen(false)}
+                          >
+                            <span className="sh-mobile-catalog-index">
+                              {String(index + 1).padStart(2, "0")}
+                            </span>
+                            <span>{category.label}</span>
+                            <ArrowRight size={14} aria-hidden="true" />
+                          </a>
+                        ))}
+                      </div>
+                    </details>
+                  );
+                }
+
                 return (
                   <a
                     href={item.href}
@@ -836,7 +1010,9 @@ export default function SiteHeader({
                     className="sh-mobile-account-start"
                     onClick={() => setMobileOpen(false)}
                   >
-                    <User size={16} aria-hidden="true" />
+                    <span className="sh-mobile-account-avatar" aria-hidden="true">
+                      {accountInitials}
+                    </span>
                     View profile
                     <ArrowRight className="sh-mobile-account-arrow" size={16} aria-hidden="true" />
                   </a>
@@ -931,13 +1107,13 @@ export default function SiteHeader({
             </div>
 
             <div className="sh-mobile-note">
-              <p>{isLoggedIn ? "Account Active" : "Grand Opening"}</p>
+              <p>{isLoggedIn ? "Account Active" : "Phase One standard"}</p>
               <span>
                 {isLoggedIn
                   ? `${account?.points || 0} reward points · ${formatStoreCredit(
                       storeCreditBalance
                     )} store balance.`
-                  : `Opening savings, free shipping over $${FREE_SHIPPING_MINIMUM}, and no extra card fees.`}
+                  : "Documented batches, transparent standards, and a catalog built for serious research."}
               </span>
             </div>
 

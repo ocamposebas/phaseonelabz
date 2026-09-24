@@ -1,0 +1,20 @@
+/* Tailwind utilities used by checkout and operational support routes. */
+@import "tailwindcss" source(none);
+
+@source "../pages/bank-transfer-redirect.astro";
+@source "../pages/bulk-orders.astro";
+@source "../pages/checkout.astro";
+@source "../pages/checkout";
+@source "../pages/restock-status.astro";
+@source "../pages/status.astro";
+@source "../pages/track-order.astro";
+
+@source "../components/bulk";
+@source "../components/cart";
+@source "../components/checkout";
+@source "../components/footer";
+@source "../components/nav";
+@source "../components/order";
+@source "../components/restock";
+@source "../components/shipping";
+@source "../components/status";

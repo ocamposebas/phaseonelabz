@@ -3,244 +3,74 @@ export const prerender = false;
 
 import BaseLayout from "../../layouts/MainLayout.astro";
 import ProductDetailExperience from "../../components/product/ProductDetailExperience.jsx";
-import { fetchWooCatalog } from "../../lib/wooCatalog.js";
-import "../../styles/global.css";
+import { getProductPageData } from "../../lib/productPageData.js";
+import "../../styles/tailwind-product.css";
 
-const { slug } = Astro.params;
-
-const WOO_URL = import.meta.env.WOOCOMMERCE_URL;
-const KEY = import.meta.env.WOOCOMMERCE_CONSUMER_KEY;
-const SECRET = import.meta.env.WOOCOMMERCE_CONSUMER_SECRET;
-const PRODUCT_PAGE_CACHE_TTL_MS = 30_000;
-
-const productPageState = globalThis.__phaseoneProductPageState || {
-  entries: new Map(),
-  inFlight: new Map(),
-};
-
-globalThis.__phaseoneProductPageState = productPageState;
+const { slug = "" } = Astro.params;
+const EDGE_LOOKUP_TIMEOUT_MS = 5_000;
 
 let product = null;
 let recommendedProducts = [];
 let error = "";
 
-function cleanWooUrl(value = "") {
-  return String(value || "").replace(/\/$/, "");
-}
-
-function hasWooConfig() {
-  return Boolean(WOO_URL && KEY && SECRET);
-}
-
-function getCleanUrl() {
-  return cleanWooUrl(WOO_URL);
-}
-
-async function fetchWooProducts(params = {}) {
-  if (!hasWooConfig()) {
-    throw new Error("Missing WooCommerce environment variables.");
-  }
-
-  const cleanUrl = getCleanUrl();
-  const url = new URL(`${cleanUrl}/wp-json/wc/v3/products`);
-
-  url.searchParams.set("consumer_key", KEY);
-  url.searchParams.set("consumer_secret", SECRET);
-
-  Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && value !== "") {
-      url.searchParams.set(key, String(value));
-    }
-  });
-
-  const response = await fetch(url.toString(), {
-    headers: {
-      Accept: "application/json",
-      "User-Agent": "Phase One Product Page",
-    },
-  });
-
-  let data = null;
-
-  try {
-    data = await response.json();
-  } catch {
-    data = null;
-  }
-
-  if (!response.ok) {
-    throw new Error(data?.message || `WooCommerce error: ${response.status}`);
-  }
-
-  return Array.isArray(data) ? data : [];
-}
-
-async function fetchWooProductVariations(productId) {
-  if (!hasWooConfig()) {
-    throw new Error("Missing WooCommerce environment variables.");
-  }
-
-  if (!productId) {
-    return [];
-  }
-
-  const cleanUrl = getCleanUrl();
-  const url = new URL(
-    `${cleanUrl}/wp-json/wc/v3/products/${productId}/variations`
+async function loadProductDataFromEdge(productSlug) {
+  const endpoint = new URL(
+    `/api/product/${encodeURIComponent(productSlug)}`,
+    Astro.url.origin,
   );
-
-  url.searchParams.set("consumer_key", KEY);
-  url.searchParams.set("consumer_secret", SECRET);
-  url.searchParams.set("per_page", "100");
-  url.searchParams.set("status", "publish");
-
-  const response = await fetch(url.toString(), {
-    headers: {
-      Accept: "application/json",
-      "User-Agent": "Phase One Product Variations",
-    },
-  });
-
-  let data = null;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), EDGE_LOOKUP_TIMEOUT_MS);
 
   try {
-    data = await response.json();
-  } catch {
-    data = null;
-  }
-
-  if (!response.ok) {
-    throw new Error(
-      data?.message || `WooCommerce variations error: ${response.status}`
-    );
-  }
-
-  return Array.isArray(data) ? data : [];
-}
-
-async function hydrateProductWithVariations(currentProduct) {
-  if (!currentProduct?.id) {
-    return currentProduct;
-  }
-
-  const productType = String(currentProduct?.type || "").toLowerCase();
-
-  const hasVariationIds =
-    Array.isArray(currentProduct?.variations) &&
-    currentProduct.variations.length > 0;
-
-  const alreadyHasVariationObjects =
-    hasVariationIds &&
-    currentProduct.variations.some(
-      (variation) => variation && typeof variation === "object"
-    );
-
-  if (productType !== "variable" && !hasVariationIds) {
-    return currentProduct;
-  }
-
-  if (alreadyHasVariationObjects) {
-    return currentProduct;
-  }
-
-  try {
-    const variations = await fetchWooProductVariations(currentProduct.id);
-
-    return {
-      ...currentProduct,
-      variations,
-    };
-  } catch (variationError) {
-    console.error("Could not load product variations:", variationError);
-
-    return {
-      ...currentProduct,
-      variations: [],
-      variation_load_error:
-        variationError?.message || "Could not load product variations.",
-    };
-  }
-}
-
-async function loadProductPageData(productSlug) {
-  const cacheKey = String(productSlug || "").toLowerCase();
-  const cached = productPageState.entries.get(cacheKey);
-
-  if (cached && Date.now() < cached.expiresAt) return cached.value;
-  if (productPageState.inFlight.has(cacheKey)) {
-    return productPageState.inFlight.get(cacheKey);
-  }
-
-  const request = (async () => {
-    const catalogPromise = fetchWooCatalog({
-      baseUrl: WOO_URL,
-      consumerKey: KEY,
-      consumerSecret: SECRET,
-    }).catch((catalogError) => {
-      console.error("Could not load recommended products:", catalogError);
-      return [];
+    const response = await fetch(endpoint, {
+      headers: {
+        Accept: "application/json",
+        "User-Agent": "Phase One Product Page/2.0",
+      },
+      signal: controller.signal,
     });
-    const foundProducts = await fetchWooProducts({
-      slug: productSlug,
-      status: "publish",
-      per_page: 1,
-    });
-    const currentProduct = foundProducts[0] || null;
+    const payload = await response.json().catch(() => null);
 
-    if (!currentProduct) {
+    if (response.status === 404) {
       return { product: null, recommendedProducts: [] };
     }
 
-    const [hydratedProduct, catalogProducts] = await Promise.all([
-      hydrateProductWithVariations(currentProduct),
-      catalogPromise,
-    ]);
-    const value = {
-      product: hydratedProduct,
-      recommendedProducts: catalogProducts.filter(
-        (item) => String(item?.id || "") !== String(hydratedProduct?.id || "")
-      ),
+    if (!response.ok || !payload?.product) {
+      throw new Error(payload?.error || `Product cache returned ${response.status}.`);
+    }
+
+    return {
+      product: payload.product,
+      recommendedProducts: Array.isArray(payload.recommendedProducts)
+        ? payload.recommendedProducts
+        : [],
     };
-
-    productPageState.entries.set(cacheKey, {
-      value,
-      expiresAt: Date.now() + PRODUCT_PAGE_CACHE_TTL_MS,
-    });
-
-    return value;
-  })()
-    .catch((requestError) => {
-      if (cached?.value?.product) return cached.value;
-      throw requestError;
-    })
-    .finally(() => {
-      productPageState.inFlight.delete(cacheKey);
-    });
-
-  productPageState.inFlight.set(cacheKey, request);
-  return request;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 try {
-  if (!hasWooConfig()) {
-    error = "Missing WooCommerce environment variables.";
-  } else {
-    const pageData = await loadProductPageData(slug);
-    product = pageData.product;
-    recommendedProducts = pageData.recommendedProducts;
-  }
-} catch (err) {
-  error = err.message || "Failed to load product.";
+  // Production goes through a separately cacheable data route. Development
+  // calls the shared loader directly so Astro's local server never self-fetches.
+  const pageData = import.meta.env.DEV
+    ? await getProductPageData(slug)
+    : await loadProductDataFromEdge(slug).catch(async (edgeError) => {
+        console.warn("Product edge lookup failed; using origin cache.", edgeError);
+        return getProductPageData(slug);
+      });
+
+  product = pageData.product;
+  recommendedProducts = pageData.recommendedProducts;
+} catch (requestError) {
+  error = requestError?.message || "Failed to load product.";
 }
 
-if (!product && !error) {
-  error = "Product not found.";
-}
+if (!product && !error) error = "Product not found.";
 
 const pageTitle = product
   ? `${product.name} // Phase One Labz`
   : "Product Not Found";
-
 const pageDescription =
   product?.short_description
     ?.replace(/<[^>]+>/g, " ")

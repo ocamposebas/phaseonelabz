@@ -1064,17 +1064,6 @@
           background: transparent;
         }
 
-        .catalog-hero {
-          margin-bottom: 28px;
-        }
-
-        .bundle-summary {
-          border-radius: 16px;
-          border-color: rgba(255, 255, 255, 0.075);
-          background: transparent;
-          box-shadow: none;
-        }
-
         .product-float-card {
           border-radius: 18px;
           border-color: rgba(255, 255, 255, 0.075);

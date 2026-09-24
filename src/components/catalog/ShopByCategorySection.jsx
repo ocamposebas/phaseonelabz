@@ -1,16 +1,6 @@
 import "./ShopByCategorySection.styles.css";
 import { memo, useMemo } from "react";
-import {
-  ArrowUpRight,
-  Beaker,
-  Droplets,
-  FlaskConical,
-  Layers3,
-  PackageCheck,
-  ShieldPlus,
-  Sparkles,
-  WandSparkles,
-} from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 
 const fallbackCategories = [
   {
@@ -18,56 +8,48 @@ const fallbackCategories = [
     slug: "research-peptides",
     count: 1,
     description: "Core catalog",
-    icon: FlaskConical,
   },
   {
     name: "Research Blends",
     slug: "research-blends",
     count: 9,
     description: "Stacked formulas",
-    icon: Layers3,
   },
   {
     name: "Metabolic Research",
     slug: "metabolic-research",
     count: 2,
     description: "Metabolic focus",
-    icon: Sparkles,
   },
   {
     name: "Longevity & Other",
     slug: "longevity-other",
     count: 11,
     description: "Extended catalog",
-    icon: ShieldPlus,
   },
   {
     name: "Healing & Recovery",
     slug: "healing-recovery",
     count: 3,
     description: "Recovery research",
-    icon: Beaker,
   },
   {
     name: "Cosmetic & Skin",
     slug: "cosmetic-skin",
     count: 8,
     description: "Skin research",
-    icon: WandSparkles,
   },
   {
     name: "Recon Water",
     slug: "reconstitution-solution",
     count: 3,
     description: "Support items",
-    icon: Droplets,
   },
   {
     name: "Accessories",
     slug: "accessories",
     count: 8,
     description: "Catalog tools",
-    icon: PackageCheck,
   },
 ];
 
@@ -126,7 +108,6 @@ function prepareCategories(categories) {
         name: "Recon Water",
         slug: "reconstitution-solution",
         description: category?.description || "Support items",
-        icon: category?.icon || Droplets,
         // Force getCategoryHref() to build the URL from the new slug.
         href: undefined,
       };
@@ -189,7 +170,6 @@ function normalizeCategory(category) {
     count: category?.count ?? fallback?.count ?? 0,
     description:
       category?.description || fallback?.description || "Catalog section",
-    icon: category?.icon || fallback?.icon || FlaskConical,
   };
 
   return {
@@ -198,97 +178,100 @@ function normalizeCategory(category) {
   };
 }
 
-const CategoryCard = memo(function CategoryCard({ category }) {
-  const Icon = category.icon;
-
+const CategoryRow = memo(function CategoryRow({ category, index }) {
   return (
-    <a href={category.href} className="category-card group">
-      <div className="relative z-10">
-        <div className="mb-5 flex items-start justify-between gap-3">
-          <div className="category-icon">
-            <Icon size={20} aria-hidden="true" />
-          </div>
+    <a href={category.href} className="category-row group">
+      <span className="category-index" aria-hidden="true">
+        {String(index + 1).padStart(2, "0")}
+      </span>
 
-          <span className="category-arrow" aria-hidden="true">
-            <ArrowUpRight size={15} />
-          </span>
-        </div>
-
-        <div className="mb-4">
-          <p className="mb-2 text-[8px] font-black uppercase tracking-[0.2em] text-cyan-200/55 sm:text-[9px]">
-            {formatCount(category.count)}
-          </p>
-
-          <h3 className="min-h-[38px] text-[16px] font-semibold leading-[1.08] tracking-[-0.035em] text-white sm:min-h-[44px] sm:text-[20px]">
-            {category.name}
-          </h3>
-
-          <p className="category-description mt-2 truncate text-[12px] font-medium text-slate-400 sm:text-[13px]">
-            {category.description}
-          </p>
-        </div>
-
-        <div className="h-px w-full bg-gradient-to-r from-cyan-200/18 via-cyan-200/6 to-transparent" />
-
-        <div className="category-meta mt-4 flex items-center justify-between gap-3">
-          <span className="text-[9px] font-black uppercase tracking-[0.18em] text-cyan-200/62">
-            Explore
-          </span>
-
-          <span className="category-dot" aria-hidden="true" />
-        </div>
+      <div className="category-row-copy">
+        <h3>{category.name}</h3>
+        <p>{category.description}</p>
       </div>
+
+      <span className="category-count">{formatCount(category.count)}</span>
+
+      <span className="category-arrow" aria-hidden="true">
+        <ArrowUpRight size={18} />
+      </span>
     </a>
   );
 });
 
 export default function ShopByCategorySection({
   categories = fallbackCategories,
-  eyebrow = "Catalog sections",
-  titleTop = "Browse research",
-  titleBottom = "by category.",
-  subtitle = "Explore products by research focus, support items, and specialized catalog groups.",
+  eyebrow = "Research catalog",
+  titleTop = "Find the right",
+  titleBottom = "research collection.",
+  subtitle = "A focused index of compounds and laboratory essentials, organized for faster and clearer browsing.",
 }) {
   const normalizedCategories = useMemo(
     () => prepareCategories(categories).map(normalizeCategory),
     [categories]
   );
+  const totalProducts = useMemo(
+    () =>
+      normalizedCategories.reduce(
+        (total, category) => total + Number(category.count || 0),
+        0
+      ),
+    [normalizedCategories]
+  );
 
   return (
-    <section className="category-section relative overflow-hidden px-6 py-12 text-white sm:py-14 lg:py-16">
+    <section
+      id="research-categories"
+      className="category-section phase-band phase-band--petrol relative overflow-hidden px-5 py-16 text-white sm:px-6 sm:py-20 lg:py-28"
+    >
       <div className="category-bg" aria-hidden="true" />
 
-      <div className="relative mx-auto max-w-6xl">
-        <div className="category-heading mb-8 grid gap-5 border-b border-cyan-200/10 pb-7 md:grid-cols-[minmax(0,0.9fr)_minmax(280px,0.55fr)] md:items-end md:gap-12 lg:mb-9">
-          <div>
-            <div className="mb-3 inline-flex items-center gap-3">
-              <span className="h-px w-7 bg-cyan-300/70" />
-
-              <span className="text-[9px] font-black uppercase tracking-[0.28em] text-cyan-200/65 sm:text-[10px] sm:tracking-[0.32em]">
-                {eyebrow}
-              </span>
-            </div>
-
-            <h2 className="max-w-[520px] text-[34px] font-semibold leading-[0.98] tracking-[-0.065em] text-white sm:text-[42px] lg:text-[48px] lg:tracking-[-0.055em]">
-              {titleTop}{" "}
-              <span className="text-cyan-200/85">{titleBottom}</span>
-            </h2>
+      <div className="category-shell relative mx-auto max-w-7xl">
+        <div className="category-intro">
+          <div className="category-eyebrow">
+            <span aria-hidden="true" />
+            <p>{eyebrow}</p>
           </div>
 
-          <p className="max-w-lg text-[13.5px] leading-7 text-slate-300/65 sm:text-[14px] md:justify-self-end">
-            {subtitle}
+          <h2>
+            <span>{titleTop}</span>
+            <span>{titleBottom}</span>
+          </h2>
+
+          <p className="category-subtitle">{subtitle}</p>
+
+          <div className="category-intro-footer">
+            <a href="/shop" className="category-all-link">
+              View full catalog
+              <ArrowUpRight size={17} aria-hidden="true" />
+            </a>
+
+            <span>
+              {totalProducts} products across {normalizedCategories.length} collections
+            </span>
+          </div>
+        </div>
+
+        <div className="category-directory">
+          <div className="category-directory-head" aria-hidden="true">
+            <span>Collection index</span>
+            <span>Availability</span>
+          </div>
+
+          <div className="category-list">
+            {normalizedCategories.map((category, index) => (
+              <CategoryRow
+                key={category.slug || category.name}
+                category={category}
+                index={index}
+              />
+            ))}
+          </div>
+
+          <p className="category-disclaimer">
+            Laboratory research catalog only.
           </p>
         </div>
-
-        <div className="category-grid grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
-          {normalizedCategories.map((category) => (
-            <CategoryCard key={category.slug || category.name} category={category} />
-          ))}
-        </div>
-
-        <p className="mt-6 text-center text-[9px] font-bold uppercase tracking-[0.18em] text-slate-500 sm:mt-7 md:text-left">
-          Laboratory research catalog only.
-        </p>
       </div>
     </section>
   );

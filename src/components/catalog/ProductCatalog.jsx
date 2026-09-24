@@ -1,5 +1,5 @@
 import "./ProductCatalog.styles.css";
-import { memo, useCallback, useMemo } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowRight, ShoppingBag } from "lucide-react";
 
 const featuredProductRules = [
@@ -284,7 +284,62 @@ const ProductCard = memo(function ProductCard({ item }) {
   );
 });
 
-export default function ProductCatalog({ products = [] }) {
+export default function ProductCatalog({
+  products: initialProducts = [],
+  productsEndpoint = "/api/products?limit=100",
+}) {
+  const [products, setProducts] = useState(() =>
+    Array.isArray(initialProducts) ? initialProducts : []
+  );
+  const [catalogLoading, setCatalogLoading] = useState(
+    !Array.isArray(initialProducts) || initialProducts.length === 0
+  );
+  const [catalogError, setCatalogError] = useState("");
+
+  useEffect(() => {
+    if (products.length > 0 || !productsEndpoint) {
+      setCatalogLoading(false);
+      return undefined;
+    }
+
+    const controller = new AbortController();
+
+    const loadProducts = async () => {
+      try {
+        setCatalogLoading(true);
+        setCatalogError("");
+
+        const response = await fetch(productsEndpoint, {
+          method: "GET",
+          cache: "default",
+          signal: controller.signal,
+          headers: { Accept: "application/json" },
+        });
+
+        if (!response.ok) {
+          throw new Error(`Products request failed: ${response.status}`);
+        }
+
+        const payload = await response.json();
+        const nextProducts = Array.isArray(payload)
+          ? payload
+          : Array.isArray(payload?.products)
+            ? payload.products
+            : [];
+
+        setProducts(nextProducts);
+      } catch (error) {
+        if (error?.name === "AbortError") return;
+        setCatalogError("The featured catalog is temporarily unavailable.");
+      } finally {
+        if (!controller.signal.aborted) setCatalogLoading(false);
+      }
+    };
+
+    loadProducts();
+    return () => controller.abort();
+  }, [products.length, productsEndpoint]);
+
   const visibleProducts = useMemo(() => {
     if (!Array.isArray(products) || products.length === 0) return [];
 
@@ -293,18 +348,44 @@ export default function ProductCatalog({ products = [] }) {
     return getFeaturedItems(preparedProducts);
   }, [products]);
 
+  if (catalogLoading) {
+    return (
+      <section
+        className="featured-section phase-band phase-band--midnight relative py-14 text-white sm:py-20"
+        aria-busy="true"
+        aria-live="polite"
+      >
+        <div className="mx-auto max-w-7xl px-5 sm:px-6 lg:px-8">
+          <div className="h-3 w-28 animate-pulse rounded-full bg-cyan-200/10" />
+          <div className="mt-5 h-12 max-w-lg animate-pulse rounded-2xl bg-white/[0.045]" />
+          <div className="mt-8 grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-4">
+            {[0, 1, 2, 3].map((item) => (
+              <div
+                key={item}
+                className="h-72 animate-pulse rounded-[1.4rem] border border-cyan-200/8 bg-white/[0.025]"
+              />
+            ))}
+          </div>
+          <span className="sr-only">Loading featured products</span>
+        </div>
+      </section>
+    );
+  }
+
   if (!Array.isArray(products) || products.length === 0) {
     return (
-      <section className="relative py-14 text-white sm:py-20">
+      <section className="featured-section phase-band phase-band--midnight relative py-14 text-white sm:py-20">
         <div className="mx-auto max-w-7xl px-5 text-center sm:px-6 lg:px-8">
-          <p className="text-sm text-slate-400">No products available.</p>
+          <p className="text-sm text-slate-400">
+            {catalogError || "No products available."}
+          </p>
         </div>
       </section>
     );
   }
 
   return (
-    <section className="featured-section relative overflow-hidden py-12 text-white sm:py-16 lg:py-20">
+    <section className="featured-section phase-band phase-band--midnight relative overflow-hidden py-12 text-white sm:py-16 lg:py-20">
       <div className="mx-auto max-w-7xl px-5 sm:px-6 lg:px-8">
         <div className="mb-8 flex flex-col items-center gap-5 text-center sm:mb-10 lg:mb-12 lg:flex-row lg:items-end lg:justify-between lg:text-left">
           <div className="w-full lg:max-w-[720px]">

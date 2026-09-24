@@ -3,7 +3,7 @@ export const prerender = false;
 
 import MainLayout from "../../layouts/MainLayout.astro";
 import { policies, policyNav } from "../../components/data/policies";
-import "../../styles/global.css";
+import "../../styles/tailwind-content.css";
 
 const { slug } = Astro.params;
 const policy = policies[slug];

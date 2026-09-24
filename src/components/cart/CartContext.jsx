@@ -335,7 +335,11 @@ function clearPhaseoneCouponCookie() {
 function getSavedAuthToken() {
   if (typeof window === "undefined") return "";
 
-  return localStorage.getItem("lab_auth_token") || "";
+  try {
+    return localStorage.getItem("lab_auth_token") || "";
+  } catch {
+    return "";
+  }
 }
 
 function getCheckoutCouponFromUrl() {
@@ -1708,7 +1712,7 @@ function syncStoredCheckoutSessions(items = [], expiresAt = 0) {
   }
 }
 
-export function CartProvider({ children }) {
+export function CartProvider({ children, initialHasSession = null }) {
   const cartExpiryRef = useRef(0);
   const isInitialCartPersistenceRef = useRef(true);
   const [cartItems, setCartItems] = useState(() => {
@@ -1826,7 +1830,18 @@ export function CartProvider({ children }) {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const loadAccount = async () => {
+    const hasAccountHint = () =>
+      initialHasSession === true ||
+      window.__phaseoneHasMemberSession === true ||
+      Boolean(getSavedAuthToken());
+
+    const loadAccount = async ({ force = false } = {}) => {
+      if (!force && !hasAccountHint()) {
+        setAccount(null);
+        setAccountChecked(true);
+        return;
+      }
+
       try {
         const token = getSavedAuthToken();
 
@@ -1843,11 +1858,13 @@ export function CartProvider({ children }) {
 
         if (!response.ok) {
           setAccount(null);
+          window.__phaseoneHasMemberSession = false;
           return;
         }
 
         const data = await response.json();
         setAccount(data || null);
+        window.__phaseoneHasMemberSession = Boolean(data);
       } catch {
         setAccount(null);
       } finally {
@@ -1857,16 +1874,19 @@ export function CartProvider({ children }) {
 
     loadAccount();
 
-    const handleAuthUpdate = () => loadAccount();
+    const handleAuthUpdate = () => loadAccount({ force: true });
+    const handleFocus = () => {
+      if (hasAccountHint()) loadAccount();
+    };
 
-    window.addEventListener("focus", handleAuthUpdate);
+    window.addEventListener("focus", handleFocus);
     window.addEventListener("lab-auth-updated", handleAuthUpdate);
 
     return () => {
-      window.removeEventListener("focus", handleAuthUpdate);
+      window.removeEventListener("focus", handleFocus);
       window.removeEventListener("lab-auth-updated", handleAuthUpdate);
     };
-  }, []);
+  }, [initialHasSession]);
 
   const setCheckoutCoupon = (value = "") => {
     const cleanCoupon = normalizeCheckoutCoupon(value);
@@ -2433,7 +2453,13 @@ export function CartProvider({ children }) {
         removeCheckoutCoupon,
         account,
         accountChecked,
-        clearAccount: () => setAccount(null),
+        clearAccount: () => {
+          setAccount(null);
+          setAccountChecked(true);
+          if (typeof window !== "undefined") {
+            window.__phaseoneHasMemberSession = false;
+          }
+        },
         getCartItemKey,
         buildCheckoutUrl,
       }}

@@ -1,10 +1,17 @@
-import { getCatalogThumbnailUrl } from "../../lib/wooCatalog.js";
+import {
+  fetchWooCatalog,
+  getCatalogThumbnailUrl,
+} from "../../lib/wooCatalog.js";
 
 export const prerender = false;
 
 const REQUEST_TIMEOUT_MS = 10000;
 const PRODUCT_CACHE_TTL_MS = 5 * 60_000;
 const PRODUCT_STALE_TTL_MS = 60 * 60_000;
+const BROWSER_CACHE_CONTROL =
+  "public, max-age=300, stale-while-revalidate=3600, stale-if-error=86400";
+const EDGE_CACHE_CONTROL =
+  "public, s-maxage=900, stale-while-revalidate=86400, stale-if-error=604800";
 const productCache =
   globalThis.__phaseoneProductSearchCache ||
   (globalThis.__phaseoneProductSearchCache = new Map());
@@ -14,13 +21,20 @@ function jsonResponse(
   status = 200,
   cacheControl = "no-store, no-cache, must-revalidate, private"
 ) {
+  const headers = {
+    "Content-Type": "application/json",
+    "Cache-Control": cacheControl,
+    "X-Content-Type-Options": "nosniff",
+  };
+
+  if (status === 200 && cacheControl.startsWith("public")) {
+    headers["CDN-Cache-Control"] = EDGE_CACHE_CONTROL;
+    headers["Vercel-CDN-Cache-Control"] = EDGE_CACHE_CONTROL;
+  }
+
   return new Response(JSON.stringify(payload), {
     status,
-    headers: {
-      "Content-Type": "application/json",
-      "Cache-Control": cacheControl,
-      "X-Content-Type-Options": "nosniff",
-    },
+    headers,
   });
 }
 
@@ -85,6 +99,20 @@ function normalizeProduct(product) {
   const tags = Array.isArray(product.tags)
     ? product.tags.map(({ id, name, slug }) => ({ id, name, slug }))
     : [];
+  const attributes = Array.isArray(product.attributes)
+    ? product.attributes.map((attribute) => ({
+        id: attribute?.id,
+        name: attribute?.name || "",
+        taxonomy: attribute?.taxonomy || "",
+        variation:
+          attribute?.variation === true || attribute?.has_variations === true,
+        options: Array.isArray(attribute?.terms)
+          ? attribute.terms
+              .map((term) => term?.name || term?.slug || "")
+              .filter(Boolean)
+          : [],
+      }))
+    : [];
 
   return {
     id: product.id,
@@ -109,6 +137,9 @@ function normalizeProduct(product) {
       typeof product.is_in_stock === "boolean"
         ? product.is_in_stock
         : product.stock_status === "instock",
+    type: product.type || (product.has_options ? "variable" : "simple"),
+    has_options: product.has_options === true,
+    attributes,
     permalink: product.permalink || `/products/${product.slug}`,
     image: thumbnail || fullSizeImage || "/placeholder-product.png",
     images: firstImage
@@ -126,6 +157,57 @@ function normalizeProduct(product) {
         .join(" ")
     ),
   };
+}
+
+function getPrivateCatalogConfig() {
+  const baseUrl = import.meta.env.WOOCOMMERCE_URL;
+  const consumerKey = import.meta.env.WOOCOMMERCE_CONSUMER_KEY;
+  const consumerSecret = import.meta.env.WOOCOMMERCE_CONSUMER_SECRET;
+
+  if (!baseUrl || !consumerKey || !consumerSecret) return null;
+
+  return { baseUrl, consumerKey, consumerSecret };
+}
+
+function productMatchesSearch(product, search) {
+  const terms = String(search || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9+\-\s]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean);
+
+  if (terms.length === 0) return true;
+
+  const categoryText = Array.isArray(product?.categories)
+    ? product.categories
+        .map((category) =>
+          typeof category === "string"
+            ? category
+            : category?.name || category?.slug || ""
+        )
+        .join(" ")
+    : "";
+  const tagText = Array.isArray(product?.tags)
+    ? product.tags
+        .map((tag) =>
+          typeof tag === "string" ? tag : tag?.name || tag?.slug || ""
+        )
+        .join(" ")
+    : "";
+  const searchable = [
+    product?.name,
+    product?.slug,
+    product?.sku,
+    product?.catalog_search_text,
+    product?.short_description,
+    categoryText,
+    tagText,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  return terms.every((term) => searchable.includes(term));
 }
 
 async function fetchProducts(cleanUrl, params) {
@@ -201,9 +283,10 @@ async function fetchProducts(cleanUrl, params) {
 }
 
 export async function GET({ url }) {
+  const privateCatalogConfig = getPrivateCatalogConfig();
   const cleanUrl = getCleanWooUrl();
 
-  if (!cleanUrl) {
+  if (!privateCatalogConfig && !cleanUrl) {
     return jsonResponse(
       {
         error: "Product service is not configured.",
@@ -217,16 +300,30 @@ export async function GET({ url }) {
   const limit = Number(url.searchParams.get("limit") || 50);
 
   try {
-    const params = new URLSearchParams();
+    const safeLimit = Number.isFinite(limit)
+      ? Math.min(Math.max(limit, 1), 100)
+      : 50;
+    let products = [];
 
-    params.set("per_page", String(Math.min(Math.max(limit, 1), 100)));
-    params.set("status", "publish");
+    if (privateCatalogConfig) {
+      const fullCatalog = await fetchWooCatalog({
+        ...privateCatalogConfig,
+        perPage: safeLimit,
+      });
 
-    if (search.trim()) {
-      params.set("search", search.trim());
+      products = search.trim()
+        ? fullCatalog.filter((product) => productMatchesSearch(product, search))
+        : fullCatalog;
+    } else {
+      const params = new URLSearchParams();
+
+      params.set("per_page", String(safeLimit));
+      params.set("status", "publish");
+
+      if (search.trim()) params.set("search", search.trim());
+
+      products = await fetchProducts(cleanUrl, params);
     }
-
-    const products = await fetchProducts(cleanUrl, params);
 
     return jsonResponse(
       {
@@ -234,7 +331,7 @@ export async function GET({ url }) {
         products,
       },
       200,
-      "public, max-age=60, s-maxage=300, stale-while-revalidate=3600, stale-if-error=86400"
+      BROWSER_CACHE_CONTROL
     );
   } catch (error) {
     const isAbortError = error?.name === "AbortError";

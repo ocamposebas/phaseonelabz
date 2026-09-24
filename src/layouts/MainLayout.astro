@@ -43,7 +43,10 @@ const hasMemberSession = Boolean(
     Astro.cookies.get("auth_token")?.value
 );
 
-const siteControl = await getSiteControlConfig({ background: import.meta.env.DEV });
+// Never let a cold WordPress control request delay storefront HTML. The
+// in-memory value is refreshed in the background and the browser checks the
+// edge-cached endpoint shortly after hydration.
+const siteControl = await getSiteControlConfig({ background: true });
 const maintenance = siteControl.maintenance;
 
 if (maintenance.enabled) {
@@ -86,6 +89,9 @@ const websiteSchema = {
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <script is:inline src="/pixel.js" defer></script>
+    <script is:inline define:vars={{ hasMemberSession }}>
+      window.__phaseoneHasMemberSession = Boolean(hasMemberSession);
+    </script>
 
     <title>{fullTitle}</title>
 
@@ -247,7 +253,7 @@ const websiteSchema = {
             }
 
             function checkMaintenance() {
-              fetch("/api/site-control?ts=" + Date.now(), { cache: "no-store" })
+              fetch("/api/site-control", { headers: { Accept: "application/json" } })
                 .then(function (response) { return response.ok ? response.json() : null; })
                 .then(function (data) {
                   if (data && data.maintenance && data.maintenance.enabled && !wasInMaintenance) {
@@ -265,7 +271,9 @@ const websiteSchema = {
               scheduleMaintenanceCheck(document.hidden ? 0 : 1000);
             });
 
-            scheduleMaintenanceCheck(60000);
+            // A cold server render is deliberately non-blocking, so perform
+            // one early browser check and use the normal interval afterward.
+            scheduleMaintenanceCheck(1500);
           })();
         </script>
       </>

@@ -65,7 +65,7 @@ const TrustItem = memo(function TrustItem({ item, index }) {
 
 export default function TrustSection() {
   return (
-    <section className="relative py-10 text-white sm:py-14 lg:py-16 xl:py-20">
+    <section className="trust-section phase-band phase-band--ink relative overflow-hidden py-10 text-white sm:py-14 lg:py-16 xl:py-20">
       <div className="mx-auto max-w-7xl px-5 sm:px-6 lg:px-8">
         <div className="trust-shell relative overflow-hidden border-y border-cyan-200/10 bg-transparent">
           <div

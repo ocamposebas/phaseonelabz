@@ -51,7 +51,7 @@ const {
 
 <script is:inline>
   window.setInterval(function () {
-    fetch("/api/site-control?ts=" + Date.now(), { cache: "no-store" })
+    fetch("/api/site-control?fresh=1&ts=" + Date.now(), { cache: "no-store" })
       .then(function (response) { return response.ok ? response.json() : null; })
       .then(function (data) {
         if (data && data.maintenance && !data.maintenance.enabled) {

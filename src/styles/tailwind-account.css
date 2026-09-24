@@ -1,0 +1,16 @@
+/* Tailwind utilities used by member, authentication, and affiliate screens. */
+@import "tailwindcss" source(none);
+
+@source "../pages/account.astro";
+@source "../pages/account";
+@source "../pages/affiliates.astro";
+@source "../pages/forgot-password.astro";
+@source "../pages/register.astro";
+@source "../pages/set-password.astro";
+
+@source "../components/account";
+@source "../components/affiliates";
+@source "../components/auth";
+@source "../components/cart";
+@source "../components/footer";
+@source "../components/nav";

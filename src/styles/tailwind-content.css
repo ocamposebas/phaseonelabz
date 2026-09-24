@@ -1,0 +1,14 @@
+/* Tailwind utilities for COA, support, FAQ, and policy content routes. */
+@import "tailwindcss" source(none);
+
+@source "../pages/contact.astro";
+@source "../pages/faq.astro";
+@source "../pages/coa.astro";
+@source "../pages/policies";
+
+@source "../components/cart";
+@source "../components/coa";
+@source "../components/data";
+@source "../components/footer";
+@source "../components/nav";
+@source "../components/shop";
