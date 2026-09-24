@@ -894,9 +894,7 @@
   width: 100%;
   height: 100%;
   border: 0;
-  background: rgba(0, 4, 12, 0.76);
-  backdrop-filter: blur(9px);
-  -webkit-backdrop-filter: blur(9px);
+  background: rgba(1, 5, 11, 0.84);
   cursor: pointer;
   animation: shFadeIn 180ms ease both;
 }
@@ -905,25 +903,17 @@
   position: absolute;
   inset: 0 0 0 auto;
   display: flex;
-  width: min(92vw, 420px);
+  width: min(88vw, 390px);
   height: 100%;
   flex-direction: column;
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
-  border-left: 1px solid rgba(169, 217, 235, 0.13);
-  background: #050d1a;
-  box-shadow: -32px 0 90px rgba(0, 0, 0, 0.46);
-  padding: max(20px, env(safe-area-inset-top)) 24px max(22px, env(safe-area-inset-bottom));
-  animation: shPanelIn 360ms cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-.sh-mobile-glow {
-  position: absolute;
-  inset: 0 0 auto;
-  height: 190px;
-  background: linear-gradient(180deg, rgba(31, 111, 137, 0.11), transparent);
-  pointer-events: none;
+  border-left: 1px solid rgba(169, 217, 235, 0.12);
+  background: #07101d;
+  box-shadow: -24px 0 70px rgba(0, 0, 0, 0.42);
+  padding: max(12px, env(safe-area-inset-top)) 24px max(22px, env(safe-area-inset-bottom));
+  animation: shPanelIn 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .sh-mobile-top {
@@ -931,9 +921,10 @@
   z-index: 1;
   order: 1;
   display: flex;
-  min-height: 52px;
+  min-height: 70px;
   align-items: center;
   justify-content: space-between;
+  border-bottom: 1px solid rgba(169, 217, 235, 0.1);
 }
 
 .sh-mobile-top a {
@@ -941,26 +932,24 @@
 }
 
 .sh-mobile-top img {
-  width: 164px;
-  height: 50px;
+  width: 140px;
+  height: 44px;
   object-fit: contain;
   object-position: left center;
 }
 
 .sh-mobile-close {
   display: grid;
-  width: 42px;
-  height: 42px;
+  width: 38px;
+  height: 38px;
   place-items: center;
-  border: 1px solid rgba(169, 217, 235, 0.13);
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.025);
-  color: rgba(235, 242, 247, 0.82);
+  border: 0;
+  background: transparent;
+  color: rgba(221, 231, 238, 0.7);
   cursor: pointer;
 }
 
 .sh-mobile-close:hover {
-  border-color: rgba(169, 217, 235, 0.24);
   color: #fff;
 }
 
@@ -968,16 +957,20 @@
   position: relative;
   z-index: 1;
   order: 2;
-  margin-top: 28px;
+  margin-top: 20px;
 }
 
 .sh-mobile-search-label,
 .sh-mobile-label {
-  color: rgba(151, 171, 188, 0.62);
+  color: rgba(151, 171, 188, 0.58);
   font-size: 9px;
-  font-weight: 750;
-  letter-spacing: 0.18em;
+  font-weight: 700;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
+}
+
+.sh-mobile-search-label {
+  display: none;
 }
 
 .sh-mobile-label {
@@ -986,14 +979,7 @@
   order: 3;
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-top: 30px;
-}
-
-.sh-mobile-label span {
-  width: 18px;
-  height: 1px;
-  background: rgba(115, 227, 239, 0.7);
+  margin-top: 25px;
 }
 
 .sh-mobile-search-box {
@@ -1001,16 +987,15 @@
   grid-template-columns: 18px minmax(0, 1fr) auto;
   align-items: center;
   gap: 10px;
-  min-height: 48px;
-  margin-top: 10px;
-  border: 1px solid rgba(169, 217, 235, 0.13);
-  border-radius: 11px;
-  background: rgba(255, 255, 255, 0.025);
+  min-height: 46px;
+  border: 1px solid rgba(169, 217, 235, 0.12);
+  border-radius: 6px;
+  background: #0a1420;
   padding: 0 13px;
 }
 
 .sh-mobile-search-box > svg {
-  color: rgba(115, 227, 239, 0.74);
+  color: rgba(174, 205, 220, 0.62);
 }
 
 .sh-mobile-search-box input {
@@ -1033,8 +1018,7 @@
   height: 26px;
   place-items: center;
   border: 0;
-  border-radius: 7px;
-  background: rgba(255, 255, 255, 0.04);
+  background: transparent;
   color: rgba(226, 235, 242, 0.68);
 }
 
@@ -1044,8 +1028,8 @@
   margin-top: 8px;
   overflow-y: auto;
   border: 1px solid rgba(169, 217, 235, 0.1);
-  border-radius: 11px;
-  background: rgba(1, 7, 17, 0.66);
+  border-radius: 6px;
+  background: #050c16;
   padding: 5px;
 }
 
@@ -1094,33 +1078,34 @@
   order: 4;
   display: flex;
   flex-direction: column;
-  margin-top: 13px;
+  margin-top: 8px;
+  border-top: 1px solid rgba(169, 217, 235, 0.09);
 }
 
 .sh-mobile-links a,
 .sh-mobile-links button {
   display: flex;
-  min-height: 52px;
+  min-height: 56px;
   width: 100%;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   border: 0;
   border-bottom: 1px solid rgba(169, 217, 235, 0.09);
   background: transparent;
-  padding: 0 3px;
-  color: rgba(222, 231, 239, 0.76);
+  padding: 0;
+  color: rgba(222, 231, 239, 0.78);
   font-family: inherit;
-  font-size: 14px;
-  font-weight: 620;
+  font-size: 17px;
+  font-weight: 520;
   text-align: left;
   cursor: pointer;
-  transition: color 160ms ease, padding 180ms ease, background 160ms ease;
+  transition: color 160ms ease;
 }
 
 .sh-mobile-links a:hover,
 .sh-mobile-links button:hover {
-  padding-inline: 8px;
-  background: linear-gradient(90deg, rgba(115, 227, 239, 0.055), transparent 72%);
+  padding: 0;
+  background: transparent;
   color: #fff;
 }
 
@@ -1144,18 +1129,17 @@
   transform: translateX(2px);
 }
 
-.sh-mobile-links a.is-active {
+.sh-mobile-links > a.is-active,
+.sh-mobile-catalog-list > a.is-active {
   color: #fff;
 }
 
-.sh-mobile-links a.is-active::before {
+.sh-mobile-links > a.is-active::before {
   content: "";
-  width: 4px;
-  height: 4px;
+  width: 2px;
+  height: 18px;
   flex: 0 0 auto;
-  border-radius: 50%;
   background: var(--sh-accent);
-  box-shadow: 0 0 10px rgba(115, 227, 239, 0.48);
 }
 
 .sh-mobile-catalog {
@@ -1164,14 +1148,14 @@
 
 .sh-mobile-catalog > summary {
   display: flex;
-  min-height: 52px;
+  min-height: 56px;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 0 3px;
+  padding: 0;
   color: rgba(222, 231, 239, 0.76);
-  font-size: 14px;
-  font-weight: 620;
+  font-size: 17px;
+  font-weight: 520;
   cursor: pointer;
   list-style: none;
 }
@@ -1196,25 +1180,25 @@
 }
 
 .sh-mobile-catalog-list {
-  margin: 0 0 10px 3px;
-  border-left: 1px solid rgba(115, 227, 239, 0.2);
-  padding-left: 15px;
+  margin: 0 0 10px;
+  background: #040b14;
+  padding: 4px 0;
 }
 
 .sh-mobile-links .sh-mobile-catalog-list > a {
   display: grid;
-  grid-template-columns: 24px minmax(0, 1fr) 18px;
-  min-height: 42px;
+  grid-template-columns: minmax(0, 1fr) 18px;
+  min-height: 44px;
   gap: 8px;
   border-bottom-color: rgba(169, 217, 235, 0.065);
-  padding: 0 5px;
+  padding: 0 14px;
   color: rgba(191, 204, 216, 0.7);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 560;
 }
 
 .sh-mobile-links .sh-mobile-catalog-list > a:hover {
-  padding-inline: 5px;
+  padding: 0 14px;
 }
 
 .sh-mobile-links .sh-mobile-catalog-list > a.is-utility {
@@ -1223,107 +1207,72 @@
   color: rgba(189, 244, 248, 0.82);
 }
 
-.sh-mobile-catalog-index {
-  color: rgba(115, 227, 239, 0.42);
-  font-size: 8px;
-  font-weight: 760;
-  letter-spacing: 0.08em;
-}
-
 .sh-mobile-catalog-list > a > svg {
   justify-self: end;
   color: rgba(115, 227, 239, 0.42);
 }
 
-.sh-mobile-account-start {
-  margin-top: 22px;
-  border-top: 1px solid rgba(169, 217, 235, 0.14) !important;
-}
-
-.sh-mobile-account-start > svg,
-.sh-mobile-account-secondary > svg {
-  color: rgba(115, 227, 239, 0.68);
-}
-
-.sh-mobile-account-avatar {
-  display: grid;
-  width: 24px;
-  height: 24px;
-  place-items: center;
-  border: 1px solid rgba(143, 235, 244, 0.24);
-  border-radius: 50%;
-  background: rgba(103, 232, 249, 0.08);
-  color: rgba(230, 252, 255, 0.92);
-  font-size: 8px;
-  font-weight: 850;
-  letter-spacing: 0.04em;
-}
-
-.sh-mobile-account-secondary {
-  color: rgba(183, 198, 211, 0.66) !important;
-}
-
-.sh-mobile-note {
+.sh-mobile-account-links {
   position: relative;
   z-index: 1;
   order: 5;
-  margin-top: 26px;
-  border-left: 2px solid rgba(115, 227, 239, 0.58);
-  background: rgba(255, 255, 255, 0.02);
-  padding: 14px 15px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 18px;
+  margin-top: 24px;
+  border-top: 1px solid rgba(169, 217, 235, 0.1);
+  border-bottom: 1px solid rgba(169, 217, 235, 0.1);
+  padding: 15px 0;
 }
 
-.sh-mobile-note p {
-  margin: 0;
-  color: rgba(189, 244, 248, 0.88);
-  font-size: 9px;
-  font-weight: 760;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
+.sh-mobile-account-links a,
+.sh-mobile-account-links button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: rgba(201, 214, 224, 0.7);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 680;
+  cursor: pointer;
 }
 
-.sh-mobile-note span {
-  display: block;
-  margin-top: 7px;
-  color: rgba(183, 198, 211, 0.64);
-  font-size: 12px;
-  line-height: 1.55;
+.sh-mobile-account-links button,
+.sh-mobile-account-links a:last-child {
+  color: rgba(140, 221, 229, 0.82);
 }
 
 .sh-mobile-bottom {
   position: relative;
   z-index: 1;
   order: 6;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 9px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
   margin-top: auto;
   padding-top: 24px;
 }
 
-.sh-mobile-bottom a,
 .sh-mobile-bottom button {
   display: flex;
   min-height: 48px;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  border: 1px solid rgba(169, 217, 235, 0.14);
-  border-radius: 10px;
-  background: transparent;
-  color: rgba(238, 244, 248, 0.86);
+  width: 100%;
+  border: 0;
+  border-radius: 7px;
+  background: #b8edf1;
+  color: #06131d;
   font-family: inherit;
   font-size: 11px;
-  font-weight: 730;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-weight: 760;
   cursor: pointer;
-}
-
-.sh-mobile-bottom button {
-  border-color: rgba(115, 227, 239, 0.88);
-  background: var(--sh-accent);
-  color: #03101c;
 }
 
 .sh-mobile-bottom button span {
@@ -1336,6 +1285,16 @@
   padding-inline: 4px;
   color: #fff;
   font-size: 8px;
+}
+
+.sh-mobile-bottom p {
+  margin: 0;
+  color: rgba(139, 158, 173, 0.5);
+  font-size: 8px;
+  line-height: 1.6;
+  letter-spacing: 0.12em;
+  text-align: center;
+  text-transform: uppercase;
 }
 
 @keyframes shFadeIn {
@@ -1399,11 +1358,10 @@
     display: inline-flex;
     width: 40px;
     height: 40px;
-    border-color: rgba(255, 255, 255, 0.13);
-    border-radius: 50%;
-    background:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.025));
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    border-color: rgba(169, 217, 235, 0.11);
+    border-radius: 9px;
+    background: rgba(7, 16, 29, 0.78);
+    box-shadow: none;
   }
 
   .sh-nav {
@@ -1497,7 +1455,7 @@
   }
 
   .sh-mobile-panel {
-    padding-inline: 20px;
+    padding-inline: 22px;
   }
 }
 
@@ -1505,6 +1463,7 @@
   .sh-mobile-panel {
     width: 100%;
     border-left: 0;
+    padding-inline: 20px;
   }
 }
 

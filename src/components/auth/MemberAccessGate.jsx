@@ -1,6 +1,6 @@
 import "./MemberAccessGate.styles.css";
 import { useEffect, useRef, useState } from "react";
-import { Check, Eye, EyeOff, Loader2, LockKeyhole, ShieldCheck, Sparkles } from "lucide-react";
+import { Eye, EyeOff, Loader2, LockKeyhole } from "lucide-react";
 
 function getSavedAuthToken() {
   if (typeof window === "undefined") return "";
@@ -272,31 +272,27 @@ export default function MemberAccessGate({ initialHasSession = false }) {
 
   return (
     <section className={`phase-member-gate${status === "leaving" ? " is-leaving" : ""}`} role="dialog" aria-modal="true" aria-label="Client account access required">
-      <div className="phase-member-gate__aurora phase-member-gate__aurora--left" />
-      <div className="phase-member-gate__aurora phase-member-gate__aurora--right" />
-
       <div className="phase-member-gate__shell">
         <aside className="phase-member-gate__story">
           <div className="phase-member-gate__brand">
             <img src="/TRANSPARENCIA-03.webp" alt="Phase One Labz" />
-            <span>Phase One Labz</span>
+            <span>Client portal</span>
           </div>
 
           <div className="phase-member-gate__story-copy">
             <div className="phase-member-gate__overline">
-              <LockKeyhole size={13} /> Verified client portal
+              Private research catalog
             </div>
-            <h1>Research,<br /><em>without compromise.</em></h1>
+            <h1>Access your research account.</h1>
             <p>
-              Access is reserved for registered clients. Your profile keeps every
-              order, reward, and secure checkout detail in one place.
+              Sign in to review orders, rewards, and batch documentation in one
+              secure place.
             </p>
           </div>
 
           <div className="phase-member-gate__proof">
-            <span><Check size={14} /> Verified checkout</span>
-            <span><Check size={14} /> Order history</span>
-            <span><Check size={14} /> Client rewards</span>
+            <span>21+ access</span>
+            <span>Research use only</span>
           </div>
         </aside>
 
@@ -313,13 +309,13 @@ export default function MemberAccessGate({ initialHasSession = false }) {
 
           <div className={`phase-member-gate__panel-content${status === "checking" ? " is-checking" : ""}`}>
           <div className="phase-member-gate__panel-header">
-            <span className="phase-member-gate__panel-kicker">Client access</span>
-            <ShieldCheck size={18} />
+            <span className="phase-member-gate__panel-kicker">Account access</span>
+            <span className="phase-member-gate__secure-status"><i /> Secure session</span>
           </div>
 
           <div className="phase-member-gate__form-copy">
             <h2>{isRegistering ? "Create your profile" : "Welcome back"}</h2>
-            <p>{isRegistering ? "Your account is ready in less than a minute." : "Sign in to continue to the private catalog."}</p>
+            <p>{isRegistering ? "Create an account to continue." : "Sign in to continue to the catalog."}</p>
           </div>
 
           <div className="phase-member-gate__tabs" role="tablist" aria-label="Account access">
@@ -343,12 +339,12 @@ export default function MemberAccessGate({ initialHasSession = false }) {
                   </button>
                 </span>
               </label>
-              <p className="phase-member-gate__hint"><Sparkles size={14} /> Use 8 or more characters to protect your account.</p>
+              <p className="phase-member-gate__hint">Use at least 8 characters.</p>
               <label className="phase-member-gate__age-confirmation"><input type="checkbox" checked={ageConfirmed} onChange={(event) => setAgeConfirmed(event.target.checked)} /> <span>I confirm that I am 21 or older.</span></label>
               {error && <p className="phase-member-gate__error">{error}</p>}
               <button type="submit" className="phase-member-gate__submit" disabled={isWorking}>
-                {isWorking ? <Loader2 size={17} className="phase-member-gate__spin" /> : <Sparkles size={17} />}
-                {isWorking ? "Creating secure profile" : "Create and enter"}
+                {isWorking ? <Loader2 size={17} className="phase-member-gate__spin" /> : <LockKeyhole size={17} />}
+                {isWorking ? "Creating account" : "Create account"}
               </button>
             </form>
           ) : (
@@ -368,12 +364,12 @@ export default function MemberAccessGate({ initialHasSession = false }) {
               {error && <p className="phase-member-gate__error">{error}</p>}
               <button type="submit" className="phase-member-gate__submit" disabled={isWorking}>
                 {isWorking ? <Loader2 size={17} className="phase-member-gate__spin" /> : <LockKeyhole size={17} />}
-                {isWorking ? "Verifying secure access" : "Enter private catalog"}
+                {isWorking ? "Signing in" : "Sign in"}
               </button>
             </form>
           )}
 
-          <p className="phase-member-gate__legal">By continuing, you confirm you are 21+ and agree to our client access requirements.</p>
+          <p className="phase-member-gate__legal">Access is limited to clients aged 21 or older. Products are for research use only.</p>
           </div>
         </div>
       </div>

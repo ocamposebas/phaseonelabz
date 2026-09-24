@@ -925,8 +925,6 @@ export default function SiteHeader({
             aria-modal="true"
             aria-label="Site navigation"
           >
-            <div className="sh-mobile-glow" />
-
             <div className="sh-mobile-top">
               <a href="/" onClick={() => setMobileOpen(false)}>
                 <img src={logoSrc} alt={logoAlt} />
@@ -943,8 +941,7 @@ export default function SiteHeader({
             </div>
 
             <div className="sh-mobile-label">
-              <span />
-              Explore
+              Navigation
             </div>
 
             <div className="sh-mobile-links">
@@ -968,7 +965,7 @@ export default function SiteHeader({
                       </summary>
 
                       <div className="sh-mobile-catalog-list">
-                        {item.children.map((category, index) => (
+                        {item.children.map((category) => (
                           <a
                             href={category.href}
                             className={
@@ -977,9 +974,6 @@ export default function SiteHeader({
                             key={category.label}
                             onClick={() => setMobileOpen(false)}
                           >
-                            <span className="sh-mobile-catalog-index">
-                              {String(index + 1).padStart(2, "0")}
-                            </span>
                             <span>{category.label}</span>
                             <ArrowRight size={14} aria-hidden="true" />
                           </a>
@@ -1003,54 +997,10 @@ export default function SiteHeader({
                 );
               })}
 
-              {isLoggedIn ? (
-                <>
-                  <a
-                    href="/account"
-                    className="sh-mobile-account-start"
-                    onClick={() => setMobileOpen(false)}
-                  >
-                    <span className="sh-mobile-account-avatar" aria-hidden="true">
-                      {accountInitials}
-                    </span>
-                    View profile
-                    <ArrowRight className="sh-mobile-account-arrow" size={16} aria-hidden="true" />
-                  </a>
-
-                  <button
-                    type="button"
-                    className="sh-mobile-account-secondary"
-                    onClick={handleLogout}
-                  >
-                    <LogOut size={16} aria-hidden="true" />
-                    Log out
-                  </button>
-                </>
-              ) : (
-                <>
-                  <a
-                    href="/account"
-                    className="sh-mobile-account-start"
-                    onClick={() => setMobileOpen(false)}
-                  >
-                    <User size={16} aria-hidden="true" />
-                    Login
-                  </a>
-
-                  <a
-                    href="/register"
-                    className="sh-mobile-account-secondary"
-                    onClick={() => setMobileOpen(false)}
-                  >
-                    Sign up
-                    <ArrowRight className="sh-mobile-account-arrow" size={16} aria-hidden="true" />
-                  </a>
-                </>
-              )}
             </div>
 
             <div className="sh-mobile-search">
-              <div className="sh-mobile-search-label">Search catalog</div>
+              <div className="sh-mobile-search-label">Find a product</div>
 
               <div className="sh-mobile-search-box">
                 <Search size={16} />
@@ -1062,11 +1012,12 @@ export default function SiteHeader({
                     setSearchExpanded(true);
                   }}
                   type="text"
-                  placeholder="Search products..."
+                  placeholder="Search the catalog"
+                  aria-label="Search the catalog"
                 />
 
                 {searchQuery && (
-                  <button type="button" onClick={clearSearch} aria-label="Clear">
+                  <button type="button" onClick={clearSearch} aria-label="Clear search">
                     <X size={13} />
                   </button>
                 )}
@@ -1106,23 +1057,24 @@ export default function SiteHeader({
               )}
             </div>
 
-            <div className="sh-mobile-note">
-              <p>{isLoggedIn ? "Account Active" : "Phase One standard"}</p>
-              <span>
-                {isLoggedIn
-                  ? `${account?.points || 0} reward points · ${formatStoreCredit(
-                      storeCreditBalance
-                    )} store balance.`
-                  : "Documented batches, transparent standards, and a catalog built for serious research."}
-              </span>
+            <div className="sh-mobile-account-links">
+              <a href="/account" onClick={() => setMobileOpen(false)}>
+                <User size={16} aria-hidden="true" />
+                {isLoggedIn ? "Account" : "Sign in"}
+              </a>
+
+              {isLoggedIn ? (
+                <button type="button" onClick={handleLogout}>
+                  Sign out
+                </button>
+              ) : (
+                <a href="/register" onClick={() => setMobileOpen(false)}>
+                  Create account
+                </a>
+              )}
             </div>
 
             <div className="sh-mobile-bottom">
-              <a href="/shop" onClick={() => setMobileOpen(false)}>
-                Catalog
-                <ArrowRight size={18} />
-              </a>
-
               <button
                 type="button"
                 onClick={() => {
@@ -1136,6 +1088,8 @@ export default function SiteHeader({
                   <span suppressHydrationWarning>{safeCartCount}</span>
                 )}
               </button>
+
+              <p>For research use only · Independent batch documentation</p>
             </div>
           </aside>
         </div>
