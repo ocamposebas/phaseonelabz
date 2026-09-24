@@ -461,6 +461,7 @@
 .sh-icon,
 .sh-inline-search-trigger,
 .sh-mobile-toggle,
+.sh-mobile-user,
 .sh-mobile-cart {
   position: relative;
   align-items: center;
@@ -497,14 +498,20 @@
 .sh-icon:active,
 .sh-inline-search-trigger:active,
 .sh-mobile-toggle:active,
+.sh-mobile-user:active,
 .sh-mobile-cart:active {
   transform: scale(0.96);
 }
 
 .sh-mobile-toggle,
+.sh-mobile-user,
 .sh-mobile-cart {
   display: none;
   padding: 0;
+}
+
+.sh-mobile-actions {
+  display: none;
 }
 
 .sh-cart > span,
@@ -530,7 +537,8 @@
   position: relative;
 }
 
-.sh-user-icon.is-authenticated {
+.sh-user-icon.is-authenticated,
+.sh-mobile-user.is-authenticated {
   border-color: rgba(143, 235, 244, 0.3);
   background:
     radial-gradient(circle at 30% 20%, rgba(207, 250, 254, 0.19), transparent 42%),
@@ -541,7 +549,8 @@
   color: #e6fcff;
 }
 
-.sh-user-icon.is-authenticated::after {
+.sh-user-icon.is-authenticated::after,
+.sh-mobile-user.is-authenticated::after {
   content: "";
   position: absolute;
   right: 1px;
@@ -1354,6 +1363,7 @@
   }
 
   .sh-mobile-toggle,
+  .sh-mobile-user,
   .sh-mobile-cart {
     display: inline-flex;
     width: 40px;
@@ -1364,8 +1374,26 @@
     box-shadow: none;
   }
 
+  .sh-mobile-user {
+    border-radius: 50%;
+    background: #091522;
+  }
+
+  .sh-mobile-user .sh-user-avatar {
+    min-width: 22px;
+    height: 22px;
+    font-size: 9px;
+  }
+
+  .sh-mobile-actions {
+    display: flex;
+    align-items: center;
+    justify-self: end;
+    gap: 6px;
+  }
+
   .sh-nav {
-    grid-template-columns: 44px minmax(0, 1fr) 44px;
+    grid-template-columns: 44px minmax(0, 1fr) auto;
     column-gap: 12px;
     height: 70px;
     padding-inline: 14px;
@@ -1380,7 +1408,10 @@
   }
 
   .sh-logo {
+    position: absolute;
+    left: 50%;
     justify-self: center;
+    transform: translateX(-50%);
   }
 
   .sh-logo img {
@@ -1389,9 +1420,6 @@
     object-position: center;
   }
 
-  .sh-mobile-cart {
-    justify-self: end;
-  }
 }
 
 @media (max-width: 640px) {
@@ -1444,13 +1472,14 @@
   }
 
   .sh-mobile-toggle,
+  .sh-mobile-user,
   .sh-mobile-cart {
     width: 38px;
     height: 38px;
   }
 
   .sh-logo img {
-    width: 146px;
+    width: 140px;
     height: 46px;
   }
 
@@ -1460,6 +1489,21 @@
 }
 
 @media (max-width: 440px) {
+  .sh-mobile-actions {
+    gap: 4px;
+  }
+
+  .sh-mobile-toggle,
+  .sh-mobile-user,
+  .sh-mobile-cart {
+    width: 36px;
+    height: 36px;
+  }
+
+  .sh-logo img {
+    width: 132px;
+  }
+
   .sh-mobile-panel {
     width: 100%;
     border-left: 0;

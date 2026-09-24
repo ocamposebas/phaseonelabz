@@ -884,19 +884,41 @@ export default function SiteHeader({
                 )}
               </div>
 
-              {showCart && (
-                <button
-                  type="button"
-                  aria-label="Open cart"
-                  className="sh-mobile-cart"
-                  onClick={openCart}
+              <div className="sh-mobile-actions">
+                <a
+                  href="/account"
+                  aria-label={
+                    isLoggedIn
+                      ? `Account for ${accountDisplayName}`
+                      : "Account"
+                  }
+                  className={`sh-mobile-user${
+                    isLoggedIn ? " is-authenticated" : ""
+                  }`}
                 >
-                  <ShoppingCart size={24} />
-                  {safeCartCount > 0 && (
-                    <span suppressHydrationWarning>{safeCartCount}</span>
+                  {isLoggedIn ? (
+                    <span className="sh-user-avatar" aria-hidden="true">
+                      {accountInitials}
+                    </span>
+                  ) : (
+                    <User size={20} aria-hidden="true" />
                   )}
-                </button>
-              )}
+                </a>
+
+                {showCart && (
+                  <button
+                    type="button"
+                    aria-label="Open cart"
+                    className="sh-mobile-cart"
+                    onClick={openCart}
+                  >
+                    <ShoppingCart size={22} />
+                    {safeCartCount > 0 && (
+                      <span suppressHydrationWarning>{safeCartCount}</span>
+                    )}
+                  </button>
+                )}
+              </div>
             </nav>
           </div>
         </div>
