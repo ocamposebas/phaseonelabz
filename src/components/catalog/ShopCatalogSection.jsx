@@ -10,6 +10,7 @@ import {
   Filter,
   FlaskConical,
   Search,
+  ScanLine,
   ShoppingBag,
   SlidersHorizontal,
   Sparkles,
@@ -17,6 +18,7 @@ import {
   X,
 } from "lucide-react";
 import { useCart } from "../cart/CartContext";
+import CoaEducationGuide from "../coa/CoaEducationGuide.jsx";
 import DispatchCutoff from "../shipping/DispatchCutoff";
 import {
   CATALOG_CATEGORIES,
@@ -1974,6 +1976,7 @@ const ProductCard = memo(function ProductCard({
   item,
   addToCart,
   onBundleAdd,
+  onOpenCoaGuide,
   imagePriority = false,
 }) {
   const { product, name, category, price, pricing, image, url, availability } = item;
@@ -2168,6 +2171,23 @@ const ProductCard = memo(function ProductCard({
     [isUnavailable, loadMgOptions, onBundleAdd, product]
   );
 
+  const handleCoaGuide = useCallback(
+    (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      onOpenCoaGuide?.({
+        product,
+        productName: name,
+        productImage: {
+          src: product?.images?.[0]?.src || image,
+          alt: product?.images?.[0]?.alt || name,
+        },
+        record: null,
+      });
+    },
+    [image, name, onOpenCoaGuide, product]
+  );
+
   return (
     <article
       role="link"
@@ -2230,6 +2250,20 @@ const ProductCard = memo(function ProductCard({
           />
         </div>
       </div>
+
+      <button
+        type="button"
+        className="product-coa-guide"
+        onClick={handleCoaGuide}
+        aria-label={`Open guide: How to read the COA for ${name}`}
+      >
+        <span className="product-coa-guide__icon"><ScanLine size={15} /></span>
+        <span className="product-coa-guide__copy">
+          <small>COA field guide</small>
+          <strong>How to read your COA</strong>
+        </span>
+        <ArrowRight className="product-coa-guide__arrow" size={15} />
+      </button>
 
       <div className="product-float-body">
         <h3 className="product-float-title">{name}</h3>
@@ -2493,6 +2527,7 @@ export default function ShopCatalogSection({
   const [sortBy, setSortBy] = useState("popular");
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [coaEducationTarget, setCoaEducationTarget] = useState(null);
   const catalogResultsRef = useRef(null);
   const scrollAfterPageChangeRef = useRef(false);
 
@@ -2809,6 +2844,14 @@ export default function ShopCatalogSection({
     );
   }, []);
 
+  const openCoaEducation = useCallback((target) => {
+    setCoaEducationTarget(target);
+  }, []);
+
+  const closeCoaEducation = useCallback(() => {
+    setCoaEducationTarget(null);
+  }, []);
+
   return (
     <section className="product-catalog-section relative px-3 py-10 text-white sm:px-6 sm:py-14 lg:py-16">
       <div className="mx-auto max-w-7xl">
@@ -3077,6 +3120,7 @@ export default function ShopCatalogSection({
                       item={item}
                       addToCart={addToCart}
                       onBundleAdd={addBundleItemToCart}
+                      onOpenCoaGuide={openCoaEducation}
                       imagePriority={index < 3}
                     />
                   ))}
@@ -3188,6 +3232,16 @@ export default function ShopCatalogSection({
           </div>
         </div>
       )}
+
+      {coaEducationTarget ? (
+        <CoaEducationGuide
+          product={coaEducationTarget.product}
+          productName={coaEducationTarget.productName}
+          productImage={coaEducationTarget.productImage}
+          record={coaEducationTarget.record}
+          onClose={closeCoaEducation}
+        />
+      ) : null}
     </section>
   );
 }

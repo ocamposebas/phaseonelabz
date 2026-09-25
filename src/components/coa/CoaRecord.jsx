@@ -6,6 +6,8 @@ import {
   ExternalLink,
   FileText,
   FlaskConical,
+  ArrowRight,
+  ScanLine,
 } from "lucide-react";
 import {
   findPreferredCoaRecord,
@@ -54,6 +56,7 @@ export default function CoaRecord({
   preferredPresentation,
   query,
   filter,
+  onLearn,
   onView,
 }) {
   const [presentationKey, setPresentationKey] = useState(
@@ -147,6 +150,38 @@ export default function CoaRecord({
             <FlaskConical size={25} aria-hidden="true" />
           )}
         </figure>
+
+        <button
+          type="button"
+          className="coa-family__learn"
+          onClick={() =>
+            onLearn?.({
+              record: selectedRecord,
+              productName: selectedRecord.product?.name || family.name,
+              productImage: {
+                src: image.fullSrc || image.src || "",
+                srcSet: image.srcSet || "",
+                sizes: image.sizes || "",
+                alt:
+                  image.alt ||
+                  selectedRecord.product?.name ||
+                  family.name,
+              },
+            })
+          }
+          aria-label={`Open guide: How to read the COA for ${family.name}`}
+        >
+          <span className="coa-family__learn-mark" aria-hidden="true">
+            <ScanLine size={15} />
+          </span>
+          <span className="coa-family__learn-copy">
+            <small>COA guide</small>
+            <strong>
+              <span>Read your COA</span>
+              <ArrowRight size={12} aria-hidden="true" />
+            </strong>
+          </span>
+        </button>
 
         <div className="coa-family__identity">
           <span>{family.category || "Laboratory archive"}</span>

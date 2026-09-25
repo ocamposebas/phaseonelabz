@@ -20,6 +20,7 @@ import {
   Palette,
   Plus,
   Ruler,
+  ScanLine,
   Send,
   ShieldCheck,
   ShoppingCart,
@@ -28,6 +29,7 @@ import {
   X,
 } from "lucide-react";
 import { getProductPurchaseLimit, useCart } from "../cart/CartContext";
+import CoaEducationGuide from "../coa/CoaEducationGuide.jsx";
 import DispatchCutoff from "../shipping/DispatchCutoff";
 import {
   findCoaForWooProduct,
@@ -2369,6 +2371,7 @@ export default function ProductDetailSection({
   const [quantity, setQuantity] = useState(1);
   const [cartMessage, setCartMessage] = useState("");
   const [customOrderOpen, setCustomOrderOpen] = useState(false);
+  const [coaEducationOpen, setCoaEducationOpen] = useState(false);
   const [liveCoaRecords, setLiveCoaRecords] = useState([]);
   const [coaLibraryStatus, setCoaLibraryStatus] = useState("loading");
 
@@ -2507,6 +2510,18 @@ export default function ProductDetailSection({
     selectedVariation,
     selectedOptionLabel,
     selectedAttributes
+  );
+  const coaGuideProduct = useMemo(
+    () => ({
+      ...product,
+      variation_id: selectedVariation?.id || 0,
+      variationId: selectedVariation?.id || 0,
+      selectedVariationId: selectedVariation?.id || 0,
+      variationSku: selectedVariation?.sku || "",
+      selectedOption: selectedOptionLabel,
+      strength: selectedOptionLabel,
+    }),
+    [product, selectedOptionLabel, selectedVariation?.id, selectedVariation?.sku]
   );
 
   const currentCoaUrl = currentCoaRecord ? getRecordUrl(currentCoaRecord) : "";
@@ -2734,6 +2749,21 @@ export default function ProductDetailSection({
 
               <img src={displayImage} alt={activeImage?.alt || name} />
             </div>
+
+            <button
+              type="button"
+              className="pdp-coa-education"
+              onClick={() => setCoaEducationOpen(true)}
+              aria-label={`Open guide: How to read the COA for ${name}`}
+            >
+              <span className="pdp-coa-education__mark"><ScanLine size={17} /></span>
+              <span className="pdp-coa-education__copy">
+                <small>COA field guide</small>
+                <strong>How to read your COA</strong>
+              </span>
+              <span className="pdp-coa-education__meta">Interactive · 60 sec</span>
+              <ArrowUpRight size={16} className="pdp-coa-education__arrow" />
+            </button>
 
             {gallery.length > 1 && (
               <div className="pdp-gallery-rail" aria-label="Product gallery">
@@ -3205,6 +3235,26 @@ export default function ProductDetailSection({
           onClose={() => setCustomOrderOpen(false)}
         />
       )}
+
+      {coaEducationOpen ? (
+        <CoaEducationGuide
+          product={coaGuideProduct}
+          productName={currentCoaRecord?.product?.name || name}
+          productImage={{
+            src: displayImage,
+            alt: activeImage?.alt || name,
+          }}
+          record={currentCoaRecord}
+          onClose={() => setCoaEducationOpen(false)}
+          onOpenCertificate={(record) => {
+            const certificateUrl = getRecordUrl(record) || currentCoaUrl;
+            setCoaEducationOpen(false);
+            if (certificateUrl) {
+              window.open(certificateUrl, "_blank", "noopener,noreferrer");
+            }
+          }}
+        />
+      ) : null}
     </section>
   );
 }

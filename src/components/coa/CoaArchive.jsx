@@ -6,6 +6,7 @@ import {
   scoreCoaPresentation,
 } from "../../lib/coaModel.js";
 import CoaCertificateViewer from "./CoaCertificateViewer.jsx";
+import CoaEducationGuide from "./CoaEducationGuide.jsx";
 import CoaRecord from "./CoaRecord.jsx";
 
 const PAGE_SIZE = 10;
@@ -75,6 +76,7 @@ export default function CoaArchive({ endpoint = "/api/coas" }) {
   const [filter, setFilter] = useState("all");
   const [page, setPage] = useState(1);
   const [viewer, setViewer] = useState(null);
+  const [education, setEducation] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
   const resultsRef = useRef(null);
 
@@ -305,6 +307,7 @@ export default function CoaArchive({ endpoint = "/api/coas" }) {
                 preferredPresentation={preferredPresentation}
                 query={debouncedQuery}
                 filter={filter}
+                onLearn={setEducation}
                 onView={(record) =>
                   setViewer({ record, productName: family.name })
                 }
@@ -332,6 +335,20 @@ export default function CoaArchive({ endpoint = "/api/coas" }) {
           record={viewer.record}
           productName={viewer.productName}
           onClose={() => setViewer(null)}
+        />
+      ) : null}
+
+      {education ? (
+        <CoaEducationGuide
+          record={education.record}
+          productName={education.productName}
+          productImage={education.productImage}
+          onClose={() => setEducation(null)}
+          onOpenCertificate={(record) => {
+            const productName = education.productName;
+            setEducation(null);
+            setViewer({ record, productName });
+          }}
         />
       ) : null}
     </section>

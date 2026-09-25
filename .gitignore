@@ -8,3 +8,7 @@ releases/
 .env.production
 .DS_Store
 cookies.txt
+tmp/
+tmp/
+
+tmp/
