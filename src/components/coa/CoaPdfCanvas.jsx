@@ -2114,6 +2114,10 @@ export default function CoaPdfCanvas({
                 data-coa-live-height={view.anchor.height.toFixed(5)}
               >
                 <span className="coa-live-focus__frame" aria-hidden="true" />
+                <span className="coa-live-focus__pointer" aria-hidden="true">
+                  <i />
+                  <b>{activeTest?.label || callout?.label || "Read here"}</b>
+                </span>
               </div>
             ) : null}
 

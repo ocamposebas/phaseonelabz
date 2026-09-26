@@ -2,6 +2,7 @@ import "./SuggestedProductsSection.styles.css";
 import { useMemo } from "react";
 import { ArrowRight, ShoppingBag } from "lucide-react";
 import { useCart } from "../cart/CartContext";
+import { selectSuggestedProducts } from "../../lib/productRecommendations.js";
 
 function formatPrice(price) {
   if (!price) return "View";
@@ -19,6 +20,7 @@ function formatPrice(price) {
 
 function getImage(product) {
   return (
+    product?.images?.[0]?.thumbnail ||
     product?.images?.[0]?.src ||
     product?.images?.[0]?.url ||
     product?.image ||
@@ -34,131 +36,6 @@ function getImage(product) {
 function getProductDetailUrl(product) {
   if (!product?.slug) return "/shop";
   return `/product/${product.slug}`;
-}
-
-function normalizeText(value = "") {
-  return String(value || "")
-    .toLowerCase()
-    .replace(/&amp;/g, "&")
-    .replace(/[^a-z0-9+\-\s]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function normalizeSku(value = "") {
-  return normalizeText(value).replace(/\s+/g, "-");
-}
-
-function getSearchableProductText(product = {}) {
-  const categories = Array.isArray(product.categories)
-    ? product.categories
-        .map((category) =>
-          typeof category === "string" ? category : category?.name
-        )
-        .filter(Boolean)
-    : [];
-
-  const tags = Array.isArray(product.tags)
-    ? product.tags
-        .map((tag) => (typeof tag === "string" ? tag : tag?.name))
-        .filter(Boolean)
-    : [];
-
-  return normalizeText(
-    [
-      product.name,
-      product.title,
-      product.slug,
-      product.sku,
-      product.short_description,
-      product.description,
-      ...categories,
-      ...tags,
-    ].join(" ")
-  );
-}
-
-const featuredProductRules = [
-  {
-    label: "RT3 / RETA",
-    skus: ["p1-rt-10", "p1-kit-rt-10", "p1-kit-rt-30"],
-    groups: [["rt3"], ["reta"], ["retatrutide"]],
-  },
-  {
-    label: "TZ2 / Tirzepatide",
-    skus: ["p1-tz-10", "p1-tirz-10"],
-    groups: [["tz2"], ["tirz"], ["tirzepatide"]],
-  },
-  {
-    label: "Hospira",
-    skus: ["p1-bacw-30"],
-    groups: [["hospira"]],
-  },
-  {
-    label: "P1 Water",
-    skus: ["p1-bacw-10"],
-    groups: [
-      ["p1", "water"],
-      ["phase one", "water"],
-      ["bacteriostatic", "water"],
-      ["bac", "water"],
-    ],
-    exclude: ["hospira"],
-  },
-];
-
-function productMatchesGroup(searchText, group = []) {
-  return group.every((term) => searchText.includes(normalizeText(term)));
-}
-
-function productMatchesRule(product = {}, rule = {}) {
-  const searchText = getSearchableProductText(product);
-  const sku = normalizeSku(product?.sku || "");
-
-  const excluded = Array.isArray(rule.exclude)
-    ? rule.exclude.some((term) => searchText.includes(normalizeText(term)))
-    : false;
-
-  if (excluded) return false;
-
-  const skuMatch = Array.isArray(rule.skus)
-    ? rule.skus.some((ruleSku) => sku === normalizeSku(ruleSku))
-    : false;
-
-  if (skuMatch) return true;
-
-  return rule.groups.some((group) => productMatchesGroup(searchText, group));
-}
-
-function getSuggestedProducts(products = [], currentProductId) {
-  const selected = [];
-  const selectedIds = new Set();
-
-  const cleanProducts = Array.isArray(products)
-    ? products.filter((product) => {
-        if (!product?.id) return false;
-        if (String(product.id) === String(currentProductId)) return false;
-        return true;
-      })
-    : [];
-
-  featuredProductRules.forEach((rule) => {
-    const match = cleanProducts.find((product) => {
-      if (!product?.id || selectedIds.has(String(product.id))) return false;
-      return productMatchesRule(product, rule);
-    });
-
-    if (match) {
-      selected.push({
-        ...match,
-        suggestedLabel: rule.label,
-      });
-
-      selectedIds.add(String(match.id));
-    }
-  });
-
-  return selected.slice(0, 4);
 }
 
 function buildCartProduct(product = {}) {
@@ -194,7 +71,7 @@ export default function SuggestedProductsSection({
   const { addToCart } = useCart();
 
   const visibleProducts = useMemo(() => {
-    return getSuggestedProducts(products, currentProductId);
+    return selectSuggestedProducts(products, currentProductId);
   }, [products, currentProductId]);
 
   const goToProduct = (url) => {
@@ -297,9 +174,22 @@ export default function SuggestedProductsSection({
                   <img
                     src={image}
                     alt={product.name}
+                    width="300"
+                    height="300"
+                    loading="lazy"
+                    decoding="async"
                     draggable="false"
                     className="suggested-product-image relative z-10 max-h-[132px] w-auto object-contain drop-shadow-[0_28px_42px_rgba(0,0,0,0.5)] transition duration-500 group-hover:scale-[1.04] sm:max-h-[220px] lg:max-h-[245px]"
                     style={{ animationDelay: `${index * 0.22}s` }}
+                    onError={(event) => {
+                      const fallback =
+                        product?.images?.[0]?.src ||
+                        product?.image ||
+                        "/tarro.png";
+                      if (event.currentTarget.src !== fallback) {
+                        event.currentTarget.src = fallback;
+                      }
+                    }}
                   />
                 </div>
 

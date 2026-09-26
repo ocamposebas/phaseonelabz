@@ -1,6 +1,7 @@
 import "./ProductCatalog.styles.css";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowRight, ShoppingBag } from "lucide-react";
+import { loadPublicCatalog } from "../../lib/publicCatalogClient.js";
 
 const featuredProductRules = [
   {
@@ -65,6 +66,7 @@ function formatPrice(price) {
 
 function getImage(product) {
   return (
+    product?.images?.[0]?.thumbnail ||
     product?.image ||
     product?.images?.[0]?.src ||
     product?.images?.[0]?.url ||
@@ -137,6 +139,11 @@ function prepareProduct(product = {}, index = 0) {
     id: product?.id || product?.slug || `${name}-${index}`,
     name,
     image,
+    fullImage:
+      product?.images?.[0]?.src ||
+      product?.image ||
+      product?.featuredImage ||
+      "/tarro.png",
     url,
     priceLabel,
     isInStock,
@@ -223,10 +230,17 @@ const ProductCard = memo(function ProductCard({ item }) {
         <img
           src={item.image}
           alt={item.name}
+          width="300"
+          height="300"
           draggable="false"
           loading="lazy"
           decoding="async"
           className="featured-image"
+          onError={(event) => {
+            const target = event.currentTarget;
+            target.onerror = null;
+            target.src = item.fullImage;
+          }}
         />
       </div>
 
@@ -302,42 +316,28 @@ export default function ProductCatalog({
       return undefined;
     }
 
-    const controller = new AbortController();
+    let active = true;
 
     const loadProducts = async () => {
       try {
         setCatalogLoading(true);
         setCatalogError("");
 
-        const response = await fetch(productsEndpoint, {
-          method: "GET",
-          cache: "default",
-          signal: controller.signal,
-          headers: { Accept: "application/json" },
-        });
-
-        if (!response.ok) {
-          throw new Error(`Products request failed: ${response.status}`);
-        }
-
-        const payload = await response.json();
-        const nextProducts = Array.isArray(payload)
-          ? payload
-          : Array.isArray(payload?.products)
-            ? payload.products
-            : [];
-
-        setProducts(nextProducts);
+        const nextProducts = await loadPublicCatalog(productsEndpoint);
+        if (active) setProducts(nextProducts);
       } catch (error) {
-        if (error?.name === "AbortError") return;
-        setCatalogError("The featured catalog is temporarily unavailable.");
+        if (active) {
+          setCatalogError("The featured catalog is temporarily unavailable.");
+        }
       } finally {
-        if (!controller.signal.aborted) setCatalogLoading(false);
+        if (active) setCatalogLoading(false);
       }
     };
 
     loadProducts();
-    return () => controller.abort();
+    return () => {
+      active = false;
+    };
   }, [products.length, productsEndpoint]);
 
   const visibleProducts = useMemo(() => {

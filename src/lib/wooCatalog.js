@@ -1,4 +1,5 @@
 const DEFAULT_PRODUCTS_PER_PAGE = 100;
+const MAX_PRODUCTS_PER_REQUEST = 50;
 const DEFAULT_CATALOG_CACHE_TTL_MS = 5 * 60_000;
 const DEFAULT_CATALOG_STALE_TTL_MS = 60 * 60_000;
 const MAX_CATALOG_CACHE_TTL_MS = 30 * 60_000;
@@ -8,9 +9,42 @@ const WOO_REQUEST_TIMEOUT_MS = 10_000;
 const catalogState = globalThis.__phaseoneWooCatalogState || {
   entries: new Map(),
   inFlight: new Map(),
+  variationInFlight: new Map(),
 };
 
+catalogState.variationInFlight ||= new Map();
+
 globalThis.__phaseoneWooCatalogState = catalogState;
+
+const CATALOG_PRODUCT_FIELDS = [
+  "id",
+  "name",
+  "slug",
+  "sku",
+  "type",
+  "status",
+  "permalink",
+  "price",
+  "regular_price",
+  "sale_price",
+  "price_html",
+  "on_sale",
+  "purchasable",
+  "stock_status",
+  "stock_quantity",
+  "manage_stock",
+  "date_created",
+  "short_description",
+  "description",
+  "categories",
+  "tags",
+  "attributes",
+  "default_attributes",
+  "variations",
+  "images",
+  "meta_data",
+  "low_stock_remaining",
+].join(",");
 
 const CATALOG_DISCOUNT_META_KEYS = new Set([
   "_discount_percent",
@@ -367,6 +401,54 @@ async function fetchWooJson(url, fetchImpl) {
   return response.json();
 }
 
+export function fetchWooProductVariations({
+  baseUrl,
+  consumerKey,
+  consumerSecret,
+  productId,
+  expectedCount = 0,
+  fetchImpl = fetch,
+}) {
+  const cleanProductId = Number(productId);
+  if (!Number.isInteger(cleanProductId) || cleanProductId <= 0) {
+    return Promise.resolve([]);
+  }
+
+  const cacheEnabled = fetchImpl === fetch;
+  const cacheKey = `${String(baseUrl || "").replace(/\/$/, "")}::${cleanProductId}`;
+
+  if (cacheEnabled && catalogState.variationInFlight.has(cacheKey)) {
+    return catalogState.variationInFlight.get(cacheKey);
+  }
+
+  const variationsUrl = createWooUrl(
+    baseUrl,
+    `products/${cleanProductId}/variations`,
+    consumerKey,
+    consumerSecret
+  );
+  const requestedCount = Number(expectedCount);
+  const safeCount = Number.isFinite(requestedCount) && requestedCount > 0
+    ? Math.min(Math.max(Math.ceil(requestedCount), 1), 100)
+    : 50;
+
+  variationsUrl.searchParams.set("per_page", String(safeCount));
+  variationsUrl.searchParams.set("status", "publish");
+
+  const request = fetchWooJson(variationsUrl, fetchImpl).then((variations) =>
+    Array.isArray(variations) ? variations : []
+  );
+
+  if (!cacheEnabled) return request;
+
+  const sharedRequest = request.finally(() => {
+    catalogState.variationInFlight.delete(cacheKey);
+  });
+  catalogState.variationInFlight.set(cacheKey, sharedRequest);
+
+  return sharedRequest;
+}
+
 export async function fetchWooCatalog({
   baseUrl,
   consumerKey,
@@ -390,6 +472,8 @@ export async function fetchWooCatalog({
   if (cached && now < cached.expiresAt) return cached.products;
 
   const loadCatalog = async () => {
+    const maximumProducts = Math.min(Math.max(Number(perPage) || 1, 1), 100);
+    const pageSize = Math.min(maximumProducts, MAX_PRODUCTS_PER_REQUEST);
     const productsUrl = createWooUrl(
       baseUrl,
       "products",
@@ -397,32 +481,44 @@ export async function fetchWooCatalog({
       consumerSecret
     );
 
-    productsUrl.searchParams.set("per_page", String(perPage));
+    productsUrl.searchParams.set("per_page", String(pageSize));
     productsUrl.searchParams.set("page", "1");
     productsUrl.searchParams.set("status", "publish");
+    productsUrl.searchParams.set("_fields", CATALOG_PRODUCT_FIELDS);
 
-    const products = await fetchWooJson(productsUrl, fetchImpl);
+    const firstPage = await fetchWooJson(productsUrl, fetchImpl);
 
-    if (!Array.isArray(products)) {
+    if (!Array.isArray(firstPage)) {
       throw new Error("WooCommerce returned an invalid product catalog.");
     }
+
+    let products = firstPage;
+
+    // Most catalogs fit in the first compact page. Only request the second
+    // page when the first one is full, avoiding a 100-product response for
+    // small catalogs without truncating larger ones.
+    if (firstPage.length === pageSize && maximumProducts > pageSize) {
+      const nextUrl = new URL(productsUrl);
+      nextUrl.searchParams.set("page", "2");
+      const secondPage = await fetchWooJson(nextUrl, fetchImpl);
+      if (Array.isArray(secondPage)) products = firstPage.concat(secondPage);
+    }
+
+    products = products.slice(0, maximumProducts);
 
     const enrichedProducts = await Promise.all(
       products.map(async (product) => {
         if (!productNeedsVariationPrice(product)) return product;
 
-        const variationsUrl = createWooUrl(
-          baseUrl,
-          `products/${product.id}/variations`,
-          consumerKey,
-          consumerSecret
-        );
-
-        variationsUrl.searchParams.set("per_page", "100");
-        variationsUrl.searchParams.set("status", "publish");
-
         try {
-          const variations = await fetchWooJson(variationsUrl, fetchImpl);
+          const variations = await fetchWooProductVariations({
+            baseUrl,
+            consumerKey,
+            consumerSecret,
+            productId: product.id,
+            expectedCount: product.variations?.length,
+            fetchImpl,
+          });
 
           return enrichProductWithVariationPrices(product, variations);
         } catch (error) {

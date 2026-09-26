@@ -1,4 +1,9 @@
-import { fetchWooCatalog } from "./wooCatalog.js";
+import {
+  fetchWooCatalog,
+  fetchWooProductVariations,
+  getCatalogThumbnailUrl,
+} from "./wooCatalog.js";
+import { selectSuggestedProducts } from "./productRecommendations.js";
 
 const PRODUCT_CACHE_TTL_MS = 15 * 60_000;
 const PRODUCT_STALE_TTL_MS = 24 * 60 * 60_000;
@@ -90,7 +95,19 @@ async function fetchProductBySlug(config, slug) {
   });
 
   const products = await fetchWooJson(url, "Phase One Product Detail/2.0");
-  return products[0] || null;
+  const product = products[0] || null;
+  if (!product) return null;
+
+  return {
+    ...product,
+    images: Array.isArray(product.images)
+      ? product.images.map((image) => ({
+          ...image,
+          thumbnail:
+            image?.thumbnail || getCatalogThumbnailUrl(image?.src || image?.url),
+        }))
+      : [],
+  };
 }
 
 async function hydrateProductVariations(config, product) {
@@ -107,16 +124,29 @@ async function hydrateProductVariations(config, product) {
   }
 
   try {
-    const url = createWooUrl(config, `products/${product.id}/variations`, {
-      per_page: 100,
-      status: "publish",
+    const hydratedVariations = await fetchWooProductVariations({
+      ...config,
+      productId: product.id,
+      expectedCount: variations.length,
     });
-    const hydratedVariations = await fetchWooJson(
-      url,
-      "Phase One Product Variations/2.0",
-    );
 
-    return { ...product, variations: hydratedVariations };
+    return {
+      ...product,
+      variations: hydratedVariations.map((variation) => ({
+        ...variation,
+        image:
+          variation?.image && typeof variation.image === "object"
+            ? {
+                ...variation.image,
+                thumbnail:
+                  variation.image.thumbnail ||
+                  getCatalogThumbnailUrl(
+                    variation.image.src || variation.image.url,
+                  ),
+              }
+            : variation?.image,
+      })),
+    };
   } catch (error) {
     console.error("Could not load product variations:", error);
     return {
@@ -150,8 +180,9 @@ async function loadFreshProductPageData(config, slug) {
 
   return {
     product: hydratedProduct,
-    recommendedProducts: catalogProducts.filter(
-      (item) => String(item?.id || "") !== String(hydratedProduct.id || ""),
+    recommendedProducts: selectSuggestedProducts(
+      catalogProducts,
+      hydratedProduct.id,
     ),
   };
 }

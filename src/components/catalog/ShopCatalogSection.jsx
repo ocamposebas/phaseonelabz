@@ -1,5 +1,14 @@
 import "./shop-catalog-section.css";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  lazy,
+  memo,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ArrowRight,
   Beaker,
@@ -18,13 +27,15 @@ import {
   X,
 } from "lucide-react";
 import { useCart } from "../cart/CartContext";
-import CoaEducationGuide from "../coa/CoaEducationGuide.jsx";
 import DispatchCutoff from "../shipping/DispatchCutoff";
+import { loadPublicCatalog } from "../../lib/publicCatalogClient.js";
 import {
   CATALOG_CATEGORIES,
   getProductCatalogCategory,
   resolveCatalogCategory,
 } from "../../lib/catalogTaxonomy";
+
+const CoaEducationGuide = lazy(() => import("../coa/CoaEducationGuide.jsx"));
 
 const RECON_WATER_IDENTIFIERS = new Set([
   "h-recon",
@@ -1593,15 +1604,32 @@ function getVariationRequestUrls(product = {}, productId = 0) {
   const uniqueEndpoints = [
     ...new Set(candidates.map(getStoreProductsEndpoint).filter(Boolean)),
   ];
+  const expectedVariationCount = [
+    product?.variations,
+    product?.variation_ids,
+    product?.variationIds,
+    product?.children,
+  ].reduce(
+    (largest, collection) =>
+      Array.isArray(collection) ? Math.max(largest, collection.length) : largest,
+    0
+  );
+  const pageSize = expectedVariationCount
+    ? Math.min(Math.max(expectedVariationCount, 1), 100)
+    : 50;
 
   return uniqueEndpoints.map((endpoint) => {
     const url = new URL(endpoint);
 
     url.searchParams.set("type", "variation");
     url.searchParams.set("parent", String(productId));
-    url.searchParams.set("per_page", "100");
+    url.searchParams.set("per_page", String(pageSize));
     url.searchParams.set("orderby", "menu_order");
     url.searchParams.set("order", "asc");
+    url.searchParams.set(
+      "_fields",
+      "id,name,sku,prices,price,regular_price,sale_price,images,image,attributes,is_in_stock,stock_status,stock_quantity,low_stock_remaining,add_to_cart"
+    );
 
     return url.toString();
   });
@@ -1677,9 +1705,8 @@ async function fetchWooVariationOptions(product = {}) {
 
   try {
     return await request;
-  } catch (error) {
+  } finally {
     variationOptionsRequestCache.delete(productId);
-    throw error;
   }
 }
 
@@ -2537,44 +2564,30 @@ export default function ShopCatalogSection({
       return undefined;
     }
 
-    const controller = new AbortController();
+    let active = true;
 
     const loadProducts = async () => {
       try {
         setCatalogLoading(true);
         setCatalogLoadError("");
 
-        const response = await fetch(productsEndpoint, {
-          method: "GET",
-          cache: "default",
-          signal: controller.signal,
-          headers: { Accept: "application/json" },
-        });
-
-        if (!response.ok) {
-          throw new Error(`Products request failed: ${response.status}`);
-        }
-
-        const payload = await response.json();
-        const nextProducts = Array.isArray(payload)
-          ? payload
-          : Array.isArray(payload?.products)
-            ? payload.products
-            : [];
-
-        setProducts(nextProducts);
+        const nextProducts = await loadPublicCatalog(productsEndpoint);
+        if (active) setProducts(nextProducts);
       } catch (error) {
-        if (error?.name === "AbortError") return;
-        setCatalogLoadError(
-          "The catalog could not be loaded. Please try again shortly."
-        );
+        if (active) {
+          setCatalogLoadError(
+            "The catalog could not be loaded. Please try again shortly."
+          );
+        }
       } finally {
-        if (!controller.signal.aborted) setCatalogLoading(false);
+        if (active) setCatalogLoading(false);
       }
     };
 
     loadProducts();
-    return () => controller.abort();
+    return () => {
+      active = false;
+    };
   }, [products.length, productsEndpoint]);
 
   useEffect(() => {
@@ -3234,13 +3247,15 @@ export default function ShopCatalogSection({
       )}
 
       {coaEducationTarget ? (
-        <CoaEducationGuide
-          product={coaEducationTarget.product}
-          productName={coaEducationTarget.productName}
-          productImage={coaEducationTarget.productImage}
-          record={coaEducationTarget.record}
-          onClose={closeCoaEducation}
-        />
+        <Suspense fallback={null}>
+          <CoaEducationGuide
+            product={coaEducationTarget.product}
+            productName={coaEducationTarget.productName}
+            productImage={coaEducationTarget.productImage}
+            record={coaEducationTarget.record}
+            onClose={closeCoaEducation}
+          />
+        </Suspense>
       ) : null}
     </section>
   );

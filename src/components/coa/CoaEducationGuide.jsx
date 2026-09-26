@@ -29,6 +29,7 @@ import {
   X,
 } from "lucide-react";
 import { findCoaForWooProduct } from "../../lib/coaModel.js";
+import { loadPublicCoaCatalog } from "../../lib/publicCoaClient.js";
 
 const loadCoaPdfCanvas = () => import("./CoaPdfCanvas.jsx");
 const CoaPdfCanvas = lazy(loadCoaPdfCanvas);
@@ -47,9 +48,6 @@ const AUTO_STEP_MS = Object.freeze({
   purity: 6_000,
   tests: 8_000,
 });
-
-let catalogRequest;
-let catalogRequestExpiresAt = 0;
 
 const STEPS = [
   {
@@ -139,31 +137,9 @@ function strengthFromName(value) {
 }
 
 function loadCoaCatalog() {
-  const now = Date.now();
-  if (!catalogRequest || now >= catalogRequestExpiresAt) {
-    const request = fetch("/api/coas", {
-      headers: { Accept: "application/json" },
-      cache: "no-store",
-      credentials: "same-origin",
-    })
-      .then(async (response) => {
-        const payload = await response.json().catch(() => null);
-        if (!response.ok) {
-          throw new Error(payload?.error || "The COA catalog could not be loaded.");
-        }
-        return Array.isArray(payload?.records) ? payload.records : [];
-      })
-      .catch((error) => {
-        if (catalogRequest === request) {
-          catalogRequest = null;
-          catalogRequestExpiresAt = 0;
-        }
-        throw error;
-      });
-    catalogRequest = request;
-    catalogRequestExpiresAt = now + 60_000;
-  }
-  return catalogRequest;
+  return loadPublicCoaCatalog().then((payload) =>
+    Array.isArray(payload?.records) ? payload.records : []
+  );
 }
 
 function warmCoaDocument(record = {}, productName = "") {
@@ -548,7 +524,7 @@ function DocumentStage({ focusKey, onStatus, productName, record, status, vialIm
   return <ExternalCertificateStage record={record} productName={productName} />;
 }
 
-function GuideStage({ compact, image, onDocumentStatus, onVialInspect, onVialScanState, productName, record, status, step }) {
+function GuideStage({ image, onDocumentStatus, onVialInspect, onVialScanState, productName, record, status, step }) {
   const activeScene =
     step.id === "product"
       ? "product"
@@ -575,7 +551,7 @@ function GuideStage({ compact, image, onDocumentStatus, onVialInspect, onVialSca
       >
         <VialStage
           active={activeScene === "vial"}
-          autoScan={compact}
+          autoScan
           onInspect={onVialInspect}
           onScanStateChange={onVialScanState}
           type={vialType}
@@ -696,11 +672,6 @@ export default function CoaEducationGuide({
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
   const [pageVisible, setPageVisible] = useState(true);
   const [playbackRun, setPlaybackRun] = useState(0);
-  const [compactLayout, setCompactLayout] = useState(() =>
-    typeof window !== "undefined"
-      ? window.matchMedia?.("(max-width: 760px)")?.matches ?? false
-      : false,
-  );
   const [vialScanState, setVialScanState] = useState("idle");
   const dialogRef = useRef(null);
   const closeRef = useRef(null);
@@ -854,22 +825,17 @@ export default function CoaEducationGuide({
     });
 
     const media = window.matchMedia?.("(prefers-reduced-motion: reduce)");
-    const compactMedia = window.matchMedia?.("(max-width: 760px)");
     const syncPreference = () => {
       const reduced = Boolean(media?.matches);
       setPrefersReducedMotion(reduced);
       if (reduced) setIsPlaying(false);
     };
-    const syncCompactLayout = () => setCompactLayout(Boolean(compactMedia?.matches));
     syncPreference();
-    syncCompactLayout();
     media?.addEventListener?.("change", syncPreference);
-    compactMedia?.addEventListener?.("change", syncCompactLayout);
     const syncVisibility = () => setPageVisible(!document.hidden);
     document.addEventListener("visibilitychange", syncVisibility);
     return () => {
       media?.removeEventListener?.("change", syncPreference);
-      compactMedia?.removeEventListener?.("change", syncCompactLayout);
       document.removeEventListener("visibilitychange", syncVisibility);
     };
   }, []);
@@ -1060,7 +1026,6 @@ export default function CoaEducationGuide({
             </div>
             <div className="coa-guide__scene">
               <GuideStage
-                compact={compactLayout}
                 image={resolvedImage}
                 onDocumentStatus={handleDocumentStatus}
                 onVialInspect={() => setIsPlaying(false)}

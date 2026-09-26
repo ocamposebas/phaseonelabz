@@ -17,6 +17,7 @@ import {
   CATALOG_NAV_ITEMS,
   getProductCatalogCategory,
 } from "../../lib/catalogTaxonomy";
+import { loadPublicCatalog } from "../../lib/publicCatalogClient.js";
 
 const navItems = [
   { label: "Home", href: "/" },
@@ -33,7 +34,7 @@ const announcementItems = [
 ];
 
 const PRODUCTS_ENDPOINT =
-  import.meta.env.PUBLIC_PRODUCT_SEARCH_API_URL || "/api/products";
+  import.meta.env.PUBLIC_PRODUCT_SEARCH_API_URL || "/api/products?limit=100";
 
 function normalizeSearchText(value) {
   return String(value || "")
@@ -44,23 +45,22 @@ function normalizeSearchText(value) {
     .trim();
 }
 
-function extractProductsFromPayload(data) {
-  if (Array.isArray(data)) return data;
-
-  if (Array.isArray(data?.products)) return data.products;
-  if (Array.isArray(data?.items)) return data.items;
-  if (Array.isArray(data?.results)) return data.results;
-  if (Array.isArray(data?.data)) return data.data;
-
-  return [];
-}
-
 function getProductImage(product) {
   return (
+    product?.images?.[0]?.thumbnail ||
     product?.image ||
     product?.images?.[0]?.src ||
     product?.images?.[0]?.url ||
     product?.featuredImage ||
+    "/placeholder-product.png"
+  );
+}
+
+function getProductFullImage(product) {
+  return (
+    product?.images?.[0]?.src ||
+    product?.images?.[0]?.url ||
+    product?.image ||
     "/placeholder-product.png"
   );
 }
@@ -381,48 +381,36 @@ export default function SiteHeader({
   }, []);
 
   useEffect(() => {
-    if (!searchExpanded && !mobileOpen) return;
+    if (!searchExpanded || cleanSearchQuery.length < 2) return;
     if (productsLoaded) return;
 
-    const controller = new AbortController();
+    let active = true;
 
     const loadProducts = async () => {
       try {
         setSearchLoading(true);
         setSearchError("");
 
-        const response = await fetch(PRODUCTS_ENDPOINT, {
-          method: "GET",
-          cache: "default",
-          signal: controller.signal,
-          headers: {
-            Accept: "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          throw new Error(`Products request failed: ${response.status}`);
-        }
-
-        const data = await response.json();
-        const products = extractProductsFromPayload(data);
-
+        const products = await loadPublicCatalog(PRODUCTS_ENDPOINT);
+        if (!active) return;
         setAllProducts(products);
         setProductsLoaded(true);
       } catch (error) {
-        if (error.name === "AbortError") return;
-
-        setAllProducts([]);
-        setSearchError("Search is unavailable right now.");
+        if (active) {
+          setAllProducts([]);
+          setSearchError("Search is unavailable right now.");
+        }
       } finally {
-        setSearchLoading(false);
+        if (active) setSearchLoading(false);
       }
     };
 
     loadProducts();
 
-    return () => controller.abort();
-  }, [searchExpanded, mobileOpen, productsLoaded]);
+    return () => {
+      active = false;
+    };
+  }, [cleanSearchQuery, searchExpanded, productsLoaded]);
 
   useEffect(() => {
     if (cleanSearchQuery.length < 2) {
@@ -764,7 +752,19 @@ export default function SiteHeader({
                                   onClick={() => setSearchExpanded(false)}
                                 >
                                   <span className="sh-inline-result-image">
-                                    <img src={productImage} alt={productName} />
+                                    <img
+                                      src={productImage}
+                                      alt={productName}
+                                      width="48"
+                                      height="48"
+                                      loading="lazy"
+                                      decoding="async"
+                                      onError={(event) => {
+                                        const target = event.currentTarget;
+                                        target.onerror = null;
+                                        target.src = getProductFullImage(product);
+                                      }}
+                                    />
                                   </span>
 
                                   <span className="sh-inline-result-copy">
@@ -1062,7 +1062,19 @@ export default function SiteHeader({
                             setSearchExpanded(false);
                           }}
                         >
-                          <img src={productImage} alt={productName} />
+                          <img
+                            src={productImage}
+                            alt={productName}
+                            width="48"
+                            height="48"
+                            loading="lazy"
+                            decoding="async"
+                            onError={(event) => {
+                              const target = event.currentTarget;
+                              target.onerror = null;
+                              target.src = getProductFullImage(product);
+                            }}
+                          />
                           <span>{productName}</span>
                         </a>
                       );

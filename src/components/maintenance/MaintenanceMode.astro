@@ -50,16 +50,35 @@ const {
 </main>
 
 <script is:inline>
-  window.setInterval(function () {
-    fetch("/api/site-control?fresh=1&ts=" + Date.now(), { cache: "no-store" })
-      .then(function (response) { return response.ok ? response.json() : null; })
-      .then(function (data) {
-        if (data && data.maintenance && !data.maintenance.enabled) {
-          window.location.reload();
-        }
-      })
-      .catch(function () {});
-  }, 15000);
+  (function () {
+    var timer = 0;
+
+    function schedule(delay) {
+      window.clearTimeout(timer);
+      if (document.hidden) return;
+      timer = window.setTimeout(check, delay);
+    }
+
+    function check() {
+      fetch("/api/site-control?fresh=1&ts=" + Date.now(), { cache: "no-store" })
+        .then(function (response) { return response.ok ? response.json() : null; })
+        .then(function (data) {
+          if (data && data.maintenance && !data.maintenance.enabled) {
+            window.location.reload();
+            return;
+          }
+          schedule(15000);
+        })
+        .catch(function () { schedule(15000); });
+    }
+
+    document.addEventListener("visibilitychange", function () {
+      if (document.hidden) window.clearTimeout(timer);
+      else schedule(0);
+    });
+
+    schedule(15000);
+  })();
 </script>
 
 <style>

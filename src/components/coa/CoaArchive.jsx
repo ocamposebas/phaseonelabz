@@ -1,13 +1,15 @@
 import "./coa-archive.css";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, Archive, RefreshCcw, Search, X } from "lucide-react";
 import {
   groupCoaCatalog,
   scoreCoaPresentation,
 } from "../../lib/coaModel.js";
-import CoaCertificateViewer from "./CoaCertificateViewer.jsx";
-import CoaEducationGuide from "./CoaEducationGuide.jsx";
+import { loadPublicCoaCatalog } from "../../lib/publicCoaClient.js";
 import CoaRecord from "./CoaRecord.jsx";
+
+const CoaCertificateViewer = lazy(() => import("./CoaCertificateViewer.jsx"));
+const CoaEducationGuide = lazy(() => import("./CoaEducationGuide.jsx"));
 
 const PAGE_SIZE = 10;
 
@@ -86,30 +88,24 @@ export default function CoaArchive({ endpoint = "/api/coas" }) {
   }, [query]);
 
   useEffect(() => {
-    const controller = new AbortController();
+    let active = true;
 
     async function load() {
       setStatus("loading");
       setError("");
 
       try {
-        const response = await fetch(endpoint, {
-          headers: { Accept: "application/json" },
-          cache: "no-store",
-          credentials: "same-origin",
-          signal: controller.signal,
+        const data = await loadPublicCoaCatalog(endpoint, {
+          force: reloadKey > 0,
         });
-        const data = await response.json().catch(() => null);
-        if (!response.ok) {
-          throw new Error(data?.error || "The certificate catalog could not be loaded.");
-        }
+        if (!active) return;
 
         setRecords(Array.isArray(data?.records) ? data.records : []);
         setSummary(data?.summary && typeof data.summary === "object" ? data.summary : {});
         setStale(Boolean(data?.stale));
         setStatus("ready");
       } catch (loadError) {
-        if (loadError?.name === "AbortError") return;
+        if (!active) return;
         setRecords([]);
         setError(loadError?.message || "The certificate catalog could not be loaded.");
         setStatus("error");
@@ -117,7 +113,9 @@ export default function CoaArchive({ endpoint = "/api/coas" }) {
     }
 
     load();
-    return () => controller.abort();
+    return () => {
+      active = false;
+    };
   }, [endpoint, reloadKey]);
 
   const families = useMemo(() => groupCoaCatalog(records), [records]);
@@ -331,25 +329,29 @@ export default function CoaArchive({ endpoint = "/api/coas" }) {
       </div>
 
       {viewer ? (
-        <CoaCertificateViewer
-          record={viewer.record}
-          productName={viewer.productName}
-          onClose={() => setViewer(null)}
-        />
+        <Suspense fallback={null}>
+          <CoaCertificateViewer
+            record={viewer.record}
+            productName={viewer.productName}
+            onClose={() => setViewer(null)}
+          />
+        </Suspense>
       ) : null}
 
       {education ? (
-        <CoaEducationGuide
-          record={education.record}
-          productName={education.productName}
-          productImage={education.productImage}
-          onClose={() => setEducation(null)}
-          onOpenCertificate={(record) => {
-            const productName = education.productName;
-            setEducation(null);
-            setViewer({ record, productName });
-          }}
-        />
+        <Suspense fallback={null}>
+          <CoaEducationGuide
+            record={education.record}
+            productName={education.productName}
+            productImage={education.productImage}
+            onClose={() => setEducation(null)}
+            onOpenCertificate={(record) => {
+              const productName = education.productName;
+              setEducation(null);
+              setViewer({ record, productName });
+            }}
+          />
+        </Suspense>
       ) : null}
     </section>
   );

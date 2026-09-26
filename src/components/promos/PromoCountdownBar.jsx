@@ -1,6 +1,10 @@
 import "./PromoCountdownBar.styles.css";
 import { useEffect, useState } from "react";
 import { ArrowRight, BadgePercent, FlaskConical, Timer } from "lucide-react";
+import {
+  requestSiteControl,
+  subscribeSiteControl,
+} from "../../lib/siteControlClient.js";
 
 function emptyRemaining() {
   return { totalSeconds: 0, hours: 0, minutes: 0, seconds: 0 };
@@ -79,14 +83,14 @@ export default function PromoCountdownBar({ promo, initialNow = 0 }) {
   useEffect(() => {
     let active = true;
     let refreshTimer = 0;
+    const applySiteControl = (data) => {
+      if (active && data?.promo) setCurrentPromo(data.promo);
+    };
+    const unsubscribe = subscribeSiteControl(applySiteControl);
 
     const refresh = async () => {
       try {
-        const response = await fetch("/api/site-control", {
-          headers: { Accept: "application/json" },
-        });
-        const data = await response.json();
-        if (active && response.ok && data?.promo) setCurrentPromo(data.promo);
+        applySiteControl(await requestSiteControl());
       } catch {
         // Keep the latest valid promotion state when the control API is unavailable.
       }
@@ -119,6 +123,7 @@ export default function PromoCountdownBar({ promo, initialNow = 0 }) {
     return () => {
       active = false;
       window.clearTimeout(refreshTimer);
+      unsubscribe();
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, []);

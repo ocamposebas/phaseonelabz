@@ -1,5 +1,5 @@
 import "./ProductDetailSection.styles.css";
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   ArrowUpRight,
@@ -29,24 +29,14 @@ import {
   X,
 } from "lucide-react";
 import { getProductPurchaseLimit, useCart } from "../cart/CartContext";
-import CoaEducationGuide from "../coa/CoaEducationGuide.jsx";
 import DispatchCutoff from "../shipping/DispatchCutoff";
 import {
   findCoaForWooProduct,
   getCoaTestingPanel,
 } from "../../lib/coaModel.js";
+import { loadPublicCoaCatalog } from "../../lib/publicCoaClient.js";
 
-function getCoaLibraryEndpoint() {
-  return "/api/coas";
-}
-
-function normalizeCoaLibraryPayload(payload) {
-  if (Array.isArray(payload)) return payload;
-  if (Array.isArray(payload?.records)) return payload.records;
-  if (Array.isArray(payload?.coas)) return payload.coas;
-  if (Array.isArray(payload?.data)) return payload.data;
-  return [];
-}
+const CoaEducationGuide = lazy(() => import("../coa/CoaEducationGuide.jsx"));
 
 function formatMoney(value) {
   const number = Number(value || 0);
@@ -226,6 +216,9 @@ function getGallery(product) {
       .map((image, index) => ({
         id: image.id || `${image.src || image.url}-${index}`,
         src: image.src || image.url,
+        thumbnail: image.thumbnail || image.src || image.url,
+        srcSet: image.srcset || image.srcSet || "",
+        sizes: image.sizes || "",
         alt: image.alt || product?.name || "Product image",
         label: index === 0 ? "Main" : `View ${index + 1}`,
       }));
@@ -2387,38 +2380,21 @@ export default function ProductDetailSection({
   );
 
   useEffect(() => {
-    const controller = new AbortController();
     let active = true;
 
     async function loadLiveCoaLibrary() {
-      const endpoint = getCoaLibraryEndpoint();
-
       setCoaLibraryStatus("loading");
 
       try {
-        const response = await fetch(endpoint, {
-          method: "GET",
-          credentials: "same-origin",
-          cache: "no-store",
-          headers: {
-            Accept: "application/json",
-          },
-          signal: controller.signal,
-        });
-
-        if (!response.ok) {
-          throw new Error(`COA endpoint returned HTTP ${response.status}`);
-        }
-
-        const payload = await response.json();
-        const records = normalizeCoaLibraryPayload(payload);
+        const payload = await loadPublicCoaCatalog();
+        const records = Array.isArray(payload?.records) ? payload.records : [];
 
         if (!active) return;
 
         setLiveCoaRecords(records);
         setCoaLibraryStatus("ready");
       } catch (error) {
-        if (!active || error?.name === "AbortError") return;
+        if (!active) return;
 
         setLiveCoaRecords([]);
         setCoaLibraryStatus("error");
@@ -2430,7 +2406,6 @@ export default function ProductDetailSection({
 
     return () => {
       active = false;
-      controller.abort();
     };
   }, []);
 
@@ -2747,7 +2722,15 @@ export default function ProductDetailSection({
                 </div>
               )}
 
-              <img src={displayImage} alt={activeImage?.alt || name} />
+              <img
+                src={displayImage}
+                alt={activeImage?.alt || name}
+                width="900"
+                height="900"
+                loading="eager"
+                fetchPriority="high"
+                decoding="async"
+              />
             </div>
 
             <button
@@ -2780,7 +2763,22 @@ export default function ProductDetailSection({
                       onClick={() => setActiveImage(image)}
                       aria-label={`Show ${image.label}`}
                     >
-                      <img src={image.src} alt={image.alt} />
+                      <img
+                        src={image.thumbnail || image.src}
+                        srcSet={image.srcSet || undefined}
+                        sizes={image.sizes || "72px"}
+                        alt={image.alt}
+                        width="72"
+                        height="72"
+                        loading="lazy"
+                        decoding="async"
+                        onError={(event) => {
+                          const target = event.currentTarget;
+                          target.onerror = null;
+                          target.src = image.src;
+                          target.removeAttribute("srcset");
+                        }}
+                      />
                     </button>
                   );
                 })}
@@ -3237,23 +3235,25 @@ export default function ProductDetailSection({
       )}
 
       {coaEducationOpen ? (
-        <CoaEducationGuide
-          product={coaGuideProduct}
-          productName={currentCoaRecord?.product?.name || name}
-          productImage={{
-            src: displayImage,
-            alt: activeImage?.alt || name,
-          }}
-          record={currentCoaRecord}
-          onClose={() => setCoaEducationOpen(false)}
-          onOpenCertificate={(record) => {
-            const certificateUrl = getRecordUrl(record) || currentCoaUrl;
-            setCoaEducationOpen(false);
-            if (certificateUrl) {
-              window.open(certificateUrl, "_blank", "noopener,noreferrer");
-            }
-          }}
-        />
+        <Suspense fallback={null}>
+          <CoaEducationGuide
+            product={coaGuideProduct}
+            productName={currentCoaRecord?.product?.name || name}
+            productImage={{
+              src: displayImage,
+              alt: activeImage?.alt || name,
+            }}
+            record={currentCoaRecord}
+            onClose={() => setCoaEducationOpen(false)}
+            onOpenCertificate={(record) => {
+              const certificateUrl = getRecordUrl(record) || currentCoaUrl;
+              setCoaEducationOpen(false);
+              if (certificateUrl) {
+                window.open(certificateUrl, "_blank", "noopener,noreferrer");
+              }
+            }}
+          />
+        </Suspense>
       ) : null}
     </section>
   );

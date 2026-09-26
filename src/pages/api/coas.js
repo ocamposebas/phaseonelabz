@@ -1,10 +1,11 @@
 import { normalizeCoaCatalog } from "../../lib/coaModel.js";
+import { fetchWooCatalog } from "../../lib/wooCatalog.js";
 
 export const prerender = false;
 
 const REQUEST_TIMEOUT_MS = 12_000;
-const CACHE_TTL_MS = 60_000;
-const STALE_TTL_MS = 10 * 60_000;
+const CACHE_TTL_MS = 5 * 60_000;
+const STALE_TTL_MS = 24 * 60 * 60_000;
 const state =
   globalThis.__phaseonePublicCoaCatalog ||
   (globalThis.__phaseonePublicCoaCatalog = {
@@ -21,7 +22,7 @@ function jsonResponse(payload, status = 200) {
       "Content-Type": "application/json; charset=utf-8",
       "Cache-Control":
         status === 200
-          ? "public, max-age=30, s-maxage=60, stale-while-revalidate=300"
+          ? "public, max-age=300, s-maxage=300, stale-while-revalidate=86400, stale-if-error=86400"
           : "no-store",
       "X-Content-Type-Options": "nosniff",
     },
@@ -61,6 +62,26 @@ function getCoaEndpoint(baseUrl) {
   return configured || `${baseUrl}/wp-json/phaseone/v1/coas`;
 }
 
+function getPrivateCatalogConfig() {
+  const baseUrl = String(
+    import.meta.env.WOOCOMMERCE_URL || process.env.WOOCOMMERCE_URL || ""
+  ).replace(/\/$/, "");
+  const consumerKey = String(
+    import.meta.env.WOOCOMMERCE_CONSUMER_KEY ||
+      process.env.WOOCOMMERCE_CONSUMER_KEY ||
+      ""
+  ).trim();
+  const consumerSecret = String(
+    import.meta.env.WOOCOMMERCE_CONSUMER_SECRET ||
+      process.env.WOOCOMMERCE_CONSUMER_SECRET ||
+      ""
+  ).trim();
+
+  return baseUrl && consumerKey && consumerSecret
+    ? { baseUrl, consumerKey, consumerSecret }
+    : null;
+}
+
 async function fetchJson(url, signal) {
   const response = await fetch(url, {
     headers: {
@@ -83,9 +104,13 @@ async function fetchWooProducts(baseUrl, signal) {
   if (!baseUrl) return [];
 
   const firstUrl = new URL(`${baseUrl}/wp-json/wc/store/v1/products`);
-  firstUrl.searchParams.set("per_page", "100");
+  firstUrl.searchParams.set("per_page", "50");
   firstUrl.searchParams.set("page", "1");
   firstUrl.searchParams.set("status", "publish");
+  firstUrl.searchParams.set(
+    "_fields",
+    "id,name,slug,sku,categories,images,variations"
+  );
 
   const first = await fetchJson(firstUrl, signal);
   const products = Array.isArray(first.payload) ? first.payload : [];
@@ -111,6 +136,7 @@ async function fetchWooProducts(baseUrl, signal) {
 async function loadCatalog() {
   const baseUrl = getWordPressBase();
   const coaEndpoint = getCoaEndpoint(baseUrl);
+  const privateCatalogConfig = getPrivateCatalogConfig();
   if (!coaEndpoint) throw new Error("The COA service is not configured.");
 
   const controller = new AbortController();
@@ -119,7 +145,9 @@ async function loadCatalog() {
   try {
     const [coaResult, productResult] = await Promise.allSettled([
       fetchJson(coaEndpoint, controller.signal),
-      fetchWooProducts(baseUrl, controller.signal),
+      privateCatalogConfig
+        ? fetchWooCatalog(privateCatalogConfig)
+        : fetchWooProducts(baseUrl, controller.signal),
     ]);
 
     if (coaResult.status !== "fulfilled") throw coaResult.reason;
@@ -150,7 +178,9 @@ async function loadCatalog() {
 async function getCatalog() {
   const now = Date.now();
   if (state.value && now < state.expiresAt) return state.value;
-  if (state.inFlight) return state.inFlight;
+  if (state.inFlight) {
+    return state.value && now < state.staleUntil ? state.value : state.inFlight;
+  }
 
   state.inFlight = loadCatalog()
     .then((value) => {
@@ -169,7 +199,7 @@ async function getCatalog() {
       state.inFlight = null;
     });
 
-  return state.inFlight;
+  return state.value && now < state.staleUntil ? state.value : state.inFlight;
 }
 
 export async function GET() {
