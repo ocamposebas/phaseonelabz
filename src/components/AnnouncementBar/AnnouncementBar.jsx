@@ -68,7 +68,7 @@ function AnnouncementLoop() {
 }
 
 export default function SiteHeader({
-  logoSrc = "/TRANSPARENCIA-03.png",
+  logoSrc = "/TRANSPARENCIA-03.webp",
   logoAlt = "Research Lab Logo",
 }) {
   const [hidden, setHidden] = useState(false);
@@ -117,7 +117,13 @@ export default function SiteHeader({
           <div className={`sh-nav-card ${showGlass ? "sh-nav-glass" : "sh-nav-clear"}`}>
             <nav className="sh-nav">
               <a href="/" className="sh-logo" aria-label="Home">
-                <img src={logoSrc} alt={logoAlt} />
+                <img
+                  src={logoSrc}
+                  alt={logoAlt}
+                  width="457"
+                  height="160"
+                  decoding="async"
+                />
               </a>
 
               <div className="sh-links">
@@ -197,7 +203,13 @@ export default function SiteHeader({
             <aside className="sh-mobile-panel">
               <div className="sh-mobile-top">
                 <a href="/">
-                  <img src={logoSrc} alt={logoAlt} />
+                  <img
+                    src={logoSrc}
+                    alt={logoAlt}
+                    width="457"
+                    height="160"
+                    decoding="async"
+                  />
                 </a>
 
                 <button

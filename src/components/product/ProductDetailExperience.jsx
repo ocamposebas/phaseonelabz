@@ -3,7 +3,7 @@ import { useEffect, useRef } from "react";
 import { CartProvider } from "../cart/CartContext";
 
 import Header from "../nav/Navbar.jsx";
-import CartDrawer from "../cart/CartDrawer.jsx";
+import DeferredCartDrawer from "../cart/DeferredCartDrawer.jsx";
 import ProductDetailSection from "./ProductDetailSection.jsx";
 import NewsletterSection from "../footer/NewsletterSection.jsx";
 import SiteFooter from "../footer/SiteFooter.jsx";
@@ -53,7 +53,7 @@ export default function ProductDetailExperience({
         </div>
       </main>
 
-      <CartDrawer />
+      <DeferredCartDrawer />
     </CartProvider>
   );
 }

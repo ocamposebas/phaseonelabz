@@ -15,7 +15,7 @@
   overscroll-behavior: none;
   padding: clamp(10px, 1.5vw, 22px);
   position: fixed;
-  z-index: 2147480000;
+  z-index: 2147483647;
 }
 
 .coa-guide *, .coa-guide *::before, .coa-guide *::after { box-sizing: border-box; }

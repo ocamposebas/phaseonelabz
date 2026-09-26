@@ -1,18 +1,14 @@
-/*
- * Home and catalog utilities only. Product-detail and editorial routes use
- * their own bundles so those larger class sets never block the storefront.
- */
+/* Home-page utilities only. */
 @import "tailwindcss" source(none);
 
 @source "../pages/index.astro";
-@source "../pages/shop.astro";
 @source "../components/cart";
-@source "../components/catalog";
+@source "../components/catalog/ProductCatalog.jsx";
+@source "../components/catalog/ShopByCategorySection.jsx";
 @source "../components/footer";
 @source "../components/hero";
 @source "../components/nav";
 @source "../components/promos";
 @source "../components/reputation";
 @source "../components/rewards";
-@source "../components/shipping";
-@source "../components/shop";
+@source "../components/shop/StorefrontChrome.jsx";

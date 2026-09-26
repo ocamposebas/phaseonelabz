@@ -1,6 +1,7 @@
 import {
   fetchWooCatalog,
   getCatalogThumbnailUrl,
+  getResponsiveImageCandidate,
 } from "../../lib/wooCatalog.js";
 
 export const prerender = false;
@@ -92,6 +93,11 @@ function normalizeProduct(product) {
   const fullSizeImage = firstImage?.src || product.image || "";
   const thumbnail =
     firstImage?.thumbnail || getCatalogThumbnailUrl(fullSizeImage);
+  const searchThumbnail =
+    firstImage?.searchThumbnail ||
+    firstImage?.search_thumbnail ||
+    getResponsiveImageCandidate(firstImage?.srcset || firstImage?.srcSet, 160) ||
+    thumbnail;
   const storePrices = product.prices || {};
   const categories = Array.isArray(product.categories)
     ? product.categories.map(({ id, name, slug }) => ({ id, name, slug }))
@@ -141,11 +147,12 @@ function normalizeProduct(product) {
     has_options: product.has_options === true,
     attributes,
     permalink: product.permalink || `/products/${product.slug}`,
-    image: thumbnail || fullSizeImage || "/placeholder-product.png",
+    image: thumbnail || fullSizeImage || "/tarro.webp",
     images: firstImage
       ? [{
           src: fullSizeImage,
           thumbnail,
+          searchThumbnail,
           alt: firstImage.alt || product.name || "",
         }]
       : [],

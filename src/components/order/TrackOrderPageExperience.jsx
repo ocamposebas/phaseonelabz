@@ -2,7 +2,7 @@ import "./TrackOrderPageExperience.styles.css";
 import { CartProvider } from "../cart/CartContext";
 
 import Header from "../nav/Navbar.jsx";
-import CartDrawer from "../cart/CartDrawer.jsx";
+import DeferredCartDrawer from "../cart/DeferredCartDrawer.jsx";
 import TrackOrderExperience from "./TrackOrderExperience.jsx";
 import NewsletterSection from "../footer/NewsletterSection.jsx";
 import SiteFooter from "../footer/SiteFooter.jsx";
@@ -23,7 +23,7 @@ export default function TrackOrderPageExperience() {
         </div>
       </main>
 
-      <CartDrawer />
+      <DeferredCartDrawer />
     </CartProvider>
   );
 }

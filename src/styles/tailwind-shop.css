@@ -1,0 +1,10 @@
+/* Catalog-page utilities kept separate from the home-page bundle. */
+@import "tailwindcss" source(none);
+
+@source "../pages/shop.astro";
+@source "../components/cart";
+@source "../components/catalog/ShopCatalogSection.jsx";
+@source "../components/footer";
+@source "../components/nav";
+@source "../components/shipping";
+@source "../components/shop/ShopPageExperience.jsx";

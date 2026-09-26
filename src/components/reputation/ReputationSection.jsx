@@ -222,11 +222,30 @@ export default function ReputationSection() {
   useEffect(() => {
     if (open || tabSources.length < 2) return undefined;
 
-    const rotationTimer = window.setInterval(() => {
-      setActiveSourceIndex((current) => (current + 1) % tabSources.length);
-    }, 4400);
+    let rotationTimer = 0;
+    const stopRotation = () => {
+      window.clearInterval(rotationTimer);
+      rotationTimer = 0;
+    };
+    const startRotation = () => {
+      stopRotation();
+      if (document.hidden) return;
+      rotationTimer = window.setInterval(() => {
+        setActiveSourceIndex((current) => (current + 1) % tabSources.length);
+      }, 4400);
+    };
+    const handleVisibility = () => {
+      if (document.hidden) stopRotation();
+      else startRotation();
+    };
 
-    return () => window.clearInterval(rotationTimer);
+    startRotation();
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      stopRotation();
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
   }, [open, tabSources.length]);
 
   if (!sources.length) return null;

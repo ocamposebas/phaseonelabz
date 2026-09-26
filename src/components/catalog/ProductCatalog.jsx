@@ -71,7 +71,7 @@ function getImage(product) {
     product?.images?.[0]?.src ||
     product?.images?.[0]?.url ||
     product?.featuredImage ||
-    "/tarro.png"
+    "/tarro.webp"
   );
 }
 
@@ -143,7 +143,7 @@ function prepareProduct(product = {}, index = 0) {
       product?.images?.[0]?.src ||
       product?.image ||
       product?.featuredImage ||
-      "/tarro.png",
+      "/tarro.webp",
     url,
     priceLabel,
     isInStock,

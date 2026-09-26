@@ -1,7 +1,7 @@
 import { CartProvider } from "../cart/CartContext";
 
 import SiteHeader from "../nav/Navbar.jsx";
-import CartDrawer from "../cart/CartDrawer.jsx";
+import DeferredCartDrawer from "../cart/DeferredCartDrawer.jsx";
 import RegisterForm from "./RegisterForm.jsx";
 
 export default function RegisterExperience() {
@@ -13,7 +13,7 @@ export default function RegisterExperience() {
         <RegisterForm />
       </main>
 
-      <CartDrawer />
+      <DeferredCartDrawer />
     </CartProvider>
   );
 }

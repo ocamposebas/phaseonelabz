@@ -2,7 +2,7 @@ import { CartProvider } from "../cart/CartContext";
 
 import Header from "../nav/Navbar.jsx";
 import ProductCatalog from "../catalog/ShopCatalogSection.jsx"
-import CartDrawer from "../cart/CartDrawer.jsx";
+import DeferredCartDrawer from "../cart/DeferredCartDrawer.jsx";
 
 export default function ShopExperience({ products = [] }) {
   return (
@@ -17,7 +17,7 @@ export default function ShopExperience({ products = [] }) {
         />
       </main> 
 
-      <CartDrawer />
+      <DeferredCartDrawer />
     </CartProvider>
   );
 }

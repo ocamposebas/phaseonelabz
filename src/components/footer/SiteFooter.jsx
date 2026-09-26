@@ -54,7 +54,7 @@ const paymentBadges = [
 ];
 
 export default function SiteFooter({
-  logoSrc = "TRANSPARENCIA-03.webp",
+  logoSrc = "/TRANSPARENCIA-03.webp",
   logoAlt = "Phase One Labz",
 }) {
   return (
@@ -69,8 +69,11 @@ export default function SiteFooter({
               <img
                 src={logoSrc}
                 alt={logoAlt}
+                width="457"
+                height="160"
                 className="h-11 w-auto object-contain sm:h-14"
                 loading="lazy"
+                decoding="async"
               />
             </a>
 

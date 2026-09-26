@@ -1,7 +1,7 @@
 import { CartProvider } from "../cart/CartContext";
 
 import SiteHeader from "../nav/Navbar.jsx";
-import CartDrawer from "../cart/CartDrawer.jsx";
+import DeferredCartDrawer from "../cart/DeferredCartDrawer.jsx";
 import ForgotP from "./ForgotPasswordPage.jsx";
 
 export default function AccountExperience() {
@@ -13,7 +13,7 @@ export default function AccountExperience() {
         <ForgotP />
       </main>
 
-      <CartDrawer />
+      <DeferredCartDrawer />
     </CartProvider>
   );
 }

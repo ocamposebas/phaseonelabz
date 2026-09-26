@@ -1,7 +1,7 @@
 import { CartProvider } from "../cart/CartContext";
 
 import Header from "../nav/Navbar.jsx";
-import CartDrawer from "../cart/CartDrawer.jsx";
+import DeferredCartDrawer from "../cart/DeferredCartDrawer.jsx";
 import Coa from "../data/COAPageExperience.jsx";
 import SiteFooter from "../footer/SiteFooter.jsx";
 import NewsletterSection from "../footer/NewsletterSection.jsx";
@@ -21,7 +21,7 @@ export default function ShopExperience({ products = [] }) {
           <SiteFooter />
         </main>
 
-        <CartDrawer />
+        <DeferredCartDrawer />
       </div>
     </CartProvider>
   );

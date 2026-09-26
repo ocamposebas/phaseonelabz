@@ -117,7 +117,7 @@ export default function Hero({
   const fallbackSrc = posterSrc || "/cover.webp";
   const showVideo = !videoFailed;
   const handleVideoError = () => {
-    if (videoRetryCountRef.current < 2) {
+    if (videoRetryCountRef.current < 1) {
       videoRetryCountRef.current += 1;
       setVideoAttempt((current) => current + 1);
       return;
@@ -138,7 +138,8 @@ export default function Hero({
           muted
           loop
           playsInline
-          preload="auto"
+          preload="metadata"
+          poster={fallbackSrc}
           disablePictureInPicture
           controlsList="nodownload nofullscreen noremoteplayback"
           aria-hidden="true"

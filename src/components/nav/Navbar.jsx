@@ -47,12 +47,14 @@ function normalizeSearchText(value) {
 
 function getProductImage(product) {
   return (
+    product?.images?.[0]?.searchThumbnail ||
+    product?.images?.[0]?.search_thumbnail ||
     product?.images?.[0]?.thumbnail ||
     product?.image ||
     product?.images?.[0]?.src ||
     product?.images?.[0]?.url ||
     product?.featuredImage ||
-    "/placeholder-product.png"
+    "/tarro.webp"
   );
 }
 
@@ -61,7 +63,7 @@ function getProductFullImage(product) {
     product?.images?.[0]?.src ||
     product?.images?.[0]?.url ||
     product?.image ||
-    "/placeholder-product.png"
+    "/tarro.webp"
   );
 }
 
@@ -286,7 +288,7 @@ function AnnouncementLoop() {
 }
 
 export default function SiteHeader({
-  logoSrc = "/TRANSPARENCIA-03.png",
+  logoSrc = "/TRANSPARENCIA-03.webp",
   logoAlt = "Research Lab Logo",
   isHome = false,
   showCart = true,
@@ -600,7 +602,13 @@ export default function SiteHeader({
               </button>
 
               <a href="/" className="sh-logo" aria-label="Home">
-                <img src={logoSrc} alt={logoAlt} />
+                <img
+                  src={logoSrc}
+                  alt={logoAlt}
+                  width="457"
+                  height="160"
+                  decoding="async"
+                />
               </a>
 
               <div className="sh-links">
@@ -942,7 +950,13 @@ export default function SiteHeader({
           >
             <div className="sh-mobile-top">
               <a href="/" onClick={() => setMobileOpen(false)}>
-                <img src={logoSrc} alt={logoAlt} />
+                <img
+                  src={logoSrc}
+                  alt={logoAlt}
+                  width="457"
+                  height="160"
+                  decoding="async"
+                />
               </a>
 
               <button

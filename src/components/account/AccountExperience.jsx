@@ -1,23 +1,9 @@
 import "./AccountExperience.styles.css";
-import { lazy, Suspense } from "react";
-import { CartProvider, useCart } from "../cart/CartContext";
+import { CartProvider } from "../cart/CartContext";
 
 import SiteHeader from "../nav/Navbar.jsx";
 import AccountDashboard from "./AccountDashboard.jsx";
-
-const CartDrawer = lazy(() => import("../cart/CartDrawer.jsx"));
-
-function DeferredCartDrawer() {
-  const { isCartOpen } = useCart();
-
-  if (!isCartOpen) return null;
-
-  return (
-    <Suspense fallback={null}>
-      <CartDrawer />
-    </Suspense>
-  );
-}
+import DeferredCartDrawer from "../cart/DeferredCartDrawer.jsx";
 
 export default function AccountExperience({ initialTab = "overview" }) {
   return (

@@ -1,7 +1,7 @@
 import { CartProvider } from "../cart/CartContext";
 
 import Header from "../nav/Navbar.jsx";
-import CartDrawer from "../cart/CartDrawer.jsx";
+import DeferredCartDrawer from "../cart/DeferredCartDrawer.jsx";
 import RestockStatusPanel from "./RestockStatusPanel.jsx";
 import SiteFooter from "../footer/SiteFooter.jsx";
 import NewsletterSection from "../footer/NewsletterSection.jsx";
@@ -17,7 +17,7 @@ export default function RestockStatusExperience() {
         <SiteFooter />
       </main>
 
-      <CartDrawer />
+      <DeferredCartDrawer />
     </CartProvider>
   );
 }

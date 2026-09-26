@@ -25,7 +25,7 @@ function getImage(product) {
     product?.images?.[0]?.url ||
     product?.image ||
     product?.featuredImage ||
-    "/tarro.png"
+    "/tarro.webp"
   );
 }
 
@@ -182,13 +182,13 @@ export default function SuggestedProductsSection({
                     className="suggested-product-image relative z-10 max-h-[132px] w-auto object-contain drop-shadow-[0_28px_42px_rgba(0,0,0,0.5)] transition duration-500 group-hover:scale-[1.04] sm:max-h-[220px] lg:max-h-[245px]"
                     style={{ animationDelay: `${index * 0.22}s` }}
                     onError={(event) => {
+                      const target = event.currentTarget;
                       const fallback =
                         product?.images?.[0]?.src ||
                         product?.image ||
-                        "/tarro.png";
-                      if (event.currentTarget.src !== fallback) {
-                        event.currentTarget.src = fallback;
-                      }
+                        "/tarro.webp";
+                      target.onerror = null;
+                      target.src = fallback;
                     }}
                   />
                 </div>

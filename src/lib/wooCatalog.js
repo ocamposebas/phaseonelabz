@@ -46,6 +46,29 @@ const CATALOG_PRODUCT_FIELDS = [
   "low_stock_remaining",
 ].join(",");
 
+const VARIATION_FIELDS = [
+  "id",
+  "name",
+  "slug",
+  "sku",
+  "description",
+  "short_description",
+  "status",
+  "price",
+  "regular_price",
+  "sale_price",
+  "on_sale",
+  "purchasable",
+  "stock_status",
+  "stock_quantity",
+  "manage_stock",
+  "backorders",
+  "backorders_allowed",
+  "backordered",
+  "attributes",
+  "image",
+].join(",");
+
 const CATALOG_DISCOUNT_META_KEYS = new Set([
   "_discount_percent",
   "discount_percent",
@@ -125,6 +148,23 @@ export function getCatalogThumbnailUrl(source, size = 300) {
   }
 }
 
+export function getResponsiveImageCandidate(srcset, targetWidth = 160) {
+  const candidates = String(srcset || "")
+    .split(",")
+    .map((candidate) => {
+      const match = candidate.trim().match(/^(\S+)\s+(\d+)w$/);
+      return match ? { url: match[1], width: Number(match[2]) } : null;
+    })
+    .filter(Boolean)
+    .sort((left, right) => left.width - right.width);
+
+  return (
+    candidates.find((candidate) => candidate.width >= targetWidth)?.url ||
+    candidates.at(-1)?.url ||
+    ""
+  );
+}
+
 function compactImage(image) {
   if (typeof image === "string") {
     return {
@@ -140,11 +180,17 @@ function compactImage(image) {
     image.sizes?.thumbnail ||
     image.sizes?.woocommerce_thumbnail ||
     getCatalogThumbnailUrl(src);
+  const searchThumbnail =
+    image.searchThumbnail ||
+    image.search_thumbnail ||
+    getResponsiveImageCandidate(image.srcset || image.srcSet, 160) ||
+    thumbnail;
 
   return {
     id: image.id,
     src,
     thumbnail,
+    searchThumbnail,
     alt: compactText(image.alt, 180),
   };
 }
@@ -434,6 +480,7 @@ export function fetchWooProductVariations({
 
   variationsUrl.searchParams.set("per_page", String(safeCount));
   variationsUrl.searchParams.set("status", "publish");
+  variationsUrl.searchParams.set("_fields", VARIATION_FIELDS);
 
   const request = fetchWooJson(variationsUrl, fetchImpl).then((variations) =>
     Array.isArray(variations) ? variations : []

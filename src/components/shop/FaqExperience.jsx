@@ -1,10 +1,9 @@
 import "./FaqExperience.styles.css";
-import React from "react";
 import { ArrowRight } from "lucide-react";
 import { CartProvider } from "../cart/CartContext";
 
 import Header from "../nav/Navbar.jsx";
-import CartDrawer from "../cart/CartDrawer.jsx";
+import DeferredCartDrawer from "../cart/DeferredCartDrawer.jsx";
 import SiteFooter from "../footer/SiteFooter.jsx";
 import New from "../footer/NewsletterSection.jsx";
 
@@ -267,7 +266,7 @@ export default function FaqExperience() {
         <SiteFooter />
       </main>
 
-      <CartDrawer />
+      <DeferredCartDrawer />
     </CartProvider>
   );
 }

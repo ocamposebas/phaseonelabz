@@ -1,5 +1,5 @@
 import { CartProvider } from "../cart/CartContext";
-import CartDrawer from "../cart/CartDrawer.jsx";
+import DeferredCartDrawer from "../cart/DeferredCartDrawer.jsx";
 import Header from "../nav/Navbar.jsx";
 
 export default function StorefrontChrome({ isHome = false }) {
@@ -10,7 +10,7 @@ export default function StorefrontChrome({ isHome = false }) {
         transparentOnTop={true}
         isHome={isHome}
       />
-      <CartDrawer />
+      <DeferredCartDrawer />
     </CartProvider>
   );
 }

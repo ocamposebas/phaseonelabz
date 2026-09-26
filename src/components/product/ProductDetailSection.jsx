@@ -203,7 +203,7 @@ function getProductImage(product) {
     product?.images?.[0]?.src ||
     product?.image ||
     product?.featuredImage ||
-    "/tarro.png"
+    "/tarro.webp"
   );
 }
 
@@ -2417,6 +2417,13 @@ export default function ProductDetailSection({
     setActiveImage({
       id: `variation-${selectedVariation?.id || variationImage}`,
       src: variationImage,
+      thumbnail:
+        selectedVariation?.image?.thumbnail || variationImage,
+      srcSet:
+        selectedVariation?.image?.srcset ||
+        selectedVariation?.image?.srcSet ||
+        "",
+      sizes: selectedVariation?.image?.sizes || "",
       alt: product?.name || "Selected product option",
       label: "Selected option",
     });
@@ -2724,6 +2731,11 @@ export default function ProductDetailSection({
 
               <img
                 src={displayImage}
+                srcSet={activeImage?.srcSet || undefined}
+                sizes={
+                  activeImage?.sizes ||
+                  "(max-width: 720px) 88vw, (max-width: 1200px) 48vw, 560px"
+                }
                 alt={activeImage?.alt || name}
                 width="900"
                 height="900"

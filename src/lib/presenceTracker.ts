@@ -1,7 +1,4 @@
-import {
-  classifyPresenceSection,
-  type PresenceSection,
-} from "./presenceSections";
+import { classifyPresenceSection } from "./presenceSections";
 
 const STORAGE_KEY = "phaseone_presence_session";
 const SOURCE_STORAGE_KEY = "phaseone_presence_source";
@@ -134,6 +131,7 @@ export function startPresenceTracker(options: StartOptions): TrackerHandle | nul
   let reconnectTimer: number | undefined;
   let hiddenTimer: number | undefined;
   let lastActivity = Date.now();
+  let lastScrollActivity = 0;
 
   const send = (payload: Record<string, unknown>): void => {
     if (socket?.readyState !== WebSocket.OPEN) return;
@@ -230,6 +228,13 @@ export function startPresenceTracker(options: StartOptions): TrackerHandle | nul
     }
   };
 
+  const markScrollActivity = (): void => {
+    const now = Date.now();
+    if (now - lastScrollActivity < 1000) return;
+    lastScrollActivity = now;
+    markActivity();
+  };
+
   const onVisibilityChange = (): void => {
     if (hiddenTimer) window.clearTimeout(hiddenTimer);
     hiddenTimer = undefined;
@@ -259,12 +264,12 @@ export function startPresenceTracker(options: StartOptions): TrackerHandle | nul
   const activityEvents: Array<keyof WindowEventMap> = [
     "pointerdown",
     "keydown",
-    "scroll",
     "touchstart",
   ];
   for (const eventName of activityEvents) {
     window.addEventListener(eventName, markActivity, { passive: true });
   }
+  window.addEventListener("scroll", markScrollActivity, { passive: true });
   document.addEventListener("visibilitychange", onVisibilityChange);
   window.addEventListener("phase-cart-state", onCartState);
   window.addEventListener("popstate", onRouteChange);
@@ -293,6 +298,7 @@ export function startPresenceTracker(options: StartOptions): TrackerHandle | nul
       for (const eventName of activityEvents) {
         window.removeEventListener(eventName, markActivity);
       }
+      window.removeEventListener("scroll", markScrollActivity);
       document.removeEventListener("visibilitychange", onVisibilityChange);
       window.removeEventListener("phase-cart-state", onCartState);
       window.removeEventListener("popstate", onRouteChange);

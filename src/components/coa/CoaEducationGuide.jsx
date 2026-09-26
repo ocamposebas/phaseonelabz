@@ -87,8 +87,8 @@ const STEPS = [
     id: "identity",
     number: "04",
     eyebrow: "Matching COA",
-    title: "Find the compound name.",
-    body: "The name printed on the COA must match the vial you selected.",
+    title: "Find the compound identity.",
+    body: "Read the product name or declared composition printed on the COA.",
     cue: "The frame marks the exact text.",
     navLabel: "Name",
     navHint: "Confirm compound",
@@ -667,6 +667,7 @@ export default function CoaEducationGuide({
   const [documentStatus, setDocumentStatus] = useState("idle");
   const [detectedTests, setDetectedTests] = useState([]);
   const [activeTestDetail, setActiveTestDetail] = useState(null);
+  const [activeFieldText, setActiveFieldText] = useState("");
   const [isPlaying, setIsPlaying] = useState(true);
   const [scanIntroActive, setScanIntroActive] = useState(true);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
@@ -762,6 +763,10 @@ export default function CoaEducationGuide({
     ? "No test is inferred from product metadata or badges."
     : reportedTestStep
       ? activeTestDetail.interpretation
+    : step.id === "identity" && activeFieldText
+      ? `Issued COA field: ${activeFieldText}`
+    : step.id === "purity" && activeFieldText
+      ? `Reported purity: ${activeFieldText}. This is not the vial quantity.`
     : step.id === "tests" && detectedTests.length
       ? `${detectedTests.length} tests found in this issued COA.`
       : step.cue;
@@ -809,6 +814,7 @@ export default function CoaEducationGuide({
     setDocumentStatus(matchedRecord?.document?.kind === "pdf" ? "loading" : "ready");
     setDetectedTests([]);
     setActiveTestDetail(null);
+    setActiveFieldText("");
     warmCoaDocument(matchedRecord, analysisName);
   }, [analysisName, recordFingerprint]);
 
@@ -844,6 +850,9 @@ export default function CoaEducationGuide({
     if (detail.status) setDocumentStatus(detail.status);
     if (Array.isArray(detail.tests)) {
       setDetectedTests(detail.tests);
+    }
+    if (typeof detail.activeFieldText === "string") {
+      setActiveFieldText(detail.activeFieldText);
     }
     if (detail.focusKey === "tests" && detail.activeTestDetail) {
       setActiveTestDetail(detail.activeTestDetail);

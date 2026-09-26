@@ -9,8 +9,8 @@ const ALLOWED_COA_HOSTS = new Set([
 const DOCUMENT_FOCUS_KEYS = new Set(["identity", "purity", "tests"]);
 const CALLOUT_COPY = Object.freeze({
   identity: {
-    label: "Compound name",
-    detail: "This name and presentation must match the vial.",
+    label: "Compound identity",
+    detail: "This product name or composition identifies the tested sample.",
   },
   purity: {
     label: "Purity result",
@@ -583,9 +583,10 @@ function findPurityAnchor(pages, purity = "") {
         if (!isUsableTextEntry(entry)) return false;
         const number = parseReportedNumber(entry.text);
         if (!Number.isFinite(number)) return false;
-        if (Number.isFinite(expectedValue)) {
-          return Math.abs(number - expectedValue) <= 0.005;
-        }
+        // Catalog values are sometimes rounded (for example 99%) while the
+        // issued certificate reports the measured value (for example 99.77%).
+        // The nearby Purity label is the source of truth; catalog metadata is
+        // useful for ranking but must never suppress a real percentage field.
         return /%/.test(entry.text) && number >= 0 && number <= 100;
       })
       .map((entry) => ({ ...entry, page: page.pageNumber })),
@@ -605,6 +606,12 @@ function findPurityAnchor(pages, purity = "") {
     let score = 1_200 - distance * 1_100;
     if (value.page === 1) score += 180;
     if (/%/.test(value.text)) score += 180;
+    if (Number.isFinite(expectedValue)) {
+      const delta = Math.abs(parseReportedNumber(value.text) - expectedValue);
+      if (delta <= 0.005) score += 420;
+      else if (delta <= 1) score += 210;
+      else score -= Math.min(delta * 30, 240);
+    }
     if (Math.abs(rectCenter(label.rect).x - rectCenter(value.rect).x) < 0.045) {
       score += 260;
     }
@@ -614,7 +621,7 @@ function findPurityAnchor(pages, purity = "") {
       best = {
         score,
         page: value.page,
-        rect: padRect(value.rect, 0.005, 0.004),
+        rect: padRect(value.rect, 0.003, 0.0015),
         contextRect: padRect(unionRects([label.rect, value.rect]), 0.018, 0.014),
         text: value.text,
       };
@@ -662,9 +669,44 @@ function findIdentityAnchor(pages, productName) {
         return {
           score: 2_000,
           page: page.pageNumber,
-          rect: padRect(value.rect, 0.005, 0.004),
+          rect: padRect(value.rect, 0.003, 0.0015),
           contextRect: padRect(unionRects([label.rect, value.rect]), 0.02, 0.016),
           text: value.text,
+        };
+      }
+
+      // Some catalog names are commercial blend names while the laboratory
+      // prints the actual compound composition. In that case a literal name
+      // match is impossible, but an explicit Product/Sample/Compound field is
+      // still an authoritative and deterministic identity target.
+      const labeledValue = page.entries
+        .filter((entry) => {
+          if (entry === label || !isUsableTextEntry(entry)) return false;
+          const center = rectCenter(entry.rect);
+          return (
+            entry.rect.x >= label.rect.x + label.rect.width - 0.01 &&
+            Math.abs(center.y - labelCenter.y) <=
+              Math.max(0.014, label.rect.height * 1.6) &&
+            /[a-z]/i.test(entry.text) &&
+            !/^(?:purity|identity|net content|appearance|result|status|unit)$/i.test(
+              entry.normalized,
+            )
+          );
+        })
+        .sort((left, right) => left.rect.x - right.rect.x)[0];
+
+      if (labeledValue) {
+        return {
+          score: 1_850,
+          page: page.pageNumber,
+          rect: padRect(labeledValue.rect, 0.003, 0.0015),
+          contextRect: padRect(
+            unionRects([label.rect, labeledValue.rect]),
+            0.02,
+            0.016,
+          ),
+          text: labeledValue.text,
+          source: "labeled-identity-field",
         };
       }
     }
@@ -707,7 +749,7 @@ function findIdentityAnchor(pages, productName) {
           best = {
             score,
             page: page.pageNumber,
-            rect: padRect(preciseRect, 0.005, 0.004),
+            rect: padRect(preciseRect, 0.003, 0.0015),
             contextRect: padRect(candidate.rect, 0.025, 0.018),
             text: candidate.text,
           };
@@ -1901,6 +1943,10 @@ export default function CoaPdfCanvas({
                   interpretation: explainReportedResult(target),
                 }
               : null,
+          activeFieldText:
+            normalizedFocus === "identity" || normalizedFocus === "purity"
+              ? target?.text || ""
+              : "",
           surfaceCache: preparedCacheHitRef.current ? "hit" : "prepared",
           visualMode: focusSnapshot ? "focus-image" : "full-image",
         });
@@ -1942,6 +1988,10 @@ export default function CoaPdfCanvas({
                   interpretation: explainReportedResult(target),
                 }
               : null,
+          activeFieldText:
+            normalizedFocus === "identity" || normalizedFocus === "purity"
+              ? target?.text || ""
+              : "",
           surfaceCache: preparedCacheHitRef.current ? "hit" : "prepared",
           visualMode: "full-image-fallback",
         });

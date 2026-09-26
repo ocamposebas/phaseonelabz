@@ -304,7 +304,7 @@ function getProductImage(product) {
     product?.images?.[0]?.src ||
     product?.images?.[0]?.url ||
     product?.featuredImage ||
-    "/placeholder-product.png"
+    "/tarro.webp"
   );
 }
 
@@ -2269,7 +2269,7 @@ const ProductCard = memo(function ProductCard({
               const fullSizeImage =
                 product?.images?.[0]?.src ||
                 product?.image ||
-                "/placeholder-product.png";
+                "/tarro.webp";
 
               target.onerror = null;
               target.src = fullSizeImage;
@@ -3134,7 +3134,7 @@ export default function ShopCatalogSection({
                       addToCart={addToCart}
                       onBundleAdd={addBundleItemToCart}
                       onOpenCoaGuide={openCoaEducation}
-                      imagePriority={index < 3}
+                      imagePriority={index === 0}
                     />
                   ))}
                 </div>
