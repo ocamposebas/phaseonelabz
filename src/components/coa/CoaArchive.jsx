@@ -343,7 +343,6 @@ export default function CoaArchive({ endpoint = "/api/coas" }) {
           <CoaEducationGuide
             record={education.record}
             productName={education.productName}
-            productImage={education.productImage}
             onClose={() => setEducation(null)}
             onOpenCertificate={(record) => {
               const productName = education.productName;

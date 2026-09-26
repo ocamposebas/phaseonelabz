@@ -1,5 +1,5 @@
 import "./ProductDetailSection.styles.css";
-import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   ArrowUpRight,
@@ -20,7 +20,6 @@ import {
   Palette,
   Plus,
   Ruler,
-  ScanLine,
   Send,
   ShieldCheck,
   ShoppingCart,
@@ -35,8 +34,6 @@ import {
   getCoaTestingPanel,
 } from "../../lib/coaModel.js";
 import { loadPublicCoaCatalog } from "../../lib/publicCoaClient.js";
-
-const CoaEducationGuide = lazy(() => import("../coa/CoaEducationGuide.jsx"));
 
 function formatMoney(value) {
   const number = Number(value || 0);
@@ -2364,7 +2361,6 @@ export default function ProductDetailSection({
   const [quantity, setQuantity] = useState(1);
   const [cartMessage, setCartMessage] = useState("");
   const [customOrderOpen, setCustomOrderOpen] = useState(false);
-  const [coaEducationOpen, setCoaEducationOpen] = useState(false);
   const [liveCoaRecords, setLiveCoaRecords] = useState([]);
   const [coaLibraryStatus, setCoaLibraryStatus] = useState("loading");
 
@@ -2493,19 +2489,6 @@ export default function ProductDetailSection({
     selectedOptionLabel,
     selectedAttributes
   );
-  const coaGuideProduct = useMemo(
-    () => ({
-      ...product,
-      variation_id: selectedVariation?.id || 0,
-      variationId: selectedVariation?.id || 0,
-      selectedVariationId: selectedVariation?.id || 0,
-      variationSku: selectedVariation?.sku || "",
-      selectedOption: selectedOptionLabel,
-      strength: selectedOptionLabel,
-    }),
-    [product, selectedOptionLabel, selectedVariation?.id, selectedVariation?.sku]
-  );
-
   const currentCoaUrl = currentCoaRecord ? getRecordUrl(currentCoaRecord) : "";
   const currentCoaLot = currentCoaRecord ? getRecordLot(currentCoaRecord) : "";
   const currentCoaDate = currentCoaRecord ? getRecordDate(currentCoaRecord) : "";
@@ -2744,21 +2727,6 @@ export default function ProductDetailSection({
                 decoding="async"
               />
             </div>
-
-            <button
-              type="button"
-              className="pdp-coa-education"
-              onClick={() => setCoaEducationOpen(true)}
-              aria-label={`Open guide: How to read the COA for ${name}`}
-            >
-              <span className="pdp-coa-education__mark"><ScanLine size={17} /></span>
-              <span className="pdp-coa-education__copy">
-                <small>COA field guide</small>
-                <strong>How to read your COA</strong>
-              </span>
-              <span className="pdp-coa-education__meta">Interactive · 60 sec</span>
-              <ArrowUpRight size={16} className="pdp-coa-education__arrow" />
-            </button>
 
             {gallery.length > 1 && (
               <div className="pdp-gallery-rail" aria-label="Product gallery">
@@ -3246,27 +3214,6 @@ export default function ProductDetailSection({
         />
       )}
 
-      {coaEducationOpen ? (
-        <Suspense fallback={null}>
-          <CoaEducationGuide
-            product={coaGuideProduct}
-            productName={currentCoaRecord?.product?.name || name}
-            productImage={{
-              src: displayImage,
-              alt: activeImage?.alt || name,
-            }}
-            record={currentCoaRecord}
-            onClose={() => setCoaEducationOpen(false)}
-            onOpenCertificate={(record) => {
-              const certificateUrl = getRecordUrl(record) || currentCoaUrl;
-              setCoaEducationOpen(false);
-              if (certificateUrl) {
-                window.open(certificateUrl, "_blank", "noopener,noreferrer");
-              }
-            }}
-          />
-        </Suspense>
-      ) : null}
     </section>
   );
 }

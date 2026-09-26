@@ -158,26 +158,17 @@ export default function CoaRecord({
             onLearn?.({
               record: selectedRecord,
               productName: selectedRecord.product?.name || family.name,
-              productImage: {
-                src: image.fullSrc || image.src || "",
-                srcSet: image.srcSet || "",
-                sizes: image.sizes || "",
-                alt:
-                  image.alt ||
-                  selectedRecord.product?.name ||
-                  family.name,
-              },
             })
           }
-          aria-label={`Open guide: How to read the COA for ${family.name}`}
+          aria-label={`Open COA field guide for ${family.name}`}
         >
           <span className="coa-family__learn-mark" aria-hidden="true">
             <ScanLine size={15} />
           </span>
           <span className="coa-family__learn-copy">
-            <small>COA guide</small>
+            <small>Field guide</small>
             <strong>
-              <span>Read your COA</span>
+              <span>Check this COA</span>
               <ArrowRight size={12} aria-hidden="true" />
             </strong>
           </span>

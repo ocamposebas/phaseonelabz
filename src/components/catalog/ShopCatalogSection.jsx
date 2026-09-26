@@ -1,8 +1,6 @@
 import "./shop-catalog-section.css";
 import {
-  lazy,
   memo,
-  Suspense,
   useCallback,
   useEffect,
   useMemo,
@@ -19,7 +17,6 @@ import {
   Filter,
   FlaskConical,
   Search,
-  ScanLine,
   ShoppingBag,
   SlidersHorizontal,
   Sparkles,
@@ -34,8 +31,6 @@ import {
   getProductCatalogCategory,
   resolveCatalogCategory,
 } from "../../lib/catalogTaxonomy";
-
-const CoaEducationGuide = lazy(() => import("../coa/CoaEducationGuide.jsx"));
 
 const RECON_WATER_IDENTIFIERS = new Set([
   "h-recon",
@@ -2003,7 +1998,6 @@ const ProductCard = memo(function ProductCard({
   item,
   addToCart,
   onBundleAdd,
-  onOpenCoaGuide,
   imagePriority = false,
 }) {
   const { product, name, category, price, pricing, image, url, availability } = item;
@@ -2198,23 +2192,6 @@ const ProductCard = memo(function ProductCard({
     [isUnavailable, loadMgOptions, onBundleAdd, product]
   );
 
-  const handleCoaGuide = useCallback(
-    (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      onOpenCoaGuide?.({
-        product,
-        productName: name,
-        productImage: {
-          src: product?.images?.[0]?.src || image,
-          alt: product?.images?.[0]?.alt || name,
-        },
-        record: null,
-      });
-    },
-    [image, name, onOpenCoaGuide, product]
-  );
-
   return (
     <article
       role="link"
@@ -2277,20 +2254,6 @@ const ProductCard = memo(function ProductCard({
           />
         </div>
       </div>
-
-      <button
-        type="button"
-        className="product-coa-guide"
-        onClick={handleCoaGuide}
-        aria-label={`Open guide: How to read the COA for ${name}`}
-      >
-        <span className="product-coa-guide__icon"><ScanLine size={15} /></span>
-        <span className="product-coa-guide__copy">
-          <small>COA field guide</small>
-          <strong>How to read your COA</strong>
-        </span>
-        <ArrowRight className="product-coa-guide__arrow" size={15} />
-      </button>
 
       <div className="product-float-body">
         <h3 className="product-float-title">{name}</h3>
@@ -2554,7 +2517,6 @@ export default function ShopCatalogSection({
   const [sortBy, setSortBy] = useState("popular");
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [coaEducationTarget, setCoaEducationTarget] = useState(null);
   const catalogResultsRef = useRef(null);
   const scrollAfterPageChangeRef = useRef(false);
 
@@ -2857,14 +2819,6 @@ export default function ShopCatalogSection({
     );
   }, []);
 
-  const openCoaEducation = useCallback((target) => {
-    setCoaEducationTarget(target);
-  }, []);
-
-  const closeCoaEducation = useCallback(() => {
-    setCoaEducationTarget(null);
-  }, []);
-
   return (
     <section className="product-catalog-section relative px-3 py-10 text-white sm:px-6 sm:py-14 lg:py-16">
       <div className="mx-auto max-w-7xl">
@@ -3133,7 +3087,6 @@ export default function ShopCatalogSection({
                       item={item}
                       addToCart={addToCart}
                       onBundleAdd={addBundleItemToCart}
-                      onOpenCoaGuide={openCoaEducation}
                       imagePriority={index === 0}
                     />
                   ))}
@@ -3246,17 +3199,6 @@ export default function ShopCatalogSection({
         </div>
       )}
 
-      {coaEducationTarget ? (
-        <Suspense fallback={null}>
-          <CoaEducationGuide
-            product={coaEducationTarget.product}
-            productName={coaEducationTarget.productName}
-            productImage={coaEducationTarget.productImage}
-            record={coaEducationTarget.record}
-            onClose={closeCoaEducation}
-          />
-        </Suspense>
-      ) : null}
     </section>
   );
 }
