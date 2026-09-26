@@ -327,16 +327,61 @@ function ProductStage({ image, name }) {
   );
 }
 
-function VialStage({ onInspect, type }) {
+function VialStage({ active = false, autoScan = false, onInspect, onScanStateChange, type }) {
   const isQr = type === "qr";
+  const shouldAutoScan = active && autoScan;
   const [inspected, setInspected] = useState(false);
+  const [scanPhase, setScanPhase] = useState(shouldAutoScan ? "scanning" : "idle");
+  const scanTimerRef = useRef(null);
+  const onInspectRef = useRef(onInspect);
+  const onScanStateChangeRef = useRef(onScanStateChange);
 
-  useEffect(() => setInspected(false), [type]);
+  useEffect(() => {
+    onInspectRef.current = onInspect;
+    onScanStateChangeRef.current = onScanStateChange;
+  }, [onInspect, onScanStateChange]);
+
+  const runScan = useCallback((manual = false) => {
+    window.clearTimeout(scanTimerRef.current);
+    setInspected(false);
+    setScanPhase("scanning");
+    onScanStateChangeRef.current?.("scanning");
+
+    if (manual) {
+      onInspectRef.current?.();
+      window.navigator?.vibrate?.(18);
+    }
+
+    scanTimerRef.current = window.setTimeout(() => {
+      setInspected(true);
+      setScanPhase("matched");
+      onScanStateChangeRef.current?.("matched");
+      if (manual) window.navigator?.vibrate?.([22, 34, 22]);
+    }, 1_050);
+  }, []);
+
+  useEffect(() => {
+    window.clearTimeout(scanTimerRef.current);
+    setInspected(false);
+    setScanPhase(shouldAutoScan ? "scanning" : "idle");
+    onScanStateChangeRef.current?.(shouldAutoScan ? "scanning" : "idle");
+
+    if (shouldAutoScan) {
+      const startTimer = window.setTimeout(() => runScan(false), 90);
+      return () => {
+        window.clearTimeout(startTimer);
+        window.clearTimeout(scanTimerRef.current);
+      };
+    }
+
+    return () => window.clearTimeout(scanTimerRef.current);
+  }, [runScan, shouldAutoScan, type]);
 
   return (
     <div
-      className={`coa-guide-vial-stage is-${type} ${inspected ? "is-inspected" : ""}`}
+      className={`coa-guide-vial-stage is-${type} is-${scanPhase} ${inspected ? "is-inspected" : ""}`}
       data-vial-face={type}
+      data-scan-phase={scanPhase}
     >
       <ScientificPrism variant={type} />
       <div className="coa-guide-vial-media">
@@ -376,13 +421,7 @@ function VialStage({ onInspect, type }) {
                 : "Inspect the vial batch area"
           }
           aria-pressed={inspected}
-          onClick={() => {
-            setInspected((current) => {
-              const next = !current;
-              if (next) onInspect?.();
-              return next;
-            });
-          }}
+          onClick={() => runScan(true)}
         >
           <span />
           <i />
@@ -391,8 +430,10 @@ function VialStage({ onInspect, type }) {
           <small>{isQr ? "02 / VERIFICATION" : "03 / TRACEABILITY"}</small>
           <strong>{isQr ? "QR code" : "Batch number"}</strong>
           <span>
-            {inspected
-              ? "Area highlighted"
+            {scanPhase === "scanning"
+              ? "Scanning vial detail..."
+              : inspected
+                ? "Match located · tap to replay"
               : isQr
                 ? "Tap to inspect"
                 : "Tap to match"}
@@ -507,7 +548,7 @@ function DocumentStage({ focusKey, onStatus, productName, record, status, vialIm
   return <ExternalCertificateStage record={record} productName={productName} />;
 }
 
-function GuideStage({ image, onDocumentStatus, onVialInspect, productName, record, status, step }) {
+function GuideStage({ compact, image, onDocumentStatus, onVialInspect, onVialScanState, productName, record, status, step }) {
   const activeScene =
     step.id === "product"
       ? "product"
@@ -532,7 +573,13 @@ function GuideStage({ image, onDocumentStatus, onVialInspect, productName, recor
         aria-hidden={activeScene !== "vial"}
         inert={activeScene !== "vial"}
       >
-        <VialStage onInspect={onVialInspect} type={vialType} />
+        <VialStage
+          active={activeScene === "vial"}
+          autoScan={compact}
+          onInspect={onVialInspect}
+          onScanStateChange={onVialScanState}
+          type={vialType}
+        />
       </div>
 
       <div
@@ -649,6 +696,12 @@ export default function CoaEducationGuide({
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
   const [pageVisible, setPageVisible] = useState(true);
   const [playbackRun, setPlaybackRun] = useState(0);
+  const [compactLayout, setCompactLayout] = useState(() =>
+    typeof window !== "undefined"
+      ? window.matchMedia?.("(max-width: 760px)")?.matches ?? false
+      : false,
+  );
+  const [vialScanState, setVialScanState] = useState("idle");
   const dialogRef = useRef(null);
   const closeRef = useRef(null);
   const onCloseRef = useRef(onClose);
@@ -683,9 +736,12 @@ export default function CoaEducationGuide({
     recordStatus === "ready" &&
     isPdfDocument &&
     !documentReady;
+  const vialSceneActive = step.id === "qr" || step.id === "batch";
   const scanState =
     recordStatus === "error"
       ? "error"
+      : vialSceneActive && vialScanState === "scanning"
+        ? "scanning"
       : scanIntroActive || recordStatus === "loading" || documentSceneBusy
         ? "scanning"
       : recordStatus !== "ready"
@@ -696,7 +752,11 @@ export default function CoaEducationGuide({
             ? "ready"
             : "scanning";
   const scanLabel =
-    scanState === "ready"
+    vialSceneActive && vialScanState === "scanning"
+      ? `Scanning ${step.id === "qr" ? "QR area" : "batch field"}...`
+      : vialSceneActive && vialScanState === "matched"
+        ? `${step.id === "qr" ? "QR area" : "Batch field"} located`
+      : scanState === "ready"
       ? "Matching COA ready"
       : scanState === "scanning" || scanState === "loading"
         ? "Scanning matching COA..."
@@ -794,17 +854,22 @@ export default function CoaEducationGuide({
     });
 
     const media = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+    const compactMedia = window.matchMedia?.("(max-width: 760px)");
     const syncPreference = () => {
       const reduced = Boolean(media?.matches);
       setPrefersReducedMotion(reduced);
       if (reduced) setIsPlaying(false);
     };
+    const syncCompactLayout = () => setCompactLayout(Boolean(compactMedia?.matches));
     syncPreference();
+    syncCompactLayout();
     media?.addEventListener?.("change", syncPreference);
+    compactMedia?.addEventListener?.("change", syncCompactLayout);
     const syncVisibility = () => setPageVisible(!document.hidden);
     document.addEventListener("visibilitychange", syncVisibility);
     return () => {
       media?.removeEventListener?.("change", syncPreference);
+      compactMedia?.removeEventListener?.("change", syncCompactLayout);
       document.removeEventListener("visibilitychange", syncVisibility);
     };
   }, []);
@@ -995,9 +1060,11 @@ export default function CoaEducationGuide({
             </div>
             <div className="coa-guide__scene">
               <GuideStage
+                compact={compactLayout}
                 image={resolvedImage}
                 onDocumentStatus={handleDocumentStatus}
                 onVialInspect={() => setIsPlaying(false)}
+                onVialScanState={setVialScanState}
                 productName={analysisName}
                 record={matchedRecord}
                 status={recordStatus}
