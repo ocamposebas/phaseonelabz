@@ -366,7 +366,15 @@ function VialStage({ onInspect, type }) {
         <button
           type="button"
           className="coa-guide-vial-target"
-          aria-label={isQr ? "Inspect the verification QR area" : "Inspect the vial batch area"}
+          aria-label={
+            inspected
+              ? isQr
+                ? "QR verification area highlighted"
+                : "Batch area highlighted"
+              : isQr
+                ? "Inspect the verification QR area"
+                : "Inspect the vial batch area"
+          }
           aria-pressed={inspected}
           onClick={() => {
             setInspected((current) => {
@@ -382,7 +390,13 @@ function VialStage({ onInspect, type }) {
         <div className="coa-guide-vial-callout" aria-hidden="true">
           <small>{isQr ? "02 / VERIFICATION" : "03 / TRACEABILITY"}</small>
           <strong>{isQr ? "QR code" : "Batch number"}</strong>
-          <span>{isQr ? "Partially protected" : "Match with the COA"}</span>
+          <span>
+            {inspected
+              ? "Area highlighted"
+              : isQr
+                ? "Tap to inspect"
+                : "Tap to match"}
+          </span>
         </div>
       </div>
       <span className="coa-guide-privacy-chip">
@@ -661,11 +675,18 @@ export default function CoaEducationGuide({
   ].filter(Boolean).join("|");
   const canOpenCertificate = Boolean(documentUrl);
   const isPdfDocument = matchedRecord?.document?.kind === "pdf";
-  const documentReady = ["ready", "error"].includes(documentStatus);
+  const documentReady = ["preview-ready", "analyzed", "ready", "error"].includes(
+    documentStatus,
+  );
+  const documentSceneBusy =
+    DOCUMENT_STEP_IDS.has(step.id) &&
+    recordStatus === "ready" &&
+    isPdfDocument &&
+    !documentReady;
   const scanState =
     recordStatus === "error"
       ? "error"
-      : scanIntroActive
+      : scanIntroActive || recordStatus === "loading" || documentSceneBusy
         ? "scanning"
       : recordStatus !== "ready"
         ? recordStatus

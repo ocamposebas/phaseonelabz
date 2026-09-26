@@ -897,6 +897,7 @@
   aspect-ratio: 1;
   max-height: min(470px, 94%);
   position: relative;
+  transition: transform 520ms cubic-bezier(0.16, 1, 0.3, 1);
   width: min(470px, 54vw);
   z-index: 3;
 }
@@ -943,9 +944,15 @@
   cursor: zoom-in;
   height: 18%;
   left: 38%;
+  overflow: hidden;
   padding: 0;
   position: absolute;
+  touch-action: manipulation;
   top: 60%;
+  transition:
+    background 180ms ease,
+    border-color 180ms ease,
+    box-shadow 220ms ease;
   width: 20%;
   z-index: 8;
 }
@@ -958,9 +965,55 @@
   outline: none;
 }
 
-.coa-guide-vial-target span,
+.coa-guide-vial-target span {
+  background: linear-gradient(90deg, transparent, #9af4ff, transparent);
+  box-shadow: 0 0 9px rgba(111, 233, 250, 0.72);
+  height: 1px;
+  left: 4px;
+  opacity: 0;
+  position: absolute;
+  right: 4px;
+  top: 4px;
+}
+
 .coa-guide-vial-target i {
-  display: none;
+  border: 1px solid rgba(197, 248, 255, 0.48);
+  border-radius: 2px;
+  inset: 4px;
+  opacity: 0;
+  position: absolute;
+  transition: opacity 180ms ease;
+}
+
+.coa-guide-vial-stage.is-inspected .coa-guide-vial-media {
+  transform: scale(1.055);
+}
+
+.coa-guide-vial-stage.is-inspected .coa-guide-vial-target {
+  background: rgba(111, 233, 250, 0.12);
+  border-color: #c7f8ff;
+  box-shadow:
+    0 0 0 3px rgba(111, 233, 250, 0.08),
+    0 0 22px rgba(111, 233, 250, 0.2);
+}
+
+.coa-guide-vial-stage.is-inspected .coa-guide-vial-target span {
+  animation: coa-vial-target-scan 1.15s linear infinite;
+  opacity: 1;
+}
+
+.coa-guide-vial-stage.is-inspected .coa-guide-vial-target i {
+  opacity: 1;
+}
+
+.coa-guide-vial-stage.is-inspected .coa-guide-vial-callout {
+  background: rgba(5, 24, 34, 0.97);
+  border-color: rgba(111, 233, 250, 0.48);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.26);
+}
+
+.coa-guide-vial-stage.is-inspected .coa-guide-vial-callout span {
+  color: #8feafa;
 }
 
 .coa-guide-vial-stage.is-batch .coa-guide-vial-target {
@@ -1664,6 +1717,18 @@
   100% { opacity: 0; transform: translateY(680%); }
 }
 
+@keyframes coa-opening-scan-mobile {
+  0% { opacity: 0; transform: translateY(0); }
+  14% { opacity: 0.82; }
+  78% { opacity: 0.5; }
+  100% { opacity: 0; transform: translateY(calc(100dvh - 58px)); }
+}
+
+@keyframes coa-vial-target-scan {
+  from { transform: translateY(0); }
+  to { transform: translateY(80px); }
+}
+
 @keyframes coa-step-progress {
   to { transform: scaleX(1); }
 }
@@ -1789,7 +1854,8 @@
   }
 
   .coa-guide__header {
-    grid-template-columns: 1fr auto;
+    gap: 8px;
+    grid-template-columns: auto minmax(0, 1fr) auto;
     padding: 0 12px;
   }
 
@@ -1799,9 +1865,45 @@
   }
 
   .coa-guide__brand small,
-  .coa-guide__record-pill,
   .coa-guide__close span {
     display: none;
+  }
+
+  .coa-guide__brand {
+    gap: 7px;
+  }
+
+  .coa-guide__brand strong {
+    font-size: 0.59rem;
+    letter-spacing: 0.11em;
+  }
+
+  .coa-guide__record-pill {
+    background: rgba(111, 233, 250, 0.045);
+    border: 1px solid rgba(111, 233, 250, 0.12);
+    border-radius: 999px;
+    font-size: 0.45rem;
+    gap: 6px;
+    justify-self: center;
+    max-width: 100%;
+    min-width: 0;
+    padding: 6px 8px;
+  }
+
+  .coa-guide__record-pill span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .coa-guide__record-pill i {
+    flex: 0 0 auto;
+    height: 5px;
+    width: 5px;
+  }
+
+  .coa-guide__close {
+    padding: 7px;
   }
 
   .coa-guide__body {
@@ -1810,11 +1912,28 @@
       "copy"
       "roadmap";
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(0, 1fr) 142px 58px;
+    grid-template-rows: minmax(0, 1fr) 128px 52px;
   }
 
   .coa-guide__visual {
     border-right: 0;
+  }
+
+  .coa-guide__visual::after {
+    height: 44px;
+    top: -44px;
+  }
+
+  .coa-guide__visual[data-scan-state="scanning"]::after {
+    animation: coa-opening-scan-mobile 1.55s linear infinite;
+    background: linear-gradient(
+      180deg,
+      transparent,
+      rgba(111, 233, 250, 0.05) 28%,
+      rgba(145, 243, 255, 0.42) 50%,
+      rgba(111, 233, 250, 0.05) 72%,
+      transparent
+    );
   }
 
   .coa-guide-prism,
@@ -1841,9 +1960,9 @@
 
   .coa-guide__copy {
     border-top: 1px solid var(--coa-line);
-    height: 142px;
+    height: 128px;
     overflow: hidden;
-    padding: 9px 13px 10px;
+    padding: 8px 13px 9px;
   }
 
   .coa-guide__copy-top {
@@ -1876,11 +1995,11 @@
   }
 
   .coa-guide__body[data-scene="tests"] {
-    grid-template-rows: minmax(0, 1fr) 180px 58px;
+    grid-template-rows: minmax(0, 1fr) 166px 52px;
   }
 
   .coa-guide__body[data-scene="tests"] .coa-guide__copy {
-    height: 180px;
+    height: 166px;
   }
 
   .coa-guide__body[data-scene="tests"] .coa-guide__cue {
@@ -1893,12 +2012,12 @@
   }
 
   .coa-guide__roadmap {
-    padding: 6px 7px;
+    padding: 5px 7px;
     scroll-snap-type: x proximity;
   }
 
   .coa-guide__roadmap ol {
-    grid-auto-columns: 94px;
+    grid-auto-columns: 88px;
     grid-auto-flow: column;
     grid-template-columns: none;
     min-width: max-content;
@@ -1909,7 +2028,7 @@
   }
 
   .coa-guide__roadmap button {
-    height: 45px;
+    height: 41px;
     padding: 4px 6px;
   }
 
@@ -1947,20 +2066,20 @@
 
   .coa-guide-product-stage,
   .coa-guide-vial-stage {
-    padding: 40px 8px 16px;
+    padding: 42px 12px 12px;
   }
 
   .coa-guide-product-media {
-    max-height: min(330px, 91%);
-    width: min(330px, 88vw);
+    max-height: min(310px, 84%);
+    width: min(290px, 76vw);
   }
 
   .coa-guide-product-label {
     bottom: auto;
-    left: 8px;
+    left: 12px;
     right: auto;
-    top: var(--coa-product-callout-top);
-    width: 142px;
+    top: -50px;
+    width: min(154px, calc(100% - 24px));
   }
 
   .coa-guide-product-label::before,
@@ -1968,27 +2087,36 @@
     display: none;
   }
 
-  .coa-guide-product-label::before {
-    display: block;
-    left: 100%;
-    width: 14px;
-  }
-
-  .coa-guide-product-label::after {
-    display: block;
-    left: calc(100% + 12px);
-  }
-
   .coa-guide-vial-media {
-    max-height: min(350px, 94%);
-    width: min(350px, 94vw);
+    max-height: min(320px, 88%);
+    width: min(315px, 84vw);
   }
 
   .coa-guide-vial-callout {
-    left: auto;
+    bottom: auto;
+    left: -23px;
     padding: 7px 8px;
-    right: 8px;
-    width: 128px;
+    right: auto;
+    top: 38%;
+    width: 112px;
+  }
+
+  .coa-guide-vial-stage.is-batch .coa-guide-vial-callout {
+    top: 38%;
+  }
+
+  .coa-guide-vial-callout::before,
+  .coa-guide-vial-callout::after {
+    display: none;
+  }
+
+  .coa-guide-vial-stage.is-inspected .coa-guide-vial-media {
+    transform: scale(1.035);
+  }
+
+  .coa-guide-vial-stage.is-batch .coa-guide-vial-target {
+    height: max(8%, 44px);
+    top: 53.5%;
   }
 
   .coa-guide-privacy-chip {
@@ -1996,41 +2124,31 @@
   }
 
   .coa-live {
-    padding: 40px 8px 26px;
+    padding: 42px 12px 24px;
   }
 
   .coa-live-composition {
-    height: min(350px, calc(100% - 2px));
-    max-width: 520px;
+    height: min(360px, calc(100% - 2px));
+    max-width: 560px;
   }
 
   .coa-live-sheet {
-    left: 0;
-    width: 88px;
+    display: none;
   }
 
   .coa-live-vial-reference {
-    bottom: 25px;
-    left: 67px;
-    width: 48px;
-  }
-
-  .coa-live-vial-reference span {
     display: none;
   }
 
   .coa-live-detail {
+    left: 0;
     right: 0;
-    width: calc(100% - 106px);
+    width: 100%;
   }
 
-  .coa-live-detail::before {
-    left: -16px;
-    width: 11px;
-  }
-
+  .coa-live-detail::before,
   .coa-live-detail::after {
-    left: -6px;
+    display: none;
   }
 
   .coa-live-detail__header {
@@ -2039,7 +2157,7 @@
 
   .coa-live-detail__header span,
   .coa-live-detail__header small {
-    font-size: 0.36rem;
+    font-size: 0.4rem;
   }
 
   .coa-live-viewport {
@@ -2047,15 +2165,16 @@
   }
 
   .coa-live-detail-caption {
-    min-height: 30px;
+    min-height: 32px;
+    padding-inline: 2px;
   }
 
   .coa-live-detail-caption strong {
-    font-size: 0.51rem;
+    font-size: 0.56rem;
   }
 
   .coa-live-detail-caption span {
-    font-size: 0.41rem;
+    font-size: 0.46rem;
     -webkit-line-clamp: 1;
   }
 
@@ -2107,11 +2226,11 @@
 
 @media (max-width: 430px) {
   .coa-guide__body {
-    grid-template-rows: minmax(0, 1fr) 138px 58px;
+    grid-template-rows: minmax(0, 1fr) 124px 52px;
   }
 
   .coa-guide__copy {
-    height: 138px;
+    height: 124px;
     padding: 8px 12px;
   }
 
@@ -2120,33 +2239,24 @@
   }
 
   .coa-guide-product-media {
-    width: min(310px, 88vw);
+    width: min(270px, 74vw);
   }
 
   .coa-guide-vial-media {
-    width: min(325px, 94vw);
+    width: min(290px, 82vw);
   }
 
   .coa-guide-vial-callout {
-    left: 62%;
-    width: 119px;
+    left: -23px;
+    width: 112px;
   }
 
   .coa-live-composition {
     height: min(310px, calc(100% - 2px));
   }
 
-  .coa-live-sheet {
-    width: 82px;
-  }
-
-  .coa-live-vial-reference {
-    left: 62px;
-    width: 45px;
-  }
-
   .coa-live-detail {
-    width: calc(100% - 99px);
+    width: 100%;
   }
 
   .coa-live[data-coa-live-focus="tests"] .coa-live-composition {

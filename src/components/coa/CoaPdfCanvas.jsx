@@ -158,6 +158,20 @@ const MAX_CACHED_PDFS = 8;
 const preparedCoaCache = new Map();
 const MAX_PREPARED_COAS = 8;
 const PAGE_SNAPSHOT_WIDTH = 1_200;
+const COMPACT_PAGE_SNAPSHOT_WIDTH = 840;
+const FOCUS_SNAPSHOT_SIZE = Object.freeze({ width: 1_280, height: 800 });
+const COMPACT_FOCUS_SNAPSHOT_SIZE = Object.freeze({ width: 900, height: 563 });
+
+function usesCompactRenderProfile() {
+  if (typeof window === "undefined") return false;
+  const narrowViewport = window.matchMedia?.("(max-width: 760px)")?.matches;
+  const limitedMemory = Number(navigator.deviceMemory || 0) > 0 && navigator.deviceMemory <= 4;
+  return Boolean(narrowViewport || limitedMemory);
+}
+
+function renderProfileName() {
+  return usesCompactRenderProfile() ? "compact" : "full";
+}
 
 function loadPdfJs() {
   if (!pdfJsPromise) {
@@ -1232,7 +1246,10 @@ async function decodeSnapshotUrl(url) {
 async function renderPageSnapshot({ pdf, pageNumber, redactions }) {
   const page = await pdf.getPage(pageNumber);
   const baseViewport = page.getViewport({ scale: 1 });
-  const renderScale = clamp(PAGE_SNAPSHOT_WIDTH / baseViewport.width, 1, 3);
+  const targetWidth = usesCompactRenderProfile()
+    ? COMPACT_PAGE_SNAPSHOT_WIDTH
+    : PAGE_SNAPSHOT_WIDTH;
+  const renderScale = clamp(targetWidth / baseViewport.width, 1, 3);
   const viewport = page.getViewport({ scale: renderScale });
   const canvas = document.createElement("canvas");
   const context = canvas.getContext("2d", { alpha: false });
@@ -1336,8 +1353,11 @@ async function renderFocusSnapshot(snapshot, target) {
   const context = canvas.getContext("2d", { alpha: false });
   if (!context) throw new Error("COA focus rendering is unavailable.");
 
-  canvas.width = 1280;
-  canvas.height = 800;
+  const outputSize = usesCompactRenderProfile()
+    ? COMPACT_FOCUS_SNAPSHOT_SIZE
+    : FOCUS_SNAPSHOT_SIZE;
+  canvas.width = outputSize.width;
+  canvas.height = outputSize.height;
   context.fillStyle = "#ffffff";
   context.fillRect(0, 0, canvas.width, canvas.height);
   context.drawImage(
@@ -1409,6 +1429,7 @@ function preparedCoaKey({
     normalizeText(productName),
     normalizeText(batch),
     normalizeText(purity),
+    renderProfileName(),
   ].join("\n");
 }
 
